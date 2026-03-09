@@ -1,53 +1,39 @@
-# Multi-stage Dockerfile for RTKLIB Web UI
-# Stage 1: Build RTKLIB from source
+# Multi-stage Dockerfile for MRTKLIB Web UI
+# Stage 1: Build MRTKLIB from source
 # Stage 2: Build frontend
 # Stage 3: Build backend with uv
 # Stage 4: Runtime
 
 # ================================
-# Stage 1: Build RTKLIB from source
+# Stage 1: Build MRTKLIB from source
 # ================================
-FROM debian:bookworm-slim AS rtklib-builder
+FROM debian:bookworm-slim AS mrtklib-builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    cmake \
     git \
-    gfortran \
     ca-certificates \
+    liblapack-dev \
+    libopenblas-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
-# Clone official RTKLIB (tomojitakasu) rtklib_2.4.3 branch
-RUN git clone --depth 1 --branch rtklib_2.4.3 https://github.com/tomojitakasu/RTKLIB.git
+# Clone MRTKLIB
+RUN git clone --depth 1 https://github.com/h-shiono/MRTKLIB.git
 
-# Build IERS library (required for rnx2rtkp)
-WORKDIR /build/RTKLIB/lib/iers/gcc
-RUN make
+# Build MRTKLIB with CMake
+WORKDIR /build/MRTKLIB
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build build -j$(nproc)
 
-# Build str2str
-WORKDIR /build/RTKLIB/app/consapp/str2str/gcc
-RUN make && strip str2str
-
-# Build convbin
-WORKDIR /build/RTKLIB/app/consapp/convbin/gcc
-RUN make && strip convbin
-
-# Build rnx2rtkp
-WORKDIR /build/RTKLIB/app/consapp/rnx2rtkp/gcc
-RUN make && strip rnx2rtkp
-
-# Build rtkrcv (optional, for real-time positioning)
-WORKDIR /build/RTKLIB/app/consapp/rtkrcv/gcc
-RUN make && strip rtkrcv || true
-
-# Collect binaries
-RUN mkdir -p /rtklib-bin && \
-    cp /build/RTKLIB/app/consapp/str2str/gcc/str2str /rtklib-bin/ && \
-    cp /build/RTKLIB/app/consapp/convbin/gcc/convbin /rtklib-bin/ && \
-    cp /build/RTKLIB/app/consapp/rnx2rtkp/gcc/rnx2rtkp /rtklib-bin/ && \
-    (cp /build/RTKLIB/app/consapp/rtkrcv/gcc/rtkrcv /rtklib-bin/ || true)
+# Strip binaries and collect them
+RUN mkdir -p /mrtklib-bin && \
+    for bin in rnx2rtkp rtkrcv recvbias ssr2obs ssr2osr dumpcssr cssr2rtcm3; do \
+        if [ -f build/$bin ]; then strip build/$bin && cp build/$bin /mrtklib-bin/; fi; \
+    done
 
 # ================================
 # Stage 2: Build Frontend
@@ -85,19 +71,18 @@ FROM python:3.12-slim-bookworm AS runtime
 
 WORKDIR /app
 
-# Install runtime dependencies for RTKLIB
+# Install runtime dependencies for MRTKLIB
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgfortran5 \
+    liblapack3 \
+    libopenblas0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy RTKLIB binaries from builder
-COPY --from=rtklib-builder /rtklib-bin/str2str /usr/local/bin/str2str
-COPY --from=rtklib-builder /rtklib-bin/convbin /usr/local/bin/convbin
-COPY --from=rtklib-builder /rtklib-bin/rnx2rtkp /usr/local/bin/rnx2rtkp
-RUN chmod +x /usr/local/bin/str2str /usr/local/bin/convbin /usr/local/bin/rnx2rtkp
+# Copy MRTKLIB binaries from builder
+COPY --from=mrtklib-builder /mrtklib-bin/ /usr/local/bin/
+RUN chmod +x /usr/local/bin/rnx2rtkp
 
-# Verify binaries are installed
-RUN ls -la /usr/local/bin/str2str /usr/local/bin/convbin /usr/local/bin/rnx2rtkp
+# Verify rnx2rtkp is installed
+RUN ls -la /usr/local/bin/rnx2rtkp
 
 # Copy virtual environment from backend builder
 COPY --from=backend-builder /app/.venv /app/.venv
