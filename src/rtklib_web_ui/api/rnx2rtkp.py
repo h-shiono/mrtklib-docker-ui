@@ -269,26 +269,26 @@ async def list_jobs() -> list[str]:
 
 
 class ExportConfRequest(BaseModel):
-    """Request to export configuration as .conf file."""
+    """Request to export configuration as TOML file."""
 
     config: Rnx2RtkpConfig
 
 
 @router.post("/export-conf")
 async def export_conf(request: ExportConfRequest) -> PlainTextResponse:
-    """Generate and return RTKLIB .conf file content from configuration.
+    """Generate and return MRTKLIB TOML configuration file content.
 
     Args:
         request: Configuration to export
 
     Returns:
-        Plain text .conf file content with download headers
+        TOML file content with download headers
     """
     service = Rnx2RtkpService()
     content = service.generate_conf_file(request.config)
     return PlainTextResponse(
         content=content,
         headers={
-            "Content-Disposition": 'attachment; filename="rtklib.conf"',
+            "Content-Disposition": 'attachment; filename="rnx2rtkp.toml"',
         },
     )
