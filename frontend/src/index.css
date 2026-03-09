@@ -1,0 +1,9 @@
+/* Minimal global styles - Mantine handles most styling */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}

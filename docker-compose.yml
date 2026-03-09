@@ -1,0 +1,25 @@
+services:
+  rtklib-web-ui:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8000"
+    volumes:
+      # Bind mount for data files (RINEX, output, configs)
+      - ${WORKSPACE_PATH:-./workspace}:/workspace:rw
+      # Optional: bind mount for serial devices (uncomment if needed)
+      # - /dev/ttyUSB0:/dev/ttyUSB0
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Device access for serial ports (uncomment if needed)
+    # devices:
+    #   - /dev/ttyUSB0:/dev/ttyUSB0
+    #   - /dev/ttyACM0:/dev/ttyACM0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

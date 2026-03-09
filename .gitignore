@@ -1,0 +1,26 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# VSCode settings
+.vscode/
+
+# macOS files
+.DS_Store
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# uv
+uv.lock
+
+# Workspace (bind mount for data)
+workspace/
