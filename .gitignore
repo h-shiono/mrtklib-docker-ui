@@ -5,6 +5,7 @@ build/
 dist/
 wheels/
 *.egg-info
+src/mrtklib_web_ui/_version.py
 
 # Virtual environments
 .venv

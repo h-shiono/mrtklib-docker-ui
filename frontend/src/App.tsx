@@ -864,7 +864,7 @@ function ConversionPanel() {
 function App() {
   const [activeTab, setActiveTab] = useState<string | null>('stream-server');
   const [healthStatus, setHealthStatus] = useState<'loading' | 'ok' | 'error'>('loading');
-  const [rtklibVersion, setRtklibVersion] = useState<string>('');
+  const [mrtkVersion, setMrtkVersion] = useState<string>('');
 
   // Stream process state (lifted to App level for persistence across tabs)
   const [streamProcessId, setStreamProcessId] = useState<string | null>(null);
@@ -894,14 +894,14 @@ function App() {
         setHealthStatus('error');
       });
 
-    // Get RTKLIB version
-    fetch('/api/rtklib/version')
+    // Get MRTKLIB version (from git tag)
+    fetch('/api/mrtklib/version')
       .then((res) => res.json())
       .then((data) => {
-        setRtklibVersion(data.version || 'unknown');
+        setMrtkVersion(data.version || '');
       })
       .catch(() => {
-        setRtklibVersion('unavailable');
+        setMrtkVersion('');
       });
   }, []);
 
@@ -913,9 +913,9 @@ function App() {
           <Group gap="sm">
             <IconSatellite size={28} />
             <Stack gap={0}>
-              <Title order={4} visibleFrom="sm">RTKLIB Web UI</Title>
-              {rtklibVersion && (
-                <Text size="xs" c="dimmed" visibleFrom="md">{rtklibVersion}</Text>
+              <Title order={4} visibleFrom="sm">MRTKLIB Web UI</Title>
+              {mrtkVersion && (
+                <Text size="xs" c="dimmed" visibleFrom="md">MRTKLIB {mrtkVersion}</Text>
               )}
             </Stack>
           </Group>

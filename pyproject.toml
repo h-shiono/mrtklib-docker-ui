@@ -1,7 +1,7 @@
 [project]
 name = "mrtklib-web-ui"
-version = "0.1.0"
-description = "Web UI for RTKLIB command-line tools"
+dynamic = ["version"]
+description = "Web UI for MRTKLIB command-line tools"
 readme = "README.md"
 authors = [
     { name = "h-shiono", email = "hato.gnss@gmail.com" }
@@ -29,8 +29,17 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mrtklib_web_ui"]
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/mrtklib_web_ui/_version.py"
