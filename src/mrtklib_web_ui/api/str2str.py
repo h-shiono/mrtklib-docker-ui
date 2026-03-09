@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from rtklib_web_ui.services import process_manager, ProcessState
+from mrtklib_web_ui.services import process_manager, ProcessState
 
 router = APIRouter()
 

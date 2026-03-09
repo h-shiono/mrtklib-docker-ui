@@ -64,7 +64,7 @@ mrtklib-docker-ui/             # Root
 ├── .python-version
 ├── README.md
 ├── src/
-│   └── rtklib_web_ui/         # Python Backend Package (snake_case)
+│   └── mrtklib_web_ui/         # Python Backend Package (snake_case)
 │       ├── __init__.py
 │       ├── main.py            # FastAPI Entry point
 │       ├── api/               # API Routers
@@ -87,7 +87,7 @@ mrtklib-docker-ui/             # Root
     - Stage 4: Runtime image (python:3.12-slim-bookworm) with MRTKLIB binaries and runtime libs (`liblapack3`, `libopenblas0`).
     - Run uv sync --frozen --no-dev in the build stage to ensure deterministic builds.
 - MRTKLIB Source: Cloned from https://github.com/h-shiono/MRTKLIB and built with `cmake -B build -DCMAKE_BUILD_TYPE=Release`.
-- Naming Convention: The root folder is mrtklib-docker-ui, but the Python source package inside src/ must be rtklib_web_ui (snake_case) to comply with Python import rules.
+- Naming Convention: The root folder is mrtklib-docker-ui, but the Python source package inside src/ must be mrtklib_web_ui (snake_case) to comply with Python import rules.
 
 ---
 
@@ -210,7 +210,7 @@ export type TimeFormat = 'gpst' | 'gpst-hms' | 'utc' | 'jst';
 
 #### Backend Python Models
 
-Corresponding Pydantic models in [`src/rtklib_web_ui/services/rnx2rtkp_service.py`](src/rtklib_web_ui/services/rnx2rtkp_service.py) use snake_case naming:
+Corresponding Pydantic models in [`src/mrtklib_web_ui/services/rnx2rtkp_service.py`](src/mrtklib_web_ui/services/rnx2rtkp_service.py) use snake_case naming:
 
 ```python
 class Setting1Config(BaseModel):

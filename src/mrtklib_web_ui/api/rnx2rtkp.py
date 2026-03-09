@@ -9,8 +9,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
-from rtklib_web_ui.services import ws_manager
-from rtklib_web_ui.services.rnx2rtkp_service import (
+from mrtklib_web_ui.services import ws_manager
+from mrtklib_web_ui.services.rnx2rtkp_service import (
     Rnx2RtkpConfig,
     Rnx2RtkpInputFiles,
     Rnx2RtkpJob,

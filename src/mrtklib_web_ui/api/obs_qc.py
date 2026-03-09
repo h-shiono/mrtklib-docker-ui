@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from rtklib_web_ui.services.obs_qc_service import ObsQcResponse, analyze_obs
+from mrtklib_web_ui.services.obs_qc_service import ObsQcResponse, analyze_obs
 
 router = APIRouter()
 

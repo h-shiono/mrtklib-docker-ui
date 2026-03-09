@@ -72,17 +72,17 @@ const DEFAULT_CONFIG: BuilderConfig = {
 export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) {
   // Persistent state using localStorage
   const [mode, setMode] = useLocalStorage<'builder' | 'raw'>({
-    key: 'rtklib-web-ui-str2str-mode',
+    key: 'mrtklib-web-ui-str2str-mode',
     defaultValue: 'builder',
   });
 
   const [builderConfig, setBuilderConfig] = useLocalStorage<BuilderConfig>({
-    key: 'rtklib-web-ui-str2str-config',
+    key: 'mrtklib-web-ui-str2str-config',
     defaultValue: DEFAULT_CONFIG,
   });
 
   const [rawCommand, setRawCommand] = useLocalStorage<string>({
-    key: 'rtklib-web-ui-str2str-raw',
+    key: 'mrtklib-web-ui-str2str-raw',
     defaultValue: '',
   });
 

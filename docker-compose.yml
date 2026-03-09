@@ -1,5 +1,5 @@
 services:
-  rtklib-web-ui:
+  mrtklib-web-ui:
     build:
       context: .
       dockerfile: docker/Dockerfile

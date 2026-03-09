@@ -274,7 +274,7 @@ export function PostProcessingConfiguration({
   onConfigChange,
 }: PostProcessingConfigurationProps) {
   const [config, setConfig] = useLocalStorage<Rnx2RtkpConfig>({
-    key: 'rtklib-web-ui-rnx2rtkp-config-v13', // v13: Added Time tab (start/end time, interval)
+    key: 'mrtklib-web-ui-rnx2rtkp-config-v13', // v13: Added Time tab (start/end time, interval)
     defaultValue: DEFAULT_RNX2RTKP_CONFIG,
   });
 

@@ -90,7 +90,7 @@ A modern web-based user interface for [MRTKLIB](https://github.com/h-shiono/MRTK
 uv sync
 
 # Run development server
-uv run uvicorn rtklib_web_ui.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn mrtklib_web_ui.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 #### Frontend (React + Vite)
@@ -135,7 +135,7 @@ The frontend dev server runs on `http://localhost:5173` and proxies API requests
 ```
 mrtklib-docker-ui/
 ├── src/
-│   └── rtklib_web_ui/          # Python backend package
+│   └── mrtklib_web_ui/          # Python backend package
 │       ├── main.py             # FastAPI entry point
 │       ├── api/                # API routers
 │       └── services/           # Business logic (MRTKLIB wrappers)

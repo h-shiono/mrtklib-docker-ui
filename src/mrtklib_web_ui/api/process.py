@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from rtklib_web_ui.services.rtklib import RTKProcessManager
+from mrtklib_web_ui.services.rtklib import RTKProcessManager
 
 router = APIRouter()
 process_manager = RTKProcessManager()

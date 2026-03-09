@@ -9,8 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from rtklib_web_ui.api import files, process, config, str2str, rnx2rtkp, obs_qc
-from rtklib_web_ui.services import process_manager, ws_manager
+from mrtklib_web_ui.api import files, process, config, str2str, rnx2rtkp, obs_qc
+from mrtklib_web_ui.services import process_manager, ws_manager
 
 # Static files directory (set in Docker build)
 STATIC_DIR = Path("/app/static")
