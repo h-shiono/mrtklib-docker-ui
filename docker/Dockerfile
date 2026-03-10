@@ -54,6 +54,10 @@ RUN npm run build
 # ================================
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm AS backend-builder
 
+# Version injected at build time (from git tag)
+ARG MRTKLIB_VERSION=0.0.0
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${MRTKLIB_VERSION}
+
 WORKDIR /app
 
 # Copy pyproject.toml, lock file, README, and source
