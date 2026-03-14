@@ -41,9 +41,7 @@ import type {
   EphemerisOption,
   EarthTidesCorrection,
   ReceiverDynamics,
-  GpsArMode,
-  GloArMode,
-  BdsArMode,
+  ARMode,
   SolutionFormat,
   TimeFormat,
   LatLonFormat,
@@ -123,12 +121,14 @@ function StationPositionInput({
             label={coordinateLabels[0]}
             value={value.values[0]}
             onChange={(val: any) =>
-              onChange({ ...value, values: [Number(val), value.values[1], value.values[2]] })
+              onChange({
+                ...value,
+                values: [Number(val), value.values[1], value.values[2]],
+              })
             }
-            disabled={coordsDisabled || !isManualInput}
-            step={value.mode === 'xyz' ? 0.0001 : 0.000000001}
-            decimalScale={value.mode === 'xyz' ? 4 : 9}
+            decimalScale={9}
             hideControls
+            disabled={coordsDisabled || !isManualInput}
             styles={{ label: { fontSize: '10px' } }}
           />
           <NumberInput
@@ -136,12 +136,14 @@ function StationPositionInput({
             label={coordinateLabels[1]}
             value={value.values[1]}
             onChange={(val: any) =>
-              onChange({ ...value, values: [value.values[0], Number(val), value.values[2]] })
+              onChange({
+                ...value,
+                values: [value.values[0], Number(val), value.values[2]],
+              })
             }
-            disabled={coordsDisabled || !isManualInput}
-            step={value.mode === 'xyz' ? 0.0001 : 0.000000001}
-            decimalScale={value.mode === 'xyz' ? 4 : 9}
+            decimalScale={9}
             hideControls
+            disabled={coordsDisabled || !isManualInput}
             styles={{ label: { fontSize: '10px' } }}
           />
           <NumberInput
@@ -149,12 +151,14 @@ function StationPositionInput({
             label={coordinateLabels[2]}
             value={value.values[2]}
             onChange={(val: any) =>
-              onChange({ ...value, values: [value.values[0], value.values[1], Number(val)] })
+              onChange({
+                ...value,
+                values: [value.values[0], value.values[1], Number(val)],
+              })
             }
-            disabled={coordsDisabled || !isManualInput}
-            step={0.0001}
             decimalScale={4}
             hideControls
+            disabled={coordsDisabled || !isManualInput}
             styles={{ label: { fontSize: '10px' } }}
           />
         </SimpleGrid>
@@ -163,7 +167,12 @@ function StationPositionInput({
           size="xs"
           label="Antenna Type"
           checked={value.antennaTypeEnabled}
-          onChange={(e: any) => onChange({ ...value, antennaTypeEnabled: e.currentTarget.checked })}
+          onChange={(e: any) =>
+            onChange({
+              ...value,
+              antennaTypeEnabled: e.currentTarget.checked,
+            })
+          }
           disabled={antennaDisabled}
           styles={{ label: { fontSize: '10px' } }}
         />
@@ -171,21 +180,27 @@ function StationPositionInput({
         {value.antennaTypeEnabled && (
           <TextInput
             size="xs"
-            placeholder="Antenna type identifier"
+            label="Antenna Type Name"
             value={value.antennaType}
-            onChange={(e: any) => onChange({ ...value, antennaType: e.currentTarget.value })}
+            onChange={(e: any) =>
+              onChange({
+                ...value,
+                antennaType: e.currentTarget.value,
+              })
+            }
+            placeholder="e.g., AOAD/M_T"
             disabled={antennaDisabled}
             styles={{ label: { fontSize: '10px' } }}
           />
         )}
 
-        <Text size="xs" style={{ fontSize: '10px', marginTop: '4px' }}>
-          Antenna Delta (m)
+        <Text size="xs" style={{ fontSize: '10px' }}>
+          Antenna Delta E/N/U (m)
         </Text>
         <SimpleGrid cols={3} spacing="xs">
           <NumberInput
             size="xs"
-            label="E"
+            label="Delta-E"
             value={value.antennaDelta[0]}
             onChange={(val: any) =>
               onChange({
@@ -193,15 +208,14 @@ function StationPositionInput({
                 antennaDelta: [Number(val), value.antennaDelta[1], value.antennaDelta[2]],
               })
             }
-            step={0.001}
-            decimalScale={3}
+            decimalScale={4}
             hideControls
             disabled={antennaDisabled}
             styles={{ label: { fontSize: '10px' } }}
           />
           <NumberInput
             size="xs"
-            label="N"
+            label="Delta-N"
             value={value.antennaDelta[1]}
             onChange={(val: any) =>
               onChange({
@@ -209,15 +223,14 @@ function StationPositionInput({
                 antennaDelta: [value.antennaDelta[0], Number(val), value.antennaDelta[2]],
               })
             }
-            step={0.001}
-            decimalScale={3}
+            decimalScale={4}
             hideControls
             disabled={antennaDisabled}
             styles={{ label: { fontSize: '10px' } }}
           />
           <NumberInput
             size="xs"
-            label="U"
+            label="Delta-U"
             value={value.antennaDelta[2]}
             onChange={(val: any) =>
               onChange({
@@ -225,8 +238,7 @@ function StationPositionInput({
                 antennaDelta: [value.antennaDelta[0], value.antennaDelta[1], Number(val)],
               })
             }
-            step={0.001}
-            decimalScale={3}
+            decimalScale={4}
             hideControls
             disabled={antennaDisabled}
             styles={{ label: { fontSize: '10px' } }}
@@ -237,11 +249,17 @@ function StationPositionInput({
   );
 }
 
-function FileInputRow({ label, value, onChange, placeholder, onBrowse }: FileInputRowProps) {
+function FileInputRow({
+  label,
+  value,
+  onChange,
+  placeholder,
+  onBrowse,
+}: FileInputRowProps) {
   return (
     <div>
       {label && (
-        <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>
+        <Text size="xs" fw={500} mb={4} style={{ fontSize: '10px' }}>
           {label}
         </Text>
       )}
@@ -274,7 +292,7 @@ export function PostProcessingConfiguration({
   onConfigChange,
 }: PostProcessingConfigurationProps) {
   const [config, setConfig] = useLocalStorage<MrtkPostConfig>({
-    key: 'mrtklib-web-ui-rnx2rtkp-config-v13', // v13: Added Time tab (start/end time, interval)
+    key: 'mrtklib-web-ui-mrtk-post-config-v14',
     defaultValue: DEFAULT_MRTK_POST_CONFIG,
   });
 
@@ -295,26 +313,19 @@ export function PostProcessingConfiguration({
   }, []);
 
   // Conditional logic based on positioning mode
-  const isSingle = config.setting1.positioningMode === 'single';
-  const isDGPS = config.setting1.positioningMode === 'dgps';
-  const isPPP = ['ppp-kinematic', 'ppp-static', 'ppp-fixed'].includes(config.setting1.positioningMode);
-  const isGpsFixAndHold = config.setting2.gpsArMode === 'fix-and-hold';
-  const isPppAr = config.setting2.gpsArMode === 'ppp-ar';
-  const isReceiverDynamicsEnabled =
-    config.setting1.positioningMode === 'kinematic' ||
-    config.setting1.positioningMode === 'ppp-kinematic';
-
-  // Output tab conditional logic
-  const isStaticMode = ['static', 'ppp-static'].includes(config.setting1.positioningMode);
+  const isSingle = config.positioning.positioningMode === 'single';
+  const isDGPS = config.positioning.positioningMode === 'dgps';
+  const isPPP = ['ppp-kinematic', 'ppp-static', 'ppp-fixed'].includes(config.positioning.positioningMode);
+  const isStaticMode = ['static', 'ppp-static'].includes(config.positioning.positioningMode);
   const isSolLLH = config.output.solutionFormat === 'llh';
   const isSolNMEA = config.output.solutionFormat === 'nmea';
+  const isFixedMode = ['fixed', 'ppp-fixed'].includes(config.positioning.positioningMode);
 
-  // Positions tab conditional logic
-  const isFixedMode = ['fixed', 'ppp-fixed'].includes(config.setting1.positioningMode);
+  const isReceiverDynamicsEnabled =
+    config.positioning.positioningMode === 'kinematic' ||
+    config.positioning.positioningMode === 'ppp-kinematic';
 
   // Sync config to parent whenever it changes, including initial localStorage load.
-  // Without this, the parent keeps the default config (kinematic) even if the user
-  // previously saved a different mode (e.g., single) in localStorage.
   useEffect(() => {
     onConfigChange(config);
   }, [config, onConfigChange]);
@@ -331,36 +342,36 @@ export function PostProcessingConfiguration({
           Processing Configuration
         </Title>
 
-        <Tabs defaultValue="setting1">
+        <Tabs defaultValue="positioning">
           <Tabs.List>
-            <Tabs.Tab value="setting1" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconAdjustments size={14} />}>
-              Setting 1
+            <Tabs.Tab value="positioning" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconAdjustments size={14} />}>
+              Positioning
             </Tabs.Tab>
-            <Tabs.Tab value="setting2" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconAdjustmentsHorizontal size={14} />}>
-              Setting 2
+            <Tabs.Tab value="ambiguity" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconAdjustmentsHorizontal size={14} />}>
+              Ambiguity
             </Tabs.Tab>
             <Tabs.Tab value="output" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconDatabaseExport size={14} />}>
               Output
             </Tabs.Tab>
-            <Tabs.Tab value="stats" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconChartLine size={14} />}>
-              Stats
+            <Tabs.Tab value="kalman" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconChartLine size={14} />}>
+              Kalman Filter
             </Tabs.Tab>
-            <Tabs.Tab value="positions" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconMapPin size={14} />}>
-              Positions
+            <Tabs.Tab value="antenna" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconMapPin size={14} />}>
+              Antenna
             </Tabs.Tab>
             <Tabs.Tab value="files" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconFolderOpen size={14} />}>
               Files
             </Tabs.Tab>
-            <Tabs.Tab value="misc" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconDots size={14} />}>
-              Misc
+            <Tabs.Tab value="server" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconDots size={14} />}>
+              Server
             </Tabs.Tab>
             <Tabs.Tab value="time" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconClock size={14} />}>
               Time
             </Tabs.Tab>
           </Tabs.List>
 
-          {/* Tab 1: Setting 1 */}
-          <Tabs.Panel value="setting1" pt="xs">
+          {/* Tab: Positioning */}
+          <Tabs.Panel value="positioning" pt="xs">
             <Stack gap="xs">
               {/* Group A: Basic Strategy */}
               <Fieldset legend="Basic Strategy" style={{ fontSize: '10px' }}>
@@ -368,12 +379,12 @@ export function PostProcessingConfiguration({
                   <Select
                     size="xs"
                     label="Positioning Mode"
-                    value={config.setting1.positioningMode}
+                    value={config.positioning.positioningMode}
                     onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        setting1: {
-                          ...config.setting1,
+                        positioning: {
+                          ...config.positioning,
                           positioningMode: value as PositioningMode,
                         },
                       })
@@ -388,6 +399,7 @@ export function PostProcessingConfiguration({
                       { value: 'ppp-kinematic', label: 'PPP-Kinematic' },
                       { value: 'ppp-static', label: 'PPP-Static' },
                       { value: 'ppp-fixed', label: 'PPP-Fixed' },
+                      { value: 'ppp-rtk', label: 'PPP-RTK' },
                     ]}
                     styles={{ label: { fontSize: '10px' } }}
                   />
@@ -399,11 +411,11 @@ export function PostProcessingConfiguration({
                     <Group gap="xs" wrap="nowrap">
                       <Select
                         size="xs"
-                        value={config.setting1.frequency}
+                        value={config.positioning.frequency}
                         onChange={(value: any) =>
                           handleConfigChange({
                             ...config,
-                            setting1: { ...config.setting1, frequency: value as Frequency },
+                            positioning: { ...config.positioning, frequency: value as Frequency },
                           })
                         }
                         data={[
@@ -430,12 +442,12 @@ export function PostProcessingConfiguration({
                           <Table style={{ fontSize: '9px' }}>
                             <Table.Thead style={{ borderBottom: '1px solid #dee2e6' }}>
                               <Table.Tr>
-                                <Table.Th style={{ fontSize: '9px', padding: '4px' }}></Table.Th>
-                                <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L1</Table.Th>
-                                <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L2</Table.Th>
-                                <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L3</Table.Th>
-                                <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L4</Table.Th>
-                                <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L5</Table.Th>
+                                <Table.Th style={{ fontSize: '9px', padding: '4px' }}>System</Table.Th>
+                                <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>F1</Table.Th>
+                                <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>F2</Table.Th>
+                                <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>F3</Table.Th>
+                                <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>F4</Table.Th>
+                                <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>F5</Table.Th>
                               </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
@@ -449,8 +461,8 @@ export function PostProcessingConfiguration({
                               </Table.Tr>
                               <Table.Tr>
                                 <Table.Td style={{ fontSize: '9px', padding: '4px' }}>GLONASS</Table.Td>
-                                <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>G1/a</Table.Td>
-                                <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>G2/a</Table.Td>
+                                <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>G1</Table.Td>
+                                <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>G2</Table.Td>
                                 <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>G3</Table.Td>
                                 <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
                                 <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
@@ -461,7 +473,7 @@ export function PostProcessingConfiguration({
                                 <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>E5b</Table.Td>
                                 <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>E5a</Table.Td>
                                 <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>E6</Table.Td>
-                                <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>E5a+b</Table.Td>
+                                <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
                               </Table.Tr>
                               <Table.Tr>
                                 <Table.Td style={{ fontSize: '9px', padding: '4px' }}>QZSS</Table.Td>
@@ -487,14 +499,6 @@ export function PostProcessingConfiguration({
                                 <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
                                 <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
                               </Table.Tr>
-                              <Table.Tr>
-                                <Table.Td style={{ fontSize: '9px', padding: '4px' }}>SBAS</Table.Td>
-                                <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L1</Table.Td>
-                                <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L5</Table.Td>
-                                <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
-                                <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
-                                <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
-                              </Table.Tr>
                             </Table.Tbody>
                           </Table>
                         </HoverCard.Dropdown>
@@ -505,11 +509,11 @@ export function PostProcessingConfiguration({
                   <Select
                     size="xs"
                     label="Filter Type"
-                    value={config.setting1.filterType}
+                    value={config.positioning.filterType}
                     onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        setting1: { ...config.setting1, filterType: value as FilterType },
+                        positioning: { ...config.positioning, filterType: value as FilterType },
                       })
                     }
                     data={[
@@ -529,12 +533,12 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Elevation Mask (deg)"
-                    value={config.setting1.elevationMask}
+                    value={config.positioning.elevationMask}
                     onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        setting1: {
-                          ...config.setting1,
+                        positioning: {
+                          ...config.positioning,
                           elevationMask: Number(value),
                         },
                       })
@@ -561,12 +565,12 @@ export function PostProcessingConfiguration({
                   <Select
                     size="xs"
                     label="Ionosphere Correction"
-                    value={config.setting1.ionosphereCorrection}
+                    value={config.positioning.ionosphereCorrection}
                     onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        setting1: {
-                          ...config.setting1,
+                        positioning: {
+                          ...config.positioning,
                           ionosphereCorrection: value as IonosphereCorrection,
                         },
                       })
@@ -578,7 +582,6 @@ export function PostProcessingConfiguration({
                       { value: 'dual-freq', label: 'Iono-Free LC' },
                       { value: 'est-stec', label: 'Estimate STEC' },
                       { value: 'ionex-tec', label: 'IONEX TEC' },
-                      { value: 'qzs-brdc', label: 'QZSS Broadcast' },
                     ]}
                     styles={{ label: { fontSize: '10px' } }}
                   />
@@ -586,12 +589,12 @@ export function PostProcessingConfiguration({
                   <Select
                     size="xs"
                     label="Troposphere Correction"
-                    value={config.setting1.troposphereCorrection}
+                    value={config.positioning.troposphereCorrection}
                     onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        setting1: {
-                          ...config.setting1,
+                        positioning: {
+                          ...config.positioning,
                           troposphereCorrection: value as TroposphereCorrection,
                         },
                       })
@@ -609,12 +612,12 @@ export function PostProcessingConfiguration({
                   <Select
                     size="xs"
                     label="Satellite Ephemeris/Clock"
-                    value={config.setting1.ephemerisOption}
+                    value={config.positioning.ephemerisOption}
                     onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        setting1: {
-                          ...config.setting1,
+                        positioning: {
+                          ...config.positioning,
                           ephemerisOption: value as EphemerisOption,
                         },
                       })
@@ -641,14 +644,14 @@ export function PostProcessingConfiguration({
                     <Checkbox
                       size="xs"
                       label="GPS"
-                      checked={config.setting1.constellations.gps}
+                      checked={config.positioning.constellations.gps}
                       onChange={(e) =>
                         handleConfigChange({
                           ...config,
-                          setting1: {
-                            ...config.setting1,
+                          positioning: {
+                            ...config.positioning,
                             constellations: {
-                              ...config.setting1.constellations,
+                              ...config.positioning.constellations,
                               gps: e.currentTarget.checked,
                             },
                           },
@@ -659,14 +662,14 @@ export function PostProcessingConfiguration({
                     <Checkbox
                       size="xs"
                       label="GLONASS"
-                      checked={config.setting1.constellations.glonass}
+                      checked={config.positioning.constellations.glonass}
                       onChange={(e) =>
                         handleConfigChange({
                           ...config,
-                          setting1: {
-                            ...config.setting1,
+                          positioning: {
+                            ...config.positioning,
                             constellations: {
-                              ...config.setting1.constellations,
+                              ...config.positioning.constellations,
                               glonass: e.currentTarget.checked,
                             },
                           },
@@ -677,14 +680,14 @@ export function PostProcessingConfiguration({
                     <Checkbox
                       size="xs"
                       label="Galileo"
-                      checked={config.setting1.constellations.galileo}
+                      checked={config.positioning.constellations.galileo}
                       onChange={(e) =>
                         handleConfigChange({
                           ...config,
-                          setting1: {
-                            ...config.setting1,
+                          positioning: {
+                            ...config.positioning,
                             constellations: {
-                              ...config.setting1.constellations,
+                              ...config.positioning.constellations,
                               galileo: e.currentTarget.checked,
                             },
                           },
@@ -695,14 +698,14 @@ export function PostProcessingConfiguration({
                     <Checkbox
                       size="xs"
                       label="QZSS"
-                      checked={config.setting1.constellations.qzss}
+                      checked={config.positioning.constellations.qzss}
                       onChange={(e) =>
                         handleConfigChange({
                           ...config,
-                          setting1: {
-                            ...config.setting1,
+                          positioning: {
+                            ...config.positioning,
                             constellations: {
-                              ...config.setting1.constellations,
+                              ...config.positioning.constellations,
                               qzss: e.currentTarget.checked,
                             },
                           },
@@ -713,14 +716,14 @@ export function PostProcessingConfiguration({
                     <Checkbox
                       size="xs"
                       label="SBAS"
-                      checked={config.setting1.constellations.sbas}
+                      checked={config.positioning.constellations.sbas}
                       onChange={(e) =>
                         handleConfigChange({
                           ...config,
-                          setting1: {
-                            ...config.setting1,
+                          positioning: {
+                            ...config.positioning,
                             constellations: {
-                              ...config.setting1.constellations,
+                              ...config.positioning.constellations,
                               sbas: e.currentTarget.checked,
                             },
                           },
@@ -731,14 +734,14 @@ export function PostProcessingConfiguration({
                     <Checkbox
                       size="xs"
                       label="BeiDou"
-                      checked={config.setting1.constellations.beidou}
+                      checked={config.positioning.constellations.beidou}
                       onChange={(e) =>
                         handleConfigChange({
                           ...config,
-                          setting1: {
-                            ...config.setting1,
+                          positioning: {
+                            ...config.positioning,
                             constellations: {
-                              ...config.setting1.constellations,
+                              ...config.positioning.constellations,
                               beidou: e.currentTarget.checked,
                             },
                           },
@@ -749,14 +752,14 @@ export function PostProcessingConfiguration({
                     <Checkbox
                       size="xs"
                       label="IRNSS"
-                      checked={config.setting1.constellations.irnss}
+                      checked={config.positioning.constellations.irnss}
                       onChange={(e) =>
                         handleConfigChange({
                           ...config,
-                          setting1: {
-                            ...config.setting1,
+                          positioning: {
+                            ...config.positioning,
                             constellations: {
-                              ...config.setting1.constellations,
+                              ...config.positioning.constellations,
                               irnss: e.currentTarget.checked,
                             },
                           },
@@ -770,12 +773,12 @@ export function PostProcessingConfiguration({
                     size="xs"
                     label="Excluded Satellites"
                     placeholder="e.g., G04 G05 R09"
-                    value={config.setting1.excludedSatellites}
+                    value={config.positioning.excludedSatellites}
                     onChange={(e: any) =>
                       handleConfigChange({
                         ...config,
-                        setting1: {
-                          ...config.setting1,
+                        positioning: {
+                          ...config.positioning,
                           excludedSatellites: e.currentTarget.value,
                         },
                       })
@@ -797,12 +800,12 @@ export function PostProcessingConfiguration({
                         <Select
                           size="xs"
                           label="Earth Tides Correction"
-                          value={config.setting1.earthTidesCorrection}
+                          value={config.positioning.earthTidesCorrection}
                           onChange={(value: any) =>
                             handleConfigChange({
                               ...config,
-                              setting1: {
-                                ...config.setting1,
+                              positioning: {
+                                ...config.positioning,
                                 earthTidesCorrection: value as EarthTidesCorrection,
                               },
                             })
@@ -813,19 +816,18 @@ export function PostProcessingConfiguration({
                             { value: 'solid+otl', label: 'Solid+OTL' },
                             { value: 'solid+otl+pole', label: 'Solid+OTL+Pole' },
                           ]}
-                          disabled={isSingle}
                           styles={{ label: { fontSize: '10px' } }}
                         />
 
                         <Select
                           size="xs"
                           label="Receiver Dynamics"
-                          value={config.setting1.receiverDynamics}
+                          value={config.positioning.receiverDynamics}
                           onChange={(value: any) =>
                             handleConfigChange({
                               ...config,
-                              setting1: {
-                                ...config.setting1,
+                              positioning: {
+                                ...config.positioning,
                                 receiverDynamics: value as ReceiverDynamics,
                               },
                             })
@@ -846,12 +848,12 @@ export function PostProcessingConfiguration({
                         <Switch
                           size="xs"
                           label="Sat PCV"
-                          checked={config.setting1.satellitePcv}
+                          checked={config.positioning.satellitePcv}
                           onChange={(e: any) =>
                             handleConfigChange({
                               ...config,
-                              setting1: {
-                                ...config.setting1,
+                              positioning: {
+                                ...config.positioning,
                                 satellitePcv: e.currentTarget.checked,
                               },
                             })
@@ -862,12 +864,12 @@ export function PostProcessingConfiguration({
                         <Switch
                           size="xs"
                           label="Rec PCV"
-                          checked={config.setting1.receiverPcv}
+                          checked={config.positioning.receiverPcv}
                           onChange={(e: any) =>
                             handleConfigChange({
                               ...config,
-                              setting1: {
-                                ...config.setting1,
+                              positioning: {
+                                ...config.positioning,
                                 receiverPcv: e.currentTarget.checked,
                               },
                             })
@@ -877,13 +879,13 @@ export function PostProcessingConfiguration({
                         />
                         <Switch
                           size="xs"
-                          label="PhWU"
-                          checked={config.setting1.phaseWindup}
+                          label="Phase Windup"
+                          checked={config.positioning.phaseWindup}
                           onChange={(e: any) =>
                             handleConfigChange({
                               ...config,
-                              setting1: {
-                                ...config.setting1,
+                              positioning: {
+                                ...config.positioning,
                                 phaseWindup: e.currentTarget.checked,
                               },
                             })
@@ -893,13 +895,13 @@ export function PostProcessingConfiguration({
                         />
                         <Switch
                           size="xs"
-                          label="Rej Ecl"
-                          checked={config.setting1.rejectEclipse}
+                          label="Reject Eclipse"
+                          checked={config.positioning.rejectEclipse}
                           onChange={(e: any) =>
                             handleConfigChange({
                               ...config,
-                              setting1: {
-                                ...config.setting1,
+                              positioning: {
+                                ...config.positioning,
                                 rejectEclipse: e.currentTarget.checked,
                               },
                             })
@@ -910,32 +912,16 @@ export function PostProcessingConfiguration({
                         <Switch
                           size="xs"
                           label="RAIM FDE"
-                          checked={config.setting1.raimFde}
+                          checked={config.positioning.raimFde}
                           onChange={(e: any) =>
                             handleConfigChange({
                               ...config,
-                              setting1: {
-                                ...config.setting1,
+                              positioning: {
+                                ...config.positioning,
                                 raimFde: e.currentTarget.checked,
                               },
                             })
                           }
-                          styles={{ label: { fontSize: '10px' } }}
-                        />
-                        <Switch
-                          size="xs"
-                          label="DBCorr"
-                          checked={config.setting1.dbCorr}
-                          onChange={(e: any) =>
-                            handleConfigChange({
-                              ...config,
-                              setting1: {
-                                ...config.setting1,
-                                dbCorr: e.currentTarget.checked,
-                              },
-                            })
-                          }
-                          disabled={!isPPP}
                           styles={{ label: { fontSize: '10px' } }}
                         />
                       </Group>
@@ -946,83 +932,44 @@ export function PostProcessingConfiguration({
             </Stack>
           </Tabs.Panel>
 
-          {/* Tab 2: Setting 2 */}
-          <Tabs.Panel value="setting2" pt="xs">
+          {/* Tab: Ambiguity */}
+          <Tabs.Panel value="ambiguity" pt="xs">
             <Stack gap="xs">
-              {/* Section A: Ambiguity Resolution Strategy */}
-              <Fieldset legend="Ambiguity Resolution Strategy" style={{ fontSize: '10px' }}>
-                <Stack gap="xs">
-                  <Text size="xs" style={{ fontSize: '10px' }}>
-                    Integer Ambiguity Res (GPS/GLO/BDS)
-                  </Text>
-                  <SimpleGrid cols={3} spacing="xs">
-                    <Select
-                      size="xs"
-                      label="GPS"
-                      value={config.setting2.gpsArMode}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, gpsArMode: value as GpsArMode },
-                        })
-                      }
-                      data={[
-                        { value: 'off', label: 'OFF' },
-                        { value: 'continuous', label: 'Continuous' },
-                        { value: 'instantaneous', label: 'Instantaneous' },
-                        { value: 'fix-and-hold', label: 'Fix and Hold' },
-                        { value: 'ppp-ar', label: 'PPP-AR' },
-                      ]}
-                      disabled={isSingle || isDGPS}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
+              {/* Ambiguity Resolution */}
+              <Fieldset legend="Ambiguity Resolution" style={{ fontSize: '10px' }}>
+                <Select
+                  size="xs"
+                  label="AR Mode"
+                  value={config.ambiguityResolution.mode}
+                  onChange={(value: any) =>
+                    handleConfigChange({
+                      ...config,
+                      ambiguityResolution: { ...config.ambiguityResolution, mode: value as ARMode },
+                    })
+                  }
+                  data={[
+                    { value: 'off', label: 'OFF' },
+                    { value: 'continuous', label: 'Continuous' },
+                    { value: 'instantaneous', label: 'Instantaneous' },
+                    { value: 'fix-and-hold', label: 'Fix and Hold' },
+                    { value: 'ppp-ar', label: 'PPP-AR' },
+                  ]}
+                  disabled={isSingle || isDGPS}
+                  styles={{ label: { fontSize: '10px' } }}
+                />
+              </Fieldset>
 
-                    <Select
-                      size="xs"
-                      label="GLO"
-                      value={config.setting2.gloArMode}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, gloArMode: value as GloArMode },
-                        })
-                      }
-                      data={[
-                        { value: 'off', label: 'OFF' },
-                        { value: 'on', label: 'ON' },
-                        { value: 'autocal', label: 'Autocal' },
-                      ]}
-                      disabled={isSingle || isDGPS || !config.setting1.constellations.glonass}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-
-                    <Select
-                      size="xs"
-                      label="BDS"
-                      value={config.setting2.bdsArMode}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, bdsArMode: value as BdsArMode },
-                        })
-                      }
-                      data={[
-                        { value: 'off', label: 'OFF' },
-                        { value: 'on', label: 'ON' },
-                      ]}
-                      disabled={isSingle || isDGPS || !config.setting1.constellations.beidou}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                  </SimpleGrid>
-
+              {/* AR Thresholds */}
+              <Fieldset legend="AR Thresholds" style={{ fontSize: '10px' }}>
+                <SimpleGrid cols={3} spacing="xs">
                   <NumberInput
                     size="xs"
-                    label="Min Ratio to Fix Ambiguity"
-                    value={config.setting2.minRatioToFix}
+                    label="Ratio"
+                    value={config.ambiguityResolution.ratio}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        setting2: { ...config.setting2, minRatioToFix: Number(value) },
+                        ambiguityResolution: { ...config.ambiguityResolution, ratio: Number(value) },
                       })
                     }
                     min={1}
@@ -1032,334 +979,168 @@ export function PostProcessingConfiguration({
                     disabled={isSingle || isDGPS}
                     styles={{ label: { fontSize: '10px' } }}
                   />
-                </Stack>
-              </Fieldset>
-
-              {/* Section B: Thresholds & Validation */}
-              <Fieldset legend="Thresholds & Validation" style={{ fontSize: '10px' }}>
-                <Stack gap="xs">
-                  <SimpleGrid cols={2} spacing="xs">
-                    <NumberInput
-                      size="xs"
-                      label="Min Confidence"
-                      value={config.setting2.minConfidence}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, minConfidence: Number(value) },
-                        })
-                      }
-                      min={0}
-                      max={1}
-                      step={0.0001}
-                      decimalScale={4}
-                      hideControls
-                      disabled={isSingle || isDGPS || isPppAr}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                    <NumberInput
-                      size="xs"
-                      label="Max FCB"
-                      value={config.setting2.maxFcb}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, maxFcb: Number(value) },
-                        })
-                      }
-                      min={0}
-                      step={0.01}
-                      decimalScale={2}
-                      hideControls
-                      disabled={isSingle || isDGPS || !isPppAr}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                  </SimpleGrid>
-
-                  <SimpleGrid cols={2} spacing="xs">
-                    <NumberInput
-                      size="xs"
-                      label="Min Lock to Fix Amb"
-                      value={config.setting2.minLockToFix}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, minLockToFix: Number(value) },
-                        })
-                      }
-                      min={0}
-                      hideControls
-                      disabled={isSingle || isDGPS}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                    <NumberInput
-                      size="xs"
-                      label="Elevation (°) to Fix Amb"
-                      value={config.setting2.minElevationToFix}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, minElevationToFix: Number(value) },
-                        })
-                      }
-                      min={0}
-                      max={90}
-                      hideControls
-                      disabled={isSingle || isDGPS}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                  </SimpleGrid>
-
-                  <SimpleGrid cols={2} spacing="xs">
-                    <NumberInput
-                      size="xs"
-                      label="Min Fix to Hold Amb"
-                      value={config.setting2.minFixToHold}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, minFixToHold: Number(value) },
-                        })
-                      }
-                      min={0}
-                      hideControls
-                      disabled={isSingle || isDGPS || !isGpsFixAndHold}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                    <NumberInput
-                      size="xs"
-                      label="Elevation (°) to Hold Amb"
-                      value={config.setting2.minElevationToHold}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, minElevationToHold: Number(value) },
-                        })
-                      }
-                      min={0}
-                      max={90}
-                      hideControls
-                      disabled={isSingle || isDGPS || !isGpsFixAndHold}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                  </SimpleGrid>
-
-                  <SimpleGrid cols={2} spacing="xs">
-                    <NumberInput
-                      size="xs"
-                      label="Outage to Reset Amb"
-                      value={config.setting2.outageToReset}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, outageToReset: Number(value) },
-                        })
-                      }
-                      min={0}
-                      step={1}
-                      hideControls
-                      disabled={isSingle || isDGPS}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                    <NumberInput
-                      size="xs"
-                      label="Slip Threshold (m)"
-                      value={config.setting2.slipThreshold}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, slipThreshold: Number(value) },
-                        })
-                      }
-                      min={0}
-                      step={0.001}
-                      decimalScale={3}
-                      hideControls
-                      disabled={isSingle || isDGPS}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                  </SimpleGrid>
-
-                  <SimpleGrid cols={2} spacing="xs">
-                    <NumberInput
-                      size="xs"
-                      label="Max Age of Diff (s)"
-                      value={config.setting2.maxAgeDiff}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, maxAgeDiff: Number(value) },
-                        })
-                      }
-                      min={0}
-                      step={1}
-                      hideControls
-                      disabled={isSingle || isDGPS}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                    <Checkbox
-                      size="xs"
-                      label="Sync Solution"
-                      checked={config.setting2.syncSolution}
-                      onChange={(e: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, syncSolution: e.currentTarget.checked },
-                        })
-                      }
-                      disabled={!isPPP}
-                      styles={{ label: { fontSize: '10px' }, root: { marginTop: '20px' } }}
-                    />
-                  </SimpleGrid>
-
-                  <SimpleGrid cols={2} spacing="xs">
-                    <NumberInput
-                      size="xs"
-                      label="Reject Threshold of GDOP"
-                      value={config.setting2.rejectThresholdGdop}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, rejectThresholdGdop: Number(value) },
-                        })
-                      }
-                      min={0}
-                      step={1}
-                      hideControls
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                    <NumberInput
-                      size="xs"
-                      label="Innov (m)"
-                      value={config.setting2.rejectThresholdInnovation}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, rejectThresholdInnovation: Number(value) },
-                        })
-                      }
-                      min={0}
-                      step={1}
-                      hideControls
-                      disabled={isSingle}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                  </SimpleGrid>
-
-                  <SimpleGrid cols={2} spacing="xs">
-                    <NumberInput
-                      size="xs"
-                      label="Max # AR Iter"
-                      value={config.setting2.maxArIter}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, maxArIter: Number(value) },
-                        })
-                      }
-                      min={1}
-                      max={10}
-                      hideControls
-                      disabled={isSingle || isDGPS}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                    <NumberInput
-                      size="xs"
-                      label="Filter Iter"
-                      value={config.setting2.numFilterIterations}
-                      onChange={(value: any) =>
-                        handleConfigChange({
-                          ...config,
-                          setting2: { ...config.setting2, numFilterIterations: Number(value) },
-                        })
-                      }
-                      min={1}
-                      max={10}
-                      hideControls
-                      disabled={isSingle}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                  </SimpleGrid>
-                </Stack>
-              </Fieldset>
-
-              {/* Section C: Advanced Filter */}
-              <Fieldset legend="Advanced Filter" style={{ fontSize: '10px' }}>
-                <Stack gap="xs">
-                  <Checkbox
+                  <NumberInput
                     size="xs"
-                    label="Baseline Length Constraint"
-                    checked={config.setting2.baselineLengthConstraint.enabled}
-                    onChange={(e: any) =>
+                    label="Elevation Mask (deg)"
+                    value={config.ambiguityResolution.elevationMask}
+                    onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        setting2: {
-                          ...config.setting2,
-                          baselineLengthConstraint: {
-                            ...config.setting2.baselineLengthConstraint,
-                            enabled: e.currentTarget.checked,
-                          },
-                        },
+                        ambiguityResolution: { ...config.ambiguityResolution, elevationMask: Number(value) },
                       })
                     }
+                    min={0}
+                    max={90}
+                    hideControls
                     disabled={isSingle || isDGPS}
                     styles={{ label: { fontSize: '10px' } }}
                   />
+                  <NumberInput
+                    size="xs"
+                    label="Hold Elevation (deg)"
+                    value={config.ambiguityResolution.holdElevation}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        ambiguityResolution: { ...config.ambiguityResolution, holdElevation: Number(value) },
+                      })
+                    }
+                    min={0}
+                    max={90}
+                    hideControls
+                    disabled={isSingle || isDGPS}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                </SimpleGrid>
+              </Fieldset>
 
-                  {config.setting2.baselineLengthConstraint.enabled && (
-                    <SimpleGrid cols={2} spacing="xs">
-                      <NumberInput
-                        size="xs"
-                        label="Length (m)"
-                        value={config.setting2.baselineLengthConstraint.length}
-                        onChange={(value: any) =>
-                          handleConfigChange({
-                            ...config,
-                            setting2: {
-                              ...config.setting2,
-                              baselineLengthConstraint: {
-                                ...config.setting2.baselineLengthConstraint,
-                                length: Number(value),
-                              },
-                            },
-                          })
-                        }
-                        min={0}
-                        step={0.001}
-                        decimalScale={3}
-                        disabled={isSingle || isDGPS}
-                        styles={{ label: { fontSize: '10px' } }}
-                      />
-                      <NumberInput
-                        size="xs"
-                        label="Sigma (m)"
-                        value={config.setting2.baselineLengthConstraint.sigma}
-                        onChange={(value: any) =>
-                          handleConfigChange({
-                            ...config,
-                            setting2: {
-                              ...config.setting2,
-                              baselineLengthConstraint: {
-                                ...config.setting2.baselineLengthConstraint,
-                                sigma: Number(value),
-                              },
-                            },
-                          })
-                        }
-                        min={0}
-                        step={0.001}
-                        decimalScale={3}
-                        disabled={isSingle || isDGPS}
-                        styles={{ label: { fontSize: '10px' } }}
-                      />
-                    </SimpleGrid>
-                  )}
-                </Stack>
+              {/* AR Counters */}
+              <Fieldset legend="AR Counters" style={{ fontSize: '10px' }}>
+                <SimpleGrid cols={2} spacing="xs">
+                  <NumberInput
+                    size="xs"
+                    label="Lock Count"
+                    value={config.ambiguityResolution.lockCount}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        ambiguityResolution: { ...config.ambiguityResolution, lockCount: Number(value) },
+                      })
+                    }
+                    min={0}
+                    hideControls
+                    disabled={isSingle || isDGPS}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <NumberInput
+                    size="xs"
+                    label="Min Fix"
+                    value={config.ambiguityResolution.minFix}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        ambiguityResolution: { ...config.ambiguityResolution, minFix: Number(value) },
+                      })
+                    }
+                    min={0}
+                    hideControls
+                    disabled={isSingle || isDGPS}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <NumberInput
+                    size="xs"
+                    label="Max Iterations"
+                    value={config.ambiguityResolution.maxIterations}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        ambiguityResolution: { ...config.ambiguityResolution, maxIterations: Number(value) },
+                      })
+                    }
+                    min={1}
+                    max={10}
+                    hideControls
+                    disabled={isSingle || isDGPS}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <NumberInput
+                    size="xs"
+                    label="Out Count"
+                    value={config.ambiguityResolution.outCount}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        ambiguityResolution: { ...config.ambiguityResolution, outCount: Number(value) },
+                      })
+                    }
+                    min={0}
+                    step={1}
+                    hideControls
+                    disabled={isSingle || isDGPS}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                </SimpleGrid>
+              </Fieldset>
+
+              {/* Rejection */}
+              <Fieldset legend="Rejection" style={{ fontSize: '10px' }}>
+                <SimpleGrid cols={2} spacing="xs">
+                  <NumberInput
+                    size="xs"
+                    label="Innovation (m)"
+                    value={config.rejection.innovation}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        rejection: { ...config.rejection, innovation: Number(value) },
+                      })
+                    }
+                    min={0}
+                    step={1}
+                    hideControls
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <NumberInput
+                    size="xs"
+                    label="GDOP"
+                    value={config.rejection.gdop}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        rejection: { ...config.rejection, gdop: Number(value) },
+                      })
+                    }
+                    min={0}
+                    step={1}
+                    hideControls
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                </SimpleGrid>
+              </Fieldset>
+
+              {/* Slip Detection */}
+              <Fieldset legend="Slip Detection" style={{ fontSize: '10px' }}>
+                <NumberInput
+                  size="xs"
+                  label="Threshold (m)"
+                  value={config.slipDetection.threshold}
+                  onChange={(value: any) =>
+                    handleConfigChange({
+                      ...config,
+                      slipDetection: { ...config.slipDetection, threshold: Number(value) },
+                    })
+                  }
+                  min={0}
+                  step={0.001}
+                  decimalScale={3}
+                  hideControls
+                  styles={{ label: { fontSize: '10px' } }}
+                />
               </Fieldset>
             </Stack>
           </Tabs.Panel>
 
-          {/* Tab 3: Output */}
+          {/* Tab: Output */}
           <Tabs.Panel value="output" pt="xs">
             <Stack gap="xs">
               {/* Group A: Format Configuration */}
@@ -1699,21 +1480,60 @@ export function PostProcessingConfiguration({
             </Stack>
           </Tabs.Panel>
 
-          {/* Tab 4: Stats */}
-          <Tabs.Panel value="stats" pt="xs">
+          {/* Tab: Kalman Filter */}
+          <Tabs.Panel value="kalman" pt="xs">
             <Stack gap="xs">
-              {/* Group A: Measurement Errors (1-sigma) */}
+              {/* Filter Settings */}
+              <Fieldset legend="Filter Settings" style={{ fontSize: '10px' }}>
+                <SimpleGrid cols={2} spacing="xs">
+                  <NumberInput
+                    size="xs"
+                    label="Iterations"
+                    value={config.kalmanFilter.iterations}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        kalmanFilter: { ...config.kalmanFilter, iterations: Number(value) },
+                      })
+                    }
+                    min={1}
+                    max={10}
+                    hideControls
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <Checkbox
+                    size="xs"
+                    label="Sync Solution"
+                    checked={config.kalmanFilter.syncSolution}
+                    onChange={(e: any) =>
+                      handleConfigChange({
+                        ...config,
+                        kalmanFilter: { ...config.kalmanFilter, syncSolution: e.currentTarget.checked },
+                      })
+                    }
+                    styles={{ label: { fontSize: '10px' }, root: { marginTop: '20px' } }}
+                  />
+                </SimpleGrid>
+              </Fieldset>
+
+              {/* Measurement Error */}
               <Fieldset legend="Measurement Errors (1-sigma)" style={{ fontSize: '10px' }}>
                 <Stack gap="xs">
                   <SimpleGrid cols={2} spacing="xs">
                     <NumberInput
                       size="xs"
                       label="Code/Phase Ratio L1"
-                      value={config.stats.codePhaseRatioL1}
+                      value={config.kalmanFilter.measurementError.codePhaseRatioL1}
                       onChange={(value: any) =>
                         handleConfigChange({
                           ...config,
-                          stats: { ...config.stats, codePhaseRatioL1: Number(value) },
+                          kalmanFilter: {
+                            ...config.kalmanFilter,
+                            measurementError: {
+                              ...config.kalmanFilter.measurementError,
+                              codePhaseRatioL1: Number(value),
+                            },
+                          },
                         })
                       }
                       min={0}
@@ -1725,11 +1545,17 @@ export function PostProcessingConfiguration({
                     <NumberInput
                       size="xs"
                       label="L2"
-                      value={config.stats.codePhaseRatioL2}
+                      value={config.kalmanFilter.measurementError.codePhaseRatioL2}
                       onChange={(value: any) =>
                         handleConfigChange({
                           ...config,
-                          stats: { ...config.stats, codePhaseRatioL2: Number(value) },
+                          kalmanFilter: {
+                            ...config.kalmanFilter,
+                            measurementError: {
+                              ...config.kalmanFilter.measurementError,
+                              codePhaseRatioL2: Number(value),
+                            },
+                          },
                         })
                       }
                       min={0}
@@ -1744,11 +1570,17 @@ export function PostProcessingConfiguration({
                     <NumberInput
                       size="xs"
                       label="Phase Error a (m)"
-                      value={config.stats.phaseErrorA}
+                      value={config.kalmanFilter.measurementError.phase}
                       onChange={(value: any) =>
                         handleConfigChange({
                           ...config,
-                          stats: { ...config.stats, phaseErrorA: Number(value) },
+                          kalmanFilter: {
+                            ...config.kalmanFilter,
+                            measurementError: {
+                              ...config.kalmanFilter.measurementError,
+                              phase: Number(value),
+                            },
+                          },
                         })
                       }
                       min={0}
@@ -1760,11 +1592,17 @@ export function PostProcessingConfiguration({
                     <NumberInput
                       size="xs"
                       label="b/sinEl (m)"
-                      value={config.stats.phaseErrorB}
+                      value={config.kalmanFilter.measurementError.phaseElevation}
                       onChange={(value: any) =>
                         handleConfigChange({
                           ...config,
-                          stats: { ...config.stats, phaseErrorB: Number(value) },
+                          kalmanFilter: {
+                            ...config.kalmanFilter,
+                            measurementError: {
+                              ...config.kalmanFilter.measurementError,
+                              phaseElevation: Number(value),
+                            },
+                          },
                         })
                       }
                       min={0}
@@ -1778,11 +1616,17 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Phase Error/Baseline (m/10km)"
-                    value={config.stats.phaseErrorBaseline}
+                    value={config.kalmanFilter.measurementError.phaseBaseline}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        stats: { ...config.stats, phaseErrorBaseline: Number(value) },
+                        kalmanFilter: {
+                          ...config.kalmanFilter,
+                          measurementError: {
+                            ...config.kalmanFilter.measurementError,
+                            phaseBaseline: Number(value),
+                          },
+                        },
                       })
                     }
                     min={0}
@@ -1794,11 +1638,17 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Doppler Frequency (Hz)"
-                    value={config.stats.dopplerFrequency}
+                    value={config.kalmanFilter.measurementError.doppler}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        stats: { ...config.stats, dopplerFrequency: Number(value) },
+                        kalmanFilter: {
+                          ...config.kalmanFilter,
+                          measurementError: {
+                            ...config.kalmanFilter.measurementError,
+                            doppler: Number(value),
+                          },
+                        },
                       })
                     }
                     min={0}
@@ -1809,18 +1659,24 @@ export function PostProcessingConfiguration({
                 </Stack>
               </Fieldset>
 
-              {/* Group B: Process Noises (1-sigma/sqrt(s)) */}
+              {/* Process Noise */}
               <Fieldset legend="Process Noises (1-sigma/sqrt(s))" style={{ fontSize: '10px' }}>
                 <Stack gap="xs">
                   <SimpleGrid cols={2} spacing="xs">
                     <NumberInput
                       size="xs"
-                      label="Receiver Accel Horiz (m/s²)"
-                      value={config.stats.receiverAccelHoriz}
+                      label="Receiver Accel Horiz (m/s\u00B2)"
+                      value={config.kalmanFilter.processNoise.accelH}
                       onChange={(value: any) =>
                         handleConfigChange({
                           ...config,
-                          stats: { ...config.stats, receiverAccelHoriz: Number(value) },
+                          kalmanFilter: {
+                            ...config.kalmanFilter,
+                            processNoise: {
+                              ...config.kalmanFilter.processNoise,
+                              accelH: Number(value),
+                            },
+                          },
                         })
                       }
                       min={0}
@@ -1831,12 +1687,18 @@ export function PostProcessingConfiguration({
                     />
                     <NumberInput
                       size="xs"
-                      label="Vertical (m/s²)"
-                      value={config.stats.receiverAccelVert}
+                      label="Vertical (m/s\u00B2)"
+                      value={config.kalmanFilter.processNoise.accelV}
                       onChange={(value: any) =>
                         handleConfigChange({
                           ...config,
-                          stats: { ...config.stats, receiverAccelVert: Number(value) },
+                          kalmanFilter: {
+                            ...config.kalmanFilter,
+                            processNoise: {
+                              ...config.kalmanFilter.processNoise,
+                              accelV: Number(value),
+                            },
+                          },
                         })
                       }
                       min={0}
@@ -1850,11 +1712,17 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Carrier-Phase Bias (cycle)"
-                    value={config.stats.carrierPhaseBias}
+                    value={config.kalmanFilter.processNoise.bias}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        stats: { ...config.stats, carrierPhaseBias: Number(value) },
+                        kalmanFilter: {
+                          ...config.kalmanFilter,
+                          processNoise: {
+                            ...config.kalmanFilter.processNoise,
+                            bias: Number(value),
+                          },
+                        },
                       })
                     }
                     min={0}
@@ -1866,11 +1734,17 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Vertical Ionospheric Delay (m/10km)"
-                    value={config.stats.ionosphericDelay}
+                    value={config.kalmanFilter.processNoise.ionosphere}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        stats: { ...config.stats, ionosphericDelay: Number(value) },
+                        kalmanFilter: {
+                          ...config.kalmanFilter,
+                          processNoise: {
+                            ...config.kalmanFilter.processNoise,
+                            ionosphere: Number(value),
+                          },
+                        },
                       })
                     }
                     min={0}
@@ -1882,11 +1756,17 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Zenith Tropospheric Delay (m)"
-                    value={config.stats.troposphericDelay}
+                    value={config.kalmanFilter.processNoise.troposphere}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        stats: { ...config.stats, troposphericDelay: Number(value) },
+                        kalmanFilter: {
+                          ...config.kalmanFilter,
+                          processNoise: {
+                            ...config.kalmanFilter.processNoise,
+                            troposphere: Number(value),
+                          },
+                        },
                       })
                     }
                     min={0}
@@ -1898,11 +1778,17 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Satellite Clock Stability (s/s)"
-                    value={config.stats.satelliteClockStability}
+                    value={config.kalmanFilter.processNoise.clockStability}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        stats: { ...config.stats, satelliteClockStability: Number(value) },
+                        kalmanFilter: {
+                          ...config.kalmanFilter,
+                          processNoise: {
+                            ...config.kalmanFilter.processNoise,
+                            clockStability: Number(value),
+                          },
+                        },
                       })
                     }
                     min={0}
@@ -1915,16 +1801,16 @@ export function PostProcessingConfiguration({
             </Stack>
           </Tabs.Panel>
 
-          {/* Tab 5: Positions */}
-          <Tabs.Panel value="positions" pt="xs">
+          {/* Tab: Antenna */}
+          <Tabs.Panel value="antenna" pt="xs">
             <Stack gap="xs">
               <StationPositionInput
                 label="Rover Station"
-                value={config.positions.rover}
+                value={config.antenna.rover}
                 onChange={(newRover) =>
                   handleConfigChange({
                     ...config,
-                    positions: { ...config.positions, rover: newRover },
+                    antenna: { ...config.antenna, rover: newRover },
                   })
                 }
                 disableCoordinates={!isFixedMode}
@@ -1933,11 +1819,11 @@ export function PostProcessingConfiguration({
 
               <StationPositionInput
                 label="Base Station"
-                value={config.positions.base}
+                value={config.antenna.base}
                 onChange={(newBase) =>
                   handleConfigChange({
                     ...config,
-                    positions: { ...config.positions, base: newBase },
+                    antenna: { ...config.antenna, base: newBase },
                   })
                 }
                 disabled={isSingle}
@@ -1946,58 +1832,55 @@ export function PostProcessingConfiguration({
               <FileInputRow
                 label="Station Position File"
                 placeholder="Path to station position file"
-                value={config.positions.stationPositionFile}
+                value={config.files.stationPos}
                 onChange={(val) =>
                   handleConfigChange({
                     ...config,
-                    positions: { ...config.positions, stationPositionFile: val },
+                    files: { ...config.files, stationPos: val },
                   })
                 }
                 onBrowse={() => openFileBrowser((path) =>
                   handleConfigChange({
                     ...config,
-                    positions: { ...config.positions, stationPositionFile: path },
+                    files: { ...config.files, stationPos: path },
                   })
                 )}
               />
             </Stack>
           </Tabs.Panel>
 
-          {/* Tab 6: Files */}
+          {/* Tab: Files */}
           <Tabs.Panel value="files" pt="xs">
             <Stack gap="xs">
-              {/* Satellite/Receiver Antenna PCV File (ANTEX) */}
-              <div>
-                <Text size="xs" fw={500} mb="xs" style={{ fontSize: '10px' }}>
-                  Satellite/Receiver Antenna PCV File (ANTEX)
-                </Text>
-                <Stack gap="xs">
-                  <FileInputRow
-                    value={config.files.antex1}
-                    onChange={(val) =>
-                      handleConfigChange({
-                        ...config,
-                        files: { ...config.files, antex1: val },
-                      })
-                    }
-                    onBrowse={() => openFileBrowser((path) =>
-                      handleConfigChange({ ...config, files: { ...config.files, antex1: path } })
-                    )}
-                  />
-                  <FileInputRow
-                    value={config.files.antex2}
-                    onChange={(val) =>
-                      handleConfigChange({
-                        ...config,
-                        files: { ...config.files, antex2: val },
-                      })
-                    }
-                    onBrowse={() => openFileBrowser((path) =>
-                      handleConfigChange({ ...config, files: { ...config.files, antex2: path } })
-                    )}
-                  />
-                </Stack>
-              </div>
+              {/* Satellite Antenna PCV File (ANTEX) */}
+              <FileInputRow
+                label="Satellite Antenna PCV File (ANTEX)"
+                value={config.files.satelliteAtx}
+                onChange={(val) =>
+                  handleConfigChange({
+                    ...config,
+                    files: { ...config.files, satelliteAtx: val },
+                  })
+                }
+                onBrowse={() => openFileBrowser((path) =>
+                  handleConfigChange({ ...config, files: { ...config.files, satelliteAtx: path } })
+                )}
+              />
+
+              {/* Receiver Antenna PCV File (ANTEX) */}
+              <FileInputRow
+                label="Receiver Antenna PCV File (ANTEX)"
+                value={config.files.receiverAtx}
+                onChange={(val) =>
+                  handleConfigChange({
+                    ...config,
+                    files: { ...config.files, receiverAtx: val },
+                  })
+                }
+                onBrowse={() => openFileBrowser((path) =>
+                  handleConfigChange({ ...config, files: { ...config.files, receiverAtx: path } })
+                )}
+              />
 
               {/* Geoid Data File */}
               <FileInputRow
@@ -2044,18 +1927,18 @@ export function PostProcessingConfiguration({
                 )}
               />
 
-              {/* OTL BLQ File */}
+              {/* Ocean Loading (BLQ) File */}
               <FileInputRow
-                label="OTL BLQ File"
-                value={config.files.blq}
+                label="Ocean Loading (BLQ) File"
+                value={config.files.oceanLoading}
                 onChange={(val) =>
                   handleConfigChange({
                     ...config,
-                    files: { ...config.files, blq: val },
+                    files: { ...config.files, oceanLoading: val },
                   })
                 }
                 onBrowse={() => openFileBrowser((path) =>
-                  handleConfigChange({ ...config, files: { ...config.files, blq: path } })
+                  handleConfigChange({ ...config, files: { ...config.files, oceanLoading: path } })
                 )}
               />
 
@@ -2076,21 +1959,40 @@ export function PostProcessingConfiguration({
             </Stack>
           </Tabs.Panel>
 
-          {/* Tab 7: Misc */}
-          <Tabs.Panel value="misc" pt="xs">
+          {/* Tab: Server */}
+          <Tabs.Panel value="server" pt="xs">
             <Stack gap="xs">
-              {/* Group A: Processing Options */}
-              <Fieldset legend="Processing Options" style={{ fontSize: '10px' }}>
+              {/* Receiver */}
+              <Fieldset legend="Receiver" style={{ fontSize: '10px' }}>
+                <Checkbox
+                  size="xs"
+                  label="Iono Correction"
+                  checked={config.receiver.ionoCorrection}
+                  onChange={(e: any) =>
+                    handleConfigChange({
+                      ...config,
+                      receiver: {
+                        ...config.receiver,
+                        ionoCorrection: e.currentTarget.checked,
+                      },
+                    })
+                  }
+                  styles={{ label: { fontSize: '10px' } }}
+                />
+              </Fieldset>
+
+              {/* Server Options */}
+              <Fieldset legend="Server Options" style={{ fontSize: '10px' }}>
                 <Stack gap="xs">
                   <Select
                     size="xs"
                     label="Time Interpolation of Base Station Data"
-                    value={config.misc.timeInterpolation ? 'on' : 'off'}
+                    value={config.server.timeInterpolation ? 'on' : 'off'}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        misc: {
-                          ...config.misc,
+                        server: {
+                          ...config.server,
                           timeInterpolation: value === 'on',
                         },
                       })
@@ -2102,39 +2004,16 @@ export function PostProcessingConfiguration({
                     styles={{ label: { fontSize: '10px' } }}
                   />
 
-                  <Select
-                    size="xs"
-                    label="DGPS/DGNSS Corrections"
-                    value={config.misc.dgpsCorrections}
-                    onChange={(value: any) =>
-                      handleConfigChange({
-                        ...config,
-                        misc: {
-                          ...config.misc,
-                          dgpsCorrections: value,
-                        },
-                      })
-                    }
-                    data={[
-                      { value: 'off', label: 'OFF' },
-                      { value: 'sbas', label: 'SBAS' },
-                      { value: 'rtcm-dgps', label: 'RTCM DGPS' },
-                      { value: 'rtcm-dgnss', label: 'RTCM DGNSS' },
-                    ]}
-                    disabled={isSingle}
-                    styles={{ label: { fontSize: '10px' } }}
-                  />
-
                   <NumberInput
                     size="xs"
                     label="SBAS Satellite Selection (0: All)"
-                    value={config.misc.sbasSatSelection}
+                    value={config.server.sbasSatellite}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        misc: {
-                          ...config.misc,
-                          sbasSatSelection: Number(value),
+                        server: {
+                          ...config.server,
+                          sbasSatellite: Number(value),
                         },
                       })
                     }
@@ -2147,20 +2026,20 @@ export function PostProcessingConfiguration({
                 </Stack>
               </Fieldset>
 
-              {/* Group B: RINEX Reading Options */}
+              {/* RINEX Reading Options */}
               <Fieldset legend="RINEX Reading Options" style={{ fontSize: '10px' }}>
                 <Stack gap="xs">
                   <TextInput
                     size="xs"
                     label="RINEX Opt (Rover)"
                     placeholder="-E -GL ..."
-                    value={config.misc.rinexOptRover}
+                    value={config.server.rinexOption1}
                     onChange={(e: any) =>
                       handleConfigChange({
                         ...config,
-                        misc: {
-                          ...config.misc,
-                          rinexOptRover: e.currentTarget.value,
+                        server: {
+                          ...config.server,
+                          rinexOption1: e.currentTarget.value,
                         },
                       })
                     }
@@ -2171,13 +2050,13 @@ export function PostProcessingConfiguration({
                     size="xs"
                     label="RINEX Opt (Base)"
                     placeholder="-E -GL ..."
-                    value={config.misc.rinexOptBase}
+                    value={config.server.rinexOption2}
                     onChange={(e: any) =>
                       handleConfigChange({
                         ...config,
-                        misc: {
-                          ...config.misc,
-                          rinexOptBase: e.currentTarget.value,
+                        server: {
+                          ...config.server,
+                          rinexOption2: e.currentTarget.value,
                         },
                       })
                     }
@@ -2315,11 +2194,11 @@ export function PostProcessingConfiguration({
       <SnrMaskModal
         opened={snrMaskModalOpened}
         onClose={() => setSnrMaskModalOpened(false)}
-        value={config.setting1.snrMask}
+        value={config.positioning.snrMask}
         onChange={(newSnrMask: SnrMaskConfig) =>
           handleConfigChange({
             ...config,
-            setting1: { ...config.setting1, snrMask: newSnrMask },
+            positioning: { ...config.positioning, snrMask: newSnrMask },
           })
         }
       />

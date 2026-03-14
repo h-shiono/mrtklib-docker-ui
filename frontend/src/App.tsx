@@ -71,7 +71,7 @@ function PostProcessingPanel() {
 
   // Modes that require a base station
   const needsBase = ['dgps', 'kinematic', 'static', 'fixed', 'moving-base'].includes(
-    config.setting1.positioningMode,
+    config.positioning.positioningMode,
   );
 
   const [isLoading, setIsLoading] = useState(false);
@@ -140,54 +140,85 @@ function PostProcessingPanel() {
 
   // Convert frontend config to backend format (camelCase -> snake_case)
   const buildBackendConfig = useCallback(() => {
+    const p = config.positioning;
+    const ar = config.ambiguityResolution;
+    const kf = config.kalmanFilter;
+    const ant = config.antenna;
     return {
-      setting1: {
-        positioning_mode: config.setting1.positioningMode,
-        frequency: config.setting1.frequency,
-        filter_type: config.setting1.filterType,
-        constellations: config.setting1.constellations,
-        excluded_satellites: config.setting1.excludedSatellites,
-        elevation_mask: config.setting1.elevationMask,
+      positioning: {
+        positioning_mode: p.positioningMode,
+        frequency: p.frequency,
+        filter_type: p.filterType,
+        elevation_mask: p.elevationMask,
+        receiver_dynamics: p.receiverDynamics,
+        ephemeris_option: p.ephemerisOption,
+        constellations: p.constellations,
+        excluded_satellites: p.excludedSatellites,
         snr_mask: {
-          enable_rover: config.setting1.snrMask.enableRover,
-          enable_base: config.setting1.snrMask.enableBase,
-          mask: config.setting1.snrMask.mask,
+          enable_rover: p.snrMask.enableRover,
+          enable_base: p.snrMask.enableBase,
+          mask: p.snrMask.mask,
         },
-        ionosphere_correction: config.setting1.ionosphereCorrection,
-        troposphere_correction: config.setting1.troposphereCorrection,
-        ephemeris_option: config.setting1.ephemerisOption,
-        earth_tides_correction: config.setting1.earthTidesCorrection,
-        receiver_dynamics: config.setting1.receiverDynamics,
-        satellite_pcv: config.setting1.satellitePcv,
-        receiver_pcv: config.setting1.receiverPcv,
-        phase_windup: config.setting1.phaseWindup,
-        reject_eclipse: config.setting1.rejectEclipse,
-        raim_fde: config.setting1.raimFde,
-        db_corr: config.setting1.dbCorr,
+        satellite_pcv: p.satellitePcv,
+        receiver_pcv: p.receiverPcv,
+        phase_windup: p.phaseWindup,
+        reject_eclipse: p.rejectEclipse,
+        raim_fde: p.raimFde,
+        earth_tides_correction: p.earthTidesCorrection,
+        ionosphere_correction: p.ionosphereCorrection,
+        troposphere_correction: p.troposphereCorrection,
       },
-      setting2: {
-        gps_ar_mode: config.setting2.gpsArMode,
-        glo_ar_mode: config.setting2.gloArMode,
-        bds_ar_mode: config.setting2.bdsArMode,
-        min_ratio_to_fix: config.setting2.minRatioToFix,
-        min_confidence: config.setting2.minConfidence,
-        max_fcb: config.setting2.maxFcb,
-        min_lock_to_fix: config.setting2.minLockToFix,
-        min_elevation_to_fix: config.setting2.minElevationToFix,
-        min_fix_to_hold: config.setting2.minFixToHold,
-        min_elevation_to_hold: config.setting2.minElevationToHold,
-        outage_to_reset: config.setting2.outageToReset,
-        slip_threshold: config.setting2.slipThreshold,
-        max_age_diff: config.setting2.maxAgeDiff,
-        sync_solution: config.setting2.syncSolution,
-        reject_threshold_gdop: config.setting2.rejectThresholdGdop,
-        reject_threshold_innovation: config.setting2.rejectThresholdInnovation,
-        max_ar_iter: config.setting2.maxArIter,
-        num_filter_iterations: config.setting2.numFilterIterations,
-        baseline_length_constraint: {
-          enabled: config.setting2.baselineLengthConstraint.enabled,
-          length: config.setting2.baselineLengthConstraint.length,
-          sigma: config.setting2.baselineLengthConstraint.sigma,
+      ambiguity_resolution: {
+        mode: ar.mode,
+        ratio: ar.ratio,
+        elevation_mask: ar.elevationMask,
+        hold_elevation: ar.holdElevation,
+        lock_count: ar.lockCount,
+        min_fix: ar.minFix,
+        max_iterations: ar.maxIterations,
+        out_count: ar.outCount,
+      },
+      rejection: {
+        innovation: config.rejection.innovation,
+        gdop: config.rejection.gdop,
+      },
+      slip_detection: {
+        threshold: config.slipDetection.threshold,
+      },
+      kalman_filter: {
+        iterations: kf.iterations,
+        sync_solution: kf.syncSolution,
+        measurement_error: {
+          code_phase_ratio_l1: kf.measurementError.codePhaseRatioL1,
+          code_phase_ratio_l2: kf.measurementError.codePhaseRatioL2,
+          phase: kf.measurementError.phase,
+          phase_elevation: kf.measurementError.phaseElevation,
+          phase_baseline: kf.measurementError.phaseBaseline,
+          doppler: kf.measurementError.doppler,
+        },
+        process_noise: {
+          bias: kf.processNoise.bias,
+          ionosphere: kf.processNoise.ionosphere,
+          troposphere: kf.processNoise.troposphere,
+          accel_h: kf.processNoise.accelH,
+          accel_v: kf.processNoise.accelV,
+          clock_stability: kf.processNoise.clockStability,
+        },
+      },
+      antenna: {
+        rover: {
+          mode: ant.rover.mode,
+          values: ant.rover.values,
+          antenna_type_enabled: ant.rover.antennaTypeEnabled,
+          antenna_type: ant.rover.antennaType,
+          antenna_delta: ant.rover.antennaDelta,
+        },
+        base: {
+          mode: ant.base.mode,
+          values: ant.base.values,
+          antenna_type_enabled: ant.base.antennaTypeEnabled,
+          antenna_type: ant.base.antennaType,
+          antenna_delta: ant.base.antennaDelta,
         },
       },
       output: {
@@ -209,53 +240,24 @@ function PostProcessingPanel() {
         output_solution_status: config.output.outputSolutionStatus,
         debug_trace: config.output.debugTrace,
       },
-      stats: {
-        code_phase_ratio_l1: config.stats.codePhaseRatioL1,
-        code_phase_ratio_l2: config.stats.codePhaseRatioL2,
-        phase_error_a: config.stats.phaseErrorA,
-        phase_error_b: config.stats.phaseErrorB,
-        phase_error_baseline: config.stats.phaseErrorBaseline,
-        doppler_frequency: config.stats.dopplerFrequency,
-        receiver_accel_horiz: config.stats.receiverAccelHoriz,
-        receiver_accel_vert: config.stats.receiverAccelVert,
-        carrier_phase_bias: config.stats.carrierPhaseBias,
-        ionospheric_delay: config.stats.ionosphericDelay,
-        tropospheric_delay: config.stats.troposphericDelay,
-        satellite_clock_stability: config.stats.satelliteClockStability,
+      files: {
+        satellite_atx: config.files.satelliteAtx,
+        receiver_atx: config.files.receiverAtx,
+        station_pos: config.files.stationPos,
+        geoid: config.files.geoid,
+        ionosphere: config.files.ionosphere,
+        dcb: config.files.dcb,
+        eop: config.files.eop,
+        ocean_loading: config.files.oceanLoading,
       },
-      positions: {
-        rover: {
-          mode: config.positions.rover.mode,
-          values: config.positions.rover.values,
-          antenna_type_enabled: config.positions.rover.antennaTypeEnabled,
-          antenna_type: config.positions.rover.antennaType,
-          antenna_delta: config.positions.rover.antennaDelta,
-        },
-        base: {
-          mode: config.positions.base.mode,
-          values: config.positions.base.values,
-          antenna_type_enabled: config.positions.base.antennaTypeEnabled,
-          antenna_type: config.positions.base.antennaType,
-          antenna_delta: config.positions.base.antennaDelta,
-        },
-        station_position_file: config.positions.stationPositionFile,
+      server: {
+        time_interpolation: config.server.timeInterpolation,
+        sbas_satellite: config.server.sbasSatellite,
+        rinex_option_1: config.server.rinexOption1,
+        rinex_option_2: config.server.rinexOption2,
       },
-      base_position: {
-        latitude: config.basePosition.latitude,
-        longitude: config.basePosition.longitude,
-        height: config.basePosition.height,
-        use_rinex_header: config.basePosition.useRinexHeader,
-      },
-      files: config.files,
-      misc: {
-        time_system: config.misc.timeSystem,
-        ionosphere_correction: config.misc.ionosphereCorrection,
-        troposphere_correction: config.misc.troposphereCorrection,
-        time_interpolation: config.misc.timeInterpolation,
-        dgps_corrections: config.misc.dgpsCorrections,
-        sbas_sat_selection: config.misc.sbasSatSelection,
-        rinex_opt_rover: config.misc.rinexOptRover,
-        rinex_opt_base: config.misc.rinexOptBase,
+      receiver: {
+        iono_correction: config.receiver.ionoCorrection,
       },
     };
   }, [config]);
