@@ -24,7 +24,6 @@ import {
   IconAdjustments,
   IconAdjustmentsHorizontal,
   IconChartLine,
-  IconClock,
   IconDatabaseExport,
   IconDots,
   IconFolderOpen,
@@ -368,9 +367,6 @@ export function PostProcessingConfiguration({
             </Tabs.Tab>
             <Tabs.Tab value="server" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconDots size={14} />}>
               Server
-            </Tabs.Tab>
-            <Tabs.Tab value="time" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconClock size={14} />}>
-              Time
             </Tabs.Tab>
           </Tabs.List>
 
@@ -2223,125 +2219,6 @@ export function PostProcessingConfiguration({
           </Tabs.Panel>
 
           {/* Tab: Time */}
-          <Tabs.Panel value="time" pt="xs">
-            <Stack gap="xs">
-              <Fieldset legend="Processing Time (GPST)" style={{ fontSize: '10px' }}>
-                <Stack gap="xs">
-                  <Group gap="xs" align="end">
-                    <Checkbox
-                      size="xs"
-                      label="Time Start"
-                      checked={config.time.startEnabled}
-                      onChange={(e) =>
-                        handleConfigChange({
-                          ...config,
-                          time: { ...config.time, startEnabled: e.currentTarget.checked },
-                        })
-                      }
-                      styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
-                    />
-                    <TextInput
-                      size="xs"
-                      label="Date"
-                      placeholder="YYYY/MM/DD"
-                      value={config.time.startDate}
-                      onChange={(e) =>
-                        handleConfigChange({
-                          ...config,
-                          time: { ...config.time, startDate: e.currentTarget.value },
-                        })
-                      }
-                      disabled={!config.time.startEnabled}
-                      style={{ width: 110 }}
-                      styles={{ label: { fontSize: '10px' }, input: { fontSize: '11px', textAlign: 'center' } }}
-                    />
-                    <TextInput
-                      size="xs"
-                      label="Time"
-                      placeholder="HH:MM:SS"
-                      value={config.time.startTime}
-                      onChange={(e) =>
-                        handleConfigChange({
-                          ...config,
-                          time: { ...config.time, startTime: e.currentTarget.value },
-                        })
-                      }
-                      disabled={!config.time.startEnabled}
-                      style={{ width: 90 }}
-                      styles={{ label: { fontSize: '10px' }, input: { fontSize: '11px', textAlign: 'center' } }}
-                    />
-                  </Group>
-
-                  <Group gap="xs" align="end">
-                    <Checkbox
-                      size="xs"
-                      label="Time End"
-                      checked={config.time.endEnabled}
-                      onChange={(e) =>
-                        handleConfigChange({
-                          ...config,
-                          time: { ...config.time, endEnabled: e.currentTarget.checked },
-                        })
-                      }
-                      styles={{ label: { fontSize: '10px', paddingLeft: 4, width: 68 } }}
-                    />
-                    <TextInput
-                      size="xs"
-                      label="Date"
-                      placeholder="YYYY/MM/DD"
-                      value={config.time.endDate}
-                      onChange={(e) =>
-                        handleConfigChange({
-                          ...config,
-                          time: { ...config.time, endDate: e.currentTarget.value },
-                        })
-                      }
-                      disabled={!config.time.endEnabled}
-                      style={{ width: 110 }}
-                      styles={{ label: { fontSize: '10px' }, input: { fontSize: '11px', textAlign: 'center' } }}
-                    />
-                    <TextInput
-                      size="xs"
-                      label="Time"
-                      placeholder="HH:MM:SS"
-                      value={config.time.endTime}
-                      onChange={(e) =>
-                        handleConfigChange({
-                          ...config,
-                          time: { ...config.time, endTime: e.currentTarget.value },
-                        })
-                      }
-                      disabled={!config.time.endEnabled}
-                      style={{ width: 90 }}
-                      styles={{ label: { fontSize: '10px' }, input: { fontSize: '11px', textAlign: 'center' } }}
-                    />
-                  </Group>
-                </Stack>
-              </Fieldset>
-
-              <Fieldset legend="Interval" style={{ fontSize: '10px' }}>
-                <NumberInput
-                  size="xs"
-                  label="Processing Interval (s)"
-                  description="0 = use all epochs"
-                  value={config.time.interval}
-                  onChange={(v) =>
-                    handleConfigChange({
-                      ...config,
-                      time: { ...config.time, interval: Number(v) || 0 },
-                    })
-                  }
-                  min={0}
-                  step={1}
-                  decimalScale={2}
-                  suffix=" s"
-                  hideControls
-                  style={{ maxWidth: 200 }}
-                  styles={{ label: { fontSize: '10px' }, description: { fontSize: '9px' } }}
-                />
-              </Fieldset>
-            </Stack>
-          </Tabs.Panel>
         </Tabs>
       </Stack>
     </Card>

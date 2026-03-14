@@ -14,7 +14,9 @@ import {
   useMantineColorScheme,
   ActionIcon,
   Badge,
+  Checkbox,
   Code,
+  NumberInput,
   Tooltip,
   Alert,
   SimpleGrid,
@@ -385,6 +387,90 @@ function PostProcessingPanel() {
       {/* Left Column: Configuration & Control */}
       <Grid.Col span={{ base: 12, md: 6 }}>
         <Stack gap="xs">
+          {/* Time Range */}
+          <Card withBorder p="xs">
+            <SimpleGrid cols={3} spacing="xs">
+              {/* Start */}
+              <div>
+                <Checkbox
+                  size="xs"
+                  label="Time Start (GPST)"
+                  checked={config.time.startEnabled}
+                  onChange={(e) => setConfig({ ...config, time: { ...config.time, startEnabled: e.currentTarget.checked } })}
+                  styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
+                />
+                <Group gap={4} mt={4}>
+                  <TextInput
+                    size="xs"
+                    placeholder="YYYY/MM/DD"
+                    value={config.time.startDate}
+                    onChange={(e) => setConfig({ ...config, time: { ...config.time, startDate: e.currentTarget.value } })}
+                    disabled={!config.time.startEnabled}
+                    style={{ flex: 1 }}
+                    styles={{ input: { fontSize: '11px', textAlign: 'center' } }}
+                  />
+                  <TextInput
+                    size="xs"
+                    placeholder="HH:MM:SS"
+                    value={config.time.startTime}
+                    onChange={(e) => setConfig({ ...config, time: { ...config.time, startTime: e.currentTarget.value } })}
+                    disabled={!config.time.startEnabled}
+                    style={{ flex: 1 }}
+                    styles={{ input: { fontSize: '11px', textAlign: 'center' } }}
+                  />
+                </Group>
+              </div>
+
+              {/* End */}
+              <div>
+                <Checkbox
+                  size="xs"
+                  label="Time End (GPST)"
+                  checked={config.time.endEnabled}
+                  onChange={(e) => setConfig({ ...config, time: { ...config.time, endEnabled: e.currentTarget.checked } })}
+                  styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
+                />
+                <Group gap={4} mt={4}>
+                  <TextInput
+                    size="xs"
+                    placeholder="YYYY/MM/DD"
+                    value={config.time.endDate}
+                    onChange={(e) => setConfig({ ...config, time: { ...config.time, endDate: e.currentTarget.value } })}
+                    disabled={!config.time.endEnabled}
+                    style={{ flex: 1 }}
+                    styles={{ input: { fontSize: '11px', textAlign: 'center' } }}
+                  />
+                  <TextInput
+                    size="xs"
+                    placeholder="HH:MM:SS"
+                    value={config.time.endTime}
+                    onChange={(e) => setConfig({ ...config, time: { ...config.time, endTime: e.currentTarget.value } })}
+                    disabled={!config.time.endEnabled}
+                    style={{ flex: 1 }}
+                    styles={{ input: { fontSize: '11px', textAlign: 'center' } }}
+                  />
+                </Group>
+              </div>
+
+              {/* Interval */}
+              <div>
+                <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Interval</Text>
+                <NumberInput
+                  size="xs"
+                  value={config.time.interval}
+                  onChange={(v) => setConfig({ ...config, time: { ...config.time, interval: Number(v) || 0 } })}
+                  min={0}
+                  step={1}
+                  decimalScale={2}
+                  suffix=" s"
+                  placeholder="0 = all epochs"
+                  hideControls
+                  styles={{ input: { fontSize: '11px' } }}
+                />
+              </div>
+            </SimpleGrid>
+          </Card>
+
           {/* Execution Inputs */}
           <Card withBorder p="xs">
             <Stack gap="xs">
