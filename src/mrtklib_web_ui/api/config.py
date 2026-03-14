@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from rtklib_web_ui.services.config_parser import ConfigParser
+from mrtklib_web_ui.services.config_parser import ConfigParser
 
 router = APIRouter()
 config_parser = ConfigParser()

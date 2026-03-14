@@ -38,7 +38,7 @@ import type {
   FileParams,
   ProfileConfig,
 } from '../types/streamConfig';
-import { generateStr2StrArgs, generateCommandString } from '../utils/streamArgs';
+import { generateRelayArgs, generateCommandString } from '../utils/streamArgs';
 
 interface StreamConfigurationProps {
   onArgsChange: (args: string[]) => void;
@@ -72,17 +72,17 @@ const DEFAULT_CONFIG: BuilderConfig = {
 export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) {
   // Persistent state using localStorage
   const [mode, setMode] = useLocalStorage<'builder' | 'raw'>({
-    key: 'rtklib-web-ui-str2str-mode',
+    key: 'mrtklib-web-ui-relay-mode',
     defaultValue: 'builder',
   });
 
   const [builderConfig, setBuilderConfig] = useLocalStorage<BuilderConfig>({
-    key: 'rtklib-web-ui-str2str-config',
+    key: 'mrtklib-web-ui-relay-config',
     defaultValue: DEFAULT_CONFIG,
   });
 
   const [rawCommand, setRawCommand] = useLocalStorage<string>({
-    key: 'rtklib-web-ui-str2str-raw',
+    key: 'mrtklib-web-ui-relay-raw',
     defaultValue: '',
   });
 
@@ -91,7 +91,7 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
   // Update args when config changes
   useEffect(() => {
     if (mode === 'builder') {
-      const args = generateStr2StrArgs(builderConfig);
+      const args = generateRelayArgs(builderConfig);
       onArgsChange(args);
     } else {
       // Parse raw command to args
@@ -210,7 +210,7 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `str2str-profile-${Date.now()}.json`;
+    a.download = `relay-profile-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -399,7 +399,7 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
               <Textarea
                 size="xs"
                 label="Raw Command Arguments"
-                description="Enter str2str command line arguments directly"
+                description="Enter mrtk relay command line arguments directly"
                 placeholder="-in serial://ttyUSB0:115200 -out file:///workspace/output.ubx"
                 value={rawCommand}
                 onChange={(e) => setRawCommand(e.currentTarget.value)}

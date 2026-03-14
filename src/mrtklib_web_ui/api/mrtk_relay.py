@@ -1,19 +1,19 @@
-"""API endpoints for str2str stream server control."""
+"""API endpoints for stream relay control (mrtk relay, formerly str2str)."""
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from rtklib_web_ui.services import process_manager, ProcessState
+from mrtklib_web_ui.services import process_manager, ProcessState
 
 router = APIRouter()
 
 
-class Str2StrStartRequest(BaseModel):
-    """Request to start str2str process."""
+class MrtkRelayStartRequest(BaseModel):
+    """Request to start stream relay process (mrtk relay)."""
 
     args: list[str] = Field(
         default_factory=list,
-        description="Command line arguments for str2str",
+        description="Command line arguments for mrtk relay",
         examples=[["-in", "serial://ttyUSB0:115200", "-out", "file:///workspace/output.ubx"]],
     )
     process_id: str | None = Field(
@@ -22,7 +22,7 @@ class Str2StrStartRequest(BaseModel):
     )
 
 
-class Str2StrStopRequest(BaseModel):
+class MrtkRelayStopRequest(BaseModel):
     """Request to stop str2str process."""
 
     process_id: str = Field(
@@ -64,10 +64,10 @@ def _to_response(info) -> ProcessStatusResponse:
 
 
 @router.post("/start", response_model=ProcessStatusResponse)
-async def start_str2str(request: Str2StrStartRequest) -> ProcessStatusResponse:
-    """Start str2str streaming process.
+async def start_relay(request: MrtkRelayStartRequest) -> ProcessStatusResponse:
+    """Start stream relay process (mrtk relay).
 
-    If no arguments are provided, str2str will print its help message.
+    If no arguments are provided, mrtk relay will print its help message.
     """
     try:
         info = await process_manager.start(
@@ -83,8 +83,8 @@ async def start_str2str(request: Str2StrStartRequest) -> ProcessStatusResponse:
 
 
 @router.post("/stop", response_model=ProcessStatusResponse)
-async def stop_str2str(request: Str2StrStopRequest) -> ProcessStatusResponse:
-    """Stop a running str2str process."""
+async def stop_relay(request: MrtkRelayStopRequest) -> ProcessStatusResponse:
+    """Stop a running relay process."""
     try:
         info = await process_manager.stop(
             process_id=request.process_id,
@@ -98,8 +98,8 @@ async def stop_str2str(request: Str2StrStopRequest) -> ProcessStatusResponse:
 
 
 @router.get("/status/{process_id}", response_model=ProcessStatusResponse)
-async def get_str2str_status(process_id: str) -> ProcessStatusResponse:
-    """Get status of a str2str process."""
+async def get_relay_status(process_id: str) -> ProcessStatusResponse:
+    """Get status of a relay process."""
     info = await process_manager.get_status(process_id)
     if not info:
         raise HTTPException(status_code=404, detail=f"Process not found: {process_id}")
@@ -108,15 +108,15 @@ async def get_str2str_status(process_id: str) -> ProcessStatusResponse:
 
 @router.get("/processes", response_model=list[ProcessStatusResponse])
 async def list_processes() -> list[ProcessStatusResponse]:
-    """List all str2str processes."""
+    """List all relay processes."""
     processes = process_manager.get_all_processes()
     return [_to_response(info) for info in processes]
 
 
 # Convenience endpoint for quick test
 @router.post("/test", response_model=ProcessStatusResponse)
-async def test_str2str() -> ProcessStatusResponse:
-    """Start str2str with no arguments to display help message.
+async def test_relay() -> ProcessStatusResponse:
+    """Start mrtk relay with no arguments to display help message.
 
     This is useful for testing that the binary works.
     """

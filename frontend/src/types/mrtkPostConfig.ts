@@ -1,5 +1,5 @@
 /**
- * rnx2rtkp configuration types
+ * MRTKLIB post-processing configuration types
  */
 
 export type PositioningMode =
@@ -234,7 +234,7 @@ export interface TimeConfig {
   interval: number;  // seconds, 0 = use all epochs
 }
 
-export interface Rnx2RtkpConfig {
+export interface MrtkPostConfig {
   setting1: Setting1Config;
   setting2: Setting2Config;
   output: OutputConfig;
@@ -246,23 +246,23 @@ export interface Rnx2RtkpConfig {
   time: TimeConfig;
 }
 
-export interface Rnx2RtkpInputFiles {
+export interface MrtkPostInputFiles {
   rover_obs_file: string;
   base_obs_file?: string;
   nav_file: string;
   output_file: string;
 }
 
-export interface Rnx2RtkpTimeRange {
+export interface MrtkPostTimeRange {
   start_time?: string; // "YYYY/MM/DD HH:MM:SS" GPST format
   end_time?: string;
   interval?: number; // seconds
 }
 
-export interface Rnx2RtkpJob {
-  inputFiles: Rnx2RtkpInputFiles;
-  timeRange?: Rnx2RtkpTimeRange;
-  config: Rnx2RtkpConfig;
+export interface MrtkPostJob {
+  inputFiles: MrtkPostInputFiles;
+  timeRange?: MrtkPostTimeRange;
+  config: MrtkPostConfig;
 }
 
 // Default configurations
@@ -441,7 +441,7 @@ export const DEFAULT_TIME: TimeConfig = {
   interval: 0,
 };
 
-export const DEFAULT_RNX2RTKP_CONFIG: Rnx2RtkpConfig = {
+export const DEFAULT_MRTK_POST_CONFIG: MrtkPostConfig = {
   setting1: DEFAULT_SETTING1,
   setting2: DEFAULT_SETTING2,
   output: DEFAULT_OUTPUT,

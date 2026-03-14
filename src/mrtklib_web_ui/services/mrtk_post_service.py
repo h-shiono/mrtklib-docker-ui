@@ -1,5 +1,5 @@
 """
-rnx2rtkp service for post-processing GNSS data.
+mrtk_post service for post-processing GNSS data.
 """
 
 import asyncio
@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-# Pattern to match rnx2rtkp progress output:
+# Pattern to match mrtk_post progress output:
 # "processing : 2024/01/01 00:00:00.0 Q=1 ns=10 ratio=50.0"
 _PROGRESS_PATTERN = re.compile(
     r"(\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)"  # epoch time
@@ -26,7 +26,7 @@ _PROGRESS_PATTERN = re.compile(
 
 
 def parse_progress(line: str) -> dict[str, Any] | None:
-    """Parse rnx2rtkp progress output line.
+    """Parse mrtk_post progress output line.
 
     Returns dict with epoch, quality, ns, ratio if matched, else None.
     """
@@ -236,8 +236,8 @@ class MiscConfig(BaseModel):
     rinex_opt_base: str = Field(default="")
 
 
-class Rnx2RtkpConfig(BaseModel):
-    """Complete rnx2rtkp configuration."""
+class MrtkPostConfig(BaseModel):
+    """Complete mrtk_post configuration."""
 
     setting1: Setting1Config = Field(default_factory=Setting1Config)
     setting2: Setting2Config = Field(default_factory=Setting2Config)
@@ -249,8 +249,8 @@ class Rnx2RtkpConfig(BaseModel):
     misc: MiscConfig = Field(default_factory=MiscConfig)
 
 
-class Rnx2RtkpInputFiles(BaseModel):
-    """Input files for rnx2rtkp."""
+class MrtkPostInputFiles(BaseModel):
+    """Input files for mrtk_post."""
 
     rover_obs_file: str
     nav_file: str
@@ -258,7 +258,7 @@ class Rnx2RtkpInputFiles(BaseModel):
     output_file: str
 
 
-class Rnx2RtkpTimeRange(BaseModel):
+class MrtkPostTimeRange(BaseModel):
     """Time range for processing."""
 
     start_time: Optional[str] = None
@@ -266,239 +266,306 @@ class Rnx2RtkpTimeRange(BaseModel):
     interval: Optional[float] = None
 
 
-class Rnx2RtkpJob(BaseModel):
-    """Complete rnx2rtkp job specification."""
+class MrtkPostJob(BaseModel):
+    """Complete mrtk_post job specification."""
 
-    input_files: Rnx2RtkpInputFiles
-    config: Rnx2RtkpConfig
-    time_range: Optional[Rnx2RtkpTimeRange] = None
+    input_files: MrtkPostInputFiles
+    config: MrtkPostConfig
+    time_range: Optional[MrtkPostTimeRange] = None
 
 
-class Rnx2RtkpService:
-    """Service for running rnx2rtkp post-processing."""
+class MrtkPostService:
+    """Service for running mrtk_post post-processing."""
 
-    def __init__(self, rtklib_bin_path: str = "/usr/local/bin/rnx2rtkp"):
+    def __init__(self, mrtk_bin_path: str = "/usr/local/bin/mrtk"):
         """Initialize the service.
 
         Args:
-            rtklib_bin_path: Path to the rnx2rtkp binary
+            mrtk_bin_path: Path to the mrtk binary
         """
-        self.rtklib_bin_path = rtklib_bin_path
+        self.mrtk_bin_path = mrtk_bin_path
 
-    def generate_conf_file(self, config: Rnx2RtkpConfig) -> str:
-        """Generate RTKLIB .conf file content from configuration.
+    def generate_conf_file(self, config: MrtkPostConfig) -> str:
+        """Generate MRTKLIB TOML configuration file content.
 
         Args:
             config: Configuration object
 
         Returns:
-            Configuration file content as string
+            TOML configuration file content as string
         """
-        lines = []
+        lines = ["# MRTKLIB Configuration (TOML v1.0.0)", ""]
 
-        # --- Mapping tables ---
+        # --- Value mapping tables (frontend values → MRTKLIB TOML values) ---
         pos_mode_map = {
-            "single": "0", "dgps": "1", "kinematic": "2", "static": "3",
-            "moving-base": "4", "fixed": "5", "ppp-kinematic": "6", "ppp-static": "7",
+            "single": "single", "dgps": "dgps", "kinematic": "kinematic",
+            "static": "static", "moving-base": "movingbase", "fixed": "fixed",
+            "ppp-kinematic": "ppp-kine", "ppp-static": "ppp-static",
+            "ppp-fixed": "ppp-fixed", "ppp-rtk": "ppp-rtk",
         }
         freq_map = {
-            "l1": "1", "l1+l2": "2", "l1+l2+l5": "3",
-            "l1+l2+l5+l6": "4", "l1+l2+l5+l6+l7": "5",
+            "l1": "l1", "l1+l2": "l1+2", "l1+l2+l5": "l1+2+3",
+            "l1+l2+l5+l6": "l1+2+3+4", "l1+l2+l5+l6+l7": "l1+2+3+4+5",
         }
-        filter_type_map = {"forward": "0", "backward": "1", "combined": "2"}
+        filter_type_map = {"forward": "forward", "backward": "backward", "combined": "combined"}
         iono_map = {
-            "off": "0", "broadcast": "1", "sbas": "2", "dual-freq": "3",
-            "est-stec": "4", "ionex-tec": "5", "qzs-brdc": "6",
+            "off": "off", "broadcast": "brdc", "sbas": "sbas", "dual-freq": "dual-freq",
+            "est-stec": "est-stec", "ionex-tec": "ionex-tec", "qzs-brdc": "qzs-brdc",
         }
         tropo_map = {
-            "off": "0", "saastamoinen": "1", "sbas": "2",
-            "est-ztd": "3", "est-ztdgrad": "4",
+            "off": "off", "saastamoinen": "saas", "sbas": "sbas",
+            "est-ztd": "est-ztd", "est-ztdgrad": "est-ztdgrad",
         }
         ephem_map = {
-            "broadcast": "0", "precise": "1", "brdc+sbas": "2",
-            "brdc+ssrapc": "3", "brdc+ssrcom": "4",
+            "broadcast": "brdc", "precise": "precise", "brdc+sbas": "brdc+sbas",
+            "brdc+ssrapc": "brdc+ssrapc", "brdc+ssrcom": "brdc+ssrcom",
         }
-        tides_map = {"off": "0", "on": "1", "otl": "2"}
-        dynamics_map = {"off": "0", "on": "1"}
-        ar_mode_map = {"off": "0", "continuous": "1", "instantaneous": "2", "fix-and-hold": "3"}
-        glo_ar_map = {"off": "0", "on": "1", "autocal": "2", "fix-and-hold": "3"}
-        bds_ar_map = {"off": "0", "on": "1"}
-        sol_format_map = {"llh": "0", "xyz": "1", "enu": "2", "nmea": "3"}
-        time_format_map = {"gpst": "0", "utc": "1", "jst": "2"}
-        time_form_map = {"gpst": "1", "gpst-hms": "1", "utc": "1", "jst": "1"}  # tow=0, hms=1
-        lat_lon_map = {"ddd.ddddddd": "0", "ddd-mm-ss.ss": "1"}
-        height_map = {"ellipsoidal": "0", "geodetic": "1"}
-        geoid_map = {"internal": "0", "egm96": "1", "egm08_2.5": "2", "egm08_1": "3", "gsi2000": "4"}
-        sol_static_map = {"all": "0", "single": "1"}
-        sol_status_map = {"off": "0", "level1": "1", "level2": "2"}
-        trace_map = {"off": "0", "level1": "1", "level2": "2", "level3": "3", "level4": "4", "level5": "5"}
+        tides_map = {"off": "off", "on": "on", "otl": "otl"}
+        ar_mode_map = {
+            "off": "off", "continuous": "continuous",
+            "instantaneous": "instantaneous", "fix-and-hold": "fix-and-hold",
+        }
+        glo_ar_map = {"off": "off", "on": "on", "autocal": "autocal", "fix-and-hold": "fix-and-hold"}
+        bds_ar_map = {"off": "off", "on": "on"}
+        sol_format_map = {"llh": "llh", "xyz": "xyz", "enu": "enu", "nmea": "nmea"}
+        time_sys_map = {"gpst": "gpst", "gpst-hms": "gpst", "utc": "utc", "jst": "jst"}
+        time_form_map = {"gpst": "tow", "gpst-hms": "hms", "utc": "hms", "jst": "hms"}
+        coord_format_map = {"ddd.ddddddd": "deg", "ddd-mm-ss.ss": "dms"}
+        height_map = {"ellipsoidal": "ellipsoidal", "geodetic": "geodetic"}
+        geoid_map = {
+            "internal": "internal", "egm96": "egm96", "egm08_2.5": "egm08_2.5",
+            "egm08_1": "egm08_1", "gsi2000": "gsi2000",
+        }
+        sol_static_map = {"all": "all", "single": "single"}
+        sol_status_map = {"off": "off", "level1": "state", "level2": "residual"}
+        postype_map = {
+            "llh": "llh", "xyz": "xyz", "single": "single",
+            "posfile": "posfile", "rinex": "rinexhead", "rtcm": "rtcm",
+        }
+
+        def _str(v: str) -> str:
+            return f'"{v}"'
 
         def _bool(v: bool) -> str:
-            return "1" if v else "0"
+            return "true" if v else "false"
 
-        def _onoff(v: bool) -> str:
-            return "on" if v else "off"
+        def _arr(vals: list) -> str:
+            return "[" + ", ".join(str(int(v)) if v == int(v) else str(v) for v in vals) + "]"
 
-        # --- pos1: Setting 1 ---
         s1 = config.setting1
-        lines.append(f"pos1-posmode={pos_mode_map.get(s1.positioning_mode, '2')}")
-        lines.append(f"pos1-frequency={freq_map.get(s1.frequency, '2')}")
-        lines.append(f"pos1-soltype={filter_type_map.get(s1.filter_type, '0')}")
-        lines.append(f"pos1-elmask={s1.elevation_mask}")
-        lines.append(f"pos1-snrmask_r={'1' if s1.snr_mask.enable_rover else '0'}")
-        lines.append(f"pos1-snrmask_b={'1' if s1.snr_mask.enable_base else '0'}")
-        # SNR mask values per frequency (comma-separated, 9 elevation bins)
+
+        # --- [positioning] ---
+        lines.append("[positioning]")
+        lines.append(f"mode                = {_str(pos_mode_map.get(s1.positioning_mode, 'kinematic'))}")
+        lines.append(f"frequency           = {_str(freq_map.get(s1.frequency, 'l1+2'))}")
+        lines.append(f"solution_type       = {_str(filter_type_map.get(s1.filter_type, 'forward'))}")
+        lines.append(f"elevation_mask      = {s1.elevation_mask}")
+        lines.append(f"dynamics            = {_bool(s1.receiver_dynamics == 'on')}")
+        lines.append(f"satellite_ephemeris = {_str(ephem_map.get(s1.ephemeris_option, 'brdc'))}")
+        # Excluded satellites as TOML string list
+        if s1.excluded_satellites.strip():
+            sats = [s.strip() for s in s1.excluded_satellites.replace(",", " ").split() if s.strip()]
+            sat_list = ", ".join(f'"{s}"' for s in sats)
+            lines.append(f"excluded_sats       = [{sat_list}]")
+        else:
+            lines.append(f"excluded_sats       = []")
+        # Navigation systems as string list
+        c = s1.constellations
+        systems = []
+        if c.gps: systems.append('"GPS"')
+        if c.glonass: systems.append('"GLONASS"')
+        if c.galileo: systems.append('"Galileo"')
+        if c.qzss: systems.append('"QZSS"')
+        if c.sbas: systems.append('"SBAS"')
+        if c.beidou: systems.append('"BeiDou"')
+        if c.irnss: systems.append('"NavIC"')
+        lines.append(f"systems             = [{', '.join(systems)}]")
+        lines.append("")
+
+        # --- [positioning.snr_mask] ---
+        lines.append("[positioning.snr_mask]")
+        lines.append(f"rover_enabled = {_bool(s1.snr_mask.enable_rover)}")
+        lines.append(f"base_enabled  = {_bool(s1.snr_mask.enable_base)}")
         for i, label in enumerate(["L1", "L2", "L5"]):
             if i < len(s1.snr_mask.mask):
-                vals = ",".join(str(v) for v in s1.snr_mask.mask[i])
-                lines.append(f"pos1-snrmask_{label}={vals}")
-        lines.append(f"pos1-dynamics={dynamics_map.get(s1.receiver_dynamics, '0')}")
-        lines.append(f"pos1-tidecorr={tides_map.get(s1.earth_tides_correction, '0')}")
-        lines.append(f"pos1-ionoopt={iono_map.get(s1.ionosphere_correction, '1')}")
-        lines.append(f"pos1-tropopt={tropo_map.get(s1.troposphere_correction, '1')}")
-        lines.append(f"pos1-sateph={ephem_map.get(s1.ephemeris_option, '0')}")
-        lines.append(f"pos1-posopt1={_bool(s1.satellite_pcv)}")
-        lines.append(f"pos1-posopt2={_bool(s1.receiver_pcv)}")
-        lines.append(f"pos1-posopt3={_bool(s1.phase_windup)}")
-        lines.append(f"pos1-posopt4={_bool(s1.reject_eclipse)}")
-        lines.append(f"pos1-posopt5={_bool(s1.raim_fde)}")
-        lines.append(f"pos1-posopt6={_bool(s1.db_corr)}")
-        if s1.excluded_satellites:
-            lines.append(f"pos1-exclsats={s1.excluded_satellites}")
-        # Navigation system bitmask: GPS=1, SBAS=2, GLO=4, GAL=8, QZS=16, BDS=32, NavIC=64
-        navsys = 0
-        c = s1.constellations
-        if c.gps: navsys |= 1
-        if c.sbas: navsys |= 2
-        if c.glonass: navsys |= 4
-        if c.galileo: navsys |= 8
-        if c.qzss: navsys |= 16
-        if c.beidou: navsys |= 32
-        if c.irnss: navsys |= 64
-        lines.append(f"pos1-navsys={navsys}")
+                lines.append(f"{label}            = {_arr(s1.snr_mask.mask[i])}")
+        lines.append("")
 
-        # --- pos2: Setting 2 ---
+        # --- [positioning.corrections] ---
+        lines.append("[positioning.corrections]")
+        lines.append(f"satellite_antenna  = {_bool(s1.satellite_pcv)}")
+        lines.append(f"receiver_antenna   = {_bool(s1.receiver_pcv)}")
+        lines.append(f"phase_windup       = {_str('on' if s1.phase_windup else 'off')}")
+        lines.append(f"exclude_eclipse    = {_bool(s1.reject_eclipse)}")
+        lines.append(f"raim_fde           = {_bool(s1.raim_fde)}")
+        lines.append(f"tidal_correction   = {_str(tides_map.get(s1.earth_tides_correction, 'off'))}")
+        lines.append("")
+
+        # --- [positioning.atmosphere] ---
+        lines.append("[positioning.atmosphere]")
+        lines.append(f"ionosphere       = {_str(iono_map.get(s1.ionosphere_correction, 'brdc'))}")
+        lines.append(f"troposphere      = {_str(tropo_map.get(s1.troposphere_correction, 'saas'))}")
+        lines.append("")
+
+        # --- [ambiguity_resolution] ---
         s2 = config.setting2
-        lines.append(f"pos2-armode={ar_mode_map.get(s2.gps_ar_mode, '1')}")
-        lines.append(f"pos2-gloarmode={glo_ar_map.get(s2.glo_ar_mode, '1')}")
-        lines.append(f"pos2-bdsarmode={bds_ar_map.get(s2.bds_ar_mode, '1')}")
-        lines.append(f"pos2-arthres={s2.min_ratio_to_fix}")
-        lines.append(f"pos2-arlockcnt={s2.min_lock_to_fix}")
-        lines.append(f"pos2-arelmask={s2.min_elevation_to_fix}")
-        lines.append(f"pos2-arminfix={s2.min_fix_to_hold}")
-        lines.append(f"pos2-elmaskhold={s2.min_elevation_to_hold}")
-        lines.append(f"pos2-aroutcnt={s2.outage_to_reset}")
-        lines.append(f"pos2-slipthres={s2.slip_threshold}")
-        lines.append(f"pos2-maxage={s2.max_age_diff}")
-        lines.append(f"pos2-syncsol={'on' if s2.sync_solution else 'off'}")
-        lines.append(f"pos2-rejionno={s2.reject_threshold_innovation}")
-        lines.append(f"pos2-niter={s2.num_filter_iterations}")
-        if s2.baseline_length_constraint.enabled:
-            lines.append(f"pos2-baselen={s2.baseline_length_constraint.length}")
-            lines.append(f"pos2-basesig={s2.baseline_length_constraint.sigma}")
+        lines.append("[ambiguity_resolution]")
+        lines.append(f"mode    = {_str(ar_mode_map.get(s2.gps_ar_mode, 'continuous'))}")
+        lines.append("")
 
-        # --- out: Output ---
-        out = config.output
-        lines.append(f"out-solformat={sol_format_map.get(out.solution_format, '0')}")
-        lines.append(f"out-outhead={_onoff(out.output_header)}")
-        lines.append(f"out-outopt={_onoff(out.output_processing_options)}")
-        lines.append(f"out-outvel={_onoff(out.output_velocity)}")
-        # Time format: gpst/utc/jst → timesys; hms vs tow → timeform
-        lines.append(f"out-timesys={time_format_map.get(out.time_format, '0')}")
-        lines.append(f"out-timeform={time_form_map.get(out.time_format, '1')}")
-        lines.append(f"out-timendec={out.num_decimals}")
-        lines.append(f"out-degform={lat_lon_map.get(out.lat_lon_format, '0')}")
-        if out.field_separator:
-            lines.append(f"out-fieldsep={out.field_separator}")
-        lines.append(f"out-height={height_map.get(out.height, '0')}")
-        lines.append(f"out-geoid={geoid_map.get(out.geoid_model, '0')}")
-        lines.append(f"out-solstatic={sol_static_map.get(out.static_solution_mode, '0')}")
-        lines.append(f"out-outsingle={_onoff(out.output_single_on_outage)}")
-        lines.append(f"out-nmeaintv1={out.nmea_interval_rmc_gga}")
-        lines.append(f"out-nmeaintv2={out.nmea_interval_gsa_gsv}")
-        lines.append(f"out-outstat={sol_status_map.get(out.output_solution_status, '0')}")
-        lines.append(f"out-trace={trace_map.get(out.debug_trace, '0')}")
+        # --- [ambiguity_resolution.thresholds] ---
+        lines.append("[ambiguity_resolution.thresholds]")
+        lines.append(f"ratio          = {s2.min_ratio_to_fix}")
+        lines.append(f"elevation_mask = {s2.min_elevation_to_fix}")
+        lines.append(f"hold_elevation = {s2.min_elevation_to_hold}")
+        lines.append("")
 
-        # --- stats: Statistics ---
+        # --- [ambiguity_resolution.counters] ---
+        lines.append("[ambiguity_resolution.counters]")
+        lines.append(f"lock_count     = {s2.min_lock_to_fix}")
+        lines.append(f"min_fix        = {s2.min_fix_to_hold}")
+        lines.append(f"max_iterations = {s2.max_ar_iter}")
+        lines.append(f"out_count      = {s2.outage_to_reset}")
+        lines.append("")
+
+        # --- [rejection] ---
+        lines.append("[rejection]")
+        lines.append(f"innovation = {s2.reject_threshold_innovation}")
+        lines.append(f"gdop       = {s2.reject_threshold_gdop}")
+        lines.append("")
+
+        # --- [slip_detection] ---
+        lines.append("[slip_detection]")
+        lines.append(f"threshold = {s2.slip_threshold}")
+        lines.append("")
+
+        # --- [kalman_filter] ---
+        lines.append("[kalman_filter]")
+        lines.append(f"iterations    = {s2.num_filter_iterations}")
+        lines.append(f"sync_solution = {_bool(s2.sync_solution)}")
+        lines.append("")
+
+        # --- [kalman_filter.measurement_error] ---
         st = config.stats
-        lines.append(f"stats-eratio1={st.code_phase_ratio_l1}")
-        lines.append(f"stats-eratio2={st.code_phase_ratio_l2}")
-        lines.append(f"stats-errphase={st.phase_error_a}")
-        lines.append(f"stats-errphaseel={st.phase_error_b}")
-        lines.append(f"stats-errphasebl={st.phase_error_baseline}")
-        lines.append(f"stats-errdoppler={st.doppler_frequency}")
-        lines.append(f"stats-prnaccelh={st.receiver_accel_horiz}")
-        lines.append(f"stats-prnaccelv={st.receiver_accel_vert}")
-        lines.append(f"stats-prnbias={st.carrier_phase_bias}")
-        lines.append(f"stats-prniono={st.ionospheric_delay}")
-        lines.append(f"stats-prntrop={st.tropospheric_delay}")
-        lines.append(f"stats-clkstab={st.satellite_clock_stability}")
+        lines.append("[kalman_filter.measurement_error]")
+        lines.append(f"code_phase_ratio_L1 = {st.code_phase_ratio_l1}")
+        lines.append(f"code_phase_ratio_L2 = {st.code_phase_ratio_l2}")
+        lines.append(f"phase               = {st.phase_error_a}")
+        lines.append(f"phase_elevation     = {st.phase_error_b}")
+        lines.append(f"phase_baseline      = {st.phase_error_baseline}")
+        lines.append(f"doppler             = {st.doppler_frequency}")
+        lines.append("")
 
-        # --- ant1/ant2: Positions ---
-        pos = config.positions
-        # Rover position type
-        rover_postype_map = {"llh": "0", "xyz": "1", "single": "2", "posfile": "3", "rinex": "4", "rtcm": "5"}
-        lines.append(f"ant1-postype={rover_postype_map.get(pos.rover.mode, '0')}")
-        lines.append(f"ant1-pos1={pos.rover.values[0]}")
-        lines.append(f"ant1-pos2={pos.rover.values[1]}")
-        lines.append(f"ant1-pos3={pos.rover.values[2]}")
-        if pos.rover.antenna_type_enabled and pos.rover.antenna_type:
-            lines.append(f"ant1-anttype={pos.rover.antenna_type}")
-        lines.append(f"ant1-antdele={pos.rover.antenna_delta[0]}")
-        lines.append(f"ant1-antdeln={pos.rover.antenna_delta[1]}")
-        lines.append(f"ant1-antdelu={pos.rover.antenna_delta[2]}")
+        # --- [kalman_filter.process_noise] ---
+        lines.append("[kalman_filter.process_noise]")
+        lines.append(f"bias        = {st.carrier_phase_bias:.2e}")
+        lines.append(f"ionosphere  = {st.ionospheric_delay}")
+        lines.append(f"troposphere = {st.tropospheric_delay:.2e}")
+        lines.append(f"accel_h     = {st.receiver_accel_horiz}")
+        lines.append(f"accel_v     = {st.receiver_accel_vert}")
+        lines.append(f"clock_stability = {st.satellite_clock_stability:.2e}")
+        lines.append("")
 
-        # Base position
-        # postype: 0=llh, 1=xyz, 2=single, 3=posfile, 4=rinexhead, 5=rtcm
-        # Modes that don't use a base station: single, ppp-kinematic, ppp-static
-        no_base_modes = {"single", "ppp-kinematic", "ppp-static"}
-        base_postype_map = {"llh": "0", "xyz": "1", "single": "2", "posfile": "3", "rinex": "4", "rtcm": "5"}
-        if s1.positioning_mode in no_base_modes:
-            # No base station needed — use safe default (llh with zeros)
-            lines.append("ant2-postype=0")
-            lines.append("ant2-pos1=0")
-            lines.append("ant2-pos2=0")
-            lines.append("ant2-pos3=0")
-        else:
-            lines.append(f"ant2-postype={base_postype_map.get(pos.base.mode, '0')}")
-            lines.append(f"ant2-pos1={pos.base.values[0]}")
-            lines.append(f"ant2-pos2={pos.base.values[1]}")
-            lines.append(f"ant2-pos3={pos.base.values[2]}")
-        if pos.base.antenna_type_enabled and pos.base.antenna_type:
-            lines.append(f"ant2-anttype={pos.base.antenna_type}")
-        lines.append(f"ant2-antdele={pos.base.antenna_delta[0]}")
-        lines.append(f"ant2-antdeln={pos.base.antenna_delta[1]}")
-        lines.append(f"ant2-antdelu={pos.base.antenna_delta[2]}")
-
-        # --- file: Auxiliary files (always output, empty string = not used) ---
-        f = config.files
-        lines.append(f"file-satantfile={f.antex1}")
-        lines.append(f"file-rcvantfile={f.antex2}")
-        lines.append(f"file-geoidfile={f.geoid}")
-        lines.append(f"file-dcbfile={f.dcb}")
-        lines.append(f"file-eopfile={f.eop}")
-        lines.append(f"file-blqfile={f.blq}")
-        lines.append(f"file-ionofile={f.ionosphere}")
-        lines.append(f"file-staposfile={pos.station_position_file}")
-
-        # --- misc ---
+        # --- [receiver] ---
+        lines.append("[receiver]")
         m = config.misc
-        lines.append(f"misc-timeinterp={_onoff(m.time_interpolation)}")
-        lines.append(f"misc-sbasatsel={m.sbas_sat_selection}")
-        if m.rinex_opt_rover:
-            lines.append(f"misc-rnxopt1={m.rinex_opt_rover}")
-        if m.rinex_opt_base:
-            lines.append(f"misc-rnxopt2={m.rinex_opt_base}")
+        lines.append(f"iono_correction = {_bool(m.ionosphere_correction)}")
+        lines.append("")
+
+        # --- [antenna.rover] ---
+        pos = config.positions
+        lines.append("[antenna.rover]")
+        lines.append(f"position_type = {_str(postype_map.get(pos.rover.mode, 'llh'))}")
+        lines.append(f"position_1    = {pos.rover.values[0]}")
+        lines.append(f"position_2    = {pos.rover.values[1]}")
+        lines.append(f"position_3    = {pos.rover.values[2]}")
+        ant_type = pos.rover.antenna_type if pos.rover.antenna_type_enabled and pos.rover.antenna_type else "*"
+        lines.append(f"type          = {_str(ant_type)}")
+        lines.append(f"delta_e       = {pos.rover.antenna_delta[0]}")
+        lines.append(f"delta_n       = {pos.rover.antenna_delta[1]}")
+        lines.append(f"delta_u       = {pos.rover.antenna_delta[2]}")
+        lines.append("")
+
+        # --- [antenna.base] ---
+        lines.append("[antenna.base]")
+        no_base_modes = {"single", "ppp-kinematic", "ppp-static"}
+        if s1.positioning_mode in no_base_modes:
+            lines.append(f"position_type      = {_str('llh')}")
+            lines.append(f"position_1         = 90.0")
+            lines.append(f"position_2         = 0.0")
+            lines.append(f"position_3         = -6335367.6285")
+        else:
+            lines.append(f"position_type      = {_str(postype_map.get(pos.base.mode, 'llh'))}")
+            lines.append(f"position_1         = {pos.base.values[0]}")
+            lines.append(f"position_2         = {pos.base.values[1]}")
+            lines.append(f"position_3         = {pos.base.values[2]}")
+        base_ant = pos.base.antenna_type if pos.base.antenna_type_enabled and pos.base.antenna_type else ""
+        lines.append(f"type               = {_str(base_ant)}")
+        lines.append(f"delta_e            = {pos.base.antenna_delta[0]}")
+        lines.append(f"delta_n            = {pos.base.antenna_delta[1]}")
+        lines.append(f"delta_u            = {pos.base.antenna_delta[2]}")
+        lines.append(f"max_average_epochs = 0")
+        lines.append(f"init_reset         = false")
+        lines.append("")
+
+        # --- [output] ---
+        out = config.output
+        lines.append("[output]")
+        lines.append(f"format            = {_str(sol_format_map.get(out.solution_format, 'llh'))}")
+        lines.append(f"header            = {_bool(out.output_header)}")
+        lines.append(f"options           = {_bool(out.output_processing_options)}")
+        lines.append(f"velocity          = {_bool(out.output_velocity)}")
+        lines.append(f"time_system       = {_str(time_sys_map.get(out.time_format, 'gpst'))}")
+        lines.append(f"time_format       = {_str(time_form_map.get(out.time_format, 'hms'))}")
+        lines.append(f"time_decimals     = {out.num_decimals}")
+        lines.append(f"coordinate_format = {_str(coord_format_map.get(out.lat_lon_format, 'deg'))}")
+        lines.append(f"field_separator   = {_str(out.field_separator)}")
+        lines.append(f"single_output     = {_bool(out.output_single_on_outage)}")
+        lines.append(f"max_solution_std  = 0.0")
+        lines.append(f"height_type       = {_str(height_map.get(out.height, 'ellipsoidal'))}")
+        lines.append(f"geoid_model       = {_str(geoid_map.get(out.geoid_model, 'internal'))}")
+        lines.append(f"static_solution   = {_str(sol_static_map.get(out.static_solution_mode, 'all'))}")
+        lines.append(f"nmea_interval_1   = {float(out.nmea_interval_rmc_gga)}")
+        lines.append(f"nmea_interval_2   = {float(out.nmea_interval_gsa_gsv)}")
+        lines.append(f"solution_status   = {_str(sol_status_map.get(out.output_solution_status, 'off'))}")
+        lines.append("")
+
+        # --- [files] ---
+        f = config.files
+        lines.append("[files]")
+        lines.append(f"satellite_atx = {_str(f.antex1)}")
+        lines.append(f"receiver_atx  = {_str(f.antex2)}")
+        lines.append(f"station_pos   = {_str(pos.station_position_file)}")
+        lines.append(f"geoid         = {_str(f.geoid)}")
+        lines.append(f"ionosphere    = {_str(f.ionosphere)}")
+        lines.append(f"dcb           = {_str(f.dcb)}")
+        lines.append(f"eop           = {_str(f.eop)}")
+        lines.append(f"ocean_loading = {_str(f.blq)}")
+        lines.append(f"temp_dir      = \"\"")
+        lines.append(f"geexe         = \"\"")
+        lines.append(f"solution_stat = \"\"")
+        lines.append(f"trace         = \"\"")
+        lines.append("")
+
+        # --- [server] ---
+        lines.append("[server]")
+        lines.append(f"time_interpolation = {_bool(m.time_interpolation)}")
+        lines.append(f"sbas_satellite     = {_str(str(m.sbas_sat_selection))}")
+        lines.append(f"rinex_option_1     = {_str(m.rinex_opt_rover)}")
+        lines.append(f"rinex_option_2     = {_str(m.rinex_opt_base)}")
+        lines.append(f"ppp_option         = \"\"")
+        lines.append(f"rtcm_option        = \"\"")
+        lines.append("")
 
         return "\n".join(lines)
 
-    async def run_rnx2rtkp(
+    async def run_mrtk_post(
         self,
-        job: Rnx2RtkpJob,
+        job: MrtkPostJob,
         log_callback: Optional[callable] = None,
         progress_callback: Optional[callable] = None,
     ) -> subprocess.CompletedProcess:
-        """Run rnx2rtkp with the given job configuration.
+        """Run mrtk_post with the given job configuration.
 
         Args:
             job: Job specification
@@ -510,22 +577,23 @@ class Rnx2RtkpService:
 
         Raises:
             FileNotFoundError: If input files don't exist
-            subprocess.CalledProcessError: If rnx2rtkp fails
+            subprocess.CalledProcessError: If mrtk_post fails
         """
         # Generate config file
         conf_content = self.generate_conf_file(job.config)
 
         # Create temporary config file
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".conf", delete=False
+            mode="w", suffix=".toml", delete=False
         ) as conf_file:
             conf_file.write(conf_content)
             conf_path = conf_file.name
 
         try:
-            # Build command: options first, then input files
+            # Build command: mrtk post [options] input_files
             cmd = [
-                self.rtklib_bin_path,
+                self.mrtk_bin_path,
+                "post",
                 "-k",
                 conf_path,
                 "-o",
@@ -564,7 +632,7 @@ class Rnx2RtkpService:
                 for conf_line in conf_content.split("\n"):
                     await log_callback(f"[CONF] {conf_line}")
 
-            # Run rnx2rtkp
+            # Run mrtk_post
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -580,7 +648,7 @@ class Rnx2RtkpService:
                     if callback:
                         await callback(line.decode().strip())
 
-            # Stream stderr with \r handling for rnx2rtkp progress
+            # Stream stderr with \r handling for mrtk_post progress
             async def read_stderr_with_progress(stream, log_cb, progress_cb):
                 buf = b""
                 last_progress_time = 0.0

@@ -9,7 +9,7 @@ import {
   NumberInput,
   Text,
 } from '@mantine/core';
-import type { SnrMaskConfig } from '../types/rnx2rtkpConfig';
+import type { SnrMaskConfig } from '../types/mrtkPostConfig';
 
 interface SnrMaskModalProps {
   opened: boolean;

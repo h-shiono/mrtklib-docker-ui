@@ -1,13 +1,13 @@
-# RTKLIB Docker UI
+# MRTKLIB Docker UI
 
-A modern web-based user interface for [RTKLIB](https://github.com/tomojitakasu/RTKLIB) command-line tools, running entirely in a Docker container. No need to compile RTKLIB or worry about platform-specific dependencies — just `docker compose up` and start processing GNSS data from your browser.
+A modern web-based user interface for [MRTKLIB](https://github.com/h-shiono/MRTKLIB) command-line tools, running entirely in a Docker container. MRTKLIB is a modernized C11 fork of RTKLIB with MADOCA-PPP, CLAS PPP-RTK, and advanced GNSS positioning capabilities. No need to compile from source or worry about platform-specific dependencies — just `docker compose up` and start processing GNSS data from your browser.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![React](https://img.shields.io/badge/react-18+-blue.svg)
-![RTKLIB](https://img.shields.io/badge/RTKLIB-2.4.3%20b34-green.svg)
+![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.4.1-green.svg)
 
-![RTKLIB Docker UI Dashboard](./docs/screenshot.png)
+![MRTKLIB Docker UI Dashboard](./docs/screenshot.png)
 
 ## Features
 
@@ -21,17 +21,17 @@ A modern web-based user interface for [RTKLIB](https://github.com/tomojitakasu/R
   - Files: Auxiliary file management (ANTEX, Geoid, DCB, EOP, BLQ, IONEX)
   - Misc: Time system, corrections, RINEX options
 
+- **MRTKLIB Advanced Features**: MADOCA-PPP, CLAS PPP-RTK, PPP-AR, VRS-RTK positioning modes
+
 - **Intelligent Conditional Logic**: UI fields automatically enable/disable based on positioning mode and output format, mimicking the Windows RTKLIB GUI behavior
 
 - **SNR Mask Editor**: Visual 3×9 matrix editor for elevation-dependent SNR masks (L1/L2/L5 frequencies)
 
 - **Configuration Persistence**: Auto-save to browser localStorage with versioning
 
-### Real-Time Stream Server (str2str)
-- **Stream Configuration**: Input/output stream setup with TCP, UDP, serial, and file support
-- **Visual Monitoring**: LED-like status indicators showing connection and data traffic
-- **Console Output**: Real-time log streaming via WebSocket
-- **Process Management**: Start, stop, and monitor stream server processes
+### Real-Time Stream Relay (`mrtk relay`)
+- **Stream Configuration UI**: Visual builder for input/output stream parameters
+- **Process Control**: Start/stop relay processes via REST API with WebSocket log streaming
 
 ### Observation Data Viewer
 - **RINEX File Analysis**: Parse and visualize observation data quality
@@ -45,7 +45,7 @@ A modern web-based user interface for [RTKLIB](https://github.com/tomojitakasu/R
 - **Configuration Import/Export**: Load and save RTKLIB `.conf` files
 
 ### Docker Advantages
-- **Zero Build Hassle**: RTKLIB binaries are pre-compiled inside the container — no need to install build tools or manage dependencies on your host
+- **Zero Build Hassle**: MRTKLIB is built from source via CMake inside the container — no need to install build tools or manage dependencies on your host
 - **Cross-Platform**: Works identically on Linux and macOS
 - **Isolated Environment**: No system-level package conflicts; the container includes everything needed
 
@@ -60,8 +60,8 @@ A modern web-based user interface for [RTKLIB](https://github.com/tomojitakasu/R
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/h-shiono/rtklib-docker-ui.git
-   cd rtklib-docker-ui
+   git clone https://github.com/h-shiono/mrtklib-docker-ui.git
+   cd mrtklib-docker-ui
    ```
 
 2. **Prepare your workspace**
@@ -91,7 +91,7 @@ A modern web-based user interface for [RTKLIB](https://github.com/tomojitakasu/R
 uv sync
 
 # Run development server
-uv run uvicorn rtklib_web_ui.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn mrtklib_web_ui.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 #### Frontend (React + Vite)
@@ -115,7 +115,7 @@ The frontend dev server runs on `http://localhost:5173` and proxies API requests
 #### Backend
 - **Language**: Python 3.11+
 - **Framework**: FastAPI
-- **Process Management**: asyncio.subprocess for spawning RTKLIB binaries
+- **Process Management**: asyncio.subprocess for spawning MRTKLIB binaries
 - **Real-time Communication**: WebSocket for log streaming
 - **Data Validation**: Pydantic models
 
@@ -128,18 +128,18 @@ The frontend dev server runs on `http://localhost:5173` and proxies API requests
 
 #### Deployment
 - **Container**: Single Docker container with multi-stage build
-- **RTKLIB Binaries**: Pre-installed at `/usr/local/bin/` (str2str, rnx2rtkp, convbin, rtkrcv)
+- **MRTKLIB Binaries**: Built from source via CMake, installed at `/usr/local/bin/` (rnx2rtkp, rtkrcv, recvbias, ssr2obs, ssr2osr, dumpcssr, cssr2rtcm3)
 - **Workspace**: Host directory bind-mounted to `/workspace` inside container
 
 ### Project Structure
 
 ```
-rtklib-docker-ui/
+mrtklib-docker-ui/
 ├── src/
-│   └── rtklib_web_ui/          # Python backend package
+│   └── mrtklib_web_ui/          # Python backend package
 │       ├── main.py             # FastAPI entry point
 │       ├── api/                # API routers
-│       └── services/           # Business logic (RTKLIB wrappers)
+│       └── services/           # Business logic (MRTKLIB wrappers)
 ├── frontend/                   # React frontend
 │   ├── src/
 │   │   ├── components/         # React components
@@ -167,11 +167,11 @@ rtklib-docker-ui/
 
 | Version | Description |
 |---------|-------------|
-| **v0.1.0** (current) | Post-processing (rnx2rtkp) UI, stream server (str2str) UI, observation data viewer |
-| **v0.1.1** | RINEX converter (rtkconv) UI |
-| **v0.2.0** | Automated build & publish to GitHub Container Registry (ghcr.io) |
+| **v0.1.0** | Post-processing (rnx2rtkp) UI, observation data viewer (based on RTKLIB) |
+| **v0.2.0** (current) | Switch to MRTKLIB backend (MADOCA-PPP, CLAS PPP-RTK support) |
+| **v0.3.0** | Stream server (str2str) UI (pending MRTKLIB v0.5.1) |
+| **v0.4.0** | Automated build & publish to GitHub Container Registry (ghcr.io) |
 | TBD | Enhanced plotting tools |
-| TBD | **Integration with next-generation optimized GNSS engines (C11/POSIX modernized forks)** |
 
 ## Testing
 
@@ -211,12 +211,12 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-**Note**: RTKLIB itself is distributed under the BSD 2-clause license. This project provides only a web interface wrapper and does not modify RTKLIB source code.
+**Note**: MRTKLIB/RTKLIB is distributed under the BSD 2-clause license. This project provides only a web interface wrapper and does not modify MRTKLIB source code.
 
 ## Acknowledgements
 
-### RTKLIB
-This project is built upon [RTKLIB](https://github.com/tomojitakasu/RTKLIB) by Tomoji Takasu, an open-source GNSS positioning software package. We are grateful for the incredible work of the RTKLIB community.
+### MRTKLIB / RTKLIB
+This project is built upon [MRTKLIB](https://github.com/h-shiono/MRTKLIB), a modernized fork of [RTKLIB](https://github.com/tomojitakasu/RTKLIB) by Tomoji Takasu. MRTKLIB features a modular C11 architecture, MADOCA-PPP, CLAS PPP-RTK, and other advanced GNSS positioning capabilities. We are grateful for the incredible work of the RTKLIB and MRTKLIB communities.
 
 ### LLM Utilization
 This project was developed with significant assistance from Large Language Models:
@@ -238,4 +238,4 @@ Thanks to all contributors who have helped improve this project through bug repo
 
 ---
 
-**Disclaimer**: This is an independent project and is not officially affiliated with or endorsed by the RTKLIB project. For official RTKLIB information, please visit the [official RTKLIB repository](https://github.com/tomojitakasu/RTKLIB).
+**Disclaimer**: This is an independent project and is not officially affiliated with or endorsed by the RTKLIB project. For official RTKLIB information, please visit the [official RTKLIB repository](https://github.com/tomojitakasu/RTKLIB). For MRTKLIB, visit the [MRTKLIB repository](https://github.com/h-shiono/MRTKLIB).

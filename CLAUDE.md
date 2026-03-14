@@ -1,7 +1,7 @@
-# Project: RTKLIB-Web-UI (Dockerized)
+# Project: MRTKLIB-Docker-UI
 
 ## Overview
-This project aims to create a Web UI for RTKLIB's command-line tools (`consapp`), specifically targeting Linux and MacOS users via Docker. The goal is to provide a User Experience (UX) similar to the Windows GUI version of RTKLIB but accessible through a web browser.
+This project provides a Web UI for [MRTKLIB](https://github.com/h-shiono/MRTKLIB)'s command-line tools, specifically targeting Linux and MacOS users via Docker. MRTKLIB is a modernized fork of RTKLIB, featuring C11 modular architecture, MADOCA-PPP, CLAS PPP-RTK, and other advanced GNSS positioning capabilities. The goal is to provide a User Experience (UX) similar to the Windows GUI version of RTKLIB but accessible through a web browser.
 
 ## Architectural Constraints & Tech Stack
 
@@ -13,9 +13,9 @@ This project aims to create a Web UI for RTKLIB's command-line tools (`consapp`)
 ### 2. Backend (API & Process Management)
 - **Language:** Python 3.11+
 - **Framework:** FastAPI
-- **Process Handling:** Python `subprocess` (or `asyncio.subprocess`) to spawn RTKLIB binaries (`rnx2rtkp`, `str2str`, `convbin`).
+- **Process Handling:** Python `subprocess` (or `asyncio.subprocess`) to spawn MRTKLIB binaries (`rnx2rtkp`, etc.).
 - **Real-time Communication:** `python-socketio` (WebSocket) for streaming process logs and status updates to the frontend.
-- **RTKLIB Binaries:** Assume binaries are pre-installed at `/usr/local/bin/` inside the Docker image.
+- **MRTKLIB Binaries:** Built from source via CMake and pre-installed at `/usr/local/bin/` inside the Docker image. Currently available: `rnx2rtkp`, `rtkrcv`, `recvbias`, `ssr2obs`, `ssr2osr`, `dumpcssr`, `cssr2rtcm3`. `str2str` and `convbin` are planned for MRTKLIB v0.5.1.
 
 ### 3. Frontend (UI)
 - **Framework:** React (Vite) + TypeScript.
@@ -40,7 +40,8 @@ This project aims to create a Web UI for RTKLIB's command-line tools (`consapp`)
 - These paths should refer to files within `/workspace`.
 - A file picker component that browses the `/workspace` directory is required.
 
-### 4. Feature: Stream Server (`str2str`)
+### 4. Feature: Stream Server (`str2str`) — Planned
+- **Status:** Not yet available in MRTKLIB. Will be implemented when MRTKLIB v0.5.1 adds `str2str` support.
 - **Hybrid Monitoring UI:**
   1.  **Console Output:** A scrollable text area showing the raw `stderr` output from `str2str`.
   2.  **Visual Indicators:** "LED-like" status lights (Green/Red/Blinking) indicating connection status and data traffic, similar to the Windows `strsvr` or `rtknavi`.
@@ -49,49 +50,55 @@ This project aims to create a Web UI for RTKLIB's command-line tools (`consapp`)
 ## Development Guidelines for AI
 1.  **Modularity:** Keep the frontend components (e.g., `ConfigForm`, `LogConsole`, `FileBrowser`) and backend logic (e.g., `RTKProcessManager`, `ConfigParser`) distinct and modular.
 2.  **Type Safety:** Use strict TypeScript interfaces for all data exchanged between backend and frontend (especially the Configuration object structure).
-3.  **Error Handling:** Ensure that if an RTKLIB process crashes, the Web UI reflects this state immediately.
-4.  **Mocking:** If RTKLIB binaries are missing during the dev phase, implement a "Mock Mode" in the backend that simulates log output for UI testing.
+3.  **Error Handling:** Ensure that if an MRTKLIB process crashes, the Web UI reflects this state immediately.
+4.  **Mocking:** If MRTKLIB binaries are missing during the dev phase, implement a "Mock Mode" in the backend that simulates log output for UI testing.
 
 ## Directory Structure Plan (uv-based)
 
 The project follows the standard `uv` project structure (src layout) for the Python backend, with the frontend residing in a dedicated subdirectory.
 
 ```text
-rtklib-web-ui/                 # Root (generated via `uv init`)
+mrtklib-docker-ui/             # Root
 ├── pyproject.toml             # Backend dependencies & metadata
 ├── uv.lock                    # Lockfile for reproducible builds
 ├── .python-version
 ├── README.md
 ├── src/
-│   └── rtklib_web_ui/         # Python Backend Package (snake_case)
+│   └── mrtklib_web_ui/         # Python Backend Package (snake_case)
 │       ├── __init__.py
 │       ├── main.py            # FastAPI Entry point
 │       ├── api/               # API Routers
-│       └── services/          # Business logic (RTKLIB wrapper, etc.)
+│       └── services/          # Business logic (MRTKLIB wrapper, etc.)
 ├── frontend/                  # Frontend (React + Vite)
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── src/                   # React components
 ├── docker/
-│   └── Dockerfile             # Multi-stage build (Node build -> uv sync -> Runtime)
+│   └── Dockerfile             # Multi-stage build (MRTKLIB CMake -> Node build -> uv sync -> Runtime)
 └── docker-compose.yml
 ```
 
 ## Development Notes for AI
 - Backend Setup: Use uv sync to install dependencies.
 - Docker Build Strategy:
-    - Use ghcr.io/astral-sh/uv:python3.11-bookworm (or similar) as the base image, or copy the uv binary into a standard Python image.
+    - Stage 1: Build MRTKLIB from source using CMake (requires `build-essential`, `cmake`, `liblapack-dev`, `libopenblas-dev`).
+    - Stage 2: Build frontend with Node.js.
+    - Stage 3: Build backend with uv (ghcr.io/astral-sh/uv:python3.12-bookworm).
+    - Stage 4: Runtime image (python:3.12-slim-bookworm) with MRTKLIB binaries and runtime libs (`liblapack3`, `libopenblas0`).
     - Run uv sync --frozen --no-dev in the build stage to ensure deterministic builds.
-- Naming Convention: The root folder is rtklib-web-ui (kebab-case), but the Python source package inside src/ must be rtklib_web_ui (snake_case) to comply with Python import rules.
+- MRTKLIB Source: Cloned from https://github.com/h-shiono/MRTKLIB and built with `cmake -B build -DCMAKE_BUILD_TYPE=Release`.
+- Naming Convention: The root folder is mrtklib-docker-ui, but the Python source package inside src/ must be mrtklib_web_ui (snake_case) to comply with Python import rules.
 
 ---
 
 ## Implementation Status & Technical Patterns
 
-### RTKLIB Version
-- **Current Version:** 2.4.3 b34
+### MRTKLIB Version
+- **Current Version:** MRTKLIB 0.4.1 (based on RTKLIB 2.4.3 b34)
 - **Backend Endpoint:** `/api/rtklib/version` returns version string and available binaries
-- **Version Detection:** Attempts to execute `str2str` binary and parse version from stderr, falls back to hardcoded default "RTKLIB ver.2.4.3 b34"
+- **Build System:** CMake 3.15+, C11, with optional LAPACK for fast matrix operations
+- **Available Binaries:** `rnx2rtkp`, `rtkrcv`, `recvbias`, `ssr2obs`, `ssr2osr`, `dumpcssr`, `cssr2rtcm3`
+- **Planned (v0.5.1):** `str2str`, `convbin`
 
 ### Post-Processing Configuration (`rnx2rtkp`) UI
 
@@ -203,7 +210,7 @@ export type TimeFormat = 'gpst' | 'gpst-hms' | 'utc' | 'jst';
 
 #### Backend Python Models
 
-Corresponding Pydantic models in [`src/rtklib_web_ui/services/rnx2rtkp_service.py`](src/rtklib_web_ui/services/rnx2rtkp_service.py) use snake_case naming:
+Corresponding Pydantic models in [`src/mrtklib_web_ui/services/rnx2rtkp_service.py`](src/mrtklib_web_ui/services/rnx2rtkp_service.py) use snake_case naming:
 
 ```python
 class Setting1Config(BaseModel):

@@ -1,12 +1,12 @@
 /**
- * API client for rnx2rtkp endpoints
+ * API client for mrtk post endpoints
  */
 
-import type { Rnx2RtkpConfig, Rnx2RtkpInputFiles, Rnx2RtkpTimeRange } from '../types/rnx2rtkpConfig';
+import type { MrtkPostConfig, MrtkPostInputFiles, MrtkPostTimeRange } from '../types/mrtkPostConfig';
 
-const API_BASE = '/api/rnx2rtkp';
+const API_BASE = '/api/mrtk-post';
 
-export interface Rnx2RtkpJobResponse {
+export interface MrtkPostJobResponse {
   job_id: string;
   status: 'started' | 'running' | 'completed' | 'failed';
   return_code?: number;
@@ -14,10 +14,10 @@ export interface Rnx2RtkpJobResponse {
   output_file?: string;
 }
 
-export interface Rnx2RtkpExecuteRequest {
-  input_files: Rnx2RtkpInputFiles;
-  config: Rnx2RtkpConfig;
-  time_range?: Rnx2RtkpTimeRange;
+export interface MrtkPostExecuteRequest {
+  input_files: MrtkPostInputFiles;
+  config: MrtkPostConfig;
+  time_range?: MrtkPostTimeRange;
   job_id?: string;
 }
 
@@ -41,23 +41,23 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 /**
- * Execute rnx2rtkp post-processing
+ * Execute mrtk post post-processing
  */
-export async function executeRnx2Rtkp(request: Rnx2RtkpExecuteRequest): Promise<Rnx2RtkpJobResponse> {
+export async function executeMrtkPost(request: MrtkPostExecuteRequest): Promise<MrtkPostJobResponse> {
   const response = await fetch(`${API_BASE}/execute`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
   });
-  return handleResponse<Rnx2RtkpJobResponse>(response);
+  return handleResponse<MrtkPostJobResponse>(response);
 }
 
 /**
  * Get job status
  */
-export async function getJobStatus(jobId: string): Promise<Rnx2RtkpJobResponse> {
+export async function getJobStatus(jobId: string): Promise<MrtkPostJobResponse> {
   const response = await fetch(`${API_BASE}/status/${jobId}`);
-  return handleResponse<Rnx2RtkpJobResponse>(response);
+  return handleResponse<MrtkPostJobResponse>(response);
 }
 
 /**
@@ -85,7 +85,7 @@ export async function exportConf(config: Record<string, unknown>): Promise<void>
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'rtklib.conf';
+  a.download = 'rnx2rtkp.toml';
   a.click();
   URL.revokeObjectURL(url);
 }

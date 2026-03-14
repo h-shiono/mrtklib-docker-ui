@@ -1,4 +1,4 @@
-"""API endpoints for rnx2rtkp post-processing."""
+"""API endpoints for mrtk_post post-processing."""
 
 import asyncio
 import glob as glob_mod
@@ -9,35 +9,35 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
-from rtklib_web_ui.services import ws_manager
-from rtklib_web_ui.services.rnx2rtkp_service import (
-    Rnx2RtkpConfig,
-    Rnx2RtkpInputFiles,
-    Rnx2RtkpJob,
-    Rnx2RtkpService,
-    Rnx2RtkpTimeRange,
+from mrtklib_web_ui.services import ws_manager
+from mrtklib_web_ui.services.mrtk_post_service import (
+    MrtkPostConfig,
+    MrtkPostInputFiles,
+    MrtkPostJob,
+    MrtkPostService,
+    MrtkPostTimeRange,
 )
 
 router = APIRouter()
 
-# Store for active rnx2rtkp jobs
+# Store for active mrtk_post jobs
 _active_jobs: dict[str, asyncio.Task] = {}
 
 
-class Rnx2RtkpExecuteRequest(BaseModel):
-    """Request to execute rnx2rtkp post-processing."""
+class MrtkPostExecuteRequest(BaseModel):
+    """Request to execute mrtk_post post-processing."""
 
-    input_files: Rnx2RtkpInputFiles
-    config: Rnx2RtkpConfig
-    time_range: Rnx2RtkpTimeRange | None = None
+    input_files: MrtkPostInputFiles
+    config: MrtkPostConfig
+    time_range: MrtkPostTimeRange | None = None
     job_id: str | None = Field(
         default=None,
         description="Optional custom job ID",
     )
 
 
-class Rnx2RtkpJobResponse(BaseModel):
-    """Response for rnx2rtkp job execution."""
+class MrtkPostJobResponse(BaseModel):
+    """Response for mrtk_post job execution."""
 
     job_id: str
     status: str  # "started", "completed", "failed"
@@ -46,8 +46,8 @@ class Rnx2RtkpJobResponse(BaseModel):
     output_file: str | None = None
 
 
-async def _run_rnx2rtkp_job(job_id: str, job: Rnx2RtkpJob) -> Rnx2RtkpJobResponse:
-    """Execute rnx2rtkp job with WebSocket log streaming.
+async def _run_mrtk_post_job(job_id: str, job: MrtkPostJob) -> MrtkPostJobResponse:
+    """Execute mrtk_post job with WebSocket log streaming.
 
     Args:
         job_id: Unique job identifier
@@ -61,7 +61,7 @@ async def _run_rnx2rtkp_job(job_id: str, job: Rnx2RtkpJob) -> Rnx2RtkpJobRespons
     # where WS messages arrive before the frontend knows the job ID)
     await asyncio.sleep(0.2)
 
-    service = Rnx2RtkpService()
+    service = MrtkPostService()
 
     # Create log callback that broadcasts to WebSocket
     async def log_callback(message: str) -> None:
@@ -77,13 +77,13 @@ async def _run_rnx2rtkp_job(job_id: str, job: Rnx2RtkpJob) -> Rnx2RtkpJobRespons
             job_id,
             "running",
             {
-                "command": "rnx2rtkp",
+                "command": "mrtk_post",
                 "output_file": job.input_files.output_file,
             },
         )
 
-        # Run rnx2rtkp
-        result = await service.run_rnx2rtkp(
+        # Run mrtk_post
+        result = await service.run_mrtk_post(
             job, log_callback=log_callback, progress_callback=progress_callback
         )
 
@@ -97,7 +97,7 @@ async def _run_rnx2rtkp_job(job_id: str, job: Rnx2RtkpJob) -> Rnx2RtkpJobRespons
             },
         )
 
-        return Rnx2RtkpJobResponse(
+        return MrtkPostJobResponse(
             job_id=job_id,
             status="completed" if result.returncode == 0 else "failed",
             return_code=result.returncode,
@@ -109,7 +109,7 @@ async def _run_rnx2rtkp_job(job_id: str, job: Rnx2RtkpJob) -> Rnx2RtkpJobRespons
         error_msg = f"Input file not found: {e}"
         await ws_manager.broadcast_log(job_id, f"[ERROR] {error_msg}")
         await ws_manager.broadcast_status(job_id, "failed", {"error": error_msg})
-        return Rnx2RtkpJobResponse(
+        return MrtkPostJobResponse(
             job_id=job_id,
             status="failed",
             error_message=error_msg,
@@ -119,7 +119,7 @@ async def _run_rnx2rtkp_job(job_id: str, job: Rnx2RtkpJob) -> Rnx2RtkpJobRespons
         error_msg = f"Unexpected error: {e}"
         await ws_manager.broadcast_log(job_id, f"[ERROR] {error_msg}")
         await ws_manager.broadcast_status(job_id, "failed", {"error": error_msg})
-        return Rnx2RtkpJobResponse(
+        return MrtkPostJobResponse(
             job_id=job_id,
             status="failed",
             error_message=error_msg,
@@ -131,11 +131,11 @@ async def _run_rnx2rtkp_job(job_id: str, job: Rnx2RtkpJob) -> Rnx2RtkpJobRespons
         pass
 
 
-@router.post("/execute", response_model=Rnx2RtkpJobResponse)
-async def execute_rnx2rtkp(request: Rnx2RtkpExecuteRequest) -> Rnx2RtkpJobResponse:
-    """Execute rnx2rtkp post-processing.
+@router.post("/execute", response_model=MrtkPostJobResponse)
+async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobResponse:
+    """Execute mrtk_post post-processing.
 
-    This endpoint starts the rnx2rtkp process asynchronously and streams
+    This endpoint starts the mrtk_post process asynchronously and streams
     logs via WebSocket. The job runs in the background and the response
     is returned immediately with the job ID.
 
@@ -149,7 +149,7 @@ async def execute_rnx2rtkp(request: Rnx2RtkpExecuteRequest) -> Rnx2RtkpJobRespon
         HTTPException: If validation fails or job cannot be started
     """
     # Generate job ID
-    job_id = request.job_id or f"rnx2rtkp-{uuid.uuid4().hex[:8]}"
+    job_id = request.job_id or f"mrtk_post-{uuid.uuid4().hex[:8]}"
 
     # Normalize path: handle both "/workspace/obs/file.obs" and "obs/file.obs"
     workspace = Path("/workspace")
@@ -166,7 +166,7 @@ async def execute_rnx2rtkp(request: Rnx2RtkpExecuteRequest) -> Rnx2RtkpJobRespon
     def validate_input_path(file_path: str, label: str) -> str:
         """Validate an input file path, supporting wildcards.
 
-        Returns the original path string (wildcards are passed through to rnx2rtkp).
+        Returns the original path string (wildcards are passed through to mrtk_post).
         """
         resolved = resolve_workspace_path(file_path)
         resolved_str = str(resolved)
@@ -199,8 +199,8 @@ async def execute_rnx2rtkp(request: Rnx2RtkpExecuteRequest) -> Rnx2RtkpJobRespon
     output_path = resolve_workspace_path(request.input_files.output_file)
 
     # Create job
-    job = Rnx2RtkpJob(
-        input_files=Rnx2RtkpInputFiles(
+    job = MrtkPostJob(
+        input_files=MrtkPostInputFiles(
             rover_obs_file=rover_resolved,
             base_obs_file=base_resolved,
             nav_file=nav_resolved,
@@ -211,18 +211,18 @@ async def execute_rnx2rtkp(request: Rnx2RtkpExecuteRequest) -> Rnx2RtkpJobRespon
     )
 
     # Start job in background
-    task = asyncio.create_task(_run_rnx2rtkp_job(job_id, job))
+    task = asyncio.create_task(_run_mrtk_post_job(job_id, job))
     _active_jobs[job_id] = task
 
-    return Rnx2RtkpJobResponse(
+    return MrtkPostJobResponse(
         job_id=job_id,
         status="started",
     )
 
 
-@router.get("/status/{job_id}", response_model=Rnx2RtkpJobResponse)
-async def get_job_status(job_id: str) -> Rnx2RtkpJobResponse:
-    """Get status of a rnx2rtkp job.
+@router.get("/status/{job_id}", response_model=MrtkPostJobResponse)
+async def get_job_status(job_id: str) -> MrtkPostJobResponse:
+    """Get status of a mrtk_post job.
 
     Args:
         job_id: Job identifier
@@ -246,13 +246,13 @@ async def get_job_status(job_id: str) -> Rnx2RtkpJobResponse:
             result = task.result()
             return result
         except Exception as e:
-            return Rnx2RtkpJobResponse(
+            return MrtkPostJobResponse(
                 job_id=job_id,
                 status="failed",
                 error_message=str(e),
             )
     else:
-        return Rnx2RtkpJobResponse(
+        return MrtkPostJobResponse(
             job_id=job_id,
             status="running",
         )
@@ -260,7 +260,7 @@ async def get_job_status(job_id: str) -> Rnx2RtkpJobResponse:
 
 @router.get("/jobs", response_model=list[str])
 async def list_jobs() -> list[str]:
-    """List all active rnx2rtkp job IDs.
+    """List all active mrtk_post job IDs.
 
     Returns:
         List of active job IDs
@@ -269,26 +269,26 @@ async def list_jobs() -> list[str]:
 
 
 class ExportConfRequest(BaseModel):
-    """Request to export configuration as .conf file."""
+    """Request to export configuration as TOML file."""
 
-    config: Rnx2RtkpConfig
+    config: MrtkPostConfig
 
 
 @router.post("/export-conf")
 async def export_conf(request: ExportConfRequest) -> PlainTextResponse:
-    """Generate and return RTKLIB .conf file content from configuration.
+    """Generate and return MRTKLIB TOML configuration file content.
 
     Args:
         request: Configuration to export
 
     Returns:
-        Plain text .conf file content with download headers
+        TOML file content with download headers
     """
-    service = Rnx2RtkpService()
+    service = MrtkPostService()
     content = service.generate_conf_file(request.config)
     return PlainTextResponse(
         content=content,
         headers={
-            "Content-Disposition": 'attachment; filename="rtklib.conf"',
+            "Content-Disposition": 'attachment; filename="mrtk_post.toml"',
         },
     )

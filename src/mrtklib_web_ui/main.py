@@ -1,5 +1,6 @@
-"""FastAPI entry point for RTKLIB Web UI."""
+"""FastAPI entry point for MRTKLIB Web UI."""
 
+import importlib.metadata
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
@@ -9,8 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from rtklib_web_ui.api import files, process, config, str2str, rnx2rtkp, obs_qc
-from rtklib_web_ui.services import process_manager, ws_manager
+try:
+    __version__ = importlib.metadata.version("mrtklib-web-ui")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0-dev"
+
+from mrtklib_web_ui.api import files, process, config, mrtk_relay, mrtk_post, obs_qc
+from mrtklib_web_ui.services import process_manager, ws_manager
 
 # Static files directory (set in Docker build)
 STATIC_DIR = Path("/app/static")
@@ -32,9 +38,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(
-    title="RTKLIB Web UI",
-    description="Web UI for RTKLIB command-line tools",
-    version="0.1.0",
+    title="MRTKLIB Web UI",
+    description="Web UI for MRTKLIB command-line tools",
+    version=__version__,
     lifespan=lifespan,
 )
 
@@ -51,8 +57,8 @@ app.add_middleware(
 app.include_router(files.router, prefix="/api/files", tags=["files"])
 app.include_router(process.router, prefix="/api/process", tags=["process"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
-app.include_router(str2str.router, prefix="/api/str2str", tags=["str2str"])
-app.include_router(rnx2rtkp.router, prefix="/api/rnx2rtkp", tags=["rnx2rtkp"])
+app.include_router(mrtk_relay.router, prefix="/api/mrtk-relay", tags=["mrtk-relay"])
+app.include_router(mrtk_post.router, prefix="/api/mrtk-post", tags=["mrtk-post"])
 app.include_router(obs_qc.router, prefix="/api/obs-qc", tags=["obs-qc"])
 
 
@@ -62,40 +68,22 @@ async def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/api/rtklib/version")
-async def rtklib_version() -> dict[str, str | list[str]]:
-    """Get RTKLIB version and available binaries."""
-    import asyncio
+@app.get("/api/mrtklib/version")
+async def mrtklib_version() -> dict[str, str | list[str]]:
+    """Get MRTKLIB version (from git tag) and available subcommands."""
     import shutil
 
-    binaries = []
-    for cmd in ["str2str", "convbin", "rnx2rtkp", "rtkrcv"]:
-        if shutil.which(cmd) or Path(f"/usr/local/bin/{cmd}").exists():
-            binaries.append(cmd)
+    mrtk_path = shutil.which("mrtk") or "/usr/local/bin/mrtk"
+    mrtk_available = Path(mrtk_path).exists()
 
-    # Try to get version from str2str
-    version = "RTKLIB ver.2.4.3 b34"
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "/usr/local/bin/str2str",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
-        # Parse version from help output
-        output = stderr.decode("utf-8", errors="replace")
-        for line in output.split("\n"):
-            if "ver." in line.lower() or "version" in line.lower():
-                # Extract version string from output
-                version = line.strip()
-                break
-    except Exception:
-        # Fall back to default version if binary execution fails
-        pass
+    # Known mrtk subcommands
+    known_subcommands = ["post", "run", "relay", "convert", "ssr2obs", "ssr2osr", "bias", "dump", "cssr2rtcm3"]
+    subcommands = known_subcommands if mrtk_available else []
 
     return {
-        "version": version,
-        "binaries": binaries,
+        "version": __version__,
+        "binary": "mrtk" if mrtk_available else "",
+        "subcommands": subcommands,
     }
 
 
