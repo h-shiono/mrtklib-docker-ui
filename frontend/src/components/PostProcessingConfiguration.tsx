@@ -17,8 +17,6 @@ import {
   Checkbox,
   Button,
   ActionIcon,
-  HoverCard,
-  Table,
   Tooltip,
 } from '@mantine/core';
 import {
@@ -29,7 +27,7 @@ import {
   IconDots,
   IconFolderOpen,
   IconMapPin,
-  IconInfoCircle,
+
   IconPlayerPlay,
   IconPlayerStop,
   IconDownload,
@@ -63,6 +61,7 @@ import type {
 } from '../types/mrtkPostConfig';
 import { DEFAULT_MRTK_POST_CONFIG } from '../types/mrtkPostConfig';
 import { SnrMaskModal } from './SnrMaskModal';
+import { SignalSelectModal } from './SignalSelectModal';
 import { FileBrowserModal } from './FileBrowserModal';
 
 interface PostProcessingConfigurationProps {
@@ -341,6 +340,7 @@ export function PostProcessingConfiguration({
   });
 
   const [snrMaskModalOpened, setSnrMaskModalOpened] = useState(false);
+  const [signalSelectOpened, setSignalSelectOpened] = useState(false);
   const [fileBrowserOpened, setFileBrowserOpened] = useState(false);
   const fileBrowserCallbackRef = useRef<((path: string) => void) | null>(null);
 
@@ -367,7 +367,7 @@ export function PostProcessingConfiguration({
   const isSolNMEA = config.output.solutionFormat === 'nmea';
   const isFixedMode = ['fixed', 'ppp-fixed'].includes(config.positioning.positioningMode);
   const canUseSignals = !isMadocaPPP;
-  const useSignals = canUseSignals && config.positioning.signalMode === 'signals';
+  const useSignals = canUseSignals && config.positioning.signals.trim() !== '';
 
   const isReceiverDynamicsEnabled =
     config.positioning.positioningMode === 'kinematic' ||
@@ -680,7 +680,8 @@ export function PostProcessingConfiguration({
             <Stack gap="xs">
               {/* Group A: Basic Strategy */}
               <Fieldset legend="Basic Strategy" style={{ fontSize: '10px' }}>
-                <SimpleGrid cols={3} spacing="xs">
+                <SimpleGrid cols={2} spacing="xs">
+                  {/* Row 1 */}
                   <Select
                     size="xs"
                     label="Positioning Mode"
@@ -708,144 +709,6 @@ export function PostProcessingConfiguration({
                     ]}
                     styles={{ label: { fontSize: '10px' } }}
                   />
-
-                  <div>
-                    <Group gap="xs" mb={4}>
-                      <Text size="xs" style={{ fontSize: '10px' }}>
-                        {useSignals ? 'Signals' : 'Frequencies'}
-                      </Text>
-                      {canUseSignals && (
-                        <Select
-                          size="xs"
-                          value={config.positioning.signalMode}
-                          onChange={(value: any) =>
-                            handleConfigChange({
-                              ...config,
-                              positioning: { ...config.positioning, signalMode: value },
-                            })
-                          }
-                          data={[
-                            { value: 'frequency', label: 'Freq' },
-                            { value: 'signals', label: 'Signals' },
-                          ]}
-                          w={80}
-                          styles={{ input: { fontSize: '9px', minHeight: '20px', height: '20px' } }}
-                        />
-                      )}
-                    </Group>
-                    {useSignals ? (
-                      <TextInput
-                        size="xs"
-                        value={config.positioning.signals}
-                        onChange={(e) =>
-                          handleConfigChange({
-                            ...config,
-                            positioning: { ...config.positioning, signals: e.currentTarget.value },
-                          })
-                        }
-                        placeholder="G1C,G2W,E1C,E5Q,E7Q,J1C,J5Q,J2X"
-                        styles={{ label: { fontSize: '10px' } }}
-                      />
-                    ) : (
-                      <Group gap="xs" wrap="nowrap">
-                        <Select
-                          size="xs"
-                          value={config.positioning.frequency}
-                          onChange={(value: any) =>
-                            handleConfigChange({
-                              ...config,
-                              positioning: { ...config.positioning, frequency: value as Frequency },
-                            })
-                          }
-                          data={[
-                            { value: 'l1', label: 'L1' },
-                            { value: 'l1+l2', label: 'L1+2' },
-                            { value: 'l1+l2+l5', label: 'L1+2+3' },
-                            { value: 'l1+l2+l5+l6', label: 'L1+2+3+4' },
-                            { value: 'l1+l2+l5+l6+l7', label: 'L1+2+3+4+5' },
-                          ]}
-                          disabled={isSingle}
-                          styles={{ label: { fontSize: '10px' }, root: { flex: 1 } }}
-                          style={{ flex: 1 }}
-                        />
-                        <HoverCard width={400} shadow="md" withinPortal>
-                          <HoverCard.Target>
-                            <ActionIcon variant="subtle" size="sm" color="gray">
-                              <IconInfoCircle size={14} />
-                            </ActionIcon>
-                          </HoverCard.Target>
-                          <HoverCard.Dropdown p="xs">
-                            <Text size="xs" fw={500} mb="xs" style={{ fontSize: '10px' }}>
-                              GNSS Frequency Mapping
-                            </Text>
-                            <Table style={{ fontSize: '9px' }}>
-                              <Table.Thead style={{ borderBottom: '1px solid #dee2e6' }}>
-                                <Table.Tr>
-                                  <Table.Th style={{ fontSize: '9px', padding: '4px' }}>System</Table.Th>
-                                  <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>F1</Table.Th>
-                                  <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>F2</Table.Th>
-                                  <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>F3</Table.Th>
-                                  <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>F4</Table.Th>
-                                  <Table.Th style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>F5</Table.Th>
-                                </Table.Tr>
-                              </Table.Thead>
-                              <Table.Tbody>
-                                <Table.Tr>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px' }}>GPS</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L1</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L2</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L5</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
-                                </Table.Tr>
-                                <Table.Tr>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px' }}>GLONASS</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>G1</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>G2</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>G3</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
-                                </Table.Tr>
-                                <Table.Tr>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px' }}>Galileo</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>E1</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>E5b</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>E5a</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>E6</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
-                                </Table.Tr>
-                                <Table.Tr>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px' }}>QZSS</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L1</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L2</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L5</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L6</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
-                                </Table.Tr>
-                                <Table.Tr>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px' }}>BDS</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>B1I/C</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>B2I/b</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>B2a</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>B3</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>B2a+b</Table.Td>
-                                </Table.Tr>
-                                <Table.Tr>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px' }}>IRNSS</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>L5</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>S</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
-                                  <Table.Td style={{ fontSize: '9px', padding: '4px', textAlign: 'center' }}>-</Table.Td>
-                                </Table.Tr>
-                              </Table.Tbody>
-                            </Table>
-                          </HoverCard.Dropdown>
-                        </HoverCard>
-                      </Group>
-                    )}
-                  </div>
-
                   <Select
                     size="xs"
                     label="Filter Type"
@@ -864,6 +727,61 @@ export function PostProcessingConfiguration({
                     disabled={isSingle}
                     styles={{ label: { fontSize: '10px' } }}
                   />
+
+                  {/* Row 2 */}
+                  <Select
+                    size="xs"
+                    label="Frequencies"
+                    value={config.positioning.frequency}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        positioning: { ...config.positioning, frequency: value as Frequency },
+                      })
+                    }
+                    data={[
+                      { value: 'l1', label: 'L1' },
+                      { value: 'l1+l2', label: 'L1+2' },
+                      { value: 'l1+l2+l5', label: 'L1+2+3' },
+                      { value: 'l1+l2+l5+l6', label: 'L1+2+3+4' },
+                      { value: 'l1+l2+l5+l6+l7', label: 'L1+2+3+4+5' },
+                    ]}
+                    disabled={isSingle || useSignals}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <div>
+                    <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>
+                      Signals {isMadocaPPP && <Text span size="xs" c="dimmed">(N/A for MADOCA)</Text>}
+                    </Text>
+                    <Group gap="xs" wrap="nowrap">
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => setSignalSelectOpened(true)}
+                        fullWidth
+                        disabled={!canUseSignals}
+                      >
+                        {config.positioning.signals
+                          ? `${config.positioning.signals.split(',').filter(Boolean).length} signals selected`
+                          : 'Select Signals...'}
+                      </Button>
+                      {canUseSignals && config.positioning.signals && (
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          size="sm"
+                          onClick={() =>
+                            handleConfigChange({
+                              ...config,
+                              positioning: { ...config.positioning, signals: '' },
+                            })
+                          }
+                        >
+                          <IconX size={12} />
+                        </ActionIcon>
+                      )}
+                    </Group>
+                  </div>
                 </SimpleGrid>
               </Fieldset>
 
@@ -2530,6 +2448,18 @@ export function PostProcessingConfiguration({
           handleConfigChange({
             ...config,
             positioning: { ...config.positioning, snrMask: newSnrMask },
+          })
+        }
+      />
+
+      <SignalSelectModal
+        opened={signalSelectOpened}
+        onClose={() => setSignalSelectOpened(false)}
+        value={config.positioning.signals}
+        onChange={(signals) =>
+          handleConfigChange({
+            ...config,
+            positioning: { ...config.positioning, signals },
           })
         }
       />

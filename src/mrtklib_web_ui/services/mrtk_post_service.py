@@ -359,9 +359,9 @@ class MrtkPostService:
         # --- [positioning] ---
         lines.append("[positioning]")
         lines.append(f"mode                = {_str(pos_mode_map.get(p.positioning_mode, 'kinematic'))}")
-        # frequency vs signals: signals takes effect when signal_mode == "signals" and signals is set
+        # frequency vs signals: signals takes effect when signals is non-empty and not MADOCA-PPP
         is_madoca_ppp = p.positioning_mode in ("ppp-kinematic", "ppp-static", "ppp-fixed")
-        use_signals = (p.signal_mode == "signals" and p.signals.strip() and not is_madoca_ppp)
+        use_signals = (p.signals.strip() != "" and not is_madoca_ppp)
         if use_signals:
             sig_list = [s.strip() for s in p.signals.replace(",", " ").split() if s.strip()]
             lines.append(f"signals             = [{', '.join(f'{_str(s)}' for s in sig_list)}]")
