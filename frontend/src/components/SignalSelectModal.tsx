@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Stack, Text, Group, Checkbox, Button } from '@mantine/core';
+import { Modal, Stack, Text, Group, Checkbox, Button, Table } from '@mantine/core';
 
 /**
  * GNSS signal definitions per system and band.
@@ -126,34 +126,53 @@ export function SignalSelectModal({ opened, onClose, value, onChange }: SignalSe
           Selected: {selected.size} signals
         </Text>
 
-        {Object.entries(SIGNAL_CATALOG).map(([sys, def]) => (
-          <div key={sys}>
-            <Text size="xs" fw={600} mb={4}>{def.label} ({sys})</Text>
-            {Object.entries(def.bands).map(([band, attrs]) => (
-              <Group key={band} gap={4} mb={4} align="center" wrap="wrap">
-                <Text size="xs" w={24} c="dimmed" style={{ fontSize: '10px' }}>
-                  {band}:
-                </Text>
-                {attrs.map((attr) => {
-                  const code = `${sys}${band}${attr}`;
-                  return (
-                    <Checkbox
-                      key={code}
-                      size="xs"
-                      label={code}
-                      checked={selected.has(code)}
-                      onChange={() => toggle(code)}
-                      styles={{
-                        label: { fontSize: '10px', paddingLeft: 4 },
-                        body: { alignItems: 'center' },
-                      }}
-                    />
-                  );
-                })}
-              </Group>
-            ))}
-          </div>
-        ))}
+        <Table style={{ fontSize: '10px' }} withRowBorders={false} verticalSpacing={2}>
+          <Table.Tbody>
+            {Object.entries(SIGNAL_CATALOG).map(([sys, def]) => {
+              const bandEntries = Object.entries(def.bands);
+              return bandEntries.map(([band, attrs], bandIdx) => (
+                <Table.Tr key={`${sys}${band}`}>
+                  {/* System name — spans all bands for this system */}
+                  {bandIdx === 0 ? (
+                    <Table.Td
+                      rowSpan={bandEntries.length}
+                      style={{ fontSize: '11px', fontWeight: 600, verticalAlign: 'top', width: 70, padding: '4px 8px 4px 0' }}
+                    >
+                      {def.label}
+                    </Table.Td>
+                  ) : null}
+                  {/* Band label */}
+                  <Table.Td style={{ width: 24, padding: '2px 4px', color: 'var(--mantine-color-dimmed)', verticalAlign: 'middle' }}>
+                    {sys}{band}
+                  </Table.Td>
+                  {/* Signal checkboxes */}
+                  <Table.Td style={{ padding: '2px 0' }}>
+                    <Group gap={0} wrap="wrap">
+                      {attrs.map((attr) => {
+                        const code = `${sys}${band}${attr}`;
+                        return (
+                          <Checkbox
+                            key={code}
+                            size="xs"
+                            label={attr}
+                            checked={selected.has(code)}
+                            onChange={() => toggle(code)}
+                            style={{ width: 48 }}
+                            styles={{
+                              label: { fontSize: '10px', paddingLeft: 2, cursor: 'pointer' },
+                              input: { cursor: 'pointer' },
+                              body: { alignItems: 'center' },
+                            }}
+                          />
+                        );
+                      })}
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ));
+            })}
+          </Table.Tbody>
+        </Table>
 
         <Group justify="flex-end" mt="xs">
           <Button size="xs" variant="default" onClick={onClose}>
