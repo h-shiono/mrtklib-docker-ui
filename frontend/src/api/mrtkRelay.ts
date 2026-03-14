@@ -1,8 +1,8 @@
 /**
- * API client for str2str endpoints
+ * API client for mrtk relay endpoints
  */
 
-const API_BASE = '/api/str2str';
+const API_BASE = '/api/mrtk-relay';
 
 export interface ProcessStatus {
   id: string;
@@ -34,9 +34,9 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 /**
- * Start str2str process
+ * Start relay process
  */
-export async function startStr2Str(request: StartRequest = {}): Promise<ProcessStatus> {
+export async function startRelay(request: StartRequest = {}): Promise<ProcessStatus> {
   const response = await fetch(`${API_BASE}/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -46,9 +46,9 @@ export async function startStr2Str(request: StartRequest = {}): Promise<ProcessS
 }
 
 /**
- * Stop str2str process
+ * Stop relay process
  */
-export async function stopStr2Str(request: StopRequest): Promise<ProcessStatus> {
+export async function stopRelay(request: StopRequest): Promise<ProcessStatus> {
   const response = await fetch(`${API_BASE}/stop`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -60,7 +60,7 @@ export async function stopStr2Str(request: StopRequest): Promise<ProcessStatus> 
 /**
  * Get process status
  */
-export async function getStr2StrStatus(processId: string): Promise<ProcessStatus> {
+export async function getRelayStatus(processId: string): Promise<ProcessStatus> {
   const response = await fetch(`${API_BASE}/status/${processId}`);
   return handleResponse<ProcessStatus>(response);
 }
@@ -74,9 +74,9 @@ export async function listProcesses(): Promise<ProcessStatus[]> {
 }
 
 /**
- * Run test (str2str with no args)
+ * Run test (mrtk relay with no args)
  */
-export async function testStr2Str(): Promise<ProcessStatus> {
+export async function testRelay(): Promise<ProcessStatus> {
   const response = await fetch(`${API_BASE}/test`, { method: 'POST' });
   return handleResponse<ProcessStatus>(response);
 }

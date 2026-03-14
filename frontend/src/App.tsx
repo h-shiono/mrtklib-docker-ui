@@ -40,10 +40,10 @@ import { ObsViewerModal } from './components/obsViewer';
 import type { ProcessStatus } from './components';
 import { useWebSocket } from './hooks';
 import type { LogMessage } from './hooks';
-import * as str2strApi from './api/str2str';
-import * as rnx2rtkpApi from './api/rnx2rtkp';
-import type { Rnx2RtkpConfig } from './types/rnx2rtkpConfig';
-import { DEFAULT_RNX2RTKP_CONFIG } from './types/rnx2rtkpConfig';
+import * as mrtkRelayApi from './api/mrtkRelay';
+import * as mrtkPostApi from './api/mrtkPost';
+import type { MrtkPostConfig } from './types/mrtkPostConfig';
+import { DEFAULT_MRTK_POST_CONFIG } from './types/mrtkPostConfig';
 
 function ColorSchemeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -67,7 +67,7 @@ function PostProcessingPanel() {
   const [outputFile, setOutputFile] = useState('/workspace/output.pos');
   const [processStatus, setProcessStatus] = useState<ProcessStatus>('idle');
   const [logLines, setLogLines] = useState<string[]>([]);
-  const [config, setConfig] = useState<Rnx2RtkpConfig>(DEFAULT_RNX2RTKP_CONFIG);
+  const [config, setConfig] = useState<MrtkPostConfig>(DEFAULT_MRTK_POST_CONFIG);
 
   // Modes that require a base station
   const needsBase = ['dgps', 'kinematic', 'static', 'fixed', 'moving-base'].includes(
@@ -262,7 +262,7 @@ function PostProcessingPanel() {
 
   const handleExportConf = async () => {
     try {
-      await rnx2rtkpApi.exportConf(buildBackendConfig());
+      await mrtkPostApi.exportConf(buildBackendConfig());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to export conf');
     }
@@ -304,7 +304,7 @@ function PostProcessingPanel() {
           }
         : undefined;
 
-      const response = await rnx2rtkpApi.executeRnx2Rtkp({
+      const response = await mrtkPostApi.executeMrtkPost({
         input_files: {
           rover_obs_file: roverFile,
           base_obs_file: needsBase ? baseFile : undefined,
@@ -336,7 +336,7 @@ function PostProcessingPanel() {
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/rnx2rtkp/status/${jobId}`);
+        const res = await fetch(`/api/mrtk-post/status/${jobId}`);
         if (!res.ok) return;
         const data = await res.json();
         if (data.status === 'completed' || data.status === 'failed') {
@@ -683,7 +683,7 @@ function StreamServerPanel({
     setLogLines([]);
 
     try {
-      const result = await str2strApi.startStr2Str({ args: currentArgs });
+      const result = await mrtkRelayApi.startRelay({ args: currentArgs });
       setProcessId(result.id);
       setProcessState('running');
     } catch (err) {
@@ -701,7 +701,7 @@ function StreamServerPanel({
     setError(null);
 
     try {
-      await str2strApi.stopStr2Str({ process_id: processId });
+      await mrtkRelayApi.stopRelay({ process_id: processId });
       setProcessState('idle');
       setProcessId(null);
     } catch (err) {
@@ -718,14 +718,14 @@ function StreamServerPanel({
 
     try {
       // Use -h argument to show help
-      const result = await str2strApi.startStr2Str({ args: ['-h'] });
+      const result = await mrtkRelayApi.startRelay({ args: ['-h'] });
       setProcessId(result.id);
       setProcessState('running');
 
       // Auto-stop after 3 seconds (help exits immediately, this ensures cleanup)
       setTimeout(async () => {
         try {
-          await str2strApi.stopStr2Str({ process_id: result.id });
+          await mrtkRelayApi.stopRelay({ process_id: result.id });
           setProcessState('idle');
           setProcessId(null);
         } catch (err) {
@@ -875,7 +875,7 @@ function App() {
     if (!streamProcessId) return;
 
     try {
-      await str2strApi.stopStr2Str({ process_id: streamProcessId });
+      await mrtkRelayApi.stopRelay({ process_id: streamProcessId });
       setStreamProcessState('idle');
       setStreamProcessId(null);
     } catch (err) {

@@ -32,7 +32,7 @@ import {
   IconInfoCircle,
 } from '@tabler/icons-react';
 import type {
-  Rnx2RtkpConfig,
+  MrtkPostConfig,
   PositioningMode,
   Frequency,
   FilterType,
@@ -55,13 +55,13 @@ import type {
   SnrMaskConfig,
   PositionType,
   StationPosition,
-} from '../types/rnx2rtkpConfig';
-import { DEFAULT_RNX2RTKP_CONFIG } from '../types/rnx2rtkpConfig';
+} from '../types/mrtkPostConfig';
+import { DEFAULT_MRTK_POST_CONFIG } from '../types/mrtkPostConfig';
 import { SnrMaskModal } from './SnrMaskModal';
 import { FileBrowserModal } from './FileBrowserModal';
 
 interface PostProcessingConfigurationProps {
-  onConfigChange: (config: Rnx2RtkpConfig) => void;
+  onConfigChange: (config: MrtkPostConfig) => void;
 }
 
 interface StationPositionInputProps {
@@ -273,9 +273,9 @@ function FileInputRow({ label, value, onChange, placeholder, onBrowse }: FileInp
 export function PostProcessingConfiguration({
   onConfigChange,
 }: PostProcessingConfigurationProps) {
-  const [config, setConfig] = useLocalStorage<Rnx2RtkpConfig>({
+  const [config, setConfig] = useLocalStorage<MrtkPostConfig>({
     key: 'mrtklib-web-ui-rnx2rtkp-config-v13', // v13: Added Time tab (start/end time, interval)
-    defaultValue: DEFAULT_RNX2RTKP_CONFIG,
+    defaultValue: DEFAULT_MRTK_POST_CONFIG,
   });
 
   const [snrMaskModalOpened, setSnrMaskModalOpened] = useState(false);
@@ -319,7 +319,7 @@ export function PostProcessingConfiguration({
     onConfigChange(config);
   }, [config, onConfigChange]);
 
-  const handleConfigChange = (newConfig: Rnx2RtkpConfig) => {
+  const handleConfigChange = (newConfig: MrtkPostConfig) => {
     setConfig(newConfig);
   };
 

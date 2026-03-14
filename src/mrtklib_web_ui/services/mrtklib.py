@@ -5,12 +5,12 @@ import uuid
 from typing import Any
 
 
-class RTKProcessManager:
+class MRTKProcessManager:
     """Manages MRTKLIB subprocess execution."""
 
     # Map legacy command names → mrtk subcommands
     SUBCOMMAND_MAP = {
-        "rnx2rtkp": "post",
+        "mrtk_post": "post",
         "str2str": "relay",
         "convbin": "convert",
     }
@@ -22,7 +22,7 @@ class RTKProcessManager:
         """Start an MRTKLIB process.
 
         Args:
-            command: Legacy command name (e.g., 'rnx2rtkp') mapped to mrtk subcommand
+            command: Legacy command name (e.g., 'mrtk_post') mapped to mrtk subcommand
             args: Command arguments
 
         Returns:

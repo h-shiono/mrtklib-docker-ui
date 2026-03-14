@@ -9,7 +9,7 @@ import type {
 } from '../types/streamConfig';
 
 /**
- * Generate str2str argument string from a stream configuration
+ * Generate relay argument string from a stream configuration
  */
 function generateStreamArg(stream: StreamConfig): string {
   switch (stream.type) {
@@ -61,9 +61,9 @@ function generateStreamArg(stream: StreamConfig): string {
 }
 
 /**
- * Generate full str2str arguments array from builder configuration
+ * Generate full mrtk relay arguments array from builder configuration
  */
-export function generateStr2StrArgs(config: BuilderConfig): string[] {
+export function generateRelayArgs(config: BuilderConfig): string[] {
   const args: string[] = [];
 
   // Input stream
@@ -85,8 +85,8 @@ export function generateStr2StrArgs(config: BuilderConfig): string[] {
  * Generate command string for display
  */
 export function generateCommandString(config: BuilderConfig): string {
-  const args = generateStr2StrArgs(config);
-  return `str2str ${args.join(' ')}`;
+  const args = generateRelayArgs(config);
+  return `mrtk relay ${args.join(' ')}`;
 }
 
 /**
@@ -94,7 +94,7 @@ export function generateCommandString(config: BuilderConfig): string {
  */
 export function parseCommandString(commandStr: string): Partial<BuilderConfig> | null {
   try {
-    // Remove 'str2str' prefix if present
+    // Remove 'mrtk relay' prefix if present
     const cleaned = commandStr.trim().replace(/^str2str\s+/, '');
     const args = cleaned.split(/\s+/);
 

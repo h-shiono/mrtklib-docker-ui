@@ -1,5 +1,5 @@
 """
-rnx2rtkp service for post-processing GNSS data.
+mrtk_post service for post-processing GNSS data.
 """
 
 import asyncio
@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-# Pattern to match rnx2rtkp progress output:
+# Pattern to match mrtk_post progress output:
 # "processing : 2024/01/01 00:00:00.0 Q=1 ns=10 ratio=50.0"
 _PROGRESS_PATTERN = re.compile(
     r"(\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)"  # epoch time
@@ -26,7 +26,7 @@ _PROGRESS_PATTERN = re.compile(
 
 
 def parse_progress(line: str) -> dict[str, Any] | None:
-    """Parse rnx2rtkp progress output line.
+    """Parse mrtk_post progress output line.
 
     Returns dict with epoch, quality, ns, ratio if matched, else None.
     """
@@ -236,8 +236,8 @@ class MiscConfig(BaseModel):
     rinex_opt_base: str = Field(default="")
 
 
-class Rnx2RtkpConfig(BaseModel):
-    """Complete rnx2rtkp configuration."""
+class MrtkPostConfig(BaseModel):
+    """Complete mrtk_post configuration."""
 
     setting1: Setting1Config = Field(default_factory=Setting1Config)
     setting2: Setting2Config = Field(default_factory=Setting2Config)
@@ -249,8 +249,8 @@ class Rnx2RtkpConfig(BaseModel):
     misc: MiscConfig = Field(default_factory=MiscConfig)
 
 
-class Rnx2RtkpInputFiles(BaseModel):
-    """Input files for rnx2rtkp."""
+class MrtkPostInputFiles(BaseModel):
+    """Input files for mrtk_post."""
 
     rover_obs_file: str
     nav_file: str
@@ -258,7 +258,7 @@ class Rnx2RtkpInputFiles(BaseModel):
     output_file: str
 
 
-class Rnx2RtkpTimeRange(BaseModel):
+class MrtkPostTimeRange(BaseModel):
     """Time range for processing."""
 
     start_time: Optional[str] = None
@@ -266,16 +266,16 @@ class Rnx2RtkpTimeRange(BaseModel):
     interval: Optional[float] = None
 
 
-class Rnx2RtkpJob(BaseModel):
-    """Complete rnx2rtkp job specification."""
+class MrtkPostJob(BaseModel):
+    """Complete mrtk_post job specification."""
 
-    input_files: Rnx2RtkpInputFiles
-    config: Rnx2RtkpConfig
-    time_range: Optional[Rnx2RtkpTimeRange] = None
+    input_files: MrtkPostInputFiles
+    config: MrtkPostConfig
+    time_range: Optional[MrtkPostTimeRange] = None
 
 
-class Rnx2RtkpService:
-    """Service for running rnx2rtkp post-processing."""
+class MrtkPostService:
+    """Service for running mrtk_post post-processing."""
 
     def __init__(self, mrtk_bin_path: str = "/usr/local/bin/mrtk"):
         """Initialize the service.
@@ -285,7 +285,7 @@ class Rnx2RtkpService:
         """
         self.mrtk_bin_path = mrtk_bin_path
 
-    def generate_conf_file(self, config: Rnx2RtkpConfig) -> str:
+    def generate_conf_file(self, config: MrtkPostConfig) -> str:
         """Generate MRTKLIB TOML configuration file content.
 
         Args:
@@ -559,13 +559,13 @@ class Rnx2RtkpService:
 
         return "\n".join(lines)
 
-    async def run_rnx2rtkp(
+    async def run_mrtk_post(
         self,
-        job: Rnx2RtkpJob,
+        job: MrtkPostJob,
         log_callback: Optional[callable] = None,
         progress_callback: Optional[callable] = None,
     ) -> subprocess.CompletedProcess:
-        """Run rnx2rtkp with the given job configuration.
+        """Run mrtk_post with the given job configuration.
 
         Args:
             job: Job specification
@@ -577,7 +577,7 @@ class Rnx2RtkpService:
 
         Raises:
             FileNotFoundError: If input files don't exist
-            subprocess.CalledProcessError: If rnx2rtkp fails
+            subprocess.CalledProcessError: If mrtk_post fails
         """
         # Generate config file
         conf_content = self.generate_conf_file(job.config)
@@ -632,7 +632,7 @@ class Rnx2RtkpService:
                 for conf_line in conf_content.split("\n"):
                     await log_callback(f"[CONF] {conf_line}")
 
-            # Run rnx2rtkp
+            # Run mrtk_post
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -648,7 +648,7 @@ class Rnx2RtkpService:
                     if callback:
                         await callback(line.decode().strip())
 
-            # Stream stderr with \r handling for rnx2rtkp progress
+            # Stream stderr with \r handling for mrtk_post progress
             async def read_stderr_with_progress(stream, log_cb, progress_cb):
                 buf = b""
                 last_progress_time = 0.0
