@@ -422,13 +422,22 @@ export const DEFAULT_RECEIVER: ReceiverConfig = {
   ionoCorrection: true,
 };
 
+// Generate today's date as YYYY/MM/DD
+function getTodayString(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}/${m}/${day}`;
+}
+
 export const DEFAULT_TIME: TimeConfig = {
   startEnabled: false,
-  startDate: '2000/01/01',
+  startDate: getTodayString(),
   startTime: '00:00:00',
   endEnabled: false,
-  endDate: '2000/01/01',
-  endTime: '00:00:00',
+  endDate: getTodayString(),
+  endTime: '23:59:59',
   interval: 0,
 };
 

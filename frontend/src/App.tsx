@@ -454,7 +454,7 @@ function PostProcessingPanel() {
 
               {/* Interval */}
               <div>
-                <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Interval</Text>
+                <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Interval (0=all)</Text>
                 <NumberInput
                   size="xs"
                   value={config.time.interval}
@@ -463,7 +463,6 @@ function PostProcessingPanel() {
                   step={1}
                   decimalScale={2}
                   suffix=" s"
-                  placeholder="0 = all epochs"
                   hideControls
                   styles={{ input: { fontSize: '11px' } }}
                 />

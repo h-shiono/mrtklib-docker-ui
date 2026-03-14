@@ -291,7 +291,7 @@ export function PostProcessingConfiguration({
   onConfigChange,
 }: PostProcessingConfigurationProps) {
   const [config, setConfig] = useLocalStorage<MrtkPostConfig>({
-    key: 'mrtklib-web-ui-mrtk-post-config-v14',
+    key: 'mrtklib-web-ui-mrtk-post-config-v15',
     defaultValue: DEFAULT_MRTK_POST_CONFIG,
   });
 
