@@ -648,6 +648,22 @@ export function PostProcessingConfiguration({
                     styles={{ label: { fontSize: '10px' } }}
                   />
 
+                  <Checkbox
+                    size="xs"
+                    label="Receiver Iono Correction"
+                    checked={config.receiver.ionoCorrection}
+                    onChange={(e: any) =>
+                      handleConfigChange({
+                        ...config,
+                        receiver: {
+                          ...config.receiver,
+                          ionoCorrection: e.currentTarget.checked,
+                        },
+                      })
+                    }
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+
                   <Select
                     size="xs"
                     label="Satellite Ephemeris/Clock"
@@ -969,98 +985,109 @@ export function PostProcessingConfiguration({
                 </Accordion.Item>
               </Accordion>
 
-              {/* CLAS PPP-RTK Settings — only visible when ppp-rtk mode */}
-              {isPppRtk && (
-                <Fieldset legend="CLAS PPP-RTK" style={{ fontSize: '10px' }}>
-                  <SimpleGrid cols={3} spacing="xs">
-                    <NumberInput
-                      size="xs"
-                      label="Grid Selection Radius (m)"
-                      value={config.positioning.clas.gridSelectionRadius}
-                      onChange={(value) =>
-                        handleConfigChange({
-                          ...config,
-                          positioning: {
-                            ...config.positioning,
-                            clas: { ...config.positioning.clas, gridSelectionRadius: Number(value) || 0 },
-                          },
-                        })
-                      }
-                      min={0}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                    <TextInput
-                      size="xs"
-                      label="Receiver Type"
-                      value={config.positioning.clas.receiverType}
-                      onChange={(e) =>
-                        handleConfigChange({
-                          ...config,
-                          positioning: {
-                            ...config.positioning,
-                            clas: { ...config.positioning.clas, receiverType: e.currentTarget.value },
-                          },
-                        })
-                      }
-                      placeholder="e.g. Trimble NetR9"
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                  </SimpleGrid>
-                  <SimpleGrid cols={3} spacing="xs" mt="xs">
-                    <NumberInput
-                      size="xs"
-                      label="Position Uncertainty X (m)"
-                      value={config.positioning.clas.positionUncertaintyX}
-                      onChange={(value) =>
-                        handleConfigChange({
-                          ...config,
-                          positioning: {
-                            ...config.positioning,
-                            clas: { ...config.positioning.clas, positionUncertaintyX: Number(value) || 0 },
-                          },
-                        })
-                      }
-                      min={0}
-                      decimalScale={1}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                    <NumberInput
-                      size="xs"
-                      label="Position Uncertainty Y (m)"
-                      value={config.positioning.clas.positionUncertaintyY}
-                      onChange={(value) =>
-                        handleConfigChange({
-                          ...config,
-                          positioning: {
-                            ...config.positioning,
-                            clas: { ...config.positioning.clas, positionUncertaintyY: Number(value) || 0 },
-                          },
-                        })
-                      }
-                      min={0}
-                      decimalScale={1}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                    <NumberInput
-                      size="xs"
-                      label="Position Uncertainty Z (m)"
-                      value={config.positioning.clas.positionUncertaintyZ}
-                      onChange={(value) =>
-                        handleConfigChange({
-                          ...config,
-                          positioning: {
-                            ...config.positioning,
-                            clas: { ...config.positioning.clas, positionUncertaintyZ: Number(value) || 0 },
-                          },
-                        })
-                      }
-                      min={0}
-                      decimalScale={1}
-                      styles={{ label: { fontSize: '10px' } }}
-                    />
-                  </SimpleGrid>
-                </Fieldset>
-              )}
+              {/* CLAS PPP-RTK Settings — collapsed by default, enabled only in ppp-rtk mode */}
+              <Accordion
+                variant="contained"
+                defaultValue={isPppRtk ? "clas" : undefined}
+                styles={{ label: { fontSize: '10px', padding: '4px 8px' }, content: { padding: '8px' } }}
+              >
+                <Accordion.Item value="clas">
+                  <Accordion.Control disabled={!isPppRtk}>
+                    <Text size="xs" c={isPppRtk ? undefined : 'dimmed'}>
+                      CLAS PPP-RTK Settings
+                    </Text>
+                  </Accordion.Control>
+                  <Accordion.Panel>
+                    <SimpleGrid cols={3} spacing="xs">
+                      <NumberInput
+                        size="xs"
+                        label="Grid Selection Radius (m)"
+                        value={config.positioning.clas.gridSelectionRadius}
+                        onChange={(value) =>
+                          handleConfigChange({
+                            ...config,
+                            positioning: {
+                              ...config.positioning,
+                              clas: { ...config.positioning.clas, gridSelectionRadius: Number(value) || 0 },
+                            },
+                          })
+                        }
+                        min={0}
+                        styles={{ label: { fontSize: '10px' } }}
+                      />
+                      <TextInput
+                        size="xs"
+                        label="Receiver Type"
+                        value={config.positioning.clas.receiverType}
+                        onChange={(e) =>
+                          handleConfigChange({
+                            ...config,
+                            positioning: {
+                              ...config.positioning,
+                              clas: { ...config.positioning.clas, receiverType: e.currentTarget.value },
+                            },
+                          })
+                        }
+                        placeholder="e.g. Trimble NetR9"
+                        styles={{ label: { fontSize: '10px' } }}
+                      />
+                    </SimpleGrid>
+                    <SimpleGrid cols={3} spacing="xs" mt="xs">
+                      <NumberInput
+                        size="xs"
+                        label="Position Uncertainty X (m)"
+                        value={config.positioning.clas.positionUncertaintyX}
+                        onChange={(value) =>
+                          handleConfigChange({
+                            ...config,
+                            positioning: {
+                              ...config.positioning,
+                              clas: { ...config.positioning.clas, positionUncertaintyX: Number(value) || 0 },
+                            },
+                          })
+                        }
+                        min={0}
+                        decimalScale={1}
+                        styles={{ label: { fontSize: '10px' } }}
+                      />
+                      <NumberInput
+                        size="xs"
+                        label="Position Uncertainty Y (m)"
+                        value={config.positioning.clas.positionUncertaintyY}
+                        onChange={(value) =>
+                          handleConfigChange({
+                            ...config,
+                            positioning: {
+                              ...config.positioning,
+                              clas: { ...config.positioning.clas, positionUncertaintyY: Number(value) || 0 },
+                            },
+                          })
+                        }
+                        min={0}
+                        decimalScale={1}
+                        styles={{ label: { fontSize: '10px' } }}
+                      />
+                      <NumberInput
+                        size="xs"
+                        label="Position Uncertainty Z (m)"
+                        value={config.positioning.clas.positionUncertaintyZ}
+                        onChange={(value) =>
+                          handleConfigChange({
+                            ...config,
+                            positioning: {
+                              ...config.positioning,
+                              clas: { ...config.positioning.clas, positionUncertaintyZ: Number(value) || 0 },
+                            },
+                          })
+                        }
+                        min={0}
+                        decimalScale={1}
+                        styles={{ label: { fontSize: '10px' } }}
+                      />
+                    </SimpleGrid>
+                  </Accordion.Panel>
+                </Accordion.Item>
+              </Accordion>
             </Stack>
           </Tabs.Panel>
 
@@ -2109,25 +2136,6 @@ export function PostProcessingConfiguration({
           {/* Tab: Server */}
           <Tabs.Panel value="server" pt="xs">
             <Stack gap="xs">
-              {/* Receiver */}
-              <Fieldset legend="Receiver" style={{ fontSize: '10px' }}>
-                <Checkbox
-                  size="xs"
-                  label="Iono Correction"
-                  checked={config.receiver.ionoCorrection}
-                  onChange={(e: any) =>
-                    handleConfigChange({
-                      ...config,
-                      receiver: {
-                        ...config.receiver,
-                        ionoCorrection: e.currentTarget.checked,
-                      },
-                    })
-                  }
-                  styles={{ label: { fontSize: '10px' } }}
-                />
-              </Fieldset>
-
               {/* Server Options */}
               <Fieldset legend="Server Options" style={{ fontSize: '10px' }}>
                 <Stack gap="xs">
