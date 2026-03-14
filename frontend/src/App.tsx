@@ -36,6 +36,8 @@ import {
   IconInfoCircle,
   IconFolderOpen,
   IconChartBar,
+  IconPlus,
+  IconX,
 } from '@tabler/icons-react';
 import { TerminalOutput, StatusIndicator, StreamConfiguration, PostProcessingConfiguration, FileBrowserModal, TabbedTerminalOutput } from './components';
 import { ObsViewerModal } from './components/obsViewer';
@@ -66,6 +68,7 @@ function PostProcessingPanel() {
   const [roverFile, setRoverFile] = useState('/workspace/rover.obs');
   const [baseFile, setBaseFile] = useState('');
   const [navFile, setNavFile] = useState('/workspace/nav.nav');
+  const [correctionFiles, setCorrectionFiles] = useState<string[]>(['', '']);
   const [outputFile, setOutputFile] = useState('/workspace/output.pos');
   const [processStatus, setProcessStatus] = useState<ProcessStatus>('idle');
   const [logLines, setLogLines] = useState<string[]>([]);
@@ -323,6 +326,7 @@ function PostProcessingPanel() {
           rover_obs_file: roverFile,
           base_obs_file: needsBase ? baseFile : undefined,
           nav_file: navFile,
+          correction_files: correctionFiles.filter((f) => f.trim() !== ''),
           output_file: outputFile,
         },
         config: backendConfig as any,
@@ -528,6 +532,62 @@ function PostProcessingPanel() {
                     </ActionIcon>
                   </Group>
                 </div>
+
+              {/* Correction Files */}
+              <div>
+                <Group gap="xs" mb={4} justify="space-between">
+                  <Text size="xs" style={{ fontSize: '10px' }}>
+                    Corrections (CLK, SP3, FCB, IONEX, L6, etc.)
+                  </Text>
+                  <ActionIcon
+                    variant="light"
+                    size="xs"
+                    onClick={() => setCorrectionFiles([...correctionFiles, ''])}
+                  >
+                    <IconPlus size={12} />
+                  </ActionIcon>
+                </Group>
+                <Stack gap={4}>
+                  {correctionFiles.map((cf, idx) => (
+                    <Group key={idx} gap="xs" wrap="nowrap">
+                      <TextInput
+                        size="xs"
+                        placeholder={`/workspace/correction${idx + 1}`}
+                        value={cf}
+                        onChange={(e) => {
+                          const next = [...correctionFiles];
+                          next[idx] = e.currentTarget.value;
+                          setCorrectionFiles(next);
+                        }}
+                        leftSection={<IconFile size={12} />}
+                        style={{ flex: 1 }}
+                      />
+                      <ActionIcon
+                        variant="filled"
+                        color="blue"
+                        size="lg"
+                        onClick={() => openFileBrowser((path) => {
+                          const next = [...correctionFiles];
+                          next[idx] = path;
+                          setCorrectionFiles(next);
+                        })}
+                      >
+                        <IconFolderOpen size={16} />
+                      </ActionIcon>
+                      {correctionFiles.length > 1 && (
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          size="lg"
+                          onClick={() => setCorrectionFiles(correctionFiles.filter((_, i) => i !== idx))}
+                        >
+                          <IconX size={14} />
+                        </ActionIcon>
+                      )}
+                    </Group>
+                  ))}
+                </Stack>
+              </div>
 
               <div>
                 <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Output *</Text>

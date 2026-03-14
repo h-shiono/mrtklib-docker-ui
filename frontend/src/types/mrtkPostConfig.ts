@@ -264,6 +264,7 @@ export interface MrtkPostInputFiles {
   rover_obs_file: string;
   base_obs_file?: string;
   nav_file: string;
+  correction_files: string[];  // SP3, CLK, FCB, IONEX, L6, etc.
   output_file: string;
 }
 

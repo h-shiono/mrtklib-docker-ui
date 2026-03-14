@@ -195,6 +195,12 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
     if request.input_files.base_obs_file:
         base_resolved = validate_input_path(request.input_files.base_obs_file, "Base observation file")
 
+    # Validate correction files if provided
+    correction_resolved = []
+    for i, cf in enumerate(request.input_files.correction_files or []):
+        if cf.strip():
+            correction_resolved.append(validate_input_path(cf, f"Correction file #{i + 1}"))
+
     # Ensure output file path is absolute and within workspace
     output_path = resolve_workspace_path(request.input_files.output_file)
 
@@ -204,6 +210,7 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
             rover_obs_file=rover_resolved,
             base_obs_file=base_resolved,
             nav_file=nav_resolved,
+            correction_files=correction_resolved,
             output_file=str(output_path),
         ),
         config=request.config,

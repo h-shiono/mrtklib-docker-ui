@@ -256,6 +256,7 @@ class MrtkPostInputFiles(BaseModel):
     rover_obs_file: str
     nav_file: str
     base_obs_file: Optional[str] = None
+    correction_files: list[str] = Field(default_factory=list)
     output_file: str
 
 
@@ -645,6 +646,11 @@ class MrtkPostService:
 
             # Add navigation file
             cmd.append(job.input_files.nav_file)
+
+            # Add correction files (SP3, CLK, FCB, IONEX, L6, etc.)
+            for cf in job.input_files.correction_files:
+                if cf.strip():
+                    cmd.append(cf.strip())
 
             if log_callback:
                 await log_callback(f"[CMD] {' '.join(cmd)}")
