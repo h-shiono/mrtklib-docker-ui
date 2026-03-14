@@ -335,7 +335,7 @@ export function PostProcessingConfiguration({
   roverFileValid,
 }: PostProcessingConfigurationProps) {
   const [config, setConfig] = useLocalStorage<MrtkPostConfig>({
-    key: 'mrtklib-web-ui-mrtk-post-config-v15',
+    key: 'mrtklib-web-ui-mrtk-post-config-v16',
     defaultValue: DEFAULT_MRTK_POST_CONFIG,
   });
 
@@ -1212,26 +1212,80 @@ export function PostProcessingConfiguration({
             <Stack gap="xs">
               {/* Ambiguity Resolution */}
               <Fieldset legend="Ambiguity Resolution" style={{ fontSize: '10px' }}>
-                <Select
-                  size="xs"
-                  label="AR Mode"
-                  value={config.ambiguityResolution.mode}
-                  onChange={(value: any) =>
-                    handleConfigChange({
-                      ...config,
-                      ambiguityResolution: { ...config.ambiguityResolution, mode: value as ARMode },
-                    })
-                  }
-                  data={[
-                    { value: 'off', label: 'OFF' },
-                    { value: 'continuous', label: 'Continuous' },
-                    { value: 'instantaneous', label: 'Instantaneous' },
-                    { value: 'fix-and-hold', label: 'Fix and Hold' },
-                    { value: 'ppp-ar', label: 'PPP-AR' },
-                  ]}
-                  disabled={isSingle || isDGPS}
-                  styles={{ label: { fontSize: '10px' } }}
-                />
+                <SimpleGrid cols={2} spacing="xs">
+                  <Select
+                    size="xs"
+                    label="AR Mode"
+                    value={config.ambiguityResolution.mode}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        ambiguityResolution: { ...config.ambiguityResolution, mode: value as ARMode },
+                      })
+                    }
+                    data={[
+                      { value: 'off', label: 'OFF' },
+                      { value: 'continuous', label: 'Continuous' },
+                      { value: 'instantaneous', label: 'Instantaneous' },
+                      { value: 'fix-and-hold', label: 'Fix and Hold' },
+                      { value: 'ppp-ar', label: 'PPP-AR' },
+                    ]}
+                    disabled={isSingle || isDGPS || isPPP}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <Select
+                    size="xs"
+                    label="GLONASS AR"
+                    value={config.ambiguityResolution.glonassAr}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        ambiguityResolution: { ...config.ambiguityResolution, glonassAr: value },
+                      })
+                    }
+                    data={[
+                      { value: 'off', label: 'OFF' },
+                      { value: 'on', label: 'ON' },
+                      { value: 'autocal', label: 'AutoCal' },
+                    ]}
+                    disabled={isSingle || isDGPS || isPPP}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <Select
+                    size="xs"
+                    label="BeiDou AR"
+                    value={config.ambiguityResolution.bdsAr}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        ambiguityResolution: { ...config.ambiguityResolution, bdsAr: value },
+                      })
+                    }
+                    data={[
+                      { value: 'off', label: 'OFF' },
+                      { value: 'on', label: 'ON' },
+                    ]}
+                    disabled={isSingle || isDGPS || isPPP}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <Select
+                    size="xs"
+                    label="QZSS AR"
+                    value={config.ambiguityResolution.qzsAr}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        ambiguityResolution: { ...config.ambiguityResolution, qzsAr: value },
+                      })
+                    }
+                    data={[
+                      { value: 'off', label: 'OFF' },
+                      { value: 'on', label: 'ON' },
+                    ]}
+                    disabled={isSingle || isDGPS || isPPP}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                </SimpleGrid>
               </Fieldset>
 
               {/* AR Thresholds */}

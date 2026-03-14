@@ -163,6 +163,9 @@ function PostProcessingPanel() {
       },
       ambiguity_resolution: {
         mode: ar.mode,
+        glonass_ar: ar.glonassAr,
+        bds_ar: ar.bdsAr,
+        qzs_ar: ar.qzsAr,
         ratio: ar.ratio,
         elevation_mask: ar.elevationMask,
         hold_elevation: ar.holdElevation,

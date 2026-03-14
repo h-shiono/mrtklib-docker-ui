@@ -29,6 +29,12 @@ export type ReceiverDynamics = 'off' | 'on';
 
 export type ARMode = 'off' | 'continuous' | 'instantaneous' | 'fix-and-hold' | 'ppp-ar';
 
+export type GloARMode = 'off' | 'on' | 'autocal';
+
+export type BdsARMode = 'off' | 'on';
+
+export type QzsARMode = 'off' | 'on';
+
 export type SolutionFormat = 'llh' | 'xyz' | 'enu' | 'nmea';
 
 export type TimeFormat = 'gpst' | 'gpst-hms' | 'utc' | 'jst';
@@ -112,6 +118,9 @@ export interface PositioningConfig {
 export interface AmbiguityResolutionConfig {
   // [ambiguity_resolution]
   mode: ARMode;
+  glonassAr: GloARMode;
+  bdsAr: BdsARMode;
+  qzsAr: QzsARMode;
 
   // [ambiguity_resolution.thresholds]
   ratio: number;
@@ -324,6 +333,9 @@ export const DEFAULT_POSITIONING: PositioningConfig = {
 
 export const DEFAULT_AMBIGUITY_RESOLUTION: AmbiguityResolutionConfig = {
   mode: 'continuous',
+  glonassAr: 'on',
+  bdsAr: 'on',
+  qzsAr: 'on',
   ratio: 3.0,
   elevationMask: 0,
   holdElevation: 0,

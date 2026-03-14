@@ -110,6 +110,9 @@ class AmbiguityResolutionConfig(BaseModel):
     """[ambiguity_resolution] + thresholds + counters."""
 
     mode: str = Field(default="continuous")
+    glonass_ar: str = Field(default="on")
+    bds_ar: str = Field(default="on")
+    qzs_ar: str = Field(default="on")
 
     # [ambiguity_resolution.thresholds]
     ratio: float = Field(default=3.0)
@@ -426,9 +429,15 @@ class MrtkPostService:
             lines.append("")
 
         # --- [ambiguity_resolution] ---
+        glo_ar_map = {"off": "off", "on": "on", "autocal": "autocal"}
+        bds_ar_map = {"off": "off", "on": "on"}
+        qzs_ar_map = {"off": "off", "on": "on"}
         ar = config.ambiguity_resolution
         lines.append("[ambiguity_resolution]")
-        lines.append(f"mode    = {_str(ar_mode_map.get(ar.mode, 'continuous'))}")
+        lines.append(f"mode       = {_str(ar_mode_map.get(ar.mode, 'continuous'))}")
+        lines.append(f"glonass_ar = {_str(glo_ar_map.get(ar.glonass_ar, 'on'))}")
+        lines.append(f"bds_ar     = {_str(bds_ar_map.get(ar.bds_ar, 'on'))}")
+        lines.append(f"qzs_ar     = {_str(qzs_ar_map.get(ar.qzs_ar, 'on'))}")
         lines.append("")
 
         # --- [ambiguity_resolution.thresholds] ---
