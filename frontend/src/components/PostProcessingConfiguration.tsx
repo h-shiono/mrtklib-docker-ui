@@ -19,6 +19,7 @@ import {
   ActionIcon,
   HoverCard,
   Table,
+  Tooltip,
 } from '@mantine/core';
 import {
   IconAdjustments,
@@ -29,6 +30,13 @@ import {
   IconFolderOpen,
   IconMapPin,
   IconInfoCircle,
+  IconPlayerPlay,
+  IconPlayerStop,
+  IconDownload,
+  IconFile,
+  IconPlus,
+  IconX,
+  IconChartBar,
 } from '@tabler/icons-react';
 import type {
   MrtkPostConfig,
@@ -59,6 +67,25 @@ import { FileBrowserModal } from './FileBrowserModal';
 
 interface PostProcessingConfigurationProps {
   onConfigChange: (config: MrtkPostConfig) => void;
+  // Execution tab props
+  roverFile: string;
+  onRoverFileChange: (v: string) => void;
+  baseFile: string;
+  onBaseFileChange: (v: string) => void;
+  navFile: string;
+  onNavFileChange: (v: string) => void;
+  correctionFiles: string[];
+  onCorrectionFilesChange: (v: string[]) => void;
+  outputFile: string;
+  onOutputFileChange: (v: string) => void;
+  needsBase: boolean;
+  processStatus: string;
+  isLoading: boolean;
+  onExecute: () => void;
+  onStop: () => void;
+  onExportConf: () => void;
+  onQcPreview: () => void;
+  roverFileValid: boolean;
 }
 
 interface StationPositionInputProps {
@@ -289,6 +316,24 @@ function FileInputRow({
 
 export function PostProcessingConfiguration({
   onConfigChange,
+  roverFile,
+  onRoverFileChange,
+  baseFile,
+  onBaseFileChange,
+  navFile,
+  onNavFileChange,
+  correctionFiles,
+  onCorrectionFilesChange,
+  outputFile,
+  onOutputFileChange,
+  needsBase,
+  processStatus,
+  isLoading,
+  onExecute,
+  onStop,
+  onExportConf,
+  onQcPreview,
+  roverFileValid,
 }: PostProcessingConfigurationProps) {
   const [config, setConfig] = useLocalStorage<MrtkPostConfig>({
     key: 'mrtklib-web-ui-mrtk-post-config-v15',
@@ -345,30 +390,290 @@ export function PostProcessingConfiguration({
           Processing Configuration
         </Title>
 
-        <Tabs defaultValue="positioning">
+        <Tabs defaultValue="execution">
           <Tabs.List>
+            <Tabs.Tab value="execution" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconPlayerPlay size={14} />}>
+              Execution
+            </Tabs.Tab>
             <Tabs.Tab value="positioning" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconAdjustments size={14} />}>
               Positioning
             </Tabs.Tab>
-            <Tabs.Tab value="ambiguity" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconAdjustmentsHorizontal size={14} />}>
-              Ambiguity
+            <Tooltip label="Ambiguity Resolution" openDelay={500}>
+              <Tabs.Tab value="ambiguity" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconAdjustmentsHorizontal size={14} />}>
+                AR
+              </Tabs.Tab>
+            </Tooltip>
+            <Tooltip label="Kalman Filter" openDelay={500}>
+              <Tabs.Tab value="kalman" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconChartLine size={14} />}>
+                KF
+              </Tabs.Tab>
+            </Tooltip>
+            <Tabs.Tab value="antenna" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconMapPin size={14} />}>
+              Antenna
             </Tabs.Tab>
             <Tabs.Tab value="output" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconDatabaseExport size={14} />}>
               Output
             </Tabs.Tab>
-            <Tabs.Tab value="kalman" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconChartLine size={14} />}>
-              Kalman Filter
-            </Tabs.Tab>
-            <Tabs.Tab value="antenna" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconMapPin size={14} />}>
-              Antenna
-            </Tabs.Tab>
             <Tabs.Tab value="files" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconFolderOpen size={14} />}>
               Files
+            </Tabs.Tab>
+            <Tabs.Tab value="clas" style={{ fontSize: '11px', padding: '6px 12px' }} disabled={!isPppRtk}>
+              CLAS
             </Tabs.Tab>
             <Tabs.Tab value="server" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconDots size={14} />}>
               Server
             </Tabs.Tab>
           </Tabs.List>
+
+          {/* Tab: Execution */}
+          <Tabs.Panel value="execution" pt="xs">
+            <Stack gap="xs">
+              {/* Time Range */}
+              <Fieldset legend="Time Range" style={{ fontSize: '10px' }}>
+                <SimpleGrid cols={3} spacing="xs">
+                  {/* Start */}
+                  <div>
+                    <Checkbox
+                      size="xs"
+                      label="Time Start (GPST)"
+                      checked={config.time.startEnabled}
+                      onChange={(e) => handleConfigChange({ ...config, time: { ...config.time, startEnabled: e.currentTarget.checked } })}
+                      styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
+                    />
+                    <Group gap={4} mt={4}>
+                      <TextInput
+                        size="xs"
+                        placeholder="YYYY/MM/DD"
+                        value={config.time.startDate}
+                        onChange={(e) => handleConfigChange({ ...config, time: { ...config.time, startDate: e.currentTarget.value } })}
+                        disabled={!config.time.startEnabled}
+                        style={{ flex: 1 }}
+                        styles={{ input: { fontSize: '11px', textAlign: 'center' } }}
+                      />
+                      <TextInput
+                        size="xs"
+                        placeholder="HH:MM:SS"
+                        value={config.time.startTime}
+                        onChange={(e) => handleConfigChange({ ...config, time: { ...config.time, startTime: e.currentTarget.value } })}
+                        disabled={!config.time.startEnabled}
+                        style={{ flex: 1 }}
+                        styles={{ input: { fontSize: '11px', textAlign: 'center' } }}
+                      />
+                    </Group>
+                  </div>
+
+                  {/* End */}
+                  <div>
+                    <Checkbox
+                      size="xs"
+                      label="Time End (GPST)"
+                      checked={config.time.endEnabled}
+                      onChange={(e) => handleConfigChange({ ...config, time: { ...config.time, endEnabled: e.currentTarget.checked } })}
+                      styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
+                    />
+                    <Group gap={4} mt={4}>
+                      <TextInput
+                        size="xs"
+                        placeholder="YYYY/MM/DD"
+                        value={config.time.endDate}
+                        onChange={(e) => handleConfigChange({ ...config, time: { ...config.time, endDate: e.currentTarget.value } })}
+                        disabled={!config.time.endEnabled}
+                        style={{ flex: 1 }}
+                        styles={{ input: { fontSize: '11px', textAlign: 'center' } }}
+                      />
+                      <TextInput
+                        size="xs"
+                        placeholder="HH:MM:SS"
+                        value={config.time.endTime}
+                        onChange={(e) => handleConfigChange({ ...config, time: { ...config.time, endTime: e.currentTarget.value } })}
+                        disabled={!config.time.endEnabled}
+                        style={{ flex: 1 }}
+                        styles={{ input: { fontSize: '11px', textAlign: 'center' } }}
+                      />
+                    </Group>
+                  </div>
+
+                  {/* Interval */}
+                  <div>
+                    <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Interval (0=all)</Text>
+                    <NumberInput
+                      size="xs"
+                      value={config.time.interval}
+                      onChange={(v) => handleConfigChange({ ...config, time: { ...config.time, interval: Number(v) || 0 } })}
+                      min={0}
+                      step={1}
+                      decimalScale={2}
+                      suffix=" s"
+                      hideControls
+                      styles={{ input: { fontSize: '11px' } }}
+                    />
+                  </div>
+                </SimpleGrid>
+              </Fieldset>
+
+              {/* Input Files */}
+              <Fieldset legend="Input Files" style={{ fontSize: '10px' }}>
+                <Stack gap="xs">
+                  <SimpleGrid cols={2} spacing="xs">
+                    <div>
+                      <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Rover OBS *</Text>
+                      <Group gap="xs" wrap="nowrap">
+                        <TextInput
+                          size="xs"
+                          placeholder="/workspace/rover.obs"
+                          value={roverFile}
+                          onChange={(e) => onRoverFileChange(e.currentTarget.value)}
+                          leftSection={<IconFile size={12} />}
+                          style={{ flex: 1 }}
+                        />
+                        <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser(onRoverFileChange)}>
+                          <IconFolderOpen size={16} />
+                        </ActionIcon>
+                      </Group>
+                    </div>
+
+                    <div>
+                      <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Navigation *</Text>
+                      <Group gap="xs" wrap="nowrap">
+                        <TextInput
+                          size="xs"
+                          placeholder="/workspace/nav.nav"
+                          value={navFile}
+                          onChange={(e) => onNavFileChange(e.currentTarget.value)}
+                          leftSection={<IconFile size={12} />}
+                          style={{ flex: 1 }}
+                        />
+                        <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser(onNavFileChange)}>
+                          <IconFolderOpen size={16} />
+                        </ActionIcon>
+                      </Group>
+                    </div>
+                  </SimpleGrid>
+
+                  <div>
+                    <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }} c={!needsBase ? 'dimmed' : undefined}>Base OBS</Text>
+                    <Group gap="xs" wrap="nowrap">
+                      <TextInput
+                        size="xs"
+                        placeholder="/workspace/base.obs"
+                        value={baseFile}
+                        onChange={(e) => onBaseFileChange(e.currentTarget.value)}
+                        leftSection={<IconFile size={12} />}
+                        style={{ flex: 1 }}
+                        disabled={!needsBase}
+                      />
+                      <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser(onBaseFileChange)} disabled={!needsBase}>
+                        <IconFolderOpen size={16} />
+                      </ActionIcon>
+                    </Group>
+                  </div>
+
+                  {/* Correction Files */}
+                  <div>
+                    <Group gap="xs" mb={4} justify="space-between">
+                      <Text size="xs" style={{ fontSize: '10px' }}>
+                        Corrections (CLK, SP3, FCB, IONEX, L6, etc.)
+                      </Text>
+                      <ActionIcon
+                        variant="light"
+                        size="xs"
+                        onClick={() => onCorrectionFilesChange([...correctionFiles, ''])}
+                      >
+                        <IconPlus size={12} />
+                      </ActionIcon>
+                    </Group>
+                    <Stack gap={4}>
+                      {correctionFiles.map((cf, idx) => (
+                        <Group key={idx} gap="xs" wrap="nowrap">
+                          <TextInput
+                            size="xs"
+                            placeholder={`/workspace/correction${idx + 1}`}
+                            value={cf}
+                            onChange={(e) => {
+                              const next = [...correctionFiles];
+                              next[idx] = e.currentTarget.value;
+                              onCorrectionFilesChange(next);
+                            }}
+                            leftSection={<IconFile size={12} />}
+                            style={{ flex: 1 }}
+                          />
+                          <ActionIcon
+                            variant="filled"
+                            color="blue"
+                            size="lg"
+                            onClick={() => openFileBrowser((path) => {
+                              const next = [...correctionFiles];
+                              next[idx] = path;
+                              onCorrectionFilesChange(next);
+                            })}
+                          >
+                            <IconFolderOpen size={16} />
+                          </ActionIcon>
+                          {correctionFiles.length > 1 && (
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              size="lg"
+                              onClick={() => onCorrectionFilesChange(correctionFiles.filter((_, i) => i !== idx))}
+                            >
+                              <IconX size={14} />
+                            </ActionIcon>
+                          )}
+                        </Group>
+                      ))}
+                    </Stack>
+                  </div>
+
+                  <div>
+                    <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Output *</Text>
+                    <Group gap="xs" wrap="nowrap">
+                      <TextInput
+                        size="xs"
+                        placeholder="/workspace/output.pos"
+                        value={outputFile}
+                        onChange={(e) => onOutputFileChange(e.currentTarget.value)}
+                        leftSection={<IconFile size={12} />}
+                        style={{ flex: 1 }}
+                      />
+                      <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser(onOutputFileChange)}>
+                        <IconFolderOpen size={16} />
+                      </ActionIcon>
+                    </Group>
+                  </div>
+
+                  <Button
+                    variant="light"
+                    size="xs"
+                    leftSection={<IconChartBar size={14} />}
+                    onClick={onQcPreview}
+                    disabled={!roverFileValid}
+                  >
+                    QC Preview
+                  </Button>
+                </Stack>
+              </Fieldset>
+
+              {/* Execute / Export */}
+              <Group mt="xs">
+                <Group grow style={{ flex: 1 }}>
+                  {processStatus === 'running' ? (
+                    <Button size="xs" color="red" leftSection={<IconPlayerStop size={12} />} onClick={onStop} loading={isLoading}>
+                      Stop
+                    </Button>
+                  ) : (
+                    <Button size="xs" color="green" leftSection={<IconPlayerPlay size={12} />} onClick={onExecute} loading={isLoading}>
+                      Execute
+                    </Button>
+                  )}
+                </Group>
+                <Tooltip label="Download TOML config">
+                  <ActionIcon variant="light" color="blue" size="lg" onClick={onExportConf} disabled={processStatus === 'running'}>
+                    <IconDownload size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            </Stack>
+          </Tabs.Panel>
 
           {/* Tab: Positioning */}
           <Tabs.Panel value="positioning" pt="xs">
@@ -981,109 +1286,6 @@ export function PostProcessingConfiguration({
                 </Accordion.Item>
               </Accordion>
 
-              {/* CLAS PPP-RTK Settings — collapsed by default, enabled only in ppp-rtk mode */}
-              <Accordion
-                variant="contained"
-                defaultValue={isPppRtk ? "clas" : undefined}
-                styles={{ label: { fontSize: '10px', padding: '4px 8px' }, content: { padding: '8px' } }}
-              >
-                <Accordion.Item value="clas">
-                  <Accordion.Control disabled={!isPppRtk}>
-                    <Text size="xs" c={isPppRtk ? undefined : 'dimmed'}>
-                      CLAS PPP-RTK Settings
-                    </Text>
-                  </Accordion.Control>
-                  <Accordion.Panel>
-                    <SimpleGrid cols={3} spacing="xs">
-                      <NumberInput
-                        size="xs"
-                        label="Grid Selection Radius (m)"
-                        value={config.positioning.clas.gridSelectionRadius}
-                        onChange={(value) =>
-                          handleConfigChange({
-                            ...config,
-                            positioning: {
-                              ...config.positioning,
-                              clas: { ...config.positioning.clas, gridSelectionRadius: Number(value) || 0 },
-                            },
-                          })
-                        }
-                        min={0}
-                        styles={{ label: { fontSize: '10px' } }}
-                      />
-                      <TextInput
-                        size="xs"
-                        label="Receiver Type"
-                        value={config.positioning.clas.receiverType}
-                        onChange={(e) =>
-                          handleConfigChange({
-                            ...config,
-                            positioning: {
-                              ...config.positioning,
-                              clas: { ...config.positioning.clas, receiverType: e.currentTarget.value },
-                            },
-                          })
-                        }
-                        placeholder="e.g. Trimble NetR9"
-                        styles={{ label: { fontSize: '10px' } }}
-                      />
-                    </SimpleGrid>
-                    <SimpleGrid cols={3} spacing="xs" mt="xs">
-                      <NumberInput
-                        size="xs"
-                        label="Position Uncertainty X (m)"
-                        value={config.positioning.clas.positionUncertaintyX}
-                        onChange={(value) =>
-                          handleConfigChange({
-                            ...config,
-                            positioning: {
-                              ...config.positioning,
-                              clas: { ...config.positioning.clas, positionUncertaintyX: Number(value) || 0 },
-                            },
-                          })
-                        }
-                        min={0}
-                        decimalScale={1}
-                        styles={{ label: { fontSize: '10px' } }}
-                      />
-                      <NumberInput
-                        size="xs"
-                        label="Position Uncertainty Y (m)"
-                        value={config.positioning.clas.positionUncertaintyY}
-                        onChange={(value) =>
-                          handleConfigChange({
-                            ...config,
-                            positioning: {
-                              ...config.positioning,
-                              clas: { ...config.positioning.clas, positionUncertaintyY: Number(value) || 0 },
-                            },
-                          })
-                        }
-                        min={0}
-                        decimalScale={1}
-                        styles={{ label: { fontSize: '10px' } }}
-                      />
-                      <NumberInput
-                        size="xs"
-                        label="Position Uncertainty Z (m)"
-                        value={config.positioning.clas.positionUncertaintyZ}
-                        onChange={(value) =>
-                          handleConfigChange({
-                            ...config,
-                            positioning: {
-                              ...config.positioning,
-                              clas: { ...config.positioning.clas, positionUncertaintyZ: Number(value) || 0 },
-                            },
-                          })
-                        }
-                        min={0}
-                        decimalScale={1}
-                        styles={{ label: { fontSize: '10px' } }}
-                      />
-                    </SimpleGrid>
-                  </Accordion.Panel>
-                </Accordion.Item>
-              </Accordion>
             </Stack>
           </Tabs.Panel>
 
@@ -2112,20 +2314,116 @@ export function PostProcessingConfiguration({
                 )}
               />
 
-              {/* CSSR Grid Definition File */}
-              <FileInputRow
-                label="CSSR Grid Definition File"
-                value={config.files.cssrGrid}
-                onChange={(val) =>
-                  handleConfigChange({
-                    ...config,
-                    files: { ...config.files, cssrGrid: val },
-                  })
-                }
-                onBrowse={() => openFileBrowser((path) =>
-                  handleConfigChange({ ...config, files: { ...config.files, cssrGrid: path } })
-                )}
-              />
+            </Stack>
+          </Tabs.Panel>
+
+          {/* Tab: CLAS */}
+          <Tabs.Panel value="clas" pt="xs">
+            <Stack gap="xs">
+              <Fieldset legend="CLAS PPP-RTK" style={{ fontSize: '10px' }}>
+                <SimpleGrid cols={3} spacing="xs">
+                  <NumberInput
+                    size="xs"
+                    label="Grid Selection Radius (m)"
+                    value={config.positioning.clas.gridSelectionRadius}
+                    onChange={(value) =>
+                      handleConfigChange({
+                        ...config,
+                        positioning: {
+                          ...config.positioning,
+                          clas: { ...config.positioning.clas, gridSelectionRadius: Number(value) || 0 },
+                        },
+                      })
+                    }
+                    min={0}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <TextInput
+                    size="xs"
+                    label="Receiver Type"
+                    value={config.positioning.clas.receiverType}
+                    onChange={(e) =>
+                      handleConfigChange({
+                        ...config,
+                        positioning: {
+                          ...config.positioning,
+                          clas: { ...config.positioning.clas, receiverType: e.currentTarget.value },
+                        },
+                      })
+                    }
+                    placeholder="e.g. Trimble NetR9"
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                </SimpleGrid>
+                <SimpleGrid cols={3} spacing="xs" mt="xs">
+                  <NumberInput
+                    size="xs"
+                    label="Position Uncertainty X (m)"
+                    value={config.positioning.clas.positionUncertaintyX}
+                    onChange={(value) =>
+                      handleConfigChange({
+                        ...config,
+                        positioning: {
+                          ...config.positioning,
+                          clas: { ...config.positioning.clas, positionUncertaintyX: Number(value) || 0 },
+                        },
+                      })
+                    }
+                    min={0}
+                    decimalScale={1}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <NumberInput
+                    size="xs"
+                    label="Position Uncertainty Y (m)"
+                    value={config.positioning.clas.positionUncertaintyY}
+                    onChange={(value) =>
+                      handleConfigChange({
+                        ...config,
+                        positioning: {
+                          ...config.positioning,
+                          clas: { ...config.positioning.clas, positionUncertaintyY: Number(value) || 0 },
+                        },
+                      })
+                    }
+                    min={0}
+                    decimalScale={1}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <NumberInput
+                    size="xs"
+                    label="Position Uncertainty Z (m)"
+                    value={config.positioning.clas.positionUncertaintyZ}
+                    onChange={(value) =>
+                      handleConfigChange({
+                        ...config,
+                        positioning: {
+                          ...config.positioning,
+                          clas: { ...config.positioning.clas, positionUncertaintyZ: Number(value) || 0 },
+                        },
+                      })
+                    }
+                    min={0}
+                    decimalScale={1}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                </SimpleGrid>
+              </Fieldset>
+              <Fieldset legend="CLAS Files" style={{ fontSize: '10px' }}>
+                <FileInputRow
+                  label="CSSR Grid Definition File"
+                  value={config.files.cssrGrid}
+                  onChange={(val) =>
+                    handleConfigChange({
+                      ...config,
+                      files: { ...config.files, cssrGrid: val },
+                    })
+                  }
+                  onBrowse={() => openFileBrowser((path) =>
+                    handleConfigChange({ ...config, files: { ...config.files, cssrGrid: path } })
+                  )}
+                />
+              </Fieldset>
             </Stack>
           </Tabs.Panel>
 

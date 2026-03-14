@@ -9,17 +9,13 @@ import {
   Stack,
   Tabs,
   Text,
-  TextInput,
   Title,
   useMantineColorScheme,
   ActionIcon,
   Badge,
-  Checkbox,
   Code,
-  NumberInput,
   Tooltip,
   Alert,
-  SimpleGrid,
 } from '@mantine/core';
 import {
   IconSun,
@@ -27,19 +23,14 @@ import {
   IconSatellite,
   IconPlayerPlay,
   IconPlayerStop,
-  IconFile,
   IconRefresh,
   IconDownload,
   IconPlugConnected,
   IconPlugConnectedX,
   IconTestPipe,
   IconInfoCircle,
-  IconFolderOpen,
-  IconChartBar,
-  IconPlus,
-  IconX,
 } from '@tabler/icons-react';
-import { TerminalOutput, StatusIndicator, StreamConfiguration, PostProcessingConfiguration, FileBrowserModal, TabbedTerminalOutput } from './components';
+import { TerminalOutput, StatusIndicator, StreamConfiguration, PostProcessingConfiguration, TabbedTerminalOutput } from './components';
 import { ObsViewerModal } from './components/obsViewer';
 import type { ProcessStatus } from './components';
 import { useWebSocket } from './hooks';
@@ -82,9 +73,7 @@ function PostProcessingPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [fileBrowserOpened, setFileBrowserOpened] = useState(false);
   const [qcModalOpened, setQcModalOpened] = useState(false);
-  const fileBrowserCallbackRef = useRef<((path: string) => void) | null>(null);
   const [progress, setProgress] = useState<{
     epoch: string;
     quality: number;
@@ -96,17 +85,7 @@ function PostProcessingPanel() {
   // Updated synchronously in handleStart (not via useEffect) to avoid timing gaps
   const jobIdRef = useRef<string | null>(null);
 
-  const openFileBrowser = useCallback((onSelect: (path: string) => void) => {
-    fileBrowserCallbackRef.current = onSelect;
-    setFileBrowserOpened(true);
-  }, []);
 
-  const handleFileBrowserSelect = useCallback((path: string) => {
-    if (fileBrowserCallbackRef.current) {
-      fileBrowserCallbackRef.current(path);
-      fileBrowserCallbackRef.current = null;
-    }
-  }, []);
 
   // WebSocket connection for real-time logs
   useWebSocket({
@@ -391,235 +370,27 @@ function PostProcessingPanel() {
       {/* Left Column: Configuration & Control */}
       <Grid.Col span={{ base: 12, md: 6 }}>
         <Stack gap="xs">
-          {/* Time Range */}
-          <Card withBorder p="xs">
-            <SimpleGrid cols={3} spacing="xs">
-              {/* Start */}
-              <div>
-                <Checkbox
-                  size="xs"
-                  label="Time Start (GPST)"
-                  checked={config.time.startEnabled}
-                  onChange={(e) => setConfig({ ...config, time: { ...config.time, startEnabled: e.currentTarget.checked } })}
-                  styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
-                />
-                <Group gap={4} mt={4}>
-                  <TextInput
-                    size="xs"
-                    placeholder="YYYY/MM/DD"
-                    value={config.time.startDate}
-                    onChange={(e) => setConfig({ ...config, time: { ...config.time, startDate: e.currentTarget.value } })}
-                    disabled={!config.time.startEnabled}
-                    style={{ flex: 1 }}
-                    styles={{ input: { fontSize: '11px', textAlign: 'center' } }}
-                  />
-                  <TextInput
-                    size="xs"
-                    placeholder="HH:MM:SS"
-                    value={config.time.startTime}
-                    onChange={(e) => setConfig({ ...config, time: { ...config.time, startTime: e.currentTarget.value } })}
-                    disabled={!config.time.startEnabled}
-                    style={{ flex: 1 }}
-                    styles={{ input: { fontSize: '11px', textAlign: 'center' } }}
-                  />
-                </Group>
-              </div>
-
-              {/* End */}
-              <div>
-                <Checkbox
-                  size="xs"
-                  label="Time End (GPST)"
-                  checked={config.time.endEnabled}
-                  onChange={(e) => setConfig({ ...config, time: { ...config.time, endEnabled: e.currentTarget.checked } })}
-                  styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
-                />
-                <Group gap={4} mt={4}>
-                  <TextInput
-                    size="xs"
-                    placeholder="YYYY/MM/DD"
-                    value={config.time.endDate}
-                    onChange={(e) => setConfig({ ...config, time: { ...config.time, endDate: e.currentTarget.value } })}
-                    disabled={!config.time.endEnabled}
-                    style={{ flex: 1 }}
-                    styles={{ input: { fontSize: '11px', textAlign: 'center' } }}
-                  />
-                  <TextInput
-                    size="xs"
-                    placeholder="HH:MM:SS"
-                    value={config.time.endTime}
-                    onChange={(e) => setConfig({ ...config, time: { ...config.time, endTime: e.currentTarget.value } })}
-                    disabled={!config.time.endEnabled}
-                    style={{ flex: 1 }}
-                    styles={{ input: { fontSize: '11px', textAlign: 'center' } }}
-                  />
-                </Group>
-              </div>
-
-              {/* Interval */}
-              <div>
-                <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Interval (0=all)</Text>
-                <NumberInput
-                  size="xs"
-                  value={config.time.interval}
-                  onChange={(v) => setConfig({ ...config, time: { ...config.time, interval: Number(v) || 0 } })}
-                  min={0}
-                  step={1}
-                  decimalScale={2}
-                  suffix=" s"
-                  hideControls
-                  styles={{ input: { fontSize: '11px' } }}
-                />
-              </div>
-            </SimpleGrid>
-          </Card>
-
-          {/* Execution Inputs */}
-          <Card withBorder p="xs">
-            <Stack gap="xs">
-              <Title order={6} size="xs">Input Files</Title>
-
-              <SimpleGrid cols={2} spacing="xs">
-                <div>
-                  <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Rover OBS *</Text>
-                  <Group gap="xs" wrap="nowrap">
-                    <TextInput
-                      size="xs"
-                      placeholder="/workspace/rover.obs"
-                      value={roverFile}
-                      onChange={(e) => setRoverFile(e.currentTarget.value)}
-                      leftSection={<IconFile size={12} />}
-                      style={{ flex: 1 }}
-                    />
-                    <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser(setRoverFile)}>
-                      <IconFolderOpen size={16} />
-                    </ActionIcon>
-                  </Group>
-                </div>
-
-                <div>
-                  <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Navigation *</Text>
-                  <Group gap="xs" wrap="nowrap">
-                    <TextInput
-                      size="xs"
-                      placeholder="/workspace/nav.nav"
-                      value={navFile}
-                      onChange={(e) => setNavFile(e.currentTarget.value)}
-                      leftSection={<IconFile size={12} />}
-                      style={{ flex: 1 }}
-                    />
-                    <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser(setNavFile)}>
-                      <IconFolderOpen size={16} />
-                    </ActionIcon>
-                  </Group>
-                </div>
-              </SimpleGrid>
-
-              <div>
-                  <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }} c={!needsBase ? 'dimmed' : undefined}>Base OBS</Text>
-                  <Group gap="xs" wrap="nowrap">
-                    <TextInput
-                      size="xs"
-                      placeholder="/workspace/base.obs"
-                      value={baseFile}
-                      onChange={(e) => setBaseFile(e.currentTarget.value)}
-                      leftSection={<IconFile size={12} />}
-                      style={{ flex: 1 }}
-                      disabled={!needsBase}
-                    />
-                    <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser(setBaseFile)} disabled={!needsBase}>
-                      <IconFolderOpen size={16} />
-                    </ActionIcon>
-                  </Group>
-                </div>
-
-              {/* Correction Files */}
-              <div>
-                <Group gap="xs" mb={4} justify="space-between">
-                  <Text size="xs" style={{ fontSize: '10px' }}>
-                    Corrections (CLK, SP3, FCB, IONEX, L6, etc.)
-                  </Text>
-                  <ActionIcon
-                    variant="light"
-                    size="xs"
-                    onClick={() => setCorrectionFiles([...correctionFiles, ''])}
-                  >
-                    <IconPlus size={12} />
-                  </ActionIcon>
-                </Group>
-                <Stack gap={4}>
-                  {correctionFiles.map((cf, idx) => (
-                    <Group key={idx} gap="xs" wrap="nowrap">
-                      <TextInput
-                        size="xs"
-                        placeholder={`/workspace/correction${idx + 1}`}
-                        value={cf}
-                        onChange={(e) => {
-                          const next = [...correctionFiles];
-                          next[idx] = e.currentTarget.value;
-                          setCorrectionFiles(next);
-                        }}
-                        leftSection={<IconFile size={12} />}
-                        style={{ flex: 1 }}
-                      />
-                      <ActionIcon
-                        variant="filled"
-                        color="blue"
-                        size="lg"
-                        onClick={() => openFileBrowser((path) => {
-                          const next = [...correctionFiles];
-                          next[idx] = path;
-                          setCorrectionFiles(next);
-                        })}
-                      >
-                        <IconFolderOpen size={16} />
-                      </ActionIcon>
-                      {correctionFiles.length > 1 && (
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          size="lg"
-                          onClick={() => setCorrectionFiles(correctionFiles.filter((_, i) => i !== idx))}
-                        >
-                          <IconX size={14} />
-                        </ActionIcon>
-                      )}
-                    </Group>
-                  ))}
-                </Stack>
-              </div>
-
-              <div>
-                <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Output *</Text>
-                <Group gap="xs" wrap="nowrap">
-                  <TextInput
-                    size="xs"
-                    placeholder="/workspace/output.pos"
-                    value={outputFile}
-                    onChange={(e) => setOutputFile(e.currentTarget.value)}
-                    leftSection={<IconFile size={12} />}
-                    style={{ flex: 1 }}
-                  />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser(setOutputFile)}>
-                    <IconFolderOpen size={16} />
-                  </ActionIcon>
-                </Group>
-              </div>
-
-              <Button
-                variant="light"
-                size="xs"
-                leftSection={<IconChartBar size={14} />}
-                onClick={() => setQcModalOpened(true)}
-                disabled={!roverFile}
-              >
-                QC Preview
-              </Button>
-            </Stack>
-          </Card>
-
-          {/* Configuration Tabs */}
-          <PostProcessingConfiguration onConfigChange={setConfig} />
+          <PostProcessingConfiguration
+            onConfigChange={setConfig}
+            roverFile={roverFile}
+            onRoverFileChange={setRoverFile}
+            baseFile={baseFile}
+            onBaseFileChange={setBaseFile}
+            navFile={navFile}
+            onNavFileChange={setNavFile}
+            correctionFiles={correctionFiles}
+            onCorrectionFilesChange={setCorrectionFiles}
+            outputFile={outputFile}
+            onOutputFileChange={setOutputFile}
+            needsBase={needsBase}
+            processStatus={processStatus}
+            isLoading={isLoading}
+            onExecute={handleStart}
+            onStop={handleStop}
+            onExportConf={handleExportConf}
+            onQcPreview={() => setQcModalOpened(true)}
+            roverFileValid={!!roverFile}
+          />
 
           {/* Error Display */}
           {error && (
@@ -627,46 +398,6 @@ function PostProcessingPanel() {
               <Text size="xs">{error}</Text>
             </Alert>
           )}
-
-          {/* Execute / Export Buttons */}
-          <Card withBorder p="xs">
-            <Group>
-              <Group grow style={{ flex: 1 }}>
-                {processStatus === 'running' ? (
-                  <Button
-                    size="xs"
-                    color="red"
-                    leftSection={<IconPlayerStop size={12} />}
-                    onClick={handleStop}
-                    loading={isLoading}
-                  >
-                    Stop
-                  </Button>
-                ) : (
-                  <Button
-                    size="xs"
-                    color="green"
-                    leftSection={<IconPlayerPlay size={12} />}
-                    onClick={handleStart}
-                    loading={isLoading}
-                  >
-                    Execute
-                  </Button>
-                )}
-              </Group>
-              <Tooltip label="Download .conf file">
-                <ActionIcon
-                  variant="light"
-                  color="blue"
-                  size="lg"
-                  onClick={handleExportConf}
-                  disabled={processStatus === 'running'}
-                >
-                  <IconDownload size={16} />
-                </ActionIcon>
-              </Tooltip>
-            </Group>
-          </Card>
         </Stack>
       </Grid.Col>
 
@@ -767,12 +498,6 @@ function PostProcessingPanel() {
 
     </Grid>
 
-    <FileBrowserModal
-      opened={fileBrowserOpened}
-      onClose={() => setFileBrowserOpened(false)}
-      onSelect={handleFileBrowserSelect}
-      title="Select File"
-    />
     <ObsViewerModal
       opened={qcModalOpened}
       onClose={() => setQcModalOpened(false)}
