@@ -2022,7 +2022,7 @@ export function PostProcessingConfiguration({
                   <SimpleGrid cols={2} spacing="xs">
                     <NumberInput
                       size="xs"
-                      label="Receiver Accel Horiz (m/s\u00B2)"
+                      label="Receiver Accel Horiz (m/s²)"
                       value={config.kalmanFilter.processNoise.accelH}
                       onChange={(value: any) =>
                         handleConfigChange({
@@ -2044,7 +2044,7 @@ export function PostProcessingConfiguration({
                     />
                     <NumberInput
                       size="xs"
-                      label="Vertical (m/s\u00B2)"
+                      label="Vertical (m/s²)"
                       value={config.kalmanFilter.processNoise.accelV}
                       onChange={(value: any) =>
                         handleConfigChange({
@@ -2132,25 +2132,26 @@ export function PostProcessingConfiguration({
                     styles={{ label: { fontSize: '10px' } }}
                   />
 
-                  <NumberInput
+                  <TextInput
                     size="xs"
                     label="Satellite Clock Stability (s/s)"
-                    value={config.kalmanFilter.processNoise.clockStability}
-                    onChange={(value: any) =>
-                      handleConfigChange({
-                        ...config,
-                        kalmanFilter: {
-                          ...config.kalmanFilter,
-                          processNoise: {
-                            ...config.kalmanFilter.processNoise,
-                            clockStability: Number(value),
+                    value={config.kalmanFilter.processNoise.clockStability.toExponential()}
+                    onChange={(e) => {
+                      const parsed = parseFloat(e.currentTarget.value);
+                      if (!isNaN(parsed)) {
+                        handleConfigChange({
+                          ...config,
+                          kalmanFilter: {
+                            ...config.kalmanFilter,
+                            processNoise: {
+                              ...config.kalmanFilter.processNoise,
+                              clockStability: parsed,
+                            },
                           },
-                        },
-                      })
-                    }
-                    min={0}
-                    step={1e-12}
-                    decimalScale={12}
+                        });
+                      }
+                    }}
+                    placeholder="5e-12"
                     styles={{ label: { fontSize: '10px' } }}
                   />
                 </Stack>
