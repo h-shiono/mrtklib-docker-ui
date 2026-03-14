@@ -29,8 +29,9 @@ A modern web-based user interface for [MRTKLIB](https://github.com/h-shiono/MRTK
 
 - **Configuration Persistence**: Auto-save to browser localStorage with versioning
 
-### Real-Time Stream Server (str2str) — Planned
-- Will be available when MRTKLIB v0.5.1 adds `str2str` support
+### Real-Time Stream Relay (`mrtk relay`)
+- **Stream Configuration UI**: Visual builder for input/output stream parameters
+- **Process Control**: Start/stop relay processes via REST API with WebSocket log streaming
 
 ### Observation Data Viewer
 - **RINEX File Analysis**: Parse and visualize observation data quality

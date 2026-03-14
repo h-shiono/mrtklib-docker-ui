@@ -94,8 +94,8 @@ export function generateCommandString(config: BuilderConfig): string {
  */
 export function parseCommandString(commandStr: string): Partial<BuilderConfig> | null {
   try {
-    // Remove 'mrtk relay' prefix if present
-    const cleaned = commandStr.trim().replace(/^str2str\s+/, '');
+    // Remove 'mrtk relay' or legacy 'str2str' prefix if present
+    const cleaned = commandStr.trim().replace(/^(?:mrtk\s+relay|str2str)\s+/, '');
     const args = cleaned.split(/\s+/);
 
     const config: Partial<BuilderConfig> = {
