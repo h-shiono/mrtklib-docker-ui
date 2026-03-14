@@ -148,6 +148,8 @@ function PostProcessingPanel() {
       positioning: {
         positioning_mode: p.positioningMode,
         frequency: p.frequency,
+        signal_mode: p.signalMode,
+        signals: p.signals,
         filter_type: p.filterType,
         elevation_mask: p.elevationMask,
         receiver_dynamics: p.receiverDynamics,
@@ -167,6 +169,13 @@ function PostProcessingPanel() {
         earth_tides_correction: p.earthTidesCorrection,
         ionosphere_correction: p.ionosphereCorrection,
         troposphere_correction: p.troposphereCorrection,
+        clas: {
+          grid_selection_radius: p.clas.gridSelectionRadius,
+          receiver_type: p.clas.receiverType,
+          position_uncertainty_x: p.clas.positionUncertaintyX,
+          position_uncertainty_y: p.clas.positionUncertaintyY,
+          position_uncertainty_z: p.clas.positionUncertaintyZ,
+        },
       },
       ambiguity_resolution: {
         mode: ar.mode,

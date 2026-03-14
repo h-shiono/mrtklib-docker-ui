@@ -63,11 +63,23 @@ class SnrMaskConfig(BaseModel):
     )
 
 
+class ClasConfig(BaseModel):
+    """[positioning.clas] — CLAS PPP-RTK specific settings."""
+
+    grid_selection_radius: float = Field(default=1000.0)
+    receiver_type: str = Field(default="")
+    position_uncertainty_x: float = Field(default=10.0)
+    position_uncertainty_y: float = Field(default=10.0)
+    position_uncertainty_z: float = Field(default=10.0)
+
+
 class PositioningConfig(BaseModel):
-    """[positioning] + [positioning.corrections] + [positioning.atmosphere]."""
+    """[positioning] + [positioning.corrections] + [positioning.atmosphere] + [positioning.clas]."""
 
     positioning_mode: str = Field(default="kinematic")
     frequency: str = Field(default="l1+l2")
+    signal_mode: str = Field(default="frequency")  # "frequency" or "signals"
+    signals: str = Field(default="")  # e.g. "G1C,G2W,E1C,E5Q"
     filter_type: str = Field(default="forward")
     elevation_mask: float = Field(default=15.0)
     receiver_dynamics: str = Field(default="off")
@@ -89,6 +101,9 @@ class PositioningConfig(BaseModel):
     # [positioning.atmosphere]
     ionosphere_correction: str = Field(default="broadcast")
     troposphere_correction: str = Field(default="saastamoinen")
+
+    # [positioning.clas]
+    clas: ClasConfig = Field(default_factory=ClasConfig)
 
 
 class AmbiguityResolutionConfig(BaseModel):
@@ -342,7 +357,14 @@ class MrtkPostService:
         # --- [positioning] ---
         lines.append("[positioning]")
         lines.append(f"mode                = {_str(pos_mode_map.get(p.positioning_mode, 'kinematic'))}")
-        lines.append(f"frequency           = {_str(freq_map.get(p.frequency, 'l1+2'))}")
+        # frequency vs signals: signals takes effect when signal_mode == "signals" and signals is set
+        is_madoca_ppp = p.positioning_mode in ("ppp-kinematic", "ppp-static", "ppp-fixed")
+        use_signals = (p.signal_mode == "signals" and p.signals.strip() and not is_madoca_ppp)
+        if use_signals:
+            sig_list = [s.strip() for s in p.signals.replace(",", " ").split() if s.strip()]
+            lines.append(f"signals             = [{', '.join(f'{_str(s)}' for s in sig_list)}]")
+        else:
+            lines.append(f"frequency           = {_str(freq_map.get(p.frequency, 'l1+2'))}")
         lines.append(f"solution_type       = {_str(filter_type_map.get(p.filter_type, 'forward'))}")
         lines.append(f"elevation_mask      = {p.elevation_mask}")
         lines.append(f"dynamics            = {_bool(p.receiver_dynamics == 'on')}")
@@ -389,6 +411,17 @@ class MrtkPostService:
         lines.append(f"ionosphere       = {_str(iono_map.get(p.ionosphere_correction, 'brdc'))}")
         lines.append(f"troposphere      = {_str(tropo_map.get(p.troposphere_correction, 'saas'))}")
         lines.append("")
+
+        # --- [positioning.clas] (only for ppp-rtk mode) ---
+        if p.positioning_mode == "ppp-rtk":
+            clas = p.clas
+            lines.append("[positioning.clas]")
+            lines.append(f"grid_selection_radius = {clas.grid_selection_radius}")
+            lines.append(f"receiver_type         = {_str(clas.receiver_type)}")
+            lines.append(f"position_uncertainty_x = {clas.position_uncertainty_x}")
+            lines.append(f"position_uncertainty_y = {clas.position_uncertainty_y}")
+            lines.append(f"position_uncertainty_z = {clas.position_uncertainty_z}")
+            lines.append("")
 
         # --- [ambiguity_resolution] ---
         ar = config.ambiguity_resolution

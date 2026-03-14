@@ -65,10 +65,22 @@ export interface SnrMaskConfig {
   mask: number[][]; // 3x9 matrix: [L1, L2, L5] × [<5, 15, 25, 35, 45, 55, 65, 75, >85]
 }
 
+export type SignalMode = 'frequency' | 'signals';
+
+export interface ClasConfig {
+  gridSelectionRadius: number;   // m
+  receiverType: string;
+  positionUncertaintyX: number;  // m
+  positionUncertaintyY: number;  // m
+  positionUncertaintyZ: number;  // m
+}
+
 export interface PositioningConfig {
   // [positioning] core
   positioningMode: PositioningMode;
   frequency: Frequency;
+  signalMode: SignalMode;         // UI-only: choose between frequency or signals
+  signals: string;                // e.g. "G1C,G2W,E1C,E5Q,E7Q,J1C,J5Q,J2X"
   filterType: FilterType;
   elevationMask: number;
   receiverDynamics: ReceiverDynamics;
@@ -90,6 +102,9 @@ export interface PositioningConfig {
   // [positioning.atmosphere]
   ionosphereCorrection: IonosphereCorrection;
   troposphereCorrection: TroposphereCorrection;
+
+  // [positioning.clas] — only relevant when positioningMode === 'ppp-rtk'
+  clas: ClasConfig;
 }
 
 // ─── [ambiguity_resolution] ──────────────────────────────────────────────────
@@ -268,6 +283,8 @@ export interface MrtkPostJob {
 export const DEFAULT_POSITIONING: PositioningConfig = {
   positioningMode: 'kinematic',
   frequency: 'l1+l2',
+  signalMode: 'frequency',
+  signals: '',
   filterType: 'forward',
   elevationMask: 15,
   receiverDynamics: 'off',
@@ -294,6 +311,13 @@ export const DEFAULT_POSITIONING: PositioningConfig = {
   earthTidesCorrection: 'off',
   ionosphereCorrection: 'broadcast',
   troposphereCorrection: 'saastamoinen',
+  clas: {
+    gridSelectionRadius: 1000,
+    receiverType: '',
+    positionUncertaintyX: 10.0,
+    positionUncertaintyY: 10.0,
+    positionUncertaintyZ: 10.0,
+  },
 };
 
 export const DEFAULT_AMBIGUITY_RESOLUTION: AmbiguityResolutionConfig = {
