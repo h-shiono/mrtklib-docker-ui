@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Stack, Text, Group, Checkbox, Button, Table } from '@mantine/core';
+import { Modal, Stack, Text, Group, Button, Table, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 
 /**
  * GNSS signal definitions per system and band.
@@ -69,6 +69,7 @@ interface SignalSelectModalProps {
 }
 
 export function SignalSelectModal({ opened, onClose, value, onChange }: SignalSelectModalProps) {
+  const { colorScheme } = useMantineColorScheme();
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   // Parse initial value
@@ -128,15 +129,18 @@ export function SignalSelectModal({ opened, onClose, value, onChange }: SignalSe
 
         <Table style={{ fontSize: '10px' }} withRowBorders={false} verticalSpacing={2}>
           <Table.Tbody>
-            {Object.entries(SIGNAL_CATALOG).map(([sys, def]) => {
+            {Object.entries(SIGNAL_CATALOG).map(([sys, def], sysIdx) => {
               const bandEntries = Object.entries(def.bands);
+              const stripeBg = sysIdx % 2 === 1
+                ? (colorScheme === 'dark' ? 'var(--mantine-color-dark-5)' : 'var(--mantine-color-gray-1)')
+                : undefined;
               return bandEntries.map(([band, attrs], bandIdx) => (
-                <Table.Tr key={`${sys}${band}`}>
+                <Table.Tr key={`${sys}${band}`} style={{ backgroundColor: stripeBg }}>
                   {/* System name — spans all bands for this system */}
                   {bandIdx === 0 ? (
                     <Table.Td
                       rowSpan={bandEntries.length}
-                      style={{ fontSize: '11px', fontWeight: 600, verticalAlign: 'top', width: 70, padding: '4px 8px 4px 0' }}
+                      style={{ fontSize: '11px', fontWeight: 600, verticalAlign: 'middle', width: 70, padding: '4px 8px 4px 4px', backgroundColor: stripeBg, borderRadius: bandEntries.length > 1 ? '4px 0 0 4px' : 4 }}
                     >
                       {def.label}
                     </Table.Td>
@@ -147,23 +151,29 @@ export function SignalSelectModal({ opened, onClose, value, onChange }: SignalSe
                   </Table.Td>
                   {/* Signal checkboxes */}
                   <Table.Td style={{ padding: '2px 0' }}>
-                    <Group gap={0} wrap="wrap">
+                    <Group gap={4} wrap="wrap">
                       {attrs.map((attr) => {
                         const code = `${sys}${band}${attr}`;
+                        const isSelected = selected.has(code);
                         return (
-                          <Checkbox
+                          <UnstyledButton
                             key={code}
-                            size="xs"
-                            label={attr}
-                            checked={selected.has(code)}
-                            onChange={() => toggle(code)}
-                            style={{ width: 48 }}
-                            styles={{
-                              label: { fontSize: '10px', paddingLeft: 2, cursor: 'pointer' },
-                              input: { cursor: 'pointer' },
-                              body: { alignItems: 'center' },
+                            onClick={() => toggle(code)}
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: isSelected ? 600 : 400,
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              border: `1px solid ${isSelected ? 'var(--mantine-color-blue-5)' : 'var(--mantine-color-gray-3)'}`,
+                              backgroundColor: isSelected ? 'var(--mantine-color-blue-0)' : 'transparent',
+                              color: isSelected ? 'var(--mantine-color-blue-7)' : 'var(--mantine-color-gray-7)',
+                              lineHeight: '18px',
+                              minWidth: 36,
+                              textAlign: 'center',
                             }}
-                          />
+                          >
+                            {code}
+                          </UnstyledButton>
                         );
                       })}
                     </Group>
