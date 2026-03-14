@@ -1,4 +1,4 @@
-"""API endpoints for str2str stream server control."""
+"""API endpoints for stream relay control (mrtk relay, formerly str2str)."""
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -9,11 +9,11 @@ router = APIRouter()
 
 
 class Str2StrStartRequest(BaseModel):
-    """Request to start str2str process."""
+    """Request to start stream relay process (mrtk relay)."""
 
     args: list[str] = Field(
         default_factory=list,
-        description="Command line arguments for str2str",
+        description="Command line arguments for mrtk relay",
         examples=[["-in", "serial://ttyUSB0:115200", "-out", "file:///workspace/output.ubx"]],
     )
     process_id: str | None = Field(
@@ -65,9 +65,9 @@ def _to_response(info) -> ProcessStatusResponse:
 
 @router.post("/start", response_model=ProcessStatusResponse)
 async def start_str2str(request: Str2StrStartRequest) -> ProcessStatusResponse:
-    """Start str2str streaming process.
+    """Start stream relay process (mrtk relay).
 
-    If no arguments are provided, str2str will print its help message.
+    If no arguments are provided, mrtk relay will print its help message.
     """
     try:
         info = await process_manager.start(
@@ -116,7 +116,7 @@ async def list_processes() -> list[ProcessStatusResponse]:
 # Convenience endpoint for quick test
 @router.post("/test", response_model=ProcessStatusResponse)
 async def test_str2str() -> ProcessStatusResponse:
-    """Start str2str with no arguments to display help message.
+    """Start mrtk relay with no arguments to display help message.
 
     This is useful for testing that the binary works.
     """

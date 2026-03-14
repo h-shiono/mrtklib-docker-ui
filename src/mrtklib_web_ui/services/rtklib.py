@@ -1,4 +1,4 @@
-"""RTKLIB process manager service."""
+"""MRTKLIB process manager service."""
 
 import asyncio
 import uuid
@@ -6,19 +6,23 @@ from typing import Any
 
 
 class RTKProcessManager:
-    """Manages RTKLIB subprocess execution."""
+    """Manages MRTKLIB subprocess execution."""
 
-    # Allowed RTKLIB commands
-    ALLOWED_COMMANDS = {"rnx2rtkp", "str2str", "convbin"}
+    # Map legacy command names → mrtk subcommands
+    SUBCOMMAND_MAP = {
+        "rnx2rtkp": "post",
+        "str2str": "relay",
+        "convbin": "convert",
+    }
 
     def __init__(self) -> None:
         self._processes: dict[str, asyncio.subprocess.Process] = {}
 
     async def start(self, command: str, args: list[str]) -> str:
-        """Start an RTKLIB process.
+        """Start an MRTKLIB process.
 
         Args:
-            command: RTKLIB command name (e.g., 'rnx2rtkp', 'str2str')
+            command: Legacy command name (e.g., 'rnx2rtkp') mapped to mrtk subcommand
             args: Command arguments
 
         Returns:
@@ -27,15 +31,15 @@ class RTKProcessManager:
         Raises:
             ValueError: If command is not allowed
         """
-        if command not in self.ALLOWED_COMMANDS:
+        subcommand = self.SUBCOMMAND_MAP.get(command)
+        if subcommand is None:
             raise ValueError(f"Command not allowed: {command}")
 
         process_id = str(uuid.uuid4())
 
-        # In production, spawn the actual RTKLIB binary
-        # For now, this is a placeholder for the mock mode
         process = await asyncio.create_subprocess_exec(
-            f"/usr/local/bin/{command}",
+            "/usr/local/bin/mrtk",
+            subcommand,
             *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

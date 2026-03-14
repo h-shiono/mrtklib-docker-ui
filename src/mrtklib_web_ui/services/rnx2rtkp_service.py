@@ -277,13 +277,13 @@ class Rnx2RtkpJob(BaseModel):
 class Rnx2RtkpService:
     """Service for running rnx2rtkp post-processing."""
 
-    def __init__(self, rtklib_bin_path: str = "/usr/local/bin/rnx2rtkp"):
+    def __init__(self, mrtk_bin_path: str = "/usr/local/bin/mrtk"):
         """Initialize the service.
 
         Args:
-            rtklib_bin_path: Path to the rnx2rtkp binary
+            mrtk_bin_path: Path to the mrtk binary
         """
-        self.rtklib_bin_path = rtklib_bin_path
+        self.mrtk_bin_path = mrtk_bin_path
 
     def generate_conf_file(self, config: Rnx2RtkpConfig) -> str:
         """Generate MRTKLIB TOML configuration file content.
@@ -301,6 +301,7 @@ class Rnx2RtkpService:
             "single": "single", "dgps": "dgps", "kinematic": "kinematic",
             "static": "static", "moving-base": "movingbase", "fixed": "fixed",
             "ppp-kinematic": "ppp-kine", "ppp-static": "ppp-static",
+            "ppp-fixed": "ppp-fixed", "ppp-rtk": "ppp-rtk",
         }
         freq_map = {
             "l1": "l1", "l1+l2": "l1+2", "l1+l2+l5": "l1+2+3",
@@ -361,18 +362,24 @@ class Rnx2RtkpService:
         lines.append(f"elevation_mask      = {s1.elevation_mask}")
         lines.append(f"dynamics            = {_bool(s1.receiver_dynamics == 'on')}")
         lines.append(f"satellite_ephemeris = {_str(ephem_map.get(s1.ephemeris_option, 'brdc'))}")
-        lines.append(f"excluded_sats       = {_str(s1.excluded_satellites)}")
-        # Navigation system bitmask: GPS=1, SBAS=2, GLO=4, GAL=8, QZS=16, BDS=32, NavIC=64
-        navsys = 0
+        # Excluded satellites as TOML string list
+        if s1.excluded_satellites.strip():
+            sats = [s.strip() for s in s1.excluded_satellites.replace(",", " ").split() if s.strip()]
+            sat_list = ", ".join(f'"{s}"' for s in sats)
+            lines.append(f"excluded_sats       = [{sat_list}]")
+        else:
+            lines.append(f"excluded_sats       = []")
+        # Navigation systems as string list
         c = s1.constellations
-        if c.gps: navsys |= 1
-        if c.sbas: navsys |= 2
-        if c.glonass: navsys |= 4
-        if c.galileo: navsys |= 8
-        if c.qzss: navsys |= 16
-        if c.beidou: navsys |= 32
-        if c.irnss: navsys |= 64
-        lines.append(f"constellations      = {navsys}")
+        systems = []
+        if c.gps: systems.append('"GPS"')
+        if c.glonass: systems.append('"GLONASS"')
+        if c.galileo: systems.append('"Galileo"')
+        if c.qzss: systems.append('"QZSS"')
+        if c.sbas: systems.append('"SBAS"')
+        if c.beidou: systems.append('"BeiDou"')
+        if c.irnss: systems.append('"NavIC"')
+        lines.append(f"systems             = [{', '.join(systems)}]")
         lines.append("")
 
         # --- [positioning.snr_mask] ---
@@ -386,16 +393,16 @@ class Rnx2RtkpService:
 
         # --- [positioning.corrections] ---
         lines.append("[positioning.corrections]")
-        lines.append(f"satellite_antenna = {_bool(s1.satellite_pcv)}")
-        lines.append(f"receiver_antenna  = {_bool(s1.receiver_pcv)}")
-        # phase_windup: bool in frontend → "on"/"off" string in TOML
-        lines.append(f"phase_windup      = {_str('on' if s1.phase_windup else 'off')}")
-        lines.append(f"raim_fde          = {_bool(s1.raim_fde)}")
+        lines.append(f"satellite_antenna  = {_bool(s1.satellite_pcv)}")
+        lines.append(f"receiver_antenna   = {_bool(s1.receiver_pcv)}")
+        lines.append(f"phase_windup       = {_str('on' if s1.phase_windup else 'off')}")
+        lines.append(f"exclude_eclipse    = {_bool(s1.reject_eclipse)}")
+        lines.append(f"raim_fde           = {_bool(s1.raim_fde)}")
+        lines.append(f"tidal_correction   = {_str(tides_map.get(s1.earth_tides_correction, 'off'))}")
         lines.append("")
 
         # --- [positioning.atmosphere] ---
         lines.append("[positioning.atmosphere]")
-        lines.append(f"tidal_correction = {_str(tides_map.get(s1.earth_tides_correction, 'off'))}")
         lines.append(f"ionosphere       = {_str(iono_map.get(s1.ionosphere_correction, 'brdc'))}")
         lines.append(f"troposphere      = {_str(tropo_map.get(s1.troposphere_correction, 'saas'))}")
         lines.append("")
@@ -583,9 +590,10 @@ class Rnx2RtkpService:
             conf_path = conf_file.name
 
         try:
-            # Build command: options first, then input files
+            # Build command: mrtk post [options] input_files
             cmd = [
-                self.rtklib_bin_path,
+                self.mrtk_bin_path,
+                "post",
                 "-k",
                 conf_path,
                 "-o",

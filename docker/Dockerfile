@@ -29,11 +29,9 @@ WORKDIR /build/MRTKLIB
 RUN cmake -B build -DCMAKE_BUILD_TYPE=Release && \
     cmake --build build -j$(nproc)
 
-# Strip binaries and collect them
+# Collect unified mrtk binary
 RUN mkdir -p /mrtklib-bin && \
-    for bin in rnx2rtkp rtkrcv recvbias ssr2obs ssr2osr dumpcssr cssr2rtcm3; do \
-        if [ -f build/$bin ]; then strip build/$bin && cp build/$bin /mrtklib-bin/; fi; \
-    done
+    strip build/mrtk && cp build/mrtk /mrtklib-bin/
 
 # ================================
 # Stage 2: Build Frontend
@@ -81,12 +79,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libopenblas0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy MRTKLIB binaries from builder
-COPY --from=mrtklib-builder /mrtklib-bin/ /usr/local/bin/
-RUN chmod +x /usr/local/bin/rnx2rtkp
+# Copy MRTKLIB unified binary from builder
+COPY --from=mrtklib-builder /mrtklib-bin/mrtk /usr/local/bin/mrtk
+RUN chmod +x /usr/local/bin/mrtk
 
-# Verify rnx2rtkp is installed
-RUN ls -la /usr/local/bin/rnx2rtkp
+# Verify mrtk is installed
+RUN mrtk --version
 
 # Copy virtual environment from backend builder
 COPY --from=backend-builder /app/.venv /app/.venv

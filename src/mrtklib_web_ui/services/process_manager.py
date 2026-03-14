@@ -1,4 +1,4 @@
-"""Process manager for RTKLIB command execution with real-time log streaming."""
+"""Process manager for MRTKLIB command execution with real-time log streaming."""
 
 import asyncio
 import signal
@@ -38,15 +38,21 @@ class ProcessInfo:
 
 @dataclass
 class ProcessManager:
-    """Manages RTKLIB subprocess execution with async log streaming.
+    """Manages MRTKLIB subprocess execution with async log streaming.
 
-    Handles starting, stopping, and monitoring of RTKLIB processes.
+    Handles starting, stopping, and monitoring of MRTKLIB processes.
+    Maps legacy command names to mrtk subcommands.
     Broadcasts stderr output to connected WebSocket clients.
     """
 
-    # Allowed commands (security whitelist)
-    ALLOWED_COMMANDS: set[str] = field(
-        default_factory=lambda: {"str2str", "convbin", "rnx2rtkp", "rtkrcv"}
+    # Map legacy command names → mrtk subcommands
+    SUBCOMMAND_MAP: dict[str, str] = field(
+        default_factory=lambda: {
+            "str2str": "relay",
+            "convbin": "convert",
+            "rnx2rtkp": "post",
+            "rtkrcv": "run",
+        }
     )
 
     # Active processes
@@ -75,10 +81,10 @@ class ProcessManager:
         args: list[str] | None = None,
         process_id: str | None = None,
     ) -> ProcessInfo:
-        """Start an RTKLIB process.
+        """Start an MRTKLIB process.
 
         Args:
-            command: RTKLIB command name (e.g., 'str2str')
+            command: Legacy command name (e.g., 'str2str') mapped to mrtk subcommand
             args: Command arguments
             process_id: Optional custom process ID
 
@@ -88,7 +94,7 @@ class ProcessManager:
         Raises:
             ValueError: If command is not allowed or process already running
         """
-        if command not in self.ALLOWED_COMMANDS:
+        if command not in self.SUBCOMMAND_MAP:
             raise ValueError(f"Command not allowed: {command}")
 
         # Generate process ID if not provided
@@ -111,16 +117,18 @@ class ProcessManager:
         self._process_info[proc_id] = info
 
         try:
-            # Build full command path
-            cmd_path = f"/usr/local/bin/{command}"
+            # Map to mrtk subcommand
+            subcommand = self.SUBCOMMAND_MAP[command]
+            mrtk_path = "/usr/local/bin/mrtk"
 
             # Log the command being executed
-            cmd_str = f"{cmd_path} {' '.join(args or [])}"
+            cmd_str = f"mrtk {subcommand} {' '.join(args or [])}"
             await self._broadcast_log(proc_id, f"[SYSTEM] Starting: {cmd_str}")
 
             # Create subprocess
             process = await asyncio.create_subprocess_exec(
-                cmd_path,
+                mrtk_path,
+                subcommand,
                 *(args or []),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,

@@ -70,17 +70,20 @@ async def health_check() -> dict[str, str]:
 
 @app.get("/api/mrtklib/version")
 async def mrtklib_version() -> dict[str, str | list[str]]:
-    """Get MRTKLIB version (from git tag) and available binaries."""
+    """Get MRTKLIB version (from git tag) and available subcommands."""
     import shutil
 
-    binaries = []
-    for cmd in ["rnx2rtkp", "rtkrcv", "recvbias", "ssr2obs", "ssr2osr", "dumpcssr"]:
-        if shutil.which(cmd) or Path(f"/usr/local/bin/{cmd}").exists():
-            binaries.append(cmd)
+    mrtk_path = shutil.which("mrtk") or "/usr/local/bin/mrtk"
+    mrtk_available = Path(mrtk_path).exists()
+
+    # Known mrtk subcommands
+    known_subcommands = ["post", "run", "relay", "convert", "ssr2obs", "ssr2osr", "bias", "dump", "cssr2rtcm3"]
+    subcommands = known_subcommands if mrtk_available else []
 
     return {
         "version": __version__,
-        "binaries": binaries,
+        "binary": "mrtk" if mrtk_available else "",
+        "subcommands": subcommands,
     }
 
 
