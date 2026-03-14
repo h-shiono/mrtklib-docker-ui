@@ -1,16 +1,17 @@
 /**
- * MRTKLIB post-processing configuration types
+ * MRTKLIB post-processing configuration types.
+ *
+ * Structured to match MRTKLIB TOML configuration sections:
+ *   [positioning]  [ambiguity_resolution]  [rejection]  [slip_detection]
+ *   [kalman_filter]  [antenna]  [output]  [files]  [server]  [receiver]
  */
 
+// ─── Enums & Union Types ─────────────────────────────────────────────────────
+
 export type PositioningMode =
-  | 'single'
-  | 'dgps'
-  | 'kinematic'
-  | 'static'
-  | 'moving-base'
-  | 'fixed'
-  | 'ppp-kinematic'
-  | 'ppp-static';
+  | 'single' | 'dgps' | 'kinematic' | 'static'
+  | 'moving-base' | 'fixed'
+  | 'ppp-kinematic' | 'ppp-static' | 'ppp-fixed' | 'ppp-rtk';
 
 export type Frequency = 'l1' | 'l1+l2' | 'l1+l2+l5' | 'l1+l2+l5+l6' | 'l1+l2+l5+l6+l7';
 
@@ -26,25 +27,11 @@ export type EarthTidesCorrection = 'off' | 'solid' | 'solid+otl' | 'solid+otl+po
 
 export type ReceiverDynamics = 'off' | 'on';
 
-export interface ConstellationSelection {
-  gps: boolean;
-  glonass: boolean;
-  galileo: boolean;
-  qzss: boolean;
-  sbas: boolean;
-  beidou: boolean;
-  irnss: boolean;
-}
-
-export type ARMode = 'off' | 'continuous' | 'instantaneous' | 'fix-and-hold';
+export type ARMode = 'off' | 'continuous' | 'instantaneous' | 'fix-and-hold' | 'ppp-ar';
 
 export type SolutionFormat = 'llh' | 'xyz' | 'enu' | 'nmea';
 
-export type TimeFormat =
-  | 'gpst'
-  | 'gpst-hms'
-  | 'utc'
-  | 'jst';
+export type TimeFormat = 'gpst' | 'gpst-hms' | 'utc' | 'jst';
 
 export type LatLonFormat = 'ddd.ddddddd' | 'ddd-mm-ss.sss';
 
@@ -58,82 +45,130 @@ export type StaticSolutionMode = 'all' | 'single' | 'fixed';
 
 export type DebugTraceLevel = 'off' | 'level1' | 'level2' | 'level3' | 'level4' | 'level5';
 
+export type PositionType = 'llh' | 'xyz' | 'rtcm' | 'rinex' | 'average';
+
+// ─── [positioning] ───────────────────────────────────────────────────────────
+
+export interface ConstellationSelection {
+  gps: boolean;
+  glonass: boolean;
+  galileo: boolean;
+  qzss: boolean;
+  sbas: boolean;
+  beidou: boolean;
+  irnss: boolean;
+}
+
 export interface SnrMaskConfig {
   enableRover: boolean;
   enableBase: boolean;
-  // Matrix: [Frequency_Index][Elevation_Bin_Index]
-  // Frequencies: L1=0, L2=1, L5=2
-  // Elevation bins: <5, 15, 25, 35, 45, 55, 65, 75, >85 (9 bins)
-  mask: number[][]; // 3x9 matrix
+  mask: number[][]; // 3x9 matrix: [L1, L2, L5] × [<5, 15, 25, 35, 45, 55, 65, 75, >85]
 }
 
-export interface Setting1Config {
-  // Group A: Basic Strategy
+export interface PositioningConfig {
+  // [positioning] core
   positioningMode: PositioningMode;
   frequency: Frequency;
   filterType: FilterType;
-
-  // Group B: Masks & Environment
-  elevationMask: number; // degrees
-  snrMask: SnrMaskConfig;
-  ionosphereCorrection: IonosphereCorrection;
-  troposphereCorrection: TroposphereCorrection;
+  elevationMask: number;
+  receiverDynamics: ReceiverDynamics;
   ephemerisOption: EphemerisOption;
-
-  // Group C: Satellite Selection
   constellations: ConstellationSelection;
   excludedSatellites: string;
 
-  // Group D: Advanced Options
-  earthTidesCorrection: EarthTidesCorrection;
-  receiverDynamics: ReceiverDynamics;
+  // [positioning.snr_mask]
+  snrMask: SnrMaskConfig;
+
+  // [positioning.corrections]
   satellitePcv: boolean;
   receiverPcv: boolean;
   phaseWindup: boolean;
   rejectEclipse: boolean;
   raimFde: boolean;
-  dbCorr: boolean;
+  earthTidesCorrection: EarthTidesCorrection;
+
+  // [positioning.atmosphere]
+  ionosphereCorrection: IonosphereCorrection;
+  troposphereCorrection: TroposphereCorrection;
 }
 
-export type GpsArMode = 'off' | 'continuous' | 'instantaneous' | 'fix-and-hold' | 'ppp-ar';
-export type GloArMode = 'off' | 'on' | 'autocal';
-export type BdsArMode = 'off' | 'on';
+// ─── [ambiguity_resolution] ──────────────────────────────────────────────────
 
-export interface BaselineLengthConstraint {
-  enabled: boolean;
-  length: number; // meters
-  sigma: number; // meters
+export interface AmbiguityResolutionConfig {
+  // [ambiguity_resolution]
+  mode: ARMode;
+
+  // [ambiguity_resolution.thresholds]
+  ratio: number;
+  elevationMask: number;
+  holdElevation: number;
+
+  // [ambiguity_resolution.counters]
+  lockCount: number;
+  minFix: number;
+  maxIterations: number;
+  outCount: number;
 }
 
-export interface Setting2Config {
-  // Section A: Ambiguity Resolution Strategy
-  gpsArMode: GpsArMode;
-  gloArMode: GloArMode;
-  bdsArMode: BdsArMode;
-  minRatioToFix: number;
+// ─── [rejection] ─────────────────────────────────────────────────────────────
 
-  // Section B: Thresholds & Validation
-  minConfidence: number;
-  maxFcb: number;
-  minLockToFix: number;
-  minElevationToFix: number; // degrees
-  minFixToHold: number;
-  minElevationToHold: number; // degrees
-  outageToReset: number; // seconds
-  slipThreshold: number; // meters
-  maxAgeDiff: number; // seconds
+export interface RejectionConfig {
+  innovation: number;
+  gdop: number;
+}
+
+// ─── [slip_detection] ────────────────────────────────────────────────────────
+
+export interface SlipDetectionConfig {
+  threshold: number;
+}
+
+// ─── [kalman_filter] ─────────────────────────────────────────────────────────
+
+export interface KalmanFilterConfig {
+  // [kalman_filter]
+  iterations: number;
   syncSolution: boolean;
-  rejectThresholdGdop: number;
-  rejectThresholdInnovation: number; // meters
 
-  // Section C: Advanced Filter
-  maxArIter: number;
-  numFilterIterations: number;
-  baselineLengthConstraint: BaselineLengthConstraint;
+  // [kalman_filter.measurement_error]
+  measurementError: {
+    codePhaseRatioL1: number;
+    codePhaseRatioL2: number;
+    phase: number;
+    phaseElevation: number;
+    phaseBaseline: number;
+    doppler: number;
+  };
+
+  // [kalman_filter.process_noise]
+  processNoise: {
+    bias: number;
+    ionosphere: number;
+    troposphere: number;
+    accelH: number;
+    accelV: number;
+    clockStability: number;
+  };
 }
+
+// ─── [antenna] ───────────────────────────────────────────────────────────────
+
+export interface StationPosition {
+  mode: PositionType;
+  values: [number, number, number];
+  antennaTypeEnabled: boolean;
+  antennaType: string;
+  antennaDelta: [number, number, number]; // [E, N, U]
+}
+
+export interface AntennaConfig {
+  rover: StationPosition;
+  base: StationPosition;
+}
+
+// ─── [output] ────────────────────────────────────────────────────────────────
 
 export interface OutputConfig {
-  // Group A: Format Configuration
   solutionFormat: SolutionFormat;
   outputHeader: boolean;
   outputProcessingOptions: boolean;
@@ -142,109 +177,72 @@ export interface OutputConfig {
   latLonFormat: LatLonFormat;
   fieldSeparator: string;
   outputVelocity: boolean;
-
-  // Group B: Datum & Geoid
   datum: Datum;
   height: HeightType;
   geoidModel: GeoidModel;
-
-  // Group C: Output Control
   staticSolutionMode: StaticSolutionMode;
   outputSingleOnOutage: boolean;
-  nmeaIntervalRmcGga: number; // seconds
-  nmeaIntervalGsaGsv: number; // seconds
+  nmeaIntervalRmcGga: number;
+  nmeaIntervalGsaGsv: number;
   outputSolutionStatus: DebugTraceLevel;
   debugTrace: DebugTraceLevel;
 }
 
-export interface StatsConfig {
-  // Group A: Measurement Errors (1-sigma)
-  codePhaseRatioL1: number;
-  codePhaseRatioL2: number;
-  phaseErrorA: number; // meters
-  phaseErrorB: number; // meters
-  phaseErrorBaseline: number; // m/10km
-  dopplerFrequency: number; // Hz
-
-  // Group B: Process Noises (1-sigma/sqrt(s))
-  receiverAccelHoriz: number; // m/s²
-  receiverAccelVert: number; // m/s²
-  carrierPhaseBias: number; // cycle
-  ionosphericDelay: number; // m/10km
-  troposphericDelay: number; // m
-  satelliteClockStability: number; // s/s
-}
-
-export type PositionType =
-  | 'llh'
-  | 'xyz'
-  | 'rtcm'
-  | 'rinex'
-  | 'average';
-
-export interface StationPosition {
-  mode: PositionType;
-  values: [number, number, number]; // [lat/x, lon/y, height/z]
-  antennaTypeEnabled: boolean;
-  antennaType: string;
-  antennaDelta: [number, number, number]; // [E, N, U] in meters
-}
-
-export interface PositionsConfig {
-  rover: StationPosition;
-  base: StationPosition;
-  stationPositionFile: string;
-}
-
-export interface BasePositionConfig {
-  latitude: number;
-  longitude: number;
-  height: number;
-  useRinexHeader: boolean;
-}
+// ─── [files] ─────────────────────────────────────────────────────────────────
 
 export interface FilesConfig {
-  antex1: string;
-  antex2: string;
+  satelliteAtx: string;
+  receiverAtx: string;
+  stationPos: string;
   geoid: string;
+  ionosphere: string;
   dcb: string;
   eop: string;
-  blq: string;
-  ionosphere: string;
+  oceanLoading: string;
 }
 
-export interface MiscConfig {
-  timeSystem: 'gpst' | 'utc' | 'jst';
-  ionosphereCorrection: boolean;
-  troposphereCorrection: boolean;
+// ─── [server] + [receiver] ───────────────────────────────────────────────────
+
+export interface ServerConfig {
   timeInterpolation: boolean;
-  dgpsCorrections: string;
-  sbasSatSelection: number;
-  rinexOptRover: string;
-  rinexOptBase: string;
+  sbasSatellite: number;
+  rinexOption1: string;
+  rinexOption2: string;
 }
+
+export interface ReceiverConfig {
+  ionoCorrection: boolean;
+}
+
+// ─── Time (UI-only, maps to CLI flags -ts/-te/-ti) ───────────────────────────
 
 export interface TimeConfig {
   startEnabled: boolean;
-  startDate: string; // "YYYY/MM/DD"
-  startTime: string; // "HH:MM:SS"
+  startDate: string;
+  startTime: string;
   endEnabled: boolean;
-  endDate: string;   // "YYYY/MM/DD"
-  endTime: string;   // "HH:MM:SS"
-  interval: number;  // seconds, 0 = use all epochs
+  endDate: string;
+  endTime: string;
+  interval: number;
 }
 
+// ─── Top-level config ────────────────────────────────────────────────────────
+
 export interface MrtkPostConfig {
-  setting1: Setting1Config;
-  setting2: Setting2Config;
+  positioning: PositioningConfig;
+  ambiguityResolution: AmbiguityResolutionConfig;
+  rejection: RejectionConfig;
+  slipDetection: SlipDetectionConfig;
+  kalmanFilter: KalmanFilterConfig;
+  antenna: AntennaConfig;
   output: OutputConfig;
-  stats: StatsConfig;
-  positions: PositionsConfig;
-  basePosition: BasePositionConfig;
   files: FilesConfig;
-  misc: MiscConfig;
+  server: ServerConfig;
+  receiver: ReceiverConfig;
   time: TimeConfig;
 }
+
+// ─── API types ───────────────────────────────────────────────────────────────
 
 export interface MrtkPostInputFiles {
   rover_obs_file: string;
@@ -254,9 +252,9 @@ export interface MrtkPostInputFiles {
 }
 
 export interface MrtkPostTimeRange {
-  start_time?: string; // "YYYY/MM/DD HH:MM:SS" GPST format
+  start_time?: string;
   end_time?: string;
-  interval?: number; // seconds
+  interval?: number;
 }
 
 export interface MrtkPostJob {
@@ -265,127 +263,81 @@ export interface MrtkPostJob {
   config: MrtkPostConfig;
 }
 
-// Default configurations
-export const DEFAULT_SETTING1: Setting1Config = {
-  // Group A: Basic Strategy
+// ─── Defaults ────────────────────────────────────────────────────────────────
+
+export const DEFAULT_POSITIONING: PositioningConfig = {
   positioningMode: 'kinematic',
   frequency: 'l1+l2',
   filterType: 'forward',
-
-  // Group B: Masks & Environment
   elevationMask: 15,
+  receiverDynamics: 'off',
+  ephemerisOption: 'broadcast',
+  constellations: {
+    gps: true, glonass: true, galileo: true, qzss: true,
+    sbas: true, beidou: true, irnss: false,
+  },
+  excludedSatellites: '',
   snrMask: {
     enableRover: false,
     enableBase: false,
-    // Default mask values: 3 frequencies (L1, L2, L5) × 9 elevation bins
     mask: [
-      [0, 0, 0, 0, 0, 0, 0, 0, 0], // L1
-      [0, 0, 0, 0, 0, 0, 0, 0, 0], // L2
-      [0, 0, 0, 0, 0, 0, 0, 0, 0], // L5
+      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0],
     ],
   },
-  ionosphereCorrection: 'broadcast',
-  troposphereCorrection: 'saastamoinen',
-  ephemerisOption: 'broadcast',
-
-  // Group C: Satellite Selection
-  constellations: {
-    gps: true,
-    glonass: true,
-    galileo: true,
-    qzss: true,
-    sbas: true,
-    beidou: true,
-    irnss: false,
-  },
-  excludedSatellites: '',
-
-  // Group D: Advanced Options
-  earthTidesCorrection: 'off',
-  receiverDynamics: 'off',
   satellitePcv: false,
   receiverPcv: false,
   phaseWindup: false,
   rejectEclipse: false,
   raimFde: false,
-  dbCorr: false,
+  earthTidesCorrection: 'off',
+  ionosphereCorrection: 'broadcast',
+  troposphereCorrection: 'saastamoinen',
 };
 
-export const DEFAULT_SETTING2: Setting2Config = {
-  // Section A: Ambiguity Resolution Strategy
-  gpsArMode: 'continuous',
-  gloArMode: 'on',
-  bdsArMode: 'on',
-  minRatioToFix: 3.0,
+export const DEFAULT_AMBIGUITY_RESOLUTION: AmbiguityResolutionConfig = {
+  mode: 'continuous',
+  ratio: 3.0,
+  elevationMask: 0,
+  holdElevation: 0,
+  lockCount: 0,
+  minFix: 10,
+  maxIterations: 1,
+  outCount: 5,
+};
 
-  // Section B: Thresholds & Validation
-  minConfidence: 0.9999,
-  maxFcb: 0.25,
-  minLockToFix: 0,
-  minElevationToFix: 0,
-  minFixToHold: 10,
-  minElevationToHold: 0,
-  outageToReset: 5,
-  slipThreshold: 0.05,
-  maxAgeDiff: 30.0,
+export const DEFAULT_REJECTION: RejectionConfig = {
+  innovation: 30.0,
+  gdop: 30.0,
+};
+
+export const DEFAULT_SLIP_DETECTION: SlipDetectionConfig = {
+  threshold: 0.05,
+};
+
+export const DEFAULT_KALMAN_FILTER: KalmanFilterConfig = {
+  iterations: 1,
   syncSolution: false,
-  rejectThresholdGdop: 30.0,
-  rejectThresholdInnovation: 30.0,
-
-  // Section C: Advanced Filter
-  maxArIter: 1,
-  numFilterIterations: 1,
-  baselineLengthConstraint: {
-    enabled: false,
-    length: 0.0,
-    sigma: 0.0,
+  measurementError: {
+    codePhaseRatioL1: 100.0,
+    codePhaseRatioL2: 100.0,
+    phase: 0.003,
+    phaseElevation: 0.003,
+    phaseBaseline: 0.0,
+    doppler: 1.0,
+  },
+  processNoise: {
+    bias: 0.0001,
+    ionosphere: 0.001,
+    troposphere: 0.0001,
+    accelH: 1.0,
+    accelV: 0.1,
+    clockStability: 5e-12,
   },
 };
 
-export const DEFAULT_OUTPUT: OutputConfig = {
-  // Group A: Format Configuration
-  solutionFormat: 'llh',
-  outputHeader: true,
-  outputProcessingOptions: false,
-  timeFormat: 'gpst',
-  numDecimals: 3,
-  latLonFormat: 'ddd.ddddddd',
-  fieldSeparator: '',
-  outputVelocity: false,
-
-  // Group B: Datum & Geoid
-  datum: 'wgs84',
-  height: 'ellipsoidal',
-  geoidModel: 'internal',
-
-  // Group C: Output Control
-  staticSolutionMode: 'all',
-  outputSingleOnOutage: false,
-  nmeaIntervalRmcGga: 0,
-  nmeaIntervalGsaGsv: 0,
-  outputSolutionStatus: 'off',
-  debugTrace: 'off',
-};
-
-export const DEFAULT_STATS: StatsConfig = {
-  // Group A: Measurement Errors (1-sigma)
-  codePhaseRatioL1: 100.0,
-  codePhaseRatioL2: 100.0,
-  phaseErrorA: 0.003,
-  phaseErrorB: 0.003,
-  phaseErrorBaseline: 0.0,
-  dopplerFrequency: 1.0,
-
-  // Group B: Process Noises (1-sigma/sqrt(s))
-  receiverAccelHoriz: 1.0,
-  receiverAccelVert: 0.1,
-  carrierPhaseBias: 0.0001,
-  ionosphericDelay: 0.001,
-  troposphericDelay: 0.0001,
-  satelliteClockStability: 5e-12,
-};
-
-export const DEFAULT_POSITIONS: PositionsConfig = {
+export const DEFAULT_ANTENNA: AntennaConfig = {
   rover: {
     mode: 'llh',
     values: [0, 0, 0],
@@ -400,35 +352,48 @@ export const DEFAULT_POSITIONS: PositionsConfig = {
     antennaType: '',
     antennaDelta: [0, 0, 0],
   },
-  stationPositionFile: '',
 };
 
-export const DEFAULT_BASE_POSITION: BasePositionConfig = {
-  latitude: 0,
-  longitude: 0,
-  height: 0,
-  useRinexHeader: true,
+export const DEFAULT_OUTPUT: OutputConfig = {
+  solutionFormat: 'llh',
+  outputHeader: true,
+  outputProcessingOptions: false,
+  timeFormat: 'gpst',
+  numDecimals: 3,
+  latLonFormat: 'ddd.ddddddd',
+  fieldSeparator: '',
+  outputVelocity: false,
+  datum: 'wgs84',
+  height: 'ellipsoidal',
+  geoidModel: 'internal',
+  staticSolutionMode: 'all',
+  outputSingleOnOutage: false,
+  nmeaIntervalRmcGga: 0,
+  nmeaIntervalGsaGsv: 0,
+  outputSolutionStatus: 'off',
+  debugTrace: 'off',
 };
 
 export const DEFAULT_FILES: FilesConfig = {
-  antex1: '',
-  antex2: '',
+  satelliteAtx: '',
+  receiverAtx: '',
+  stationPos: '',
   geoid: '',
+  ionosphere: '',
   dcb: '',
   eop: '',
-  blq: '',
-  ionosphere: '',
+  oceanLoading: '',
 };
 
-export const DEFAULT_MISC: MiscConfig = {
-  timeSystem: 'gpst',
-  ionosphereCorrection: true,
-  troposphereCorrection: true,
+export const DEFAULT_SERVER: ServerConfig = {
   timeInterpolation: false,
-  dgpsCorrections: 'off',
-  sbasSatSelection: 0,
-  rinexOptRover: '',
-  rinexOptBase: '',
+  sbasSatellite: 0,
+  rinexOption1: '',
+  rinexOption2: '',
+};
+
+export const DEFAULT_RECEIVER: ReceiverConfig = {
+  ionoCorrection: true,
 };
 
 export const DEFAULT_TIME: TimeConfig = {
@@ -442,13 +407,15 @@ export const DEFAULT_TIME: TimeConfig = {
 };
 
 export const DEFAULT_MRTK_POST_CONFIG: MrtkPostConfig = {
-  setting1: DEFAULT_SETTING1,
-  setting2: DEFAULT_SETTING2,
+  positioning: DEFAULT_POSITIONING,
+  ambiguityResolution: DEFAULT_AMBIGUITY_RESOLUTION,
+  rejection: DEFAULT_REJECTION,
+  slipDetection: DEFAULT_SLIP_DETECTION,
+  kalmanFilter: DEFAULT_KALMAN_FILTER,
+  antenna: DEFAULT_ANTENNA,
   output: DEFAULT_OUTPUT,
-  stats: DEFAULT_STATS,
-  positions: DEFAULT_POSITIONS,
-  basePosition: DEFAULT_BASE_POSITION,
   files: DEFAULT_FILES,
-  misc: DEFAULT_MISC,
+  server: DEFAULT_SERVER,
+  receiver: DEFAULT_RECEIVER,
   time: DEFAULT_TIME,
 };
