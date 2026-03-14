@@ -258,6 +258,7 @@ function PostProcessingPanel() {
         dcb: config.files.dcb,
         eop: config.files.eop,
         ocean_loading: config.files.oceanLoading,
+        cssr_grid: config.files.cssrGrid,
       },
       server: {
         time_interpolation: config.server.timeInterpolation,

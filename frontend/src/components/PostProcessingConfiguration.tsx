@@ -2088,6 +2088,21 @@ export function PostProcessingConfiguration({
                   handleConfigChange({ ...config, files: { ...config.files, ionosphere: path } })
                 )}
               />
+
+              {/* CSSR Grid Definition File */}
+              <FileInputRow
+                label="CSSR Grid Definition File"
+                value={config.files.cssrGrid}
+                onChange={(val) =>
+                  handleConfigChange({
+                    ...config,
+                    files: { ...config.files, cssrGrid: val },
+                  })
+                }
+                onBrowse={() => openFileBrowser((path) =>
+                  handleConfigChange({ ...config, files: { ...config.files, cssrGrid: path } })
+                )}
+              />
             </Stack>
           </Tabs.Panel>
 

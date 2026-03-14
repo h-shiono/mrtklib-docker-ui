@@ -217,6 +217,7 @@ class FilesConfig(BaseModel):
     dcb: str = Field(default="")
     eop: str = Field(default="")
     ocean_loading: str = Field(default="")
+    cssr_grid: str = Field(default="")
 
 
 class ServerConfig(BaseModel):
@@ -559,6 +560,7 @@ class MrtkPostService:
         lines.append(f"dcb           = {_str(f.dcb)}")
         lines.append(f"eop           = {_str(f.eop)}")
         lines.append(f"ocean_loading = {_str(f.ocean_loading)}")
+        lines.append(f"cssr_grid     = {_str(f.cssr_grid)}")
         lines.append(f"temp_dir      = \"\"")
         lines.append(f"geexe         = \"\"")
         lines.append(f"solution_stat = \"\"")

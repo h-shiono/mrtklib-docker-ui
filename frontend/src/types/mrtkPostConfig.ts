@@ -214,6 +214,7 @@ export interface FilesConfig {
   dcb: string;
   eop: string;
   oceanLoading: string;
+  cssrGrid: string;
 }
 
 // ─── [server] + [receiver] ───────────────────────────────────────────────────
@@ -407,6 +408,7 @@ export const DEFAULT_FILES: FilesConfig = {
   dcb: '',
   eop: '',
   oceanLoading: '',
+  cssrGrid: '',
 };
 
 export const DEFAULT_SERVER: ServerConfig = {
