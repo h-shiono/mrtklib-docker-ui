@@ -58,89 +58,120 @@ class SnrMaskConfig(BaseModel):
 
     enable_rover: bool = Field(default=False)
     enable_base: bool = Field(default=False)
-    # Matrix: [Frequency_Index][Elevation_Bin_Index]
-    # Frequencies: L1=0, L2=1, L5=2
-    # Elevation bins: <5, 15, 25, 35, 45, 55, 65, 75, >85 (9 bins)
     mask: list[list[float]] = Field(
-        default=[
-            [0.0] * 9,  # L1
-            [0.0] * 9,  # L2
-            [0.0] * 9,  # L5
-        ]
+        default=[[0.0] * 9, [0.0] * 9, [0.0] * 9]
     )
 
 
-class Setting1Config(BaseModel):
-    """Setting 1: Basic positioning parameters."""
+class PositioningConfig(BaseModel):
+    """[positioning] + [positioning.corrections] + [positioning.atmosphere]."""
 
-    # Group A: Basic Strategy
     positioning_mode: str = Field(default="kinematic")
     frequency: str = Field(default="l1+l2")
     filter_type: str = Field(default="forward")
-
-    # Group B: Masks & Environment
     elevation_mask: float = Field(default=15.0)
-    snr_mask: SnrMaskConfig = Field(default_factory=SnrMaskConfig)
-    ionosphere_correction: str = Field(default="broadcast")
-    troposphere_correction: str = Field(default="saastamoinen")
+    receiver_dynamics: str = Field(default="off")
     ephemeris_option: str = Field(default="broadcast")
-
-    # Group C: Satellite Selection
     constellations: ConstellationSelection = Field(default_factory=ConstellationSelection)
     excluded_satellites: str = Field(default="")
 
-    # Group D: Advanced Options
-    earth_tides_correction: str = Field(default="off")
-    receiver_dynamics: str = Field(default="off")
+    # [positioning.snr_mask]
+    snr_mask: SnrMaskConfig = Field(default_factory=SnrMaskConfig)
+
+    # [positioning.corrections]
     satellite_pcv: bool = Field(default=False)
     receiver_pcv: bool = Field(default=False)
     phase_windup: bool = Field(default=False)
     reject_eclipse: bool = Field(default=False)
     raim_fde: bool = Field(default=False)
-    db_corr: bool = Field(default=False)
+    earth_tides_correction: str = Field(default="off")
+
+    # [positioning.atmosphere]
+    ionosphere_correction: str = Field(default="broadcast")
+    troposphere_correction: str = Field(default="saastamoinen")
 
 
-class BaselineLengthConstraint(BaseModel):
-    """Baseline length constraint configuration."""
+class AmbiguityResolutionConfig(BaseModel):
+    """[ambiguity_resolution] + thresholds + counters."""
 
-    enabled: bool = Field(default=False)
-    length: float = Field(default=0.0)
-    sigma: float = Field(default=0.0)
+    mode: str = Field(default="continuous")
+
+    # [ambiguity_resolution.thresholds]
+    ratio: float = Field(default=3.0)
+    elevation_mask: float = Field(default=0.0)
+    hold_elevation: float = Field(default=0.0)
+
+    # [ambiguity_resolution.counters]
+    lock_count: int = Field(default=0)
+    min_fix: int = Field(default=10)
+    max_iterations: int = Field(default=1)
+    out_count: int = Field(default=5)
 
 
-class Setting2Config(BaseModel):
-    """Setting 2: Ambiguity resolution parameters."""
+class RejectionConfig(BaseModel):
+    """[rejection]."""
 
-    # Section A: Ambiguity Resolution Strategy
-    gps_ar_mode: str = Field(default="continuous")
-    glo_ar_mode: str = Field(default="on")
-    bds_ar_mode: str = Field(default="on")
-    min_ratio_to_fix: float = Field(default=3.0)
+    innovation: float = Field(default=30.0)
+    gdop: float = Field(default=30.0)
 
-    # Section B: Thresholds & Validation
-    min_confidence: float = Field(default=0.9999)
-    max_fcb: float = Field(default=0.25)
-    min_lock_to_fix: int = Field(default=0)
-    min_elevation_to_fix: float = Field(default=0.0)
-    min_fix_to_hold: int = Field(default=10)
-    min_elevation_to_hold: float = Field(default=0.0)
-    outage_to_reset: int = Field(default=5)
-    slip_threshold: float = Field(default=0.05)
-    max_age_diff: float = Field(default=30.0)
+
+class SlipDetectionConfig(BaseModel):
+    """[slip_detection]."""
+
+    threshold: float = Field(default=0.05)
+
+
+class MeasurementErrorConfig(BaseModel):
+    """[kalman_filter.measurement_error]."""
+
+    code_phase_ratio_l1: float = Field(default=100.0)
+    code_phase_ratio_l2: float = Field(default=100.0)
+    phase: float = Field(default=0.003)
+    phase_elevation: float = Field(default=0.003)
+    phase_baseline: float = Field(default=0.0)
+    doppler: float = Field(default=1.0)
+
+
+class ProcessNoiseConfig(BaseModel):
+    """[kalman_filter.process_noise]."""
+
+    bias: float = Field(default=0.0001)
+    ionosphere: float = Field(default=0.001)
+    troposphere: float = Field(default=0.0001)
+    accel_h: float = Field(default=1.0)
+    accel_v: float = Field(default=0.1)
+    clock_stability: float = Field(default=5e-12)
+
+
+class KalmanFilterConfig(BaseModel):
+    """[kalman_filter]."""
+
+    iterations: int = Field(default=1)
     sync_solution: bool = Field(default=False)
-    reject_threshold_gdop: float = Field(default=30.0)
-    reject_threshold_innovation: float = Field(default=30.0)
+    measurement_error: MeasurementErrorConfig = Field(default_factory=MeasurementErrorConfig)
+    process_noise: ProcessNoiseConfig = Field(default_factory=ProcessNoiseConfig)
 
-    # Section C: Advanced Filter
-    max_ar_iter: int = Field(default=1)
-    num_filter_iterations: int = Field(default=1)
-    baseline_length_constraint: BaselineLengthConstraint = Field(default_factory=BaselineLengthConstraint)
+
+class StationPosition(BaseModel):
+    """Station position configuration."""
+
+    mode: str = Field(default="llh")
+    values: list[float] = Field(default=[0.0, 0.0, 0.0])
+    antenna_type_enabled: bool = Field(default=False)
+    antenna_type: str = Field(default="")
+    antenna_delta: list[float] = Field(default=[0.0, 0.0, 0.0])
+
+
+class AntennaConfig(BaseModel):
+    """[antenna.rover] + [antenna.base]."""
+
+    rover: StationPosition = Field(default_factory=StationPosition)
+    base: StationPosition = Field(default_factory=StationPosition)
 
 
 class OutputConfig(BaseModel):
-    """Output format configuration."""
+    """[output]."""
 
-    # Group A: Format Configuration
     solution_format: str = Field(default="llh")
     output_header: bool = Field(default=True)
     output_processing_options: bool = Field(default=False)
@@ -149,13 +180,9 @@ class OutputConfig(BaseModel):
     lat_lon_format: str = Field(default="ddd.ddddddd")
     field_separator: str = Field(default="")
     output_velocity: bool = Field(default=False)
-
-    # Group B: Datum & Geoid
     datum: str = Field(default="wgs84")
     height: str = Field(default="ellipsoidal")
     geoid_model: str = Field(default="internal")
-
-    # Group C: Output Control
     static_solution_mode: str = Field(default="all")
     output_single_on_outage: bool = Field(default=False)
     nmea_interval_rmc_gga: int = Field(default=0)
@@ -164,89 +191,47 @@ class OutputConfig(BaseModel):
     debug_trace: str = Field(default="off")
 
 
-class StatsConfig(BaseModel):
-    """Error models and process noises configuration."""
-
-    # Group A: Measurement Errors (1-sigma)
-    code_phase_ratio_l1: float = Field(default=100.0)
-    code_phase_ratio_l2: float = Field(default=100.0)
-    phase_error_a: float = Field(default=0.003)
-    phase_error_b: float = Field(default=0.003)
-    phase_error_baseline: float = Field(default=0.0)
-    doppler_frequency: float = Field(default=1.0)
-
-    # Group B: Process Noises (1-sigma/sqrt(s))
-    receiver_accel_horiz: float = Field(default=1.0)
-    receiver_accel_vert: float = Field(default=0.1)
-    carrier_phase_bias: float = Field(default=0.0001)
-    ionospheric_delay: float = Field(default=0.001)
-    tropospheric_delay: float = Field(default=0.0001)
-    satellite_clock_stability: float = Field(default=5e-12)
-
-
-class StationPosition(BaseModel):
-    """Station position configuration."""
-
-    mode: str = Field(default="llh")  # llh, xyz, rtcm, rinex, average
-    values: list[float] = Field(default=[0.0, 0.0, 0.0])
-    antenna_type_enabled: bool = Field(default=False)
-    antenna_type: str = Field(default="")
-    antenna_delta: list[float] = Field(default=[0.0, 0.0, 0.0])  # E, N, U in meters
-
-
-class PositionsConfig(BaseModel):
-    """Rover and base station positions configuration."""
-
-    rover: StationPosition = Field(default_factory=StationPosition)
-    base: StationPosition = Field(default_factory=StationPosition)
-    station_position_file: str = Field(default="")
-
-
-class BasePositionConfig(BaseModel):
-    """Base station position configuration."""
-
-    latitude: float = Field(default=0.0)
-    longitude: float = Field(default=0.0)
-    height: float = Field(default=0.0)
-    use_rinex_header: bool = Field(default=True)
-
-
 class FilesConfig(BaseModel):
-    """Auxiliary files configuration."""
+    """[files]."""
 
-    antex1: str = Field(default="")
-    antex2: str = Field(default="")
+    satellite_atx: str = Field(default="")
+    receiver_atx: str = Field(default="")
+    station_pos: str = Field(default="")
     geoid: str = Field(default="")
+    ionosphere: str = Field(default="")
     dcb: str = Field(default="")
     eop: str = Field(default="")
-    blq: str = Field(default="")
-    ionosphere: str = Field(default="")
+    ocean_loading: str = Field(default="")
 
 
-class MiscConfig(BaseModel):
-    """Miscellaneous configuration."""
+class ServerConfig(BaseModel):
+    """[server]."""
 
-    time_system: str = Field(default="gpst")
-    ionosphere_correction: bool = Field(default=True)
-    troposphere_correction: bool = Field(default=True)
     time_interpolation: bool = Field(default=False)
-    dgps_corrections: str = Field(default="off")
-    sbas_sat_selection: int = Field(default=0)
-    rinex_opt_rover: str = Field(default="")
-    rinex_opt_base: str = Field(default="")
+    sbas_satellite: int = Field(default=0)
+    rinex_option_1: str = Field(default="")
+    rinex_option_2: str = Field(default="")
+
+
+class ReceiverConfig(BaseModel):
+    """[receiver]."""
+
+    iono_correction: bool = Field(default=True)
 
 
 class MrtkPostConfig(BaseModel):
-    """Complete mrtk_post configuration."""
+    """Complete MRTKLIB post-processing configuration, structured by TOML sections."""
 
-    setting1: Setting1Config = Field(default_factory=Setting1Config)
-    setting2: Setting2Config = Field(default_factory=Setting2Config)
+    positioning: PositioningConfig = Field(default_factory=PositioningConfig)
+    ambiguity_resolution: AmbiguityResolutionConfig = Field(default_factory=AmbiguityResolutionConfig)
+    rejection: RejectionConfig = Field(default_factory=RejectionConfig)
+    slip_detection: SlipDetectionConfig = Field(default_factory=SlipDetectionConfig)
+    kalman_filter: KalmanFilterConfig = Field(default_factory=KalmanFilterConfig)
+    antenna: AntennaConfig = Field(default_factory=AntennaConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
-    stats: StatsConfig = Field(default_factory=StatsConfig)
-    positions: PositionsConfig = Field(default_factory=PositionsConfig)
-    base_position: BasePositionConfig = Field(default_factory=BasePositionConfig)
     files: FilesConfig = Field(default_factory=FilesConfig)
-    misc: MiscConfig = Field(default_factory=MiscConfig)
+    server: ServerConfig = Field(default_factory=ServerConfig)
+    receiver: ReceiverConfig = Field(default_factory=ReceiverConfig)
 
 
 class MrtkPostInputFiles(BaseModel):
@@ -352,25 +337,23 @@ class MrtkPostService:
         def _arr(vals: list) -> str:
             return "[" + ", ".join(str(int(v)) if v == int(v) else str(v) for v in vals) + "]"
 
-        s1 = config.setting1
+        p = config.positioning
 
         # --- [positioning] ---
         lines.append("[positioning]")
-        lines.append(f"mode                = {_str(pos_mode_map.get(s1.positioning_mode, 'kinematic'))}")
-        lines.append(f"frequency           = {_str(freq_map.get(s1.frequency, 'l1+2'))}")
-        lines.append(f"solution_type       = {_str(filter_type_map.get(s1.filter_type, 'forward'))}")
-        lines.append(f"elevation_mask      = {s1.elevation_mask}")
-        lines.append(f"dynamics            = {_bool(s1.receiver_dynamics == 'on')}")
-        lines.append(f"satellite_ephemeris = {_str(ephem_map.get(s1.ephemeris_option, 'brdc'))}")
-        # Excluded satellites as TOML string list
-        if s1.excluded_satellites.strip():
-            sats = [s.strip() for s in s1.excluded_satellites.replace(",", " ").split() if s.strip()]
+        lines.append(f"mode                = {_str(pos_mode_map.get(p.positioning_mode, 'kinematic'))}")
+        lines.append(f"frequency           = {_str(freq_map.get(p.frequency, 'l1+2'))}")
+        lines.append(f"solution_type       = {_str(filter_type_map.get(p.filter_type, 'forward'))}")
+        lines.append(f"elevation_mask      = {p.elevation_mask}")
+        lines.append(f"dynamics            = {_bool(p.receiver_dynamics == 'on')}")
+        lines.append(f"satellite_ephemeris = {_str(ephem_map.get(p.ephemeris_option, 'brdc'))}")
+        if p.excluded_satellites.strip():
+            sats = [s.strip() for s in p.excluded_satellites.replace(",", " ").split() if s.strip()]
             sat_list = ", ".join(f'"{s}"' for s in sats)
             lines.append(f"excluded_sats       = [{sat_list}]")
         else:
             lines.append(f"excluded_sats       = []")
-        # Navigation systems as string list
-        c = s1.constellations
+        c = p.constellations
         systems = []
         if c.gps: systems.append('"GPS"')
         if c.glonass: systems.append('"GLONASS"')
@@ -384,126 +367,128 @@ class MrtkPostService:
 
         # --- [positioning.snr_mask] ---
         lines.append("[positioning.snr_mask]")
-        lines.append(f"rover_enabled = {_bool(s1.snr_mask.enable_rover)}")
-        lines.append(f"base_enabled  = {_bool(s1.snr_mask.enable_base)}")
+        lines.append(f"rover_enabled = {_bool(p.snr_mask.enable_rover)}")
+        lines.append(f"base_enabled  = {_bool(p.snr_mask.enable_base)}")
         for i, label in enumerate(["L1", "L2", "L5"]):
-            if i < len(s1.snr_mask.mask):
-                lines.append(f"{label}            = {_arr(s1.snr_mask.mask[i])}")
+            if i < len(p.snr_mask.mask):
+                lines.append(f"{label}            = {_arr(p.snr_mask.mask[i])}")
         lines.append("")
 
         # --- [positioning.corrections] ---
         lines.append("[positioning.corrections]")
-        lines.append(f"satellite_antenna  = {_bool(s1.satellite_pcv)}")
-        lines.append(f"receiver_antenna   = {_bool(s1.receiver_pcv)}")
-        lines.append(f"phase_windup       = {_str('on' if s1.phase_windup else 'off')}")
-        lines.append(f"exclude_eclipse    = {_bool(s1.reject_eclipse)}")
-        lines.append(f"raim_fde           = {_bool(s1.raim_fde)}")
-        lines.append(f"tidal_correction   = {_str(tides_map.get(s1.earth_tides_correction, 'off'))}")
+        lines.append(f"satellite_antenna  = {_bool(p.satellite_pcv)}")
+        lines.append(f"receiver_antenna   = {_bool(p.receiver_pcv)}")
+        lines.append(f"phase_windup       = {_str('on' if p.phase_windup else 'off')}")
+        lines.append(f"exclude_eclipse    = {_bool(p.reject_eclipse)}")
+        lines.append(f"raim_fde           = {_bool(p.raim_fde)}")
+        lines.append(f"tidal_correction   = {_str(tides_map.get(p.earth_tides_correction, 'off'))}")
         lines.append("")
 
         # --- [positioning.atmosphere] ---
         lines.append("[positioning.atmosphere]")
-        lines.append(f"ionosphere       = {_str(iono_map.get(s1.ionosphere_correction, 'brdc'))}")
-        lines.append(f"troposphere      = {_str(tropo_map.get(s1.troposphere_correction, 'saas'))}")
+        lines.append(f"ionosphere       = {_str(iono_map.get(p.ionosphere_correction, 'brdc'))}")
+        lines.append(f"troposphere      = {_str(tropo_map.get(p.troposphere_correction, 'saas'))}")
         lines.append("")
 
         # --- [ambiguity_resolution] ---
-        s2 = config.setting2
+        ar = config.ambiguity_resolution
         lines.append("[ambiguity_resolution]")
-        lines.append(f"mode    = {_str(ar_mode_map.get(s2.gps_ar_mode, 'continuous'))}")
+        lines.append(f"mode    = {_str(ar_mode_map.get(ar.mode, 'continuous'))}")
         lines.append("")
 
         # --- [ambiguity_resolution.thresholds] ---
         lines.append("[ambiguity_resolution.thresholds]")
-        lines.append(f"ratio          = {s2.min_ratio_to_fix}")
-        lines.append(f"elevation_mask = {s2.min_elevation_to_fix}")
-        lines.append(f"hold_elevation = {s2.min_elevation_to_hold}")
+        lines.append(f"ratio          = {ar.ratio}")
+        lines.append(f"elevation_mask = {ar.elevation_mask}")
+        lines.append(f"hold_elevation = {ar.hold_elevation}")
         lines.append("")
 
         # --- [ambiguity_resolution.counters] ---
         lines.append("[ambiguity_resolution.counters]")
-        lines.append(f"lock_count     = {s2.min_lock_to_fix}")
-        lines.append(f"min_fix        = {s2.min_fix_to_hold}")
-        lines.append(f"max_iterations = {s2.max_ar_iter}")
-        lines.append(f"out_count      = {s2.outage_to_reset}")
+        lines.append(f"lock_count     = {ar.lock_count}")
+        lines.append(f"min_fix        = {ar.min_fix}")
+        lines.append(f"max_iterations = {ar.max_iterations}")
+        lines.append(f"out_count      = {ar.out_count}")
         lines.append("")
 
         # --- [rejection] ---
+        rej = config.rejection
         lines.append("[rejection]")
-        lines.append(f"innovation = {s2.reject_threshold_innovation}")
-        lines.append(f"gdop       = {s2.reject_threshold_gdop}")
+        lines.append(f"innovation = {rej.innovation}")
+        lines.append(f"gdop       = {rej.gdop}")
         lines.append("")
 
         # --- [slip_detection] ---
         lines.append("[slip_detection]")
-        lines.append(f"threshold = {s2.slip_threshold}")
+        lines.append(f"threshold = {config.slip_detection.threshold}")
         lines.append("")
 
         # --- [kalman_filter] ---
+        kf = config.kalman_filter
         lines.append("[kalman_filter]")
-        lines.append(f"iterations    = {s2.num_filter_iterations}")
-        lines.append(f"sync_solution = {_bool(s2.sync_solution)}")
+        lines.append(f"iterations    = {kf.iterations}")
+        lines.append(f"sync_solution = {_bool(kf.sync_solution)}")
         lines.append("")
 
         # --- [kalman_filter.measurement_error] ---
-        st = config.stats
+        me = kf.measurement_error
         lines.append("[kalman_filter.measurement_error]")
-        lines.append(f"code_phase_ratio_L1 = {st.code_phase_ratio_l1}")
-        lines.append(f"code_phase_ratio_L2 = {st.code_phase_ratio_l2}")
-        lines.append(f"phase               = {st.phase_error_a}")
-        lines.append(f"phase_elevation     = {st.phase_error_b}")
-        lines.append(f"phase_baseline      = {st.phase_error_baseline}")
-        lines.append(f"doppler             = {st.doppler_frequency}")
+        lines.append(f"code_phase_ratio_L1 = {me.code_phase_ratio_l1}")
+        lines.append(f"code_phase_ratio_L2 = {me.code_phase_ratio_l2}")
+        lines.append(f"phase               = {me.phase}")
+        lines.append(f"phase_elevation     = {me.phase_elevation}")
+        lines.append(f"phase_baseline      = {me.phase_baseline}")
+        lines.append(f"doppler             = {me.doppler}")
         lines.append("")
 
         # --- [kalman_filter.process_noise] ---
+        pn = kf.process_noise
         lines.append("[kalman_filter.process_noise]")
-        lines.append(f"bias        = {st.carrier_phase_bias:.2e}")
-        lines.append(f"ionosphere  = {st.ionospheric_delay}")
-        lines.append(f"troposphere = {st.tropospheric_delay:.2e}")
-        lines.append(f"accel_h     = {st.receiver_accel_horiz}")
-        lines.append(f"accel_v     = {st.receiver_accel_vert}")
-        lines.append(f"clock_stability = {st.satellite_clock_stability:.2e}")
+        lines.append(f"bias        = {pn.bias:.2e}")
+        lines.append(f"ionosphere  = {pn.ionosphere}")
+        lines.append(f"troposphere = {pn.troposphere:.2e}")
+        lines.append(f"accel_h     = {pn.accel_h}")
+        lines.append(f"accel_v     = {pn.accel_v}")
+        lines.append(f"clock_stability = {pn.clock_stability:.2e}")
         lines.append("")
 
         # --- [receiver] ---
         lines.append("[receiver]")
-        m = config.misc
-        lines.append(f"iono_correction = {_bool(m.ionosphere_correction)}")
+        lines.append(f"iono_correction = {_bool(config.receiver.iono_correction)}")
         lines.append("")
 
         # --- [antenna.rover] ---
-        pos = config.positions
+        ant = config.antenna
         lines.append("[antenna.rover]")
-        lines.append(f"position_type = {_str(postype_map.get(pos.rover.mode, 'llh'))}")
-        lines.append(f"position_1    = {pos.rover.values[0]}")
-        lines.append(f"position_2    = {pos.rover.values[1]}")
-        lines.append(f"position_3    = {pos.rover.values[2]}")
-        ant_type = pos.rover.antenna_type if pos.rover.antenna_type_enabled and pos.rover.antenna_type else "*"
+        lines.append(f"position_type = {_str(postype_map.get(ant.rover.mode, 'llh'))}")
+        lines.append(f"position_1    = {ant.rover.values[0]}")
+        lines.append(f"position_2    = {ant.rover.values[1]}")
+        lines.append(f"position_3    = {ant.rover.values[2]}")
+        ant_type = ant.rover.antenna_type if ant.rover.antenna_type_enabled and ant.rover.antenna_type else "*"
         lines.append(f"type          = {_str(ant_type)}")
-        lines.append(f"delta_e       = {pos.rover.antenna_delta[0]}")
-        lines.append(f"delta_n       = {pos.rover.antenna_delta[1]}")
-        lines.append(f"delta_u       = {pos.rover.antenna_delta[2]}")
+        lines.append(f"delta_e       = {ant.rover.antenna_delta[0]}")
+        lines.append(f"delta_n       = {ant.rover.antenna_delta[1]}")
+        lines.append(f"delta_u       = {ant.rover.antenna_delta[2]}")
         lines.append("")
 
         # --- [antenna.base] ---
         lines.append("[antenna.base]")
         no_base_modes = {"single", "ppp-kinematic", "ppp-static"}
-        if s1.positioning_mode in no_base_modes:
+        if p.positioning_mode in no_base_modes:
             lines.append(f"position_type      = {_str('llh')}")
             lines.append(f"position_1         = 90.0")
             lines.append(f"position_2         = 0.0")
             lines.append(f"position_3         = -6335367.6285")
         else:
-            lines.append(f"position_type      = {_str(postype_map.get(pos.base.mode, 'llh'))}")
-            lines.append(f"position_1         = {pos.base.values[0]}")
-            lines.append(f"position_2         = {pos.base.values[1]}")
-            lines.append(f"position_3         = {pos.base.values[2]}")
-        base_ant = pos.base.antenna_type if pos.base.antenna_type_enabled and pos.base.antenna_type else ""
+            lines.append(f"position_type      = {_str(postype_map.get(ant.base.mode, 'llh'))}")
+            lines.append(f"position_1         = {ant.base.values[0]}")
+            lines.append(f"position_2         = {ant.base.values[1]}")
+            lines.append(f"position_3         = {ant.base.values[2]}")
+        base_ant = ant.base.antenna_type if ant.base.antenna_type_enabled and ant.base.antenna_type else ""
         lines.append(f"type               = {_str(base_ant)}")
-        lines.append(f"delta_e            = {pos.base.antenna_delta[0]}")
-        lines.append(f"delta_n            = {pos.base.antenna_delta[1]}")
-        lines.append(f"delta_u            = {pos.base.antenna_delta[2]}")
+        lines.append(f"delta_e            = {ant.base.antenna_delta[0]}")
+        lines.append(f"delta_n            = {ant.base.antenna_delta[1]}")
+        lines.append(f"delta_u            = {ant.base.antenna_delta[2]}")
         lines.append(f"max_average_epochs = 0")
         lines.append(f"init_reset         = false")
         lines.append("")
@@ -533,14 +518,14 @@ class MrtkPostService:
         # --- [files] ---
         f = config.files
         lines.append("[files]")
-        lines.append(f"satellite_atx = {_str(f.antex1)}")
-        lines.append(f"receiver_atx  = {_str(f.antex2)}")
-        lines.append(f"station_pos   = {_str(pos.station_position_file)}")
+        lines.append(f"satellite_atx = {_str(f.satellite_atx)}")
+        lines.append(f"receiver_atx  = {_str(f.receiver_atx)}")
+        lines.append(f"station_pos   = {_str(f.station_pos)}")
         lines.append(f"geoid         = {_str(f.geoid)}")
         lines.append(f"ionosphere    = {_str(f.ionosphere)}")
         lines.append(f"dcb           = {_str(f.dcb)}")
         lines.append(f"eop           = {_str(f.eop)}")
-        lines.append(f"ocean_loading = {_str(f.blq)}")
+        lines.append(f"ocean_loading = {_str(f.ocean_loading)}")
         lines.append(f"temp_dir      = \"\"")
         lines.append(f"geexe         = \"\"")
         lines.append(f"solution_stat = \"\"")
@@ -548,11 +533,12 @@ class MrtkPostService:
         lines.append("")
 
         # --- [server] ---
+        srv = config.server
         lines.append("[server]")
-        lines.append(f"time_interpolation = {_bool(m.time_interpolation)}")
-        lines.append(f"sbas_satellite     = {_str(str(m.sbas_sat_selection))}")
-        lines.append(f"rinex_option_1     = {_str(m.rinex_opt_rover)}")
-        lines.append(f"rinex_option_2     = {_str(m.rinex_opt_base)}")
+        lines.append(f"time_interpolation = {_bool(srv.time_interpolation)}")
+        lines.append(f"sbas_satellite     = {_str(str(srv.sbas_satellite))}")
+        lines.append(f"rinex_option_1     = {_str(srv.rinex_option_1)}")
+        lines.append(f"rinex_option_2     = {_str(srv.rinex_option_2)}")
         lines.append(f"ppp_option         = \"\"")
         lines.append(f"rtcm_option        = \"\"")
         lines.append("")
