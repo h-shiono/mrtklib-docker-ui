@@ -44,7 +44,7 @@ import type {
   IonosphereCorrection,
   TroposphereCorrection,
   EphemerisOption,
-  EarthTidesCorrection,
+  TidalCorrection,
   ReceiverDynamics,
   ARMode,
   SolutionFormat,
@@ -335,7 +335,7 @@ export function PostProcessingConfiguration({
   roverFileValid,
 }: PostProcessingConfigurationProps) {
   const [config, setConfig] = useLocalStorage<MrtkPostConfig>({
-    key: 'mrtklib-web-ui-mrtk-post-config-v16',
+    key: 'mrtklib-web-ui-mrtk-post-config-v17',
     defaultValue: DEFAULT_MRTK_POST_CONFIG,
   });
 
@@ -823,13 +823,13 @@ export function PostProcessingConfiguration({
                   <Select
                     size="xs"
                     label="Ionosphere Correction"
-                    value={config.positioning.ionosphereCorrection}
+                    value={config.positioning.atmosphere.ionosphere}
                     onChange={(value) =>
                       handleConfigChange({
                         ...config,
                         positioning: {
                           ...config.positioning,
-                          ionosphereCorrection: value as IonosphereCorrection,
+                          atmosphere: { ...config.positioning.atmosphere, ionosphere: value as IonosphereCorrection },
                         },
                       })
                     }
@@ -847,13 +847,13 @@ export function PostProcessingConfiguration({
                   <Select
                     size="xs"
                     label="Troposphere Correction"
-                    value={config.positioning.troposphereCorrection}
+                    value={config.positioning.atmosphere.troposphere}
                     onChange={(value) =>
                       handleConfigChange({
                         ...config,
                         positioning: {
                           ...config.positioning,
-                          troposphereCorrection: value as TroposphereCorrection,
+                          atmosphere: { ...config.positioning.atmosphere, troposphere: value as TroposphereCorrection },
                         },
                       })
                     }
@@ -1074,13 +1074,13 @@ export function PostProcessingConfiguration({
                         <Select
                           size="xs"
                           label="Earth Tides Correction"
-                          value={config.positioning.earthTidesCorrection}
+                          value={config.positioning.corrections.tidalCorrection}
                           onChange={(value: any) =>
                             handleConfigChange({
                               ...config,
                               positioning: {
                                 ...config.positioning,
-                                earthTidesCorrection: value as EarthTidesCorrection,
+                                corrections: { ...config.positioning.corrections, tidalCorrection: value as TidalCorrection },
                               },
                             })
                           }
@@ -1122,13 +1122,13 @@ export function PostProcessingConfiguration({
                         <Switch
                           size="xs"
                           label="Sat PCV"
-                          checked={config.positioning.satellitePcv}
+                          checked={config.positioning.corrections.satelliteAntenna}
                           onChange={(e: any) =>
                             handleConfigChange({
                               ...config,
                               positioning: {
                                 ...config.positioning,
-                                satellitePcv: e.currentTarget.checked,
+                                corrections: { ...config.positioning.corrections, satelliteAntenna: e.currentTarget.checked },
                               },
                             })
                           }
@@ -1138,13 +1138,13 @@ export function PostProcessingConfiguration({
                         <Switch
                           size="xs"
                           label="Rec PCV"
-                          checked={config.positioning.receiverPcv}
+                          checked={config.positioning.corrections.receiverAntenna}
                           onChange={(e: any) =>
                             handleConfigChange({
                               ...config,
                               positioning: {
                                 ...config.positioning,
-                                receiverPcv: e.currentTarget.checked,
+                                corrections: { ...config.positioning.corrections, receiverAntenna: e.currentTarget.checked },
                               },
                             })
                           }
@@ -1154,13 +1154,13 @@ export function PostProcessingConfiguration({
                         <Switch
                           size="xs"
                           label="Phase Windup"
-                          checked={config.positioning.phaseWindup}
+                          checked={config.positioning.corrections.phaseWindup !== 'off'}
                           onChange={(e: any) =>
                             handleConfigChange({
                               ...config,
                               positioning: {
                                 ...config.positioning,
-                                phaseWindup: e.currentTarget.checked,
+                                corrections: { ...config.positioning.corrections, phaseWindup: e.currentTarget.checked ? "on" as const : "off" as const },
                               },
                             })
                           }
@@ -1170,13 +1170,13 @@ export function PostProcessingConfiguration({
                         <Switch
                           size="xs"
                           label="Reject Eclipse"
-                          checked={config.positioning.rejectEclipse}
+                          checked={config.positioning.corrections.excludeEclipse}
                           onChange={(e: any) =>
                             handleConfigChange({
                               ...config,
                               positioning: {
                                 ...config.positioning,
-                                rejectEclipse: e.currentTarget.checked,
+                                corrections: { ...config.positioning.corrections, excludeEclipse: e.currentTarget.checked },
                               },
                             })
                           }
@@ -1186,13 +1186,13 @@ export function PostProcessingConfiguration({
                         <Switch
                           size="xs"
                           label="RAIM FDE"
-                          checked={config.positioning.raimFde}
+                          checked={config.positioning.corrections.raimFde}
                           onChange={(e: any) =>
                             handleConfigChange({
                               ...config,
                               positioning: {
                                 ...config.positioning,
-                                raimFde: e.currentTarget.checked,
+                                corrections: { ...config.positioning.corrections, raimFde: e.currentTarget.checked },
                               },
                             })
                           }
@@ -1294,11 +1294,11 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Ratio"
-                    value={config.ambiguityResolution.ratio}
+                    value={config.ambiguityResolution.thresholds.ratio}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        ambiguityResolution: { ...config.ambiguityResolution, ratio: Number(value) },
+                        ambiguityResolution: { ...config.ambiguityResolution, thresholds: { ...config.ambiguityResolution.thresholds, ratio: Number(value) } },
                       })
                     }
                     min={1}
@@ -1311,11 +1311,11 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Elevation Mask (deg)"
-                    value={config.ambiguityResolution.elevationMask}
+                    value={config.ambiguityResolution.thresholds.elevationMask}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        ambiguityResolution: { ...config.ambiguityResolution, elevationMask: Number(value) },
+                        ambiguityResolution: { ...config.ambiguityResolution, thresholds: { ...config.ambiguityResolution.thresholds, elevationMask: Number(value) } },
                       })
                     }
                     min={0}
@@ -1327,11 +1327,11 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Hold Elevation (deg)"
-                    value={config.ambiguityResolution.holdElevation}
+                    value={config.ambiguityResolution.thresholds.holdElevation}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        ambiguityResolution: { ...config.ambiguityResolution, holdElevation: Number(value) },
+                        ambiguityResolution: { ...config.ambiguityResolution, thresholds: { ...config.ambiguityResolution.thresholds, holdElevation: Number(value) } },
                       })
                     }
                     min={0}
@@ -1349,11 +1349,11 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Lock Count"
-                    value={config.ambiguityResolution.lockCount}
+                    value={config.ambiguityResolution.counters.lockCount}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        ambiguityResolution: { ...config.ambiguityResolution, lockCount: Number(value) },
+                        ambiguityResolution: { ...config.ambiguityResolution, counters: { ...config.ambiguityResolution.counters, lockCount: Number(value) } },
                       })
                     }
                     min={0}
@@ -1364,11 +1364,11 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Min Fix"
-                    value={config.ambiguityResolution.minFix}
+                    value={config.ambiguityResolution.counters.minFix}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        ambiguityResolution: { ...config.ambiguityResolution, minFix: Number(value) },
+                        ambiguityResolution: { ...config.ambiguityResolution, counters: { ...config.ambiguityResolution.counters, minFix: Number(value) } },
                       })
                     }
                     min={0}
@@ -1379,11 +1379,11 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Max Iterations"
-                    value={config.ambiguityResolution.maxIterations}
+                    value={config.ambiguityResolution.counters.maxIterations}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        ambiguityResolution: { ...config.ambiguityResolution, maxIterations: Number(value) },
+                        ambiguityResolution: { ...config.ambiguityResolution, counters: { ...config.ambiguityResolution.counters, maxIterations: Number(value) } },
                       })
                     }
                     min={1}
@@ -1395,11 +1395,11 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="Out Count"
-                    value={config.ambiguityResolution.outCount}
+                    value={config.ambiguityResolution.counters.outCount}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        ambiguityResolution: { ...config.ambiguityResolution, outCount: Number(value) },
+                        ambiguityResolution: { ...config.ambiguityResolution, counters: { ...config.ambiguityResolution.counters, outCount: Number(value) } },
                       })
                     }
                     min={0}
@@ -1773,13 +1773,13 @@ export function PostProcessingConfiguration({
                       onChange={(value: any) =>
                         handleConfigChange({
                           ...config,
-                          output: { ...config.output, outputSolutionStatus: value as DebugTraceLevel },
+                          output: { ...config.output, outputSolutionStatus: value as any },
                         })
                       }
                       data={[
                         { value: 'off', label: 'OFF' },
-                        { value: 'level1', label: 'State' },
-                        { value: 'level2', label: 'Residual' },
+                        { value: 'state', label: 'State' },
+                        { value: 'residual', label: 'Residual' },
                       ]}
                       styles={{ label: { fontSize: '10px' } }}
                     />
@@ -2153,7 +2153,7 @@ export function PostProcessingConfiguration({
                 onChange={(newBase) =>
                   handleConfigChange({
                     ...config,
-                    antenna: { ...config.antenna, base: newBase },
+                    antenna: { ...config.antenna, base: { ...config.antenna.base, ...newBase } },
                   })
                 }
                 disabled={isSingle}
@@ -2429,13 +2429,13 @@ export function PostProcessingConfiguration({
                   <NumberInput
                     size="xs"
                     label="SBAS Satellite Selection (0: All)"
-                    value={config.server.sbasSatellite}
+                    value={Number(config.server.sbasSatellite)}
                     onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
                         server: {
                           ...config.server,
-                          sbasSatellite: Number(value),
+                          sbasSatellite: String(value),
                         },
                       })
                     }
