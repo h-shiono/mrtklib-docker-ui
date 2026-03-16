@@ -1340,7 +1340,7 @@ export function PostProcessingConfiguration({
               </Accordion>
 
               {/* CLAS PPP-RTK (only when ppp-rtk mode) */}
-              <Accordion variant="contained" chevronPosition="left">
+              <Accordion variant="contained">
                 <Accordion.Item value="clas">
                   <Accordion.Control disabled={!isPppRtk} style={{ fontSize: '10px' }}>
                     CLAS PPP-RTK Settings
