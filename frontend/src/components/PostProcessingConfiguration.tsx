@@ -1018,22 +1018,6 @@ export function PostProcessingConfiguration({
                     styles={{ label: { fontSize: '10px' } }}
                   />
 
-                  <Checkbox
-                    size="xs"
-                    label="Receiver Iono Correction"
-                    checked={config.receiver.ionoCorrection}
-                    onChange={(e: any) =>
-                      handleConfigChange({
-                        ...config,
-                        receiver: {
-                          ...config.receiver,
-                          ionoCorrection: e.currentTarget.checked,
-                        },
-                      })
-                    }
-                    styles={{ label: { fontSize: '10px' } }}
-                  />
-
                   <Select
                     size="xs"
                     label="Satellite Ephemeris/Clock"
