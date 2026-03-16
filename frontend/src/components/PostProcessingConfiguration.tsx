@@ -1581,9 +1581,9 @@ export function PostProcessingConfiguration({
                 </SimpleGrid>
               </Fieldset>
 
-              {/* Rejection & Slip Detection */}
-              <Fieldset legend="Rejection / Slip Detection" style={{ fontSize: '10px' }}>
-                <SimpleGrid cols={3} spacing="xs">
+              {/* Rejection */}
+              <Fieldset legend="Rejection" style={{ fontSize: '10px' }}>
+                <SimpleGrid cols={2} spacing="xs">
                   <NumberInput
                     size="xs"
                     label="Innovation (m)"
@@ -1614,23 +1614,27 @@ export function PostProcessingConfiguration({
                     hideControls
                     styles={{ label: { fontSize: '10px' } }}
                   />
-                  <NumberInput
-                    size="xs"
-                    label="Slip Threshold (m)"
-                    value={config.slipDetection.threshold}
-                    onChange={(value: any) =>
-                      handleConfigChange({
-                        ...config,
-                        slipDetection: { ...config.slipDetection, threshold: Number(value) },
-                      })
-                    }
-                    min={0}
-                    step={0.001}
-                    decimalScale={3}
-                    hideControls
-                    styles={{ label: { fontSize: '10px' } }}
-                  />
                 </SimpleGrid>
+              </Fieldset>
+
+              {/* Slip Detection */}
+              <Fieldset legend="Slip Detection" style={{ fontSize: '10px' }}>
+                <NumberInput
+                  size="xs"
+                  label="Threshold (m)"
+                  value={config.slipDetection.threshold}
+                  onChange={(value: any) =>
+                    handleConfigChange({
+                      ...config,
+                      slipDetection: { ...config.slipDetection, threshold: Number(value) },
+                    })
+                  }
+                  min={0}
+                  step={0.001}
+                  decimalScale={3}
+                  hideControls
+                  styles={{ label: { fontSize: '10px' } }}
+                />
               </Fieldset>
             </Stack>
           </Tabs.Panel>
