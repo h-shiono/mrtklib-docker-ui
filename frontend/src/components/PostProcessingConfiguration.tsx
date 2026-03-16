@@ -1382,7 +1382,7 @@ export function PostProcessingConfiguration({
             <Stack gap="xs">
               {/* Ambiguity Resolution */}
               <Fieldset legend="Ambiguity Resolution" style={{ fontSize: '10px' }}>
-                <SimpleGrid cols={2} spacing="xs">
+                <SimpleGrid cols={4} spacing="xs">
                   <Select
                     size="xs"
                     label="AR Mode"
@@ -1515,7 +1515,7 @@ export function PostProcessingConfiguration({
 
               {/* AR Counters */}
               <Fieldset legend="AR Counters" style={{ fontSize: '10px' }}>
-                <SimpleGrid cols={2} spacing="xs">
+                <SimpleGrid cols={4} spacing="xs">
                   <NumberInput
                     size="xs"
                     label="Lock Count"
