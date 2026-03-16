@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocalStorage } from '@mantine/hooks';
 import {
   Card,
@@ -27,7 +27,8 @@ import {
   IconDots,
   IconFolderOpen,
   IconMapPin,
-
+  IconAntenna,
+  IconCode,
   IconPlayerPlay,
   IconPlayerStop,
   IconDownload,
@@ -335,7 +336,7 @@ export function PostProcessingConfiguration({
   roverFileValid,
 }: PostProcessingConfigurationProps) {
   const [config, setConfig] = useLocalStorage<MrtkPostConfig>({
-    key: 'mrtklib-web-ui-mrtk-post-config-v17',
+    key: 'mrtklib-web-ui-mrtk-post-config-v18',
     defaultValue: DEFAULT_MRTK_POST_CONFIG,
   });
 
@@ -382,6 +383,149 @@ export function PostProcessingConfiguration({
     setConfig(newConfig);
   };
 
+  // Generate TOML preview from current config (read-only)
+  const tomlPreview = useMemo(() => {
+    const _s = (v: string) => `"${v}"`;
+    const _b = (v: boolean) => v ? 'true' : 'false';
+    const _f = (v: number) => v !== 0 && Math.abs(v) < 0.001 ? v.toExponential(2) : String(v);
+    const p = config.positioning;
+    const cor = p.corrections;
+    const atm = p.atmosphere;
+    const ar = config.ambiguityResolution;
+    const kf = config.kalmanFilter;
+    const rx = config.receiver;
+    const ant = config.antenna;
+    const out = config.output;
+    const fl = config.files;
+    const srv = config.server;
+    const sig = config.signalSelection;
+
+    const L: string[] = ['# MRTKLIB Configuration (TOML v1.0.0)', ''];
+
+    L.push('[positioning]');
+    L.push(`mode                = ${_s(p.positioningMode)}`);
+    if (p.signals && p.signalMode === 'signals') {
+      const sigs = p.signals.split(/[,\s]+/).filter(Boolean);
+      L.push(`signals             = [${sigs.map(s => _s(s)).join(', ')}]`);
+    } else {
+      L.push(`frequency           = ${_s(p.frequency)}`);
+    }
+    L.push(`solution_type       = ${_s(p.filterType)}`);
+    L.push(`elevation_mask      = ${p.elevationMask}`);
+    L.push(`dynamics            = ${_b(p.receiverDynamics === 'on')}`);
+    L.push(`satellite_ephemeris = ${_s(p.ephemerisOption)}`);
+    const systems: string[] = [];
+    if (p.constellations.gps) systems.push('"GPS"');
+    if (p.constellations.glonass) systems.push('"GLONASS"');
+    if (p.constellations.galileo) systems.push('"Galileo"');
+    if (p.constellations.qzss) systems.push('"QZSS"');
+    if (p.constellations.sbas) systems.push('"SBAS"');
+    if (p.constellations.beidou) systems.push('"BeiDou"');
+    if (p.constellations.irnss) systems.push('"NavIC"');
+    L.push(`systems             = [${systems.join(', ')}]`);
+    L.push('');
+    L.push('[positioning.corrections]');
+    L.push(`satellite_antenna  = ${_b(cor.satelliteAntenna)}`);
+    L.push(`receiver_antenna   = ${_b(cor.receiverAntenna)}`);
+    L.push(`phase_windup       = ${_s(cor.phaseWindup)}`);
+    L.push(`tidal_correction   = ${_s(cor.tidalCorrection)}`);
+    L.push('');
+    L.push('[positioning.atmosphere]');
+    L.push(`ionosphere  = ${_s(atm.ionosphere)}`);
+    L.push(`troposphere = ${_s(atm.troposphere)}`);
+    L.push('');
+    if (isPppRtk) {
+      L.push('[positioning.clas]');
+      L.push(`grid_selection_radius  = ${p.clas.gridSelectionRadius}`);
+      L.push(`receiver_type          = ${_s(p.clas.receiverType)}`);
+      L.push(`position_uncertainty_x = ${p.clas.positionUncertaintyX}`);
+      L.push(`position_uncertainty_y = ${p.clas.positionUncertaintyY}`);
+      L.push(`position_uncertainty_z = ${p.clas.positionUncertaintyZ}`);
+      L.push('');
+    }
+    L.push('[ambiguity_resolution]');
+    L.push(`mode       = ${_s(ar.mode)}`);
+    L.push(`glonass_ar = ${_s(ar.glonassAr)}`);
+    L.push(`bds_ar     = ${_s(ar.bdsAr)}`);
+    L.push(`qzs_ar     = ${_s(ar.qzsAr)}`);
+    L.push('');
+    L.push('[ambiguity_resolution.thresholds]');
+    L.push(`ratio          = ${ar.thresholds.ratio}`);
+    L.push(`elevation_mask = ${ar.thresholds.elevationMask}`);
+    L.push(`hold_elevation = ${ar.thresholds.holdElevation}`);
+    L.push('');
+    L.push('[ambiguity_resolution.counters]');
+    L.push(`lock_count     = ${ar.counters.lockCount}`);
+    L.push(`min_fix        = ${ar.counters.minFix}`);
+    L.push(`max_iterations = ${ar.counters.maxIterations}`);
+    L.push(`out_count      = ${ar.counters.outCount}`);
+    L.push('');
+    L.push('[rejection]');
+    L.push(`innovation = ${config.rejection.innovation}`);
+    L.push(`gdop       = ${config.rejection.gdop}`);
+    L.push('');
+    L.push('[slip_detection]');
+    L.push(`threshold = ${config.slipDetection.threshold}`);
+    L.push('');
+    L.push('[kalman_filter]');
+    L.push(`iterations    = ${kf.iterations}`);
+    L.push(`sync_solution = ${_b(kf.syncSolution)}`);
+    L.push('');
+    L.push('[kalman_filter.measurement_error]');
+    L.push(`code_phase_ratio_L1 = ${kf.measurementError.codePhaseRatioL1}`);
+    L.push(`code_phase_ratio_L2 = ${kf.measurementError.codePhaseRatioL2}`);
+    L.push(`phase               = ${kf.measurementError.phase}`);
+    L.push(`doppler             = ${kf.measurementError.doppler}`);
+    L.push('');
+    L.push('[kalman_filter.process_noise]');
+    L.push(`bias            = ${_f(kf.processNoise.bias)}`);
+    L.push(`ionosphere      = ${kf.processNoise.ionosphere}`);
+    L.push(`troposphere     = ${_f(kf.processNoise.troposphere)}`);
+    L.push(`accel_h         = ${kf.processNoise.accelH}`);
+    L.push(`accel_v         = ${kf.processNoise.accelV}`);
+    L.push(`clock_stability = ${_f(kf.processNoise.clockStability)}`);
+    L.push('');
+    L.push('[signals]');
+    L.push(`gps     = ${_s(sig.gps)}`);
+    L.push(`qzs     = ${_s(sig.qzs)}`);
+    L.push(`galileo = ${_s(sig.galileo)}`);
+    L.push(`bds2    = ${_s(sig.bds2)}`);
+    L.push(`bds3    = ${_s(sig.bds3)}`);
+    L.push('');
+    L.push('[receiver]');
+    L.push(`iono_correction = ${_b(rx.ionoCorrection)}`);
+    if (rx.maxAge !== 30) L.push(`max_age         = ${rx.maxAge}`);
+    L.push('');
+    L.push('[antenna.rover]');
+    L.push(`position_type = ${_s(ant.rover.mode)}`);
+    L.push(`position_1    = ${ant.rover.values[0]}`);
+    L.push(`position_2    = ${ant.rover.values[1]}`);
+    L.push(`position_3    = ${ant.rover.values[2]}`);
+    L.push('');
+    L.push('[antenna.base]');
+    L.push(`position_type = ${_s(ant.base.mode)}`);
+    L.push(`position_1    = ${ant.base.values[0]}`);
+    L.push(`position_2    = ${ant.base.values[1]}`);
+    L.push(`position_3    = ${ant.base.values[2]}`);
+    L.push('');
+    L.push('[output]');
+    L.push(`format        = ${_s(out.solutionFormat)}`);
+    L.push(`header        = ${_b(out.outputHeader)}`);
+    L.push(`velocity      = ${_b(out.outputVelocity)}`);
+    L.push('');
+    L.push('[files]');
+    if (fl.satelliteAtx) L.push(`satellite_atx = ${_s(fl.satelliteAtx)}`);
+    if (fl.receiverAtx) L.push(`receiver_atx  = ${_s(fl.receiverAtx)}`);
+    if (fl.cssrGrid) L.push(`cssr_grid     = ${_s(fl.cssrGrid)}`);
+    L.push('');
+    L.push('[server]');
+    L.push(`time_interpolation = ${_b(srv.timeInterpolation)}`);
+    L.push(`sbas_satellite     = ${_s(srv.sbasSatellite)}`);
+    L.push('');
+
+    return L.join('\n');
+  }, [config, isPppRtk]);
+
   return (
     <>
     <Card withBorder p="xs">
@@ -408,6 +552,11 @@ export function PostProcessingConfiguration({
                 KF
               </Tabs.Tab>
             </Tooltip>
+            <Tooltip label="Receiver & Signal Selection" openDelay={500}>
+              <Tabs.Tab value="receiver" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconAntenna size={14} />}>
+                Receiver
+              </Tabs.Tab>
+            </Tooltip>
             <Tabs.Tab value="antenna" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconMapPin size={14} />}>
               Antenna
             </Tabs.Tab>
@@ -417,12 +566,14 @@ export function PostProcessingConfiguration({
             <Tabs.Tab value="files" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconFolderOpen size={14} />}>
               Files
             </Tabs.Tab>
-            <Tabs.Tab value="clas" style={{ fontSize: '11px', padding: '6px 12px' }} disabled={!isPppRtk}>
-              CLAS
-            </Tabs.Tab>
             <Tabs.Tab value="server" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconDots size={14} />}>
               Server
             </Tabs.Tab>
+            <Tooltip label="TOML Configuration Preview" openDelay={500}>
+              <Tabs.Tab value="toml" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconCode size={14} />}>
+                TOML
+              </Tabs.Tab>
+            </Tooltip>
           </Tabs.List>
 
           {/* Tab: Execution */}
@@ -1200,6 +1351,41 @@ export function PostProcessingConfiguration({
                         />
                       </Group>
                     </Stack>
+                  </Accordion.Panel>
+                </Accordion.Item>
+              </Accordion>
+
+              {/* CLAS PPP-RTK (only when ppp-rtk mode) */}
+              <Accordion variant="contained" chevronPosition="left">
+                <Accordion.Item value="clas">
+                  <Accordion.Control disabled={!isPppRtk} style={{ fontSize: '10px' }}>
+                    CLAS PPP-RTK Settings
+                  </Accordion.Control>
+                  <Accordion.Panel>
+                    <SimpleGrid cols={3} spacing="xs">
+                      <NumberInput size="xs" label="Grid Selection Radius (m)"
+                        value={config.positioning.clas.gridSelectionRadius}
+                        onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, gridSelectionRadius: Number(v) || 0 } } })}
+                        min={0} styles={{ label: { fontSize: '10px' } }} />
+                      <TextInput size="xs" label="Receiver Type"
+                        value={config.positioning.clas.receiverType}
+                        onChange={(e) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, receiverType: e.currentTarget.value } } })}
+                        placeholder="e.g. Trimble NetR9" styles={{ label: { fontSize: '10px' } }} />
+                    </SimpleGrid>
+                    <SimpleGrid cols={3} spacing="xs" mt="xs">
+                      <NumberInput size="xs" label="Pos Uncertainty X (m)"
+                        value={config.positioning.clas.positionUncertaintyX}
+                        onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, positionUncertaintyX: Number(v) || 0 } } })}
+                        min={0} decimalScale={1} styles={{ label: { fontSize: '10px' } }} />
+                      <NumberInput size="xs" label="Pos Uncertainty Y (m)"
+                        value={config.positioning.clas.positionUncertaintyY}
+                        onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, positionUncertaintyY: Number(v) || 0 } } })}
+                        min={0} decimalScale={1} styles={{ label: { fontSize: '10px' } }} />
+                      <NumberInput size="xs" label="Pos Uncertainty Z (m)"
+                        value={config.positioning.clas.positionUncertaintyZ}
+                        onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, positionUncertaintyZ: Number(v) || 0 } } })}
+                        min={0} decimalScale={1} styles={{ label: { fontSize: '10px' } }} />
+                    </SimpleGrid>
                   </Accordion.Panel>
                 </Accordion.Item>
               </Accordion>
@@ -2291,72 +2477,59 @@ export function PostProcessingConfiguration({
           </Tabs.Panel>
 
           {/* Tab: CLAS */}
-          <Tabs.Panel value="clas" pt="xs">
+          {/* Tab: Receiver */}
+          <Tabs.Panel value="receiver" pt="xs">
             <Stack gap="xs">
-              <Fieldset legend="CLAS PPP-RTK" style={{ fontSize: '10px' }}>
-                <SimpleGrid cols={3} spacing="xs">
-                  <NumberInput
+              <Fieldset legend="Receiver" style={{ fontSize: '10px' }}>
+                <SimpleGrid cols={2} spacing="xs">
+                  <Switch
                     size="xs"
-                    label="Grid Selection Radius (m)"
-                    value={config.positioning.clas.gridSelectionRadius}
-                    onChange={(value) =>
+                    label="Iono Correction"
+                    checked={config.receiver.ionoCorrection}
+                    onChange={(e: any) =>
                       handleConfigChange({
                         ...config,
-                        positioning: {
-                          ...config.positioning,
-                          clas: { ...config.positioning.clas, gridSelectionRadius: Number(value) || 0 },
-                        },
+                        receiver: { ...config.receiver, ionoCorrection: e.currentTarget.checked },
                       })
                     }
-                    min={0}
                     styles={{ label: { fontSize: '10px' } }}
                   />
-                  <TextInput
+                  <Switch
                     size="xs"
-                    label="Receiver Type"
-                    value={config.positioning.clas.receiverType}
-                    onChange={(e) =>
+                    label="ISB"
+                    checked={config.receiver.isb}
+                    onChange={(e: any) =>
                       handleConfigChange({
                         ...config,
-                        positioning: {
-                          ...config.positioning,
-                          clas: { ...config.positioning.clas, receiverType: e.currentTarget.value },
-                        },
+                        receiver: { ...config.receiver, isb: e.currentTarget.checked },
                       })
                     }
-                    placeholder="e.g. Trimble NetR9"
                     styles={{ label: { fontSize: '10px' } }}
                   />
-                </SimpleGrid>
-                <SimpleGrid cols={3} spacing="xs" mt="xs">
-                  <NumberInput
+                  <Select
                     size="xs"
-                    label="Position Uncertainty X (m)"
-                    value={config.positioning.clas.positionUncertaintyX}
-                    onChange={(value) =>
+                    label="Phase Shift"
+                    value={config.receiver.phaseShift}
+                    onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        positioning: {
-                          ...config.positioning,
-                          clas: { ...config.positioning.clas, positionUncertaintyX: Number(value) || 0 },
-                        },
+                        receiver: { ...config.receiver, phaseShift: value },
                       })
                     }
-                    min={0}
-                    decimalScale={1}
+                    data={[
+                      { value: 'off', label: 'OFF' },
+                      { value: 'table', label: 'Table' },
+                    ]}
                     styles={{ label: { fontSize: '10px' } }}
                   />
                   <NumberInput
                     size="xs"
-                    label="Position Uncertainty Y (m)"
-                    value={config.positioning.clas.positionUncertaintyY}
-                    onChange={(value) =>
+                    label="Max Age (s)"
+                    value={config.receiver.maxAge}
+                    onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        positioning: {
-                          ...config.positioning,
-                          clas: { ...config.positioning.clas, positionUncertaintyY: Number(value) || 0 },
-                        },
+                        receiver: { ...config.receiver, maxAge: Number(value) },
                       })
                     }
                     min={0}
@@ -2365,37 +2538,103 @@ export function PostProcessingConfiguration({
                   />
                   <NumberInput
                     size="xs"
-                    label="Position Uncertainty Z (m)"
-                    value={config.positioning.clas.positionUncertaintyZ}
-                    onChange={(value) =>
+                    label="Baseline Length (m)"
+                    value={config.receiver.baselineLength}
+                    onChange={(value: any) =>
                       handleConfigChange({
                         ...config,
-                        positioning: {
-                          ...config.positioning,
-                          clas: { ...config.positioning.clas, positionUncertaintyZ: Number(value) || 0 },
-                        },
+                        receiver: { ...config.receiver, baselineLength: Number(value) },
                       })
                     }
                     min={0}
                     decimalScale={1}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <NumberInput
+                    size="xs"
+                    label="Baseline Sigma (m)"
+                    value={config.receiver.baselineSigma}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        receiver: { ...config.receiver, baselineSigma: Number(value) },
+                      })
+                    }
+                    min={0}
+                    decimalScale={4}
                     styles={{ label: { fontSize: '10px' } }}
                   />
                 </SimpleGrid>
               </Fieldset>
-              <Fieldset legend="CLAS Files" style={{ fontSize: '10px' }}>
-                <FileInputRow
-                  label="CSSR Grid Definition File"
-                  value={config.files.cssrGrid}
-                  onChange={(val) =>
-                    handleConfigChange({
-                      ...config,
-                      files: { ...config.files, cssrGrid: val },
-                    })
-                  }
-                  onBrowse={() => openFileBrowser((path) =>
-                    handleConfigChange({ ...config, files: { ...config.files, cssrGrid: path } })
-                  )}
-                />
+
+              <Fieldset legend="Signal Selection (per system)" style={{ fontSize: '10px' }}>
+                <SimpleGrid cols={2} spacing="xs">
+                  <Select
+                    size="xs"
+                    label="GPS"
+                    value={config.signalSelection.gps}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        signalSelection: { ...config.signalSelection, gps: value },
+                      })
+                    }
+                    data={['L1/L2', 'L1/L5', 'L1/L2/L5']}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <Select
+                    size="xs"
+                    label="QZSS"
+                    value={config.signalSelection.qzs}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        signalSelection: { ...config.signalSelection, qzs: value },
+                      })
+                    }
+                    data={['L1/L5', 'L1/L2', 'L1/L5/L2']}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <Select
+                    size="xs"
+                    label="Galileo"
+                    value={config.signalSelection.galileo}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        signalSelection: { ...config.signalSelection, galileo: value },
+                      })
+                    }
+                    data={['E1/E5a', 'E1/E5b', 'E1/E6', 'E1/E5a/E5b/E6', 'E1/E5a/E6/E5b']}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <Select
+                    size="xs"
+                    label="BDS-2"
+                    value={config.signalSelection.bds2}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        signalSelection: { ...config.signalSelection, bds2: value },
+                      })
+                    }
+                    data={['B1I/B3I', 'B1I/B2I', 'B1I/B3I/B2I']}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                  <Select
+                    size="xs"
+                    label="BDS-3"
+                    value={config.signalSelection.bds3}
+                    onChange={(value: any) =>
+                      handleConfigChange({
+                        ...config,
+                        signalSelection: { ...config.signalSelection, bds3: value },
+                      })
+                    }
+                    data={['B1I/B3I', 'B1I/B2a', 'B1I/B3I/B2a']}
+                    styles={{ label: { fontSize: '10px' } }}
+                  />
+                </SimpleGrid>
               </Fieldset>
             </Stack>
           </Tabs.Panel>
@@ -2489,7 +2728,31 @@ export function PostProcessingConfiguration({
             </Stack>
           </Tabs.Panel>
 
-          {/* Tab: Time */}
+          {/* Tab: TOML Preview */}
+          <Tabs.Panel value="toml" pt="xs">
+            <Stack gap="xs">
+              <Text size="xs" c="dimmed">
+                Read-only TOML preview of current configuration. Use Export TOML to download.
+              </Text>
+              <textarea
+                readOnly
+                value={tomlPreview}
+                style={{
+                  width: '100%',
+                  height: '500px',
+                  fontFamily: 'monospace',
+                  fontSize: '11px',
+                  padding: '8px',
+                  border: '1px solid var(--mantine-color-default-border)',
+                  borderRadius: '4px',
+                  backgroundColor: 'var(--mantine-color-body)',
+                  color: 'var(--mantine-color-text)',
+                  resize: 'vertical',
+                }}
+              />
+            </Stack>
+          </Tabs.Panel>
+
         </Tabs>
       </Stack>
     </Card>

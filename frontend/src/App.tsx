@@ -277,15 +277,10 @@ function PostProcessingPanel() {
         ocean_loading: config.files.oceanLoading,
         cssr_grid: config.files.cssrGrid,
       },
-      server: {
-        time_interpolation: config.server.timeInterpolation,
-        sbas_satellite: config.server.sbasSatellite,
-        rinex_option_1: config.server.rinexOption1,
-        rinex_option_2: config.server.rinexOption2,
-      },
-      receiver: {
-        iono_correction: config.receiver.ionoCorrection,
-      },
+      adaptive_filter: config.adaptiveFilter,
+      signal_selection: config.signalSelection,
+      receiver: config.receiver,
+      server: config.server,
     };
   }, [config]);
 
