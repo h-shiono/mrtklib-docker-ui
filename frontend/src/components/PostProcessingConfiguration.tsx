@@ -536,12 +536,16 @@ export function PostProcessingConfiguration({
 
         <Tabs defaultValue="execution">
           <Tabs.List>
-            <Tabs.Tab value="execution" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconPlayerPlay size={14} />}>
-              Execution
-            </Tabs.Tab>
-            <Tabs.Tab value="positioning" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconAdjustments size={14} />}>
-              Positioning
-            </Tabs.Tab>
+            <Tooltip label="Execution" openDelay={500}>
+              <Tabs.Tab value="execution" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconPlayerPlay size={14} />}>
+                Exec.
+              </Tabs.Tab>
+            </Tooltip>
+            <Tooltip label="Positioning" openDelay={500}>
+              <Tabs.Tab value="positioning" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconAdjustments size={14} />}>
+                Pos.
+              </Tabs.Tab>
+            </Tooltip>
             <Tooltip label="Ambiguity Resolution" openDelay={500}>
               <Tabs.Tab value="ambiguity" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconAdjustmentsHorizontal size={14} />}>
                 AR
@@ -554,21 +558,29 @@ export function PostProcessingConfiguration({
             </Tooltip>
             <Tooltip label="Receiver & Signal Selection" openDelay={500}>
               <Tabs.Tab value="receiver" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconAntenna size={14} />}>
-                Receiver
+                Rec.
               </Tabs.Tab>
             </Tooltip>
-            <Tabs.Tab value="antenna" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconMapPin size={14} />}>
-              Antenna
-            </Tabs.Tab>
-            <Tabs.Tab value="output" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconDatabaseExport size={14} />}>
-              Output
-            </Tabs.Tab>
-            <Tabs.Tab value="files" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconFolderOpen size={14} />}>
-              Files
-            </Tabs.Tab>
-            <Tabs.Tab value="server" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconDots size={14} />}>
-              Server
-            </Tabs.Tab>
+            <Tooltip label="Antenna" openDelay={500}>
+              <Tabs.Tab value="antenna" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconMapPin size={14} />}>
+                Ant.
+              </Tabs.Tab>
+            </Tooltip>
+            <Tooltip label="Output" openDelay={500}>
+              <Tabs.Tab value="output" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconDatabaseExport size={14} />}>
+                Output
+              </Tabs.Tab>
+            </Tooltip>
+            <Tooltip label="Files" openDelay={500}>
+              <Tabs.Tab value="files" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconFolderOpen size={14} />}>
+                Files
+              </Tabs.Tab>
+            </Tooltip>
+            <Tooltip label="Server" openDelay={500}>
+              <Tabs.Tab value="server" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconDots size={14} />}>
+                Server
+              </Tabs.Tab>
+            </Tooltip>
             <Tooltip label="TOML Configuration Preview" openDelay={500}>
               <Tabs.Tab value="toml" style={{ fontSize: '11px', padding: '6px 12px' }} leftSection={<IconCode size={14} />}>
                 TOML
