@@ -94,8 +94,7 @@ function StationPositionInput({
             { value: 'llh', label: 'Lat/Lon/Height' },
             { value: 'xyz', label: 'XYZ-ECEF' },
             { value: 'rtcm', label: 'RTCM Antenna Pos' },
-            { value: 'rinex', label: 'RINEX Header Pos' },
-            { value: 'average', label: 'Average of Single Pos' },
+            { value: 'rinexhead', label: 'RINEX Header Pos' },
           ]}
           disabled={coordsDisabled}
           styles={{ label: { fontSize: '10px' } }}
@@ -928,9 +927,9 @@ export function ProcessingTabPanels({ config, onConfigChange }: ProcessingConfig
                       }
                       data={[
                         { value: 'off', label: 'OFF' },
-                        { value: 'solid', label: 'Solid' },
-                        { value: 'solid+otl', label: 'Solid+OTL' },
-                        { value: 'solid+otl+pole', label: 'Solid+OTL+Pole' },
+                        { value: 'on', label: 'Solid' },
+                        { value: 'otl', label: 'Solid+OTL' },
+                        { value: 'solid+otl-clasgrid+pole', label: 'Solid+OTL+Pole' },
                       ]}
                       styles={{ label: { fontSize: '10px' } }}
                     />
@@ -1559,7 +1558,8 @@ export function ProcessingTabPanels({ config, onConfigChange }: ProcessingConfig
                 data={[
                   { value: 'internal', label: 'Internal' },
                   { value: 'egm96', label: 'EGM96' },
-                  { value: 'egm08', label: 'Earth Grav Model 2008' },
+                  { value: 'egm08_2.5', label: "EGM2008 (2.5' grid)" },
+                  { value: 'egm08_1', label: "EGM2008 (1' grid)" },
                   { value: 'gsi2000', label: 'GSI2000 (Japan)' },
                 ]}
                 disabled={isSingle}
@@ -2454,7 +2454,7 @@ export function ProcessingTabPanels({ config, onConfigChange }: ProcessingConfig
         onChange={(signals) =>
           handleConfigChange({
             ...config,
-            positioning: { ...config.positioning, signals },
+            positioning: { ...config.positioning, signals, signalMode: signals ? 'signals' : 'frequency' },
           })
         }
       />

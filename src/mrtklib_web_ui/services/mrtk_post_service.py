@@ -518,8 +518,8 @@ class MrtkPostService:
         lines.append(f"mode       = {_s(ar.mode)}")
         lines.append(f"gps_ar     = {_b(ar.gps_ar)}")
         lines.append(f"glonass_ar = {_s(ar.glonass_ar)}")
-        lines.append(f"bds_ar     = {_b(ar.bds_ar == 'on' if isinstance(ar.bds_ar, str) else ar.bds_ar)}")
-        lines.append(f"qzs_ar     = {_b(ar.qzs_ar == 'on' if isinstance(ar.qzs_ar, str) else ar.qzs_ar)}")
+        lines.append(f"bds_ar     = {_s(ar.bds_ar)}")
+        lines.append(f"qzs_ar     = {_s(ar.qzs_ar)}")
         lines.append("")
 
         # ── [ambiguity_resolution.thresholds] ─────────────────────────────

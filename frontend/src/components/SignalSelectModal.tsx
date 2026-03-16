@@ -159,6 +159,7 @@ export function SignalSelectModal({ opened, onClose, value, onChange }: SignalSe
                           <UnstyledButton
                             key={code}
                             onClick={() => toggle(code)}
+                            aria-pressed={isSelected}
                             style={{
                               fontSize: '10px',
                               fontWeight: isSelected ? 600 : 400,
