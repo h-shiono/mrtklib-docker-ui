@@ -22,8 +22,8 @@ monitoring from a browser without compiling anything.
 - `uv` for dependency management (src layout)
 
 ### Frontend
-- React 18 + TypeScript (strict mode), Vite
-- **Mantine v7** — UI library (no v6 patterns, no `sx` prop)
+- React 19 + TypeScript (strict mode), Vite
+- **Mantine v8** — UI library (no v6 patterns, no `sx` prop)
 - Chart.js — scatter, bar charts
 - IBM Plex Sans + IBM Plex Mono (Google Fonts)
 - No external state manager — React `useState` / `useRef`

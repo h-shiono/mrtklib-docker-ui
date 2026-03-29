@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { Text, Tooltip, ActionIcon, Group } from '@mantine/core';
 import { IconQuestionMark } from '@tabler/icons-react';
 import { OPTION_META, DOCS_BASE } from '../../config/optionMeta';
@@ -6,7 +7,7 @@ import type { OptionMeta } from '../../config/optionMeta';
 interface OptionLabelProps {
   metaKey: string;
   fallback?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
 export function OptionLabel({ metaKey, fallback, style }: OptionLabelProps) {
@@ -29,14 +30,14 @@ export function OptionLabel({ metaKey, fallback, style }: OptionLabelProps) {
           events={{ hover: true, focus: false, touch: true }}
         >
           <ActionIcon
+            component="a"
+            href={meta?.docsAnchor ? DOCS_BASE + meta.docsAnchor : undefined}
+            target="_blank"
+            rel="noopener noreferrer"
             size={14}
             variant="subtle"
             color="gray"
-            onClick={() => {
-              if (meta?.docsAnchor) {
-                window.open(DOCS_BASE + meta.docsAnchor, '_blank');
-              }
-            }}
+            aria-label={`Open help for ${label}`}
           >
             <IconQuestionMark size={10} />
           </ActionIcon>
