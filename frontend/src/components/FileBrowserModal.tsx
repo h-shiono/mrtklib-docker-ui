@@ -88,6 +88,8 @@ export function FileBrowserModal({
       })
       .catch(() => {
         setRoots([{ path: '/workspace', label: 'Workspace', writable: true, mounted: true }]);
+        setActiveRoot('/workspace');
+        setCurrentPath('/workspace');
       });
   }, [opened, defaultRoot]);
 

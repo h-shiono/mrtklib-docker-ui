@@ -439,6 +439,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
   const [corrections, setCorrections] = useState<Record<string, CorrectionFile[]>>({});
   const [correctionsLoading, setCorrectionsLoading] = useState(true);
   const [profileNotification, setProfileNotification] = useState<string | null>(null);
+  const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetch('/api/files/corrections')
@@ -448,6 +449,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
         setCorrectionsLoading(false);
       })
       .catch(() => setCorrectionsLoading(false));
+  }, []);
+
+  // Clean up notification timer on unmount
+  useEffect(() => {
+    return () => {
+      if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
+    };
   }, []);
 
   const hasCorrections = Object.values(corrections).some((files) => files.length > 0);
@@ -465,21 +473,22 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
   const applyProfile = (profile: string) => {
     const files = corrections[profile];
     if (!files) return;
-    const updates: Record<string, string> = {};
+    const updates: Partial<typeof config.files> = {};
     for (const f of files) {
       const field = CORRECTION_FILE_FIELD[f.filename];
-      if (field) updates[field] = f.path;
+      if (field) (updates as Record<string, string>)[field] = f.path;
     }
     handleConfigChange({
       ...config,
       files: { ...config.files, ...updates },
     });
+    if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
     setProfileNotification(
       profile === 'clas'
         ? 'CLAS PPP-RTK correction files applied to Files settings.'
         : 'MADOCA PPP correction files applied to Files settings.'
     );
-    setTimeout(() => setProfileNotification(null), 3000);
+    notificationTimerRef.current = setTimeout(() => setProfileNotification(null), 3000);
   };
 
   const handleConfigChange = onConfigChange;
