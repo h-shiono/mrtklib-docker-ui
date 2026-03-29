@@ -6,7 +6,7 @@ import type { PositioningMode } from '../types/mrtkPostConfig';
 export function useModeDependentDisable(currentMode: PositioningMode) {
   return useCallback(
     (metaKey: OptionMetaKey): boolean => {
-      const meta = OPTION_META[metaKey] as { modes?: string[] };
+      const meta = OPTION_META[metaKey];
       if (!meta?.modes) return false;
       return !meta.modes.includes(currentMode);
     },

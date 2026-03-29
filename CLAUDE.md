@@ -47,14 +47,11 @@ mrtklib-docker-ui/
 │   └── services/      # Business logic per feature
 ├── frontend/src/
 │   ├── components/
-│   │   ├── common/    # SectionHeader, FileBrowser, etc.
-│   │   ├── post/      # Post Processing panels
-│   │   ├── realtime/  # Real-Time panels + SkySnrPanel
-│   │   ├── stream/    # Stream Server
-│   │   ├── conversion/# RINEX Converter
-│   │   ├── monitor/   # Receiver Monitor
-│   │   └── tools/     # Time Converter, Data Downloader
-│   ├── pages/         # Tab-level page components
+│   │   ├── common/    # OptionLabel, shared helpers
+│   │   ├── tools/     # Time Converter, Data Downloader
+│   │   ├── viewer/    # Result Viewer, Chart, Map
+│   │   ├── obsViewer/ # Observation QC charts
+│   │   └── ...        # Feature components (flat)
 │   ├── theme.ts       # Mantine theme + cssVariablesResolver
 │   └── utils/
 │       └── gnssTime.ts# GPS time conversion logic
@@ -89,7 +86,7 @@ All config panels use **label-left / input-right** (130px label width):
 Use the shared `SectionHeader` component with a `?` icon that
 opens the MRTKLIB reference docs at the correct anchor:
 ```tsx
-<SectionHeader title="Basic Strategy" docsKey="basic-strategy" />
+<SectionHeader title="Basic Strategy" anchor="basic-strategy" />
 ```
 
 SECTION_ANCHORS map lives in `frontend/src/components/ProcessingConfigTabs.tsx`.

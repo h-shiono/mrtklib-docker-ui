@@ -10,7 +10,9 @@ export interface OptionMeta {
 export const DOCS_BASE =
   'https://h-shiono.github.io/MRTKLIB/reference/config-options/';
 
-// Mode abbreviation sets (from reference "Mode Abbreviations" table)
+// Mode abbreviation sets (from reference "Mode Abbreviations" table).
+// SSR2OSR and VRS are future modes not yet in the PositioningMode union;
+// they are included here so that option metadata is ready when support lands.
 export const MODE_SETS = {
   ALL:     null,
   SPP:     ['single'],
@@ -384,5 +386,5 @@ const OPTION_META_DEF = {
   },
 } satisfies Record<string, OptionMeta>;
 
-export const OPTION_META = OPTION_META_DEF;
 export type OptionMetaKey = keyof typeof OPTION_META_DEF;
+export const OPTION_META: Record<OptionMetaKey, OptionMeta> = OPTION_META_DEF;
