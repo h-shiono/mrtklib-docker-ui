@@ -1,294 +1,190 @@
-# Project: MRTKLIB-Docker-UI
+# MRTKLIB Web UI — Project Constitution
 
-## Overview
-This project provides a Web UI for [MRTKLIB](https://github.com/h-shiono/MRTKLIB)'s command-line tools, specifically targeting Linux and MacOS users via Docker. MRTKLIB is a modernized fork of RTKLIB, featuring C11 modular architecture, MADOCA-PPP, CLAS PPP-RTK, and other advanced GNSS positioning capabilities. The goal is to provide a User Experience (UX) similar to the Windows GUI version of RTKLIB but accessible through a web browser.
+## Project Overview
 
-## Architectural Constraints & Tech Stack
+Web UI for [MRTKLIB](https://github.com/h-shiono/MRTKLIB) CLI tools,
+running in a Docker container. Users access GNSS post-processing,
+real-time positioning, stream relay, RINEX conversion, and receiver
+monitoring from a browser without compiling anything.
 
-### 1. Architecture
-- **Deployment:** Docker Container (Single container approach).
-- **File Access:** The host's data directory will be bind-mounted to `/workspace` inside the container.
-- **Network:** The Web UI and Backend run on the same origin (e.g., `http://localhost:8080`).
+- **MRTKLIB version:** 0.6.2
+- **Unified binary:** `mrtk` with subcommands (`post`, `run`, `relay`,
+  `convert`, `ssr2obs`, `ssr2osr`, `bias`, `dump`)
+- **UI version:** v0.1.0-alpha
 
-### 2. Backend (API & Process Management)
-- **Language:** Python 3.11+
-- **Framework:** FastAPI
-- **Process Handling:** Python `subprocess` (or `asyncio.subprocess`) to spawn MRTKLIB binaries (`rnx2rtkp`, etc.).
-- **Real-time Communication:** `python-socketio` (WebSocket) for streaming process logs and status updates to the frontend.
-- **MRTKLIB Binaries:** Built from source via CMake and pre-installed at `/usr/local/bin/` inside the Docker image. Currently available: `rnx2rtkp`, `rtkrcv`, `recvbias`, `ssr2obs`, `ssr2osr`, `dumpcssr`, `cssr2rtcm3`. `str2str` and `convbin` are planned for MRTKLIB v0.5.1.
+## Tech Stack
 
-### 3. Frontend (UI)
-- **Framework:** React (Vite) + TypeScript.
-- **UI Library:** Mantine (Recommended for dense, dashboard-like scientific interfaces) or Chakra UI.
-- **State Management:** React Context or Zustand.
+### Backend
+- Python 3.11+, FastAPI, Pydantic v2
+- `asyncio.subprocess` for spawning `mrtk` processes
+- WebSocket for real-time log/status streaming
+- `tomllib` (stdlib) for TOML parsing; `tomli_w` for writing
+- `uv` for dependency management (src layout)
 
-## Core Functional Requirements
+### Frontend
+- React 18 + TypeScript (strict mode), Vite
+- **Mantine v7** — UI library (no v6 patterns, no `sx` prop)
+- Chart.js — scatter, bar charts
+- IBM Plex Sans + IBM Plex Mono (Google Fonts)
+- No external state manager — React `useState` / `useRef`
 
-### 1. UX/UI Design Philosophy
-- **Windows-Like Layout:** Mimic the layout of `rtkplot`, `rtkpost`, and `str2str` GUI (RTKNAVI-like dashboard) where appropriate.
-- **Default Values:** The UI must load with sensible default settings for RTKLIB, just like the Windows GUI.
+### Deployment
+- Multi-stage Docker build (CMake → Node → uv → runtime)
+- Two volumes: `/workspace` (rw), `/data` (ro)
+- Single container, same-origin (port 8080)
 
-### 2. Configuration Management (Crucial)
-- **Stateless Container:** Do not rely on saving config files inside the container's system areas.
-- **Import/Export Flow:**
-  - **Export:** Users configure settings in the Web UI -> Click "Export" -> Browser downloads a `.conf` file (RTKLIB standard format).
-  - **Import:** Users upload a `.conf` file -> Web UI parses it and populates the form fields.
-  - **Save to Workspace:** Optionally, allow saving the `.conf` file directly to the bind-mounted `/workspace`.
-
-### 3. Feature: Post-Processing (`rnx2rtkp`)
-- Form inputs for Observation files (Rover/Base), Nav files, and Output path.
-- These paths should refer to files within `/workspace`.
-- A file picker component that browses the `/workspace` directory is required.
-
-### 4. Feature: Stream Server (`str2str`) — Planned
-- **Status:** Not yet available in MRTKLIB. Will be implemented when MRTKLIB v0.5.1 adds `str2str` support.
-- **Hybrid Monitoring UI:**
-  1.  **Console Output:** A scrollable text area showing the raw `stderr` output from `str2str`.
-  2.  **Visual Indicators:** "LED-like" status lights (Green/Red/Blinking) indicating connection status and data traffic, similar to the Windows `strsvr` or `rtknavi`.
-- **Implementation Detail:** The Python backend must parse the `str2str` log stream to derive "Heartbeat/Status" events and push them via WebSocket to drive the visual indicators.
-
-## Development Guidelines for AI
-1.  **Modularity:** Keep the frontend components (e.g., `ConfigForm`, `LogConsole`, `FileBrowser`) and backend logic (e.g., `RTKProcessManager`, `ConfigParser`) distinct and modular.
-2.  **Type Safety:** Use strict TypeScript interfaces for all data exchanged between backend and frontend (especially the Configuration object structure).
-3.  **Error Handling:** Ensure that if an MRTKLIB process crashes, the Web UI reflects this state immediately.
-4.  **Mocking:** If MRTKLIB binaries are missing during the dev phase, implement a "Mock Mode" in the backend that simulates log output for UI testing.
-
-## Directory Structure Plan (uv-based)
-
-The project follows the standard `uv` project structure (src layout) for the Python backend, with the frontend residing in a dedicated subdirectory.
-
-```text
-mrtklib-docker-ui/             # Root
-├── pyproject.toml             # Backend dependencies & metadata
-├── uv.lock                    # Lockfile for reproducible builds
-├── .python-version
-├── README.md
-├── src/
-│   └── mrtklib_web_ui/         # Python Backend Package (snake_case)
-│       ├── __init__.py
-│       ├── main.py            # FastAPI Entry point
-│       ├── api/               # API Routers
-│       └── services/          # Business logic (MRTKLIB wrapper, etc.)
-├── frontend/                  # Frontend (React + Vite)
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── src/                   # React components
-├── docker/
-│   └── Dockerfile             # Multi-stage build (MRTKLIB CMake -> Node build -> uv sync -> Runtime)
-└── docker-compose.yml
+## Directory Structure
+```
+mrtklib-docker-ui/
+├── CLAUDE.md
+├── tasks/
+│   ├── todo.md        # Active tasks (read before starting work)
+│   └── lessons.md     # Accumulated patterns (read before coding)
+├── src/mrtklib_web_ui/
+│   ├── main.py        # FastAPI entry point
+│   ├── api/           # Routers: post, run, relay, convert,
+│   │                  #   monitor, downloader, presets, files
+│   └── services/      # Business logic per feature
+├── frontend/src/
+│   ├── components/
+│   │   ├── common/    # SectionHeader, FileBrowser, etc.
+│   │   ├── post/      # Post Processing panels
+│   │   ├── realtime/  # Real-Time panels + SkySnrPanel
+│   │   ├── stream/    # Stream Server
+│   │   ├── conversion/# RINEX Converter
+│   │   ├── monitor/   # Receiver Monitor
+│   │   └── tools/     # Time Converter, Data Downloader
+│   ├── pages/         # Tab-level page components
+│   ├── theme.ts       # Mantine theme + cssVariablesResolver
+│   └── utils/
+│       └── gnssTime.ts# GPS time conversion logic
+├── docker/Dockerfile
+├── docker-compose.yml
+└── .env.example
 ```
 
-## Development Notes for AI
-- Backend Setup: Use uv sync to install dependencies.
-- Docker Build Strategy:
-    - Stage 1: Build MRTKLIB from source using CMake (requires `build-essential`, `cmake`, `liblapack-dev`, `libopenblas-dev`).
-    - Stage 2: Build frontend with Node.js.
-    - Stage 3: Build backend with uv (ghcr.io/astral-sh/uv:python3.12-bookworm).
-    - Stage 4: Runtime image (python:3.12-slim-bookworm) with MRTKLIB binaries and runtime libs (`liblapack3`, `libopenblas0`).
-    - Run uv sync --frozen --no-dev in the build stage to ensure deterministic builds.
-- MRTKLIB Source: Cloned from https://github.com/h-shiono/MRTKLIB and built with `cmake -B build -DCMAKE_BUILD_TYPE=Release`.
-- Naming Convention: The root folder is mrtklib-docker-ui, but the Python source package inside src/ must be mrtklib_web_ui (snake_case) to comply with Python import rules.
+## Architecture Rules
 
----
+### Navigation
+Six top-level tabs: Post Processing | Real-Time | Stream Server |
+Conversion | Tools | Monitor
 
-## Implementation Status & Technical Patterns
+Each tab except Tools/Monitor uses a sidebar (160px fixed) +
+form panel layout, identical to VS Code Settings.
 
-### MRTKLIB Version
-- **Current Version:** MRTKLIB 0.4.1 (based on RTKLIB 2.4.3 b34)
-- **Backend Endpoint:** `/api/rtklib/version` returns version string and available binaries
-- **Build System:** CMake 3.15+, C11, with optional LAPACK for fast matrix operations
-- **Available Binaries:** `rnx2rtkp`, `rtkrcv`, `recvbias`, `ssr2obs`, `ssr2osr`, `dumpcssr`, `cssr2rtcm3`
-- **Planned (v0.5.1):** `str2str`, `convbin`
-
-### Post-Processing Configuration (`rnx2rtkp`) UI
-
-The `PostProcessingConfiguration` component implements a comprehensive UI for configuring RTKLIB's `rnx2rtkp` tool with the following tabbed interface:
-
-#### Tabs Structure
-1. **Setting 1** - Basic positioning parameters
-2. **Setting 2** - Ambiguity resolution
-3. **Output** - Solution format and output options
-4. **Stats** - Error models and process noises
-5. **Positions** - Rover and base station positions
-6. **Files** - Auxiliary files
-7. **Misc** - Miscellaneous options
-
-### Conditional Logic Patterns
-
-The UI implements sophisticated conditional enable/disable logic based on positioning mode and output format selections. This mimics the behavior of the Windows RTKLIB GUI.
-
-#### Helper Boolean Pattern
-
-For clean, maintainable conditional logic, the component uses helper boolean variables:
-
-```typescript
-// Positioning mode helpers
-const isSingle = config.setting1.positioningMode === 'single';
-const isDGPS = config.setting1.positioningMode === 'dgps';
-const isPPP = ['ppp-kinematic', 'ppp-static'].includes(config.setting1.positioningMode);
-const isKinematic = config.setting1.positioningMode === 'kinematic';
-const isStatic = config.setting1.positioningMode === 'static';
-const isStaticMode = ['static', 'ppp-static'].includes(config.setting1.positioningMode);
-const isFixedMode = ['fixed', 'ppp-fixed'].includes(config.setting1.positioningMode);
-
-// Output format helpers
-const isSolLLH = config.output.solutionFormat === 'llh';
-const isSolNMEA = config.output.solutionFormat === 'nmea';
+### Form layout convention
+All config panels use **label-left / input-right** (130px label width):
+```tsx
+<Group justify="space-between" align="center" mb={6}>
+  <Text size="sm" c="dimmed" style={{ width: 130, flexShrink: 0 }}>
+    Label
+  </Text>
+  <Box style={{ flex: 1 }}>
+    <Select ... />
+  </Box>
+</Group>
 ```
 
-#### Setting 1 Tab - Conditional Logic
-- **Ionosphere Correction:** Disabled when Single or PPP modes
-- **Troposphere Correction:** Disabled when Single mode
-- **Satellite PCV:** Disabled when Single or DGPS modes
-- **Receiver PCV:** Disabled when Single or DGPS modes
-- **Reject Eclipse:** Disabled when Single or DGPS modes
-
-#### Setting 2 Tab - Conditional Logic
-- **All AR Settings:** Disabled when positioning mode is Single, DGPS, PPP-Kinematic, or PPP-Static
-- **Baseline Length Constraint:** Enabled only when constraint checkbox is checked
-
-#### Output Tab - Conditional Logic
-- **Datum:** Disabled when Solution Format is NOT "Lat/Lon/Height"
-- **Height Type:** Disabled when Solution Format is NOT "Lat/Lon/Height"
-- **Geoid Model:** Disabled when Solution Format is NOT "Lat/Lon/Height"
-- **Output Velocity:** Always enabled (including for NMEA0183 format)
-
-#### Positions Tab - Conditional Logic (Phase 16)
-- **Rover Station Coordinates:** Enabled ONLY in Fixed or PPP-Fixed modes
-- **Rover Station Antenna Info:** Disabled ONLY in Single mode
-- **Base Station (All Inputs):** Disabled in Single mode
-- **Station Position File:** Disabled in Single mode
-
-### Component Architecture Patterns
-
-#### Prop Segregation for Granular Control
-
-The `StationPositionInput` component uses segregated props for fine-grained control:
-
-```typescript
-interface StationPositionInputProps {
-  label: string;
-  value: StationPosition;
-  onChange: (value: StationPosition) => void;
-  disabled?: boolean;           // Disables entire component
-  disableCoordinates?: boolean; // Only disables coordinate inputs
-  disableAntenna?: boolean;     // Only disables antenna inputs
-}
+### Section headers
+Use the shared `SectionHeader` component with a `?` icon that
+opens the MRTKLIB reference docs at the correct anchor:
+```tsx
+<SectionHeader title="Basic Strategy" docsKey="basic-strategy" />
 ```
 
-This pattern allows different disable rules for coordinates vs antenna settings within the same station input component.
+SECTION_ANCHORS map lives in `frontend/src/components/common/SectionHeader.tsx`.
 
-#### Usage Example
+### TOML I/O — lossless round-trip
+The full parsed TOML dict is stored in `rawConfig` state alongside
+form state. On export, form values take precedence but keys with no
+corresponding form field are preserved from `rawConfig`.
+This ensures unknown/future keys survive import → export cycles.
 
-```typescript
-<StationPositionInput
-  label="Rover Station"
-  value={config.positions.rover}
-  onChange={(newRover) => handleConfigChange({...})}
-  disableCoordinates={!isFixedMode}  // Enable coords only in Fixed/PPP-Fixed
-  disableAntenna={isSingle}           // Disable antenna only in Single mode
-/>
-```
+### Preset storage
+Presets saved to `/workspace/presets/{mode}/` as `.toml` files.
+Backend endpoints: `GET/POST/PUT/DELETE /api/presets/{mode}/{id}`.
+PP and RT presets are namespaced independently.
 
-### Type System
+### Credential priority (Data Downloader)
+1. `/root/.netrc` mount (highest)
+2. `EARTHDATA_USER` / `GSI_USER` env vars
+3. `/workspace/.credentials.toml` stored via UI
 
-#### Frontend TypeScript Types
-
-Key enumerations defined in [`frontend/src/types/rnx2rtkpConfig.ts`](frontend/src/types/rnx2rtkpConfig.ts):
-
-```typescript
-export type PositioningMode =
-  | 'single' | 'dgps' | 'kinematic' | 'static'
-  | 'moving-base' | 'fixed' | 'ppp-kinematic' | 'ppp-static';
-
-export type Frequency = 'l1' | 'l1+l2' | 'l1+l2+l5' | 'l1+l2+l5+l6' | 'l1+l2+l5+l6+l7';
-
-export type SolutionFormat = 'llh' | 'xyz' | 'enu' | 'nmea';
-
-export type TimeFormat = 'gpst' | 'gpst-hms' | 'utc' | 'jst';
-```
-
-#### Backend Python Models
-
-Corresponding Pydantic models in [`src/mrtklib_web_ui/services/rnx2rtkp_service.py`](src/mrtklib_web_ui/services/rnx2rtkp_service.py) use snake_case naming:
-
+### Path security
+All file API endpoints enforce:
 ```python
-class Setting1Config(BaseModel):
-    positioning_mode: str = Field(default="kinematic")
-    frequency: str = Field(default="l1+l2")
-    # ...
+ALLOWED_ROOTS = [Path("/workspace"), Path("/data")]
 ```
+Reject any path outside these roots with 403.
 
-#### Naming Convention Conversion
-
-- **Frontend:** camelCase (e.g., `positioningMode`, `elevationMask`)
-- **Backend:** snake_case (e.g., `positioning_mode`, `elevation_mask`)
-- Conversion happens automatically via FastAPI's Pydantic model validation
-
-### LocalStorage Persistence Strategy
-
-#### Versioning Approach
-
-The UI persists configuration to browser localStorage with versioned keys:
-
+### Color semantics (quality badges / scatter)
 ```typescript
-const STORAGE_KEY = 'rnx2rtkp-config-v12';
+const QUALITY_COLOR = {
+  1: '#22c55e',  // Fix
+  2: '#f59e0b',  // Float
+  3: '#a855f7',  // SBAS
+  4: '#6b7280',  // DGPS
+  5: '#ef4444',  // Single
+  6: '#3b82f6',  // PPP
+};
 ```
 
-When the configuration structure changes, increment the version number (e.g., `v12` → `v13`) to prevent schema conflicts. Old configurations are automatically discarded when the version key changes.
-
-#### Save/Load Pattern
-
+### Constellation colors (Sky Plot / SNR)
 ```typescript
-// Save on every config change
-useEffect(() => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-}, [config]);
-
-// Load on component mount
-useEffect(() => {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      setConfig(parsed);
-    } catch (e) {
-      console.error('Failed to parse saved config');
-    }
-  }
-}, []);
+const SYS_COLOR = {
+  GPS:     '#3b82f6',
+  GLONASS: '#a855f7',
+  Galileo: '#f59e0b',
+  QZSS:    '#22c55e',
+  BeiDou:  '#ef4444',
+  SBAS:    '#6b7280',
+};
 ```
 
-### UI Component Library
+## Development Commands
 
-- **Framework:** Mantine v7
-- **Component Size:** Consistently using `size="xs"` for dense, dashboard-like layout
-- **Layout:** Stack, Group, Grid components for responsive layouts
-- **Form Controls:** Select, TextInput, NumberInput, Switch, Checkbox
-- **Tabs:** Mantine Tabs with `variant="default"` and `keepMounted={false}` for performance
+### Backend
+```bash
+uv sync
+uv run uvicorn mrtklib_web_ui.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-### Key Features Implemented
+### Frontend
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173 (proxies to :8000)
+npm run build
+npm run lint
+```
 
-1. ✅ **Setting 1 Tab:** Basic positioning parameters with conditional logic
-2. ✅ **Setting 2 Tab:** Ambiguity resolution with AR mode dependencies
-3. ✅ **Output Tab:** Solution format, time format, datum settings with conditional enable/disable
-4. ✅ **Stats Tab:** Error models and process noises configuration
-5. ✅ **Positions Tab:** Rover/Base station configuration with mode-specific constraints
-6. ✅ **Files Tab:** Auxiliary file selection (ANTEX, Geoid, DCB, etc.)
-7. ✅ **Misc Tab:** Time system, corrections, and RINEX options
-8. ✅ **SNR Mask Modal:** 3x9 matrix editor for L1/L2/L5 elevation-dependent SNR masks
-9. ✅ **LocalStorage Persistence:** Auto-save/load with versioning
-10. ✅ **RTKLIB Version Display:** Shows version 2.4.3 b34 in UI
+### Docker
+```bash
+docker compose up --build
+# Access: http://localhost:8080
+```
 
-### Phase Completion Status
+## Key Constraints for Claude Code
 
-- **Phase 14:** Setting 2 Tab conditional logic ✅
-- **Phase 15:** Output Tab corrections (Datum, Time Format, Solution Format, Output Velocity) ✅
-- **Phase 16:** Positions Tab conditional logic (Rover coordinates, Rover antenna, Base station) ✅
+1. **Mantine v7 only.** Never use v6 patterns or the `sx` prop.
+   Use `style` prop for inline overrides.
 
-### Future Considerations
+2. **Never change form field logic or validation** unless explicitly
+   asked. UI restructuring tasks touch navigation/layout only.
 
-- **Config Import/Export:** Parse and generate `.conf` files compatible with RTKLIB Windows GUI
-- **File Browser Integration:** Browse `/workspace` for RINEX and navigation files
-- **Real-time Processing:** Connect to `rnx2rtkp` process via WebSocket for progress updates
-- **Configuration Presets:** Save/load named configuration profiles
+3. **WebSocket pattern:** All streaming follows the existing
+   post/run WebSocket implementation. New features (convert, monitor)
+   must replicate this pattern exactly.
+
+4. **`minWidth: 0` in flex containers.** Always add this to flex
+   children that should not overflow. Omitting it is the #1 cause
+   of layout bugs in this project.
+
+5. **IBM Plex Mono for all numeric/code output.** Coordinates,
+   console text, TOML preview, RINEX preview, command preview.
+
+6. **Read `tasks/lessons.md` before writing any code.**
+   It contains patterns that prevent recurring mistakes.
+
+7. **Read `tasks/todo.md` before starting any task.**
+   Check for in-progress items or dependencies.

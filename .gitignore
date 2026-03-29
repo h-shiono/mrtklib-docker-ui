@@ -25,7 +25,8 @@ uv.lock
 
 # Claude Code
 .claude/
+tasks/
 
-# Workspace (bind mount for data)
+# Docker mounts
 workspace/
 data/
