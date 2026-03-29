@@ -38,8 +38,8 @@ interface FileBrowserModalProps {
   title?: string;
   fileExtensions?: string[];
   selectDirectory?: boolean;
-  /** Default root: 'workspace' or 'data'. Input fields default to 'data' if mounted. */
-  defaultRoot?: 'workspace' | 'data';
+  /** Default root: 'workspace', 'data', or 'system'. */
+  defaultRoot?: 'workspace' | 'data' | 'system';
 }
 
 function formatSize(size: number | null): string {
@@ -60,33 +60,34 @@ export function FileBrowserModal({
   defaultRoot = 'workspace',
 }: FileBrowserModalProps) {
   const [roots, setRoots] = useState<RootInfo[]>([]);
-  const [activeRoot, setActiveRoot] = useState<string>(`/${defaultRoot}`);
-  const [currentPath, setCurrentPath] = useState(`/${defaultRoot}`);
+  const [rootsLoaded, setRootsLoaded] = useState(false);
+  const [activeRoot, setActiveRoot] = useState<string>('/workspace');
+  const [currentPath, setCurrentPath] = useState('/workspace');
   const [items, setItems] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
 
-  // Fetch available roots
+  // Fetch available roots, then resolve preferred root
   useEffect(() => {
     if (!opened) return;
+    setRootsLoaded(false);
     fetch('/api/files/roots')
       .then((r) => r.json())
       .then((data: RootInfo[]) => {
         setRoots(data);
-        // Auto-select data root if preferred and mounted
-        const preferred = `/${defaultRoot}`;
+        const preferred = defaultRoot === 'system' ? '/opt/mrtklib/corrections' : `/${defaultRoot}`;
         const prefRoot = data.find((r) => r.path === preferred && r.mounted);
-        if (prefRoot) {
-          setActiveRoot(prefRoot.path);
-          setCurrentPath(prefRoot.path);
-        } else {
-          setActiveRoot('/workspace');
-          setCurrentPath('/workspace');
-        }
+        const resolvedRoot = prefRoot ? prefRoot.path : '/workspace';
+        setActiveRoot(resolvedRoot);
+        setCurrentPath(resolvedRoot);
+        setRootsLoaded(true);
       })
       .catch(() => {
         setRoots([{ path: '/workspace', label: 'Workspace', writable: true, mounted: true }]);
+        setActiveRoot('/workspace');
+        setCurrentPath('/workspace');
+        setRootsLoaded(true);
       });
   }, [opened, defaultRoot]);
 
@@ -114,9 +115,9 @@ export function FileBrowserModal({
     }
   }, [fileExtensions, selectDirectory]);
 
-  // Load directory when root changes or modal opens
+  // Load directory only after roots are resolved
   useEffect(() => {
-    if (opened && currentPath) {
+    if (opened && rootsLoaded && currentPath) {
       loadDirectory(currentPath);
     }
   }, [opened, currentPath, loadDirectory]);
