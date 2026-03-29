@@ -460,14 +460,14 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
   const hasCorrections = Object.values(corrections).some((files) => files.length > 0);
 
-  const CORRECTION_FILE_FIELD: Record<string, keyof typeof config.files> = {
-    'clas_grid.def': 'cssrGrid',
-    'clas_grid.blq': 'oceanLoading',
-    'igu00p01.erp': 'eop',
-    'igs14_L5copy.atx': 'satelliteAtx',
-    'isb.tbl': 'isbTable',
-    'l2csft.tbl': 'phaseCycle',
-    'igs20.atx': 'satelliteAtx',
+  const CORRECTION_FILE_FIELD: Record<string, (keyof typeof config.files)[]> = {
+    'clas_grid.def': ['cssrGrid'],
+    'clas_grid.blq': ['oceanLoading'],
+    'igu00p01.erp': ['eop'],
+    'igs14_L5copy.atx': ['satelliteAtx', 'receiverAtx'],
+    'isb.tbl': ['isbTable'],
+    'l2csft.tbl': ['phaseCycle'],
+    'igs20.atx': ['satelliteAtx', 'receiverAtx'],
   };
 
   const applyProfile = (profile: string) => {
@@ -475,8 +475,8 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
     if (!files) return;
     const updates: Partial<typeof config.files> = {};
     for (const f of files) {
-      const field = CORRECTION_FILE_FIELD[f.filename];
-      if (field) (updates as Record<string, string>)[field] = f.path;
+      const fields = CORRECTION_FILE_FIELD[f.filename];
+      if (fields) for (const field of fields) (updates as Record<string, string>)[field] = f.path;
     }
     handleConfigChange({
       ...config,
@@ -2989,11 +2989,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                             color="gray"
                             rightSection={<IconArrowRight size={10} />}
                             onClick={() => {
-                              const field = CORRECTION_FILE_FIELD[f.filename];
-                              if (field) {
+                              const fields = CORRECTION_FILE_FIELD[f.filename];
+                              if (fields) {
+                                const u: Record<string, string> = {};
+                                for (const k of fields) u[k] = f.path;
                                 handleConfigChange({
                                   ...config,
-                                  files: { ...config.files, [field]: f.path },
+                                  files: { ...config.files, ...u },
                                 });
                               }
                             }}
@@ -3016,11 +3018,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                             color="gray"
                             rightSection={<IconArrowRight size={10} />}
                             onClick={() => {
-                              const field = CORRECTION_FILE_FIELD[f.filename];
-                              if (field) {
+                              const fields = CORRECTION_FILE_FIELD[f.filename];
+                              if (fields) {
+                                const u: Record<string, string> = {};
+                                for (const k of fields) u[k] = f.path;
                                 handleConfigChange({
                                   ...config,
-                                  files: { ...config.files, [field]: f.path },
+                                  files: { ...config.files, ...u },
                                 });
                               }
                             }}
