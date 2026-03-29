@@ -27,7 +27,7 @@ function modes(...sets: (readonly string[] | null)[]): string[] | undefined {
   return flat.length > 0 ? flat : undefined;
 }
 
-export const OPTION_META: Record<string, OptionMeta> = {
+const OPTION_META_DEF = {
 
   // ── [positioning] ─────────────────────────────────────────────
   'positioning.mode': {
@@ -382,4 +382,7 @@ export const OPTION_META: Record<string, OptionMeta> = {
     docsAnchor: '#adaptive-filter',
     modes: modes(MODE_SETS.PPP_RTK, MODE_SETS.VRS),
   },
-};
+} satisfies Record<string, OptionMeta>;
+
+export const OPTION_META = OPTION_META_DEF;
+export type OptionMetaKey = keyof typeof OPTION_META_DEF;

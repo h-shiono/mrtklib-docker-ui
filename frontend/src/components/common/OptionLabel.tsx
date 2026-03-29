@@ -2,10 +2,10 @@ import type { CSSProperties } from 'react';
 import { Text, Tooltip, ActionIcon, Group } from '@mantine/core';
 import { IconQuestionMark } from '@tabler/icons-react';
 import { OPTION_META, DOCS_BASE } from '../../config/optionMeta';
-import type { OptionMeta } from '../../config/optionMeta';
+import type { OptionMetaKey, OptionMeta } from '../../config/optionMeta';
 
 interface OptionLabelProps {
-  metaKey: string;
+  metaKey: OptionMetaKey;
   fallback?: string;
   style?: CSSProperties;
 }
@@ -17,7 +17,18 @@ export function OptionLabel({ metaKey, fallback, style }: OptionLabelProps) {
 
   return (
     <Group gap={2} wrap="nowrap" style={style}>
-      <Text size="xs" c="dimmed" style={{ fontSize: '11px' }}>
+      <Text
+        size="xs"
+        c="dimmed"
+        title={label}
+        style={{
+          fontSize: '11px',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          minWidth: 0,
+        }}
+      >
         {label}
       </Text>
       {hasHelp && (
