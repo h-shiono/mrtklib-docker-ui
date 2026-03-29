@@ -92,7 +92,7 @@ opens the MRTKLIB reference docs at the correct anchor:
 <SectionHeader title="Basic Strategy" docsKey="basic-strategy" />
 ```
 
-SECTION_ANCHORS map lives in `frontend/src/components/common/SectionHeader.tsx`.
+SECTION_ANCHORS map lives in `frontend/src/components/ProcessingConfigTabs.tsx`.
 
 ### TOML I/O — lossless round-trip
 The full parsed TOML dict is stored in `rawConfig` state alongside
@@ -166,7 +166,7 @@ docker compose up --build
 
 ## Key Constraints for Claude Code
 
-1. **Mantine v7 only.** Never use v6 patterns or the `sx` prop.
+1. **Mantine v8 only.** Never use v6 patterns or the `sx` prop.
    Use `style` prop for inline overrides.
 
 2. **Never change form field logic or validation** unless explicitly

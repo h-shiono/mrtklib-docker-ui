@@ -27,7 +27,7 @@ export function OptionLabel({ metaKey, fallback, style }: OptionLabelProps) {
           w={260}
           withArrow
           position="top"
-          events={{ hover: true, focus: false, touch: true }}
+          events={{ hover: true, focus: true, touch: true }}
         >
           <ActionIcon
             component="a"
