@@ -33,6 +33,13 @@ RUN cmake -B build -DCMAKE_BUILD_TYPE=Release && \
 RUN mkdir -p /mrtklib-bin && \
     strip build/mrtk && cp build/mrtk /mrtklib-bin/
 
+# Extract correction files from test data archives
+RUN mkdir -p /mrtklib-corrections/clas /mrtklib-corrections/madoca && \
+    tar xzf tests/data/claslib/claslib_testdata.tar.gz -C /mrtklib-corrections/clas \
+      clas_grid.def clas_grid.blq igu00p01.erp igs14_L5copy.atx isb.tbl l2csft.tbl && \
+    tar xzf tests/data/madocalib/madocalib_testdata.tar.gz -C /mrtklib-corrections/madoca \
+      igs20.atx
+
 # ================================
 # Stage 2: Build Frontend
 # ================================
@@ -82,6 +89,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy MRTKLIB unified binary from builder
 COPY --from=mrtklib-builder /mrtklib-bin/mrtk /usr/local/bin/mrtk
 RUN chmod +x /usr/local/bin/mrtk
+
+# Copy MRTKLIB correction files (extracted in build stage)
+COPY --from=mrtklib-builder /mrtklib-corrections/ /opt/mrtklib/corrections/
+
+# Ensure read-only permissions (system files, not user-writable)
+RUN chmod -R 444 /opt/mrtklib/corrections/ && \
+    chmod 555 /opt/mrtklib/corrections/ \
+              /opt/mrtklib/corrections/clas/ \
+              /opt/mrtklib/corrections/madoca/
 
 # Verify mrtk is installed
 RUN mrtk --version

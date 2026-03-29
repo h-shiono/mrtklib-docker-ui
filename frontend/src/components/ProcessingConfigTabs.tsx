@@ -15,6 +15,8 @@ import {
   UnstyledButton,
   Indicator,
   Divider,
+  Loader,
+  Notification,
 } from '@mantine/core';
 import {
   IconFolderOpen,
@@ -29,6 +31,8 @@ import {
   IconFileExport,
   IconQuestionMark,
   IconCalendar,
+  IconCheck,
+  IconArrowRight,
 } from '@tabler/icons-react';
 import { DateTimePicker } from '@mantine/dates';
 import dayjs from 'dayjs';
@@ -415,9 +419,9 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
   const [signalSelectOpened, setSignalSelectOpened] = useState(false);
   const [fileBrowserOpened, setFileBrowserOpened] = useState(false);
   const fileBrowserCallbackRef = useRef<((path: string) => void) | null>(null);
-  const [fileBrowserRoot, setFileBrowserRoot] = useState<'workspace' | 'data'>('workspace');
+  const [fileBrowserRoot, setFileBrowserRoot] = useState<'workspace' | 'data' | 'system'>('workspace');
 
-  const openFileBrowser = useCallback((onSelect: (path: string) => void, root: 'workspace' | 'data' = 'workspace') => {
+  const openFileBrowser = useCallback((onSelect: (path: string) => void, root: 'workspace' | 'data' | 'system' = 'workspace') => {
     fileBrowserCallbackRef.current = onSelect;
     setFileBrowserRoot(root);
     setFileBrowserOpened(true);
@@ -429,6 +433,54 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
       fileBrowserCallbackRef.current = null;
     }
   }, []);
+
+  // Correction files state
+  interface CorrectionFile { filename: string; path: string; size_bytes: number }
+  const [corrections, setCorrections] = useState<Record<string, CorrectionFile[]>>({});
+  const [correctionsLoading, setCorrectionsLoading] = useState(true);
+  const [profileNotification, setProfileNotification] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/files/corrections')
+      .then((r) => r.json())
+      .then((data: Record<string, CorrectionFile[]>) => {
+        setCorrections(data);
+        setCorrectionsLoading(false);
+      })
+      .catch(() => setCorrectionsLoading(false));
+  }, []);
+
+  const hasCorrections = Object.values(corrections).some((files) => files.length > 0);
+
+  const CORRECTION_FILE_FIELD: Record<string, keyof typeof config.files> = {
+    'clas_grid.def': 'cssrGrid',
+    'clas_grid.blq': 'oceanLoading',
+    'igu00p01.erp': 'eop',
+    'igs14_L5copy.atx': 'satelliteAtx',
+    'isb.tbl': 'isbTable',
+    'l2csft.tbl': 'phaseCycle',
+    'igs20.atx': 'satelliteAtx',
+  };
+
+  const applyProfile = (profile: string) => {
+    const files = corrections[profile];
+    if (!files) return;
+    const updates: Record<string, string> = {};
+    for (const f of files) {
+      const field = CORRECTION_FILE_FIELD[f.filename];
+      if (field) updates[field] = f.path;
+    }
+    handleConfigChange({
+      ...config,
+      files: { ...config.files, ...updates },
+    });
+    setProfileNotification(
+      profile === 'clas'
+        ? 'CLAS PPP-RTK correction files applied to Files settings.'
+        : 'MADOCA PPP correction files applied to Files settings.'
+    );
+    setTimeout(() => setProfileNotification(null), 3000);
+  };
 
   const handleConfigChange = onConfigChange;
 
@@ -2900,6 +2952,95 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
           {/* ── Files section ── */}
           {activeSection === 'files' && (
             <Stack gap="xs">
+              {/* System Correction Files */}
+              {!correctionsLoading && hasCorrections && (
+                <>
+                  <SectionHeader title="System Correction Files" anchor="files-aux" />
+                  <Group gap="xs">
+                    {(corrections.clas?.length ?? 0) > 0 && (
+                      <Button size="xs" variant="light" onClick={() => applyProfile('clas')}>
+                        Apply CLAS PPP-RTK profile
+                      </Button>
+                    )}
+                    {(corrections.madoca?.length ?? 0) > 0 && (
+                      <Button size="xs" variant="light" onClick={() => applyProfile('madoca')}>
+                        Apply MADOCA PPP profile
+                      </Button>
+                    )}
+                  </Group>
+                  {(corrections.clas?.length ?? 0) > 0 && (
+                    <>
+                      <Text size="xs" fw={500} style={{ fontSize: '10px' }}>CLAS PPP-RTK</Text>
+                      <Group gap={4} wrap="wrap">
+                        {corrections.clas.map((f) => (
+                          <Button
+                            key={f.filename}
+                            size="xs"
+                            variant="light"
+                            color="gray"
+                            rightSection={<IconArrowRight size={10} />}
+                            onClick={() => {
+                              const field = CORRECTION_FILE_FIELD[f.filename];
+                              if (field) {
+                                handleConfigChange({
+                                  ...config,
+                                  files: { ...config.files, [field]: f.path },
+                                });
+                              }
+                            }}
+                          >
+                            {f.filename}
+                          </Button>
+                        ))}
+                      </Group>
+                    </>
+                  )}
+                  {(corrections.madoca?.length ?? 0) > 0 && (
+                    <>
+                      <Text size="xs" fw={500} style={{ fontSize: '10px' }}>MADOCA PPP</Text>
+                      <Group gap={4} wrap="wrap">
+                        {corrections.madoca.map((f) => (
+                          <Button
+                            key={f.filename}
+                            size="xs"
+                            variant="light"
+                            color="gray"
+                            rightSection={<IconArrowRight size={10} />}
+                            onClick={() => {
+                              const field = CORRECTION_FILE_FIELD[f.filename];
+                              if (field) {
+                                handleConfigChange({
+                                  ...config,
+                                  files: { ...config.files, [field]: f.path },
+                                });
+                              }
+                            }}
+                          >
+                            {f.filename}
+                          </Button>
+                        ))}
+                      </Group>
+                    </>
+                  )}
+                  {profileNotification && (
+                    <Notification
+                      icon={<IconCheck size={14} />}
+                      color="green"
+                      withCloseButton={false}
+                      p="xs"
+                    >
+                      <Text size="xs">{profileNotification}</Text>
+                    </Notification>
+                  )}
+                  <Divider my={4} />
+                </>
+              )}
+              {correctionsLoading && (
+                <Group justify="center" py="xs">
+                  <Loader size="xs" />
+                </Group>
+              )}
+
               <SectionHeader title="Auxiliary Files" anchor="files-aux" />
               <FileInputRow
                 label="Satellite Antenna PCV File (ANTEX)"

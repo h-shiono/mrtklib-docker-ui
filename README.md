@@ -273,6 +273,36 @@ the approach — this avoids duplicated effort.
 
 ---
 
+## Bundled Correction Files
+
+The Docker image includes correction files from MRTKLIB for
+quick-start CLAS PPP-RTK and MADOCA PPP processing:
+
+### CLAS PPP-RTK
+| File | Purpose |
+|------|---------|
+| `clas_grid.def` | CLAS grid definition |
+| `clas_grid.blq` | Ocean tide loading coefficients |
+| `igu00p01.erp` | Earth rotation parameters |
+| `igs14_L5copy.atx` | Satellite/receiver antenna PCV |
+| `isb.tbl` | Inter-system bias table |
+| `l2csft.tbl` | L2C signal phase correction |
+
+### MADOCA PPP
+| File | Purpose |
+|------|---------|
+| `igs20.atx` | IGS antenna model (satellite + receiver PCO/PCV) |
+
+These files are available at `/opt/mrtklib/corrections/` inside
+the container and can be selected directly from the UI's
+Files configuration panel. Use the "Apply CLAS PPP-RTK profile"
+or "Apply MADOCA PPP profile" buttons to set all paths at once.
+
+To use a newer version of any file, place it in your `/data`
+directory and select it manually via the file browser.
+
+---
+
 ## License
 
 MIT License. See [LICENSE](LICENSE).

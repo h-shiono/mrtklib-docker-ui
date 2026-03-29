@@ -38,8 +38,8 @@ interface FileBrowserModalProps {
   title?: string;
   fileExtensions?: string[];
   selectDirectory?: boolean;
-  /** Default root: 'workspace' or 'data'. Input fields default to 'data' if mounted. */
-  defaultRoot?: 'workspace' | 'data';
+  /** Default root: 'workspace', 'data', or 'system'. */
+  defaultRoot?: 'workspace' | 'data' | 'system';
 }
 
 function formatSize(size: number | null): string {
@@ -60,8 +60,9 @@ export function FileBrowserModal({
   defaultRoot = 'workspace',
 }: FileBrowserModalProps) {
   const [roots, setRoots] = useState<RootInfo[]>([]);
-  const [activeRoot, setActiveRoot] = useState<string>(`/${defaultRoot}`);
-  const [currentPath, setCurrentPath] = useState(`/${defaultRoot}`);
+  const defaultRootPath = defaultRoot === 'system' ? '/opt/mrtklib/corrections' : `/${defaultRoot}`;
+  const [activeRoot, setActiveRoot] = useState<string>(defaultRootPath);
+  const [currentPath, setCurrentPath] = useState(defaultRootPath);
   const [items, setItems] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +76,7 @@ export function FileBrowserModal({
       .then((data: RootInfo[]) => {
         setRoots(data);
         // Auto-select data root if preferred and mounted
-        const preferred = `/${defaultRoot}`;
+        const preferred = defaultRoot === 'system' ? '/opt/mrtklib/corrections' : `/${defaultRoot}`;
         const prefRoot = data.find((r) => r.path === preferred && r.mounted);
         if (prefRoot) {
           setActiveRoot(prefRoot.path);

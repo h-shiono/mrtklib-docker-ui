@@ -11,7 +11,8 @@ router = APIRouter()
 
 WORKSPACE_ROOT = Path("/workspace")
 DATA_ROOT = Path("/data")
-ALLOWED_ROOTS = [WORKSPACE_ROOT, DATA_ROOT]
+CORRECTIONS_ROOT = Path("/opt/mrtklib/corrections")
+ALLOWED_ROOTS = [WORKSPACE_ROOT, DATA_ROOT, CORRECTIONS_ROOT]
 
 
 def _is_allowed_path(p: Path) -> bool:
@@ -76,7 +77,7 @@ class RootInfo(BaseModel):
 @router.get("/roots")
 async def list_roots() -> list[RootInfo]:
     """List available volume roots."""
-    return [
+    roots = [
         RootInfo(
             path="/workspace",
             label="Workspace (output)",
@@ -90,6 +91,38 @@ async def list_roots() -> list[RootInfo]:
             mounted=DATA_ROOT.exists() and any(DATA_ROOT.iterdir()) if DATA_ROOT.exists() else False,
         ),
     ]
+    # Only show System root if correction files are present
+    if CORRECTIONS_ROOT.exists() and any(CORRECTIONS_ROOT.iterdir()):
+        roots.append(
+            RootInfo(
+                path="/opt/mrtklib/corrections",
+                label="System (read-only)",
+                writable=False,
+                mounted=True,
+            )
+        )
+    return roots
+
+
+@router.get("/corrections")
+async def list_corrections() -> dict[str, list[dict[str, Any]]]:
+    """List bundled MRTKLIB correction files."""
+    result: dict[str, list[dict[str, Any]]] = {}
+    for profile in ["clas", "madoca"]:
+        profile_path = CORRECTIONS_ROOT / profile
+        if profile_path.exists():
+            result[profile] = [
+                {
+                    "filename": f.name,
+                    "path": str(f),
+                    "size_bytes": f.stat().st_size,
+                }
+                for f in sorted(profile_path.iterdir())
+                if f.is_file()
+            ]
+        else:
+            result[profile] = []
+    return result
 
 
 @router.get("/browse", response_model=DirectoryListing)
