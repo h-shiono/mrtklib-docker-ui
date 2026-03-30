@@ -537,10 +537,16 @@ class MrtkPostService:
         # ── [ambiguity_resolution] ────────────────────────────────────────
         ar = config.ambiguity_resolution
         lines.append("[ambiguity_resolution]")
+        def _ar_flag(v: str) -> str:
+            """AR flag: 'on'→true, 'off'→false, else quoted string."""
+            if v == "on": return "true"
+            if v == "off": return "false"
+            return _s(v)
+
         lines.append(f"mode       = {_s(ar.mode)}")
-        lines.append(f"glonass_ar = {_s(ar.glonass_ar)}")
-        lines.append(f"bds_ar     = {_s(ar.bds_ar)}")
-        lines.append(f"qzs_ar     = {_s(ar.qzs_ar)}")
+        if ar.glonass_ar != "off": lines.append(f"glonass_ar = {_ar_flag(ar.glonass_ar)}")
+        if ar.bds_ar != "off": lines.append(f"bds_ar     = {_ar_flag(ar.bds_ar)}")
+        lines.append(f"qzs_ar     = {_ar_flag(ar.qzs_ar)}")
         lines.append("")
 
         # ── [ambiguity_resolution.thresholds] ─────────────────────────────
@@ -656,15 +662,16 @@ class MrtkPostService:
         lines.append(f"pva_gain        = {af.pva_gain}")
         lines.append("")
 
-        # ── [signals] ────────────────────────────────────────────────────
-        sig = config.signal_selection
-        lines.append("[signals]")
-        lines.append(f"gps     = {_s(sig.gps)}")
-        lines.append(f"qzs     = {_s(sig.qzs)}")
-        lines.append(f"galileo = {_s(sig.galileo)}")
-        lines.append(f"bds2    = {_s(sig.bds2)}")
-        lines.append(f"bds3    = {_s(sig.bds3)}")
-        lines.append("")
+        # ── [signals] (only when using frequency mode, not signals list) ─
+        if not use_signals:
+            sig = config.signal_selection
+            lines.append("[signals]")
+            lines.append(f"gps     = {_s(sig.gps)}")
+            lines.append(f"qzs     = {_s(sig.qzs)}")
+            lines.append(f"galileo = {_s(sig.galileo)}")
+            lines.append(f"bds2    = {_s(sig.bds2)}")
+            lines.append(f"bds3    = {_s(sig.bds3)}")
+            lines.append("")
 
         # ── [receiver] ───────────────────────────────────────────────────
         rx = config.receiver
