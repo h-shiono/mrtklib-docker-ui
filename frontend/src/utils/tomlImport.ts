@@ -21,6 +21,29 @@ function boolToOnOff(obj: AnyDict | undefined, key: string, fallback: string): s
   return String(v);
 }
 
+// Reverse maps: MRTKLIB TOML values → frontend internal values
+const EPHEM_REV: Record<string, string> = {
+  'brdc': 'broadcast', 'precise': 'precise', 'brdc+sbas': 'broadcast+sbas',
+  'brdc+ssrapc': 'broadcast+ssrapc', 'brdc+ssrcom': 'broadcast+ssrcom',
+};
+const IONO_REV: Record<string, string> = {
+  'off': 'off', 'brdc': 'broadcast', 'sbas': 'sbas', 'dual-freq': 'dual-freq',
+  'est-stec': 'est-stec', 'ionex-tec': 'ionex-tec', 'qzs-brdc': 'qzs-brdc',
+  'est-adaptive': 'est-adaptive',
+};
+const TROPO_REV: Record<string, string> = {
+  'off': 'off', 'saas': 'saastamoinen', 'sbas': 'sbas',
+  'est-ztd': 'est-ztd', 'est-ztdgrad': 'est-ztd-grad',
+};
+const FREQ_REV: Record<string, string> = {
+  'l1': 'l1', 'l1+2': 'l1+l2', 'l1+2+3': 'l1+l2+l5',
+  'l1+2+3+4': 'l1+l2+l5+l6', 'l1+2+3+4+5': 'l1+l2+l5+l6+l7',
+};
+
+function revMap(v: string, map: Record<string, string>): string {
+  return map[v] ?? v;
+}
+
 export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
   const d = DEFAULT_MRTK_POST_CONFIG;
   const pos = (toml.positioning ?? {}) as AnyDict;
@@ -65,13 +88,16 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
   return {
     positioning: {
       positioningMode: get(pos, 'mode', d.positioning.positioningMode),
-      frequency: get(pos, 'frequency', d.positioning.frequency),
+      frequency: revMap(get(pos, 'frequency', d.positioning.frequency), FREQ_REV) as MrtkPostConfig['positioning']['frequency'],
       signals: Array.isArray(pos.signals) ? (pos.signals as string[]).join(',') : get(pos, 'signals', d.positioning.signals),
       signalMode: pos.signals ? 'signals' : 'frequency',
       filterType: get(pos, 'solution_type', d.positioning.filterType),
       elevationMask: get(pos, 'elevation_mask', d.positioning.elevationMask),
       receiverDynamics: get(pos, 'dynamics', false) ? 'on' : 'off',
-      ephemerisOption: get(pos, 'ephemeris_option', d.positioning.ephemerisOption) || get(pos, 'satellite_ephemeris', d.positioning.ephemerisOption),
+      ephemerisOption: revMap(
+        get(pos, 'satellite_ephemeris', '') || get(pos, 'ephemeris_option', '') || d.positioning.ephemerisOption,
+        EPHEM_REV,
+      ) as MrtkPostConfig['positioning']['ephemerisOption'],
       constellations,
       excludedSatellites: Array.isArray(pos.excluded_sats) ? (pos.excluded_sats as string[]).join(' ') : get(pos, 'excluded_sats', d.positioning.excludedSatellites),
       snrMask: {
@@ -96,8 +122,8 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
         tidalCorrection: get(corr, 'tidal_correction', d.positioning.corrections.tidalCorrection),
       },
       atmosphere: {
-        ionosphere: get(atm, 'ionosphere', d.positioning.atmosphere.ionosphere),
-        troposphere: get(atm, 'troposphere', d.positioning.atmosphere.troposphere),
+        ionosphere: revMap(get(atm, 'ionosphere', d.positioning.atmosphere.ionosphere), IONO_REV) as MrtkPostConfig['positioning']['atmosphere']['ionosphere'],
+        troposphere: revMap(get(atm, 'troposphere', d.positioning.atmosphere.troposphere), TROPO_REV) as MrtkPostConfig['positioning']['atmosphere']['troposphere'],
       },
       clas: {
         gridSelectionRadius: get(clas, 'grid_selection_radius', d.positioning.clas.gridSelectionRadius),

@@ -915,6 +915,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { value: 'sbas', label: 'SBAS' },
                       { value: 'dual-freq', label: 'Iono-Free LC' },
                       { value: 'est-stec', label: 'Estimate STEC' },
+                      { value: 'est-adaptive', label: 'Estimate Adaptive' },
                       { value: 'ionex-tec', label: 'IONEX TEC' },
                     ]}
                     style={{ flex: 1 }}
@@ -3459,7 +3460,7 @@ export function TomlDrawer({ config, opened, onClose, streams }: { config: MrtkP
     };
     const IONO: Record<string, string> = {
       'off': 'off', 'broadcast': 'brdc', 'sbas': 'sbas', 'dual-freq': 'dual-freq',
-      'est-stec': 'est-stec', 'ionex-tec': 'ionex-tec', 'qzs-brdc': 'qzs-brdc',
+      'est-stec': 'est-stec', 'est-adaptive': 'est-adaptive', 'ionex-tec': 'ionex-tec', 'qzs-brdc': 'qzs-brdc',
     };
     const TROPO: Record<string, string> = {
       'off': 'off', 'saastamoinen': 'saas', 'sbas': 'sbas',
