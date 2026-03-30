@@ -5,7 +5,6 @@ import {
   Stack,
   Tabs,
   Select,
-  TextInput,
   Group,
   ActionIcon,
   Button,
@@ -23,6 +22,7 @@ import {
   IconInfoCircle,
 } from '@tabler/icons-react';
 import { FileNamingHelper } from './FileNamingHelper';
+import { MaskedPathInput } from './common/MaskedPathInput';
 import { StreamPathHelp } from './StreamPathHelp';
 import type {
   BuilderConfig,
@@ -270,12 +270,12 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
                     styles={{ label: { fontSize: '10px' } }}
                   />
 
-                  <TextInput
+                  <MaskedPathInput
                     size="xs"
                     label="Path"
                     placeholder={PATH_PLACEHOLDERS[builderConfig.input.type]}
                     value={builderConfig.input.path}
-                    onChange={(e) => handleInputPathChange(e.currentTarget.value)}
+                    onChange={(v) => handleInputPathChange(v)}
                     rightSection={
                       builderConfig.input.type === 'file' ? (
                         <FileNamingHelper
@@ -347,13 +347,13 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
                             styles={{ label: { fontSize: '10px' } }}
                           />
 
-                          <TextInput
+                          <MaskedPathInput
                             size="xs"
                             label="Path"
                             placeholder={PATH_PLACEHOLDERS[output.type]}
                             value={output.path}
-                            onChange={(e) =>
-                              handleOutputPathChange(output.id, e.currentTarget.value)
+                            onChange={(v) =>
+                              handleOutputPathChange(output.id, v)
                             }
                             rightSection={
                               output.type === 'file' ? (
