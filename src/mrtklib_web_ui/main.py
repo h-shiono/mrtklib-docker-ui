@@ -15,7 +15,7 @@ try:
 except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0-dev"
 
-from mrtklib_web_ui.api import files, process, config, mrtk_relay, mrtk_post, mrtk_run, obs_qc, presets, downloader, convert
+from mrtklib_web_ui.api import files, process, config, mrtk_relay, mrtk_post, mrtk_run, obs_qc, presets, downloader, convert, ai
 from mrtklib_web_ui.services import process_manager, ws_manager
 
 # Static files directory (set in Docker build)
@@ -67,6 +67,7 @@ app.include_router(obs_qc.router, prefix="/api/obs-qc", tags=["obs-qc"])
 app.include_router(presets.router, prefix="/api/presets", tags=["presets"])
 app.include_router(downloader.router, prefix="/api/downloader", tags=["downloader"])
 app.include_router(convert.router, prefix="/api/convert", tags=["convert"])
+app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 
 
 @app.get("/api/health")

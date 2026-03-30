@@ -45,6 +45,7 @@ import { maskLogLine } from './utils/maskPath';
 import { GnssTimeConverter } from './components/tools/GnssTimeConverter';
 import { DataDownloader } from './components/tools/DataDownloader';
 import { ToolsSidebar } from './components/tools/ToolsSidebar';
+import { AiSettingsPanel } from './components/tools/AiSettingsPanel';
 import { configToBackend } from './utils/configToBackend';
 import { ObsViewerModal } from './components/obsViewer';
 import type { ProcessStatus } from './components';
@@ -471,7 +472,7 @@ function SolutionView({
   );
 }
 
-function PostProcessingPanel() {
+function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured }: { onNavigateToAiSettings?: () => void; aiConfigured?: boolean }) {
   const [roverFile, setRoverFile] = useState('/workspace/rover.obs');
   const [baseFile, setBaseFile] = useState('');
   const [navFile, setNavFile] = useState('/workspace/nav.nav');
@@ -657,6 +658,8 @@ function PostProcessingPanel() {
         <Stack gap="xs">
           <PostProcessingConfiguration
             onConfigChange={setConfig}
+            onNavigateToAiSettings={onNavigateToAiSettings}
+            aiConfigured={aiConfigured}
             roverFile={roverFile}
             onRoverFileChange={setRoverFile}
             baseFile={baseFile}
@@ -1227,8 +1230,8 @@ function StreamServerPanel() {
   );
 }
 
-function RealTimePanel() {
-  return <RealTimeProcessing />;
+function RealTimePanel({ onNavigateToAiSettings, aiConfigured }: { onNavigateToAiSettings?: () => void; aiConfigured?: boolean }) {
+  return <RealTimeProcessing onNavigateToAiSettings={onNavigateToAiSettings} aiConfigured={aiConfigured} />;
 }
 
 // ConversionPanel is now imported from ./components/ConversionPanel
@@ -1238,6 +1241,18 @@ function App() {
   const [healthStatus, setHealthStatus] = useState<'loading' | 'ok' | 'error'>('loading');
   const [mrtkVersion, setMrtkVersion] = useState<string>('');
   const [selectedTool, setSelectedTool] = useState('time-converter');
+
+  // Lifted AI configuration state — shared across sidebar, PP, RT, and settings panel
+  const [aiConfigured, setAiConfigured] = useState(false);
+  const refreshAiConfigured = useCallback(() => {
+    fetch('/api/ai/settings')
+      .then((r) => r.json())
+      .then((data) => setAiConfigured(Boolean(data.configured)))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    refreshAiConfigured();
+  }, [refreshAiConfigured]);
 
   useEffect(() => {
     // Check API health
@@ -1327,10 +1342,10 @@ function App() {
 
         {/* Tab Content - keep all panels mounted to preserve state */}
         <div style={{ display: activeTab === 'post-processing' ? undefined : 'none' }}>
-          <PostProcessingPanel />
+          <PostProcessingPanel aiConfigured={aiConfigured} onNavigateToAiSettings={() => { setActiveTab('tools'); setSelectedTool('ai-settings'); }} />
         </div>
         <div style={{ display: activeTab === 'realtime' ? undefined : 'none' }}>
-          <RealTimePanel />
+          <RealTimePanel aiConfigured={aiConfigured} onNavigateToAiSettings={() => { setActiveTab('tools'); setSelectedTool('ai-settings'); }} />
         </div>
         <div style={{ display: activeTab === 'stream-server' ? undefined : 'none' }}>
           <StreamServerPanel />
@@ -1340,11 +1355,12 @@ function App() {
         </div>
         <div style={{ display: activeTab === 'tools' ? 'flex' : 'none', width: '100%', minHeight: 500, overflow: 'hidden', border: '1px solid var(--mantine-color-default-border)', borderRadius: 'var(--mantine-radius-md)', background: 'var(--mantine-color-default)' }}>
           <div style={{ width: 160, flexShrink: 0, borderRight: '1px solid var(--mantine-color-default-border)', overflowY: 'auto' }}>
-            <ToolsSidebar selected={selectedTool} onSelect={setSelectedTool} />
+            <ToolsSidebar selected={selectedTool} onSelect={setSelectedTool} aiConfigured={aiConfigured} />
           </div>
           <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '1.5rem 2rem' }}>
             {selectedTool === 'time-converter' && <GnssTimeConverter />}
             {selectedTool === 'downloader' && <DataDownloader />}
+            {selectedTool === 'ai-settings' && <AiSettingsPanel onSettingsSaved={refreshAiConfigured} />}
           </div>
         </div>
       </AppShell.Main>
