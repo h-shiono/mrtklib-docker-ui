@@ -13,6 +13,8 @@ from typing import Annotated, Any, Optional
 
 from pydantic import BaseModel, BeforeValidator, Field
 
+from mrtklib_web_ui.services.mask_credentials import mask_log_line
+
 
 def _bool_to_onoff(v: Any) -> str:
     """Convert bool to 'on'/'off' string, pass strings through."""
@@ -796,6 +798,12 @@ class MrtkPostService:
         progress_callback: Optional[callable] = None,
     ) -> subprocess.CompletedProcess:
         """Run mrtk post with the given job configuration."""
+        # Wrap log callback to mask credentials
+        if log_callback:
+            _raw_log_cb = log_callback
+            async def _masked_log_cb(line: str) -> None:
+                await _raw_log_cb(mask_log_line(line))
+            log_callback = _masked_log_cb
         conf_content = self.generate_conf_file(job.config)
 
         with tempfile.NamedTemporaryFile(

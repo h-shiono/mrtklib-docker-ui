@@ -5,7 +5,6 @@ import {
   Grid,
   Stack,
   Select,
-  TextInput,
   SimpleGrid,
   Text,
   Title,
@@ -53,6 +52,8 @@ import { mrtkRunApi } from '../api/mrtkRun';
 import { PositionScatter, type PositionPoint } from './PositionScatter';
 import { SkySnrPanel, type Satellite } from './SkySnrPanel';
 import { TimeSeriesChart, type TimeSeriesPoint } from './TimeSeriesChart';
+import { MaskedPathInput } from './common/MaskedPathInput';
+import { maskLogLine } from '../utils/maskPath';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -110,8 +111,8 @@ function StreamEditor({
       </Group>
       <Group wrap="nowrap" align="center" gap="xs">
         <Text size="xs" c="dimmed" style={LABEL_STYLE}>Path</Text>
-        <TextInput size="xs" value={stream.path}
-          onChange={(e) => onChange({ ...stream, path: e.currentTarget.value })}
+        <MaskedPathInput size="xs" value={stream.path}
+          onChange={(v) => onChange({ ...stream, path: v })}
           placeholder={isOff ? '' : ({
             serial: 'ttyUSB0:115200',
             tcpcli: '192.168.1.100:2101',
@@ -645,7 +646,7 @@ export function RealTimeProcessing({ onConfigChange }: RealTimeProcessingProps) 
               <Tabs.Panel value="console" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
                 <ScrollArea h={300}>
                   <Text ff="monospace" style={{ whiteSpace: 'pre-wrap', fontSize: 10, lineHeight: 1.4 }}>
-                    {logLines.length > 0 ? logLines.join('\n') : 'No log output yet.'}
+                    {logLines.length > 0 ? logLines.map(maskLogLine).join('\n') : 'No log output yet.'}
                   </Text>
                   <div ref={logEndRef} />
                 </ScrollArea>
@@ -673,7 +674,7 @@ export function RealTimeProcessing({ onConfigChange }: RealTimeProcessingProps) 
               <Text c="dimmed" tt="uppercase" style={{ fontSize: 9, lineHeight: 1.2, marginBottom: 2 }}>Console</Text>
               <Text ff="monospace" c="dimmed" style={{ whiteSpace: 'pre-wrap', fontSize: 9, lineHeight: 1.35 }}>
                 {logLines.length > 0
-                  ? logLines.slice(-4).join('\n')
+                  ? logLines.slice(-4).map(maskLogLine).join('\n')
                   : 'No log output yet.'}
               </Text>
             </Box>

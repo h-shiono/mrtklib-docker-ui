@@ -9,6 +9,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Callable, Awaitable
 
+from mrtklib_web_ui.services.mask_credentials import mask_log_line
+
 
 class ProcessState(str, Enum):
     """Process execution state."""
@@ -300,10 +302,10 @@ class ProcessManager:
             pass
 
     async def _broadcast_log(self, process_id: str, message: str) -> None:
-        """Broadcast a log message."""
+        """Broadcast a log message (with credentials masked)."""
         if self._log_callback:
             try:
-                await self._log_callback(process_id, message)
+                await self._log_callback(process_id, mask_log_line(message))
             except Exception:
                 pass  # Don't let broadcast errors affect process
 

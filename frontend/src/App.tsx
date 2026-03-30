@@ -17,7 +17,6 @@ import {
   Code,
   Alert,
   Select,
-  TextInput,
 } from '@mantine/core';
 import {
   IconSun,
@@ -41,6 +40,8 @@ import { ResultViewer } from './components/viewer';
 import { RealTimeProcessing } from './components/RealTimeProcessing';
 import { ConversionPanel } from './components/ConversionPanel';
 import { StreamPathHelp } from './components/StreamPathHelp';
+import { MaskedPathInput } from './components/common/MaskedPathInput';
+import { maskLogLine } from './utils/maskPath';
 import { GnssTimeConverter } from './components/tools/GnssTimeConverter';
 import { DataDownloader } from './components/tools/DataDownloader';
 import { ToolsSidebar } from './components/tools/ToolsSidebar';
@@ -341,7 +342,7 @@ function PostProcessingRightPanel({
                 }}
               >
                 {logLines.map((line, index) => (
-                  <div key={index}>{line}</div>
+                  <div key={index}>{maskLogLine(line)}</div>
                 ))}
               </Code>
             )}
@@ -1084,10 +1085,10 @@ function StreamServerPanel() {
                           data={STREAM_TYPE_OPTIONS}
                           style={{ maxWidth: 120 }}
                         />
-                        <TextInput
+                        <MaskedPathInput
                           size="xs"
                           value={stream.input.path}
-                          onChange={(e) => handleInputPathChange(stream.id, e.currentTarget.value)}
+                          onChange={(v) => handleInputPathChange(stream.id, v)}
                           placeholder={PATH_PLACEHOLDER_FOR_TYPE[stream.input.type]}
                           styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }}
                         />
@@ -1112,10 +1113,10 @@ function StreamServerPanel() {
                               data={STREAM_TYPE_OPTIONS}
                               style={{ maxWidth: 120, flexShrink: 0 }}
                             />
-                            <TextInput
+                            <MaskedPathInput
                               size="xs"
                               value={output.path}
-                              onChange={(e) => handleOutputPathChange(stream.id, output.id, e.currentTarget.value)}
+                              onChange={(v) => handleOutputPathChange(stream.id, output.id, v)}
                               placeholder={PATH_PLACEHOLDER_FOR_TYPE[output.type]}
                               styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }}
                             />
@@ -1212,7 +1213,7 @@ function StreamServerPanel() {
                       }}
                     >
                       {stream.logLines.map((line, index) => (
-                        <div key={index}>{line}</div>
+                        <div key={index}>{maskLogLine(line)}</div>
                       ))}
                     </Code>
                   )}

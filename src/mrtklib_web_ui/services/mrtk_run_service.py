@@ -14,6 +14,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from mrtklib_web_ui.services.mask_credentials import mask_log_line
+
 logger = logging.getLogger(__name__)
 
 # ── Status parsing ───────────────────────────────────────────────────────────
@@ -295,7 +297,15 @@ class MrtkRunService:
             raise RuntimeError("mrtk run is already running")
 
         self._status_callback = status_callback
-        self._log_callback = log_callback
+        # Wrap log callback to mask credentials before broadcasting
+        if log_callback:
+            _raw_cb = log_callback
+            async def _masked_cb(line: str) -> None:
+                await _raw_cb(mask_log_line(line))
+            self._log_callback = _masked_cb
+            log_callback = self._log_callback
+        else:
+            self._log_callback = None
 
         # Generate config
         toml_content = self.generate_run_toml(request.config, request.streams)
