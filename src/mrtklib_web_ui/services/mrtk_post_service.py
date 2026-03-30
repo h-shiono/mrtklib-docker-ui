@@ -509,6 +509,8 @@ class MrtkPostService:
         lines.append(f"iono_compensation  = {_s(cor.iono_compensation)}")
         lines.append(f"partial_ar         = {_b(cor.partial_ar)}")
         lines.append(f"shapiro_delay      = {_b(cor.shapiro_delay)}")
+        lines.append(f"exclude_qzs_ref    = {_b(cor.exclude_qzs_ref)}")
+        lines.append(f"no_phase_bias_adj  = {_b(cor.no_phase_bias_adj)}")
         lines.append(f"tidal_correction   = {_s(cor.tidal_correction)}")
         lines.append("")
 
@@ -534,7 +536,6 @@ class MrtkPostService:
         ar = config.ambiguity_resolution
         lines.append("[ambiguity_resolution]")
         lines.append(f"mode       = {_s(ar.mode)}")
-        lines.append(f"gps_ar     = {_b(ar.gps_ar)}")
         lines.append(f"glonass_ar = {_s(ar.glonass_ar)}")
         lines.append(f"bds_ar     = {_s(ar.bds_ar)}")
         lines.append(f"qzs_ar     = {_s(ar.qzs_ar)}")
@@ -623,29 +624,28 @@ class MrtkPostService:
 
         pn = kf.process_noise
         lines.append("[kalman_filter.process_noise]")
-        lines.append(f"bias            = {_flt(pn.bias)}")
-        lines.append(f"ionosphere      = {pn.ionosphere}")
-        if pn.iono_max: lines.append(f"iono_max        = {pn.iono_max}")
-        lines.append(f"troposphere     = {_flt(pn.troposphere)}")
         lines.append(f"accel_h         = {pn.accel_h}")
         lines.append(f"accel_v         = {pn.accel_v}")
-        if pn.position_h: lines.append(f"position_h      = {pn.position_h}")
-        if pn.position_v: lines.append(f"position_v      = {pn.position_v}")
-        if pn.ifb: lines.append(f"ifb             = {pn.ifb}")
-        if pn.iono_time_const: lines.append(f"iono_time_const = {pn.iono_time_const}")
+        lines.append(f"position_h      = {pn.position_h}")
+        lines.append(f"position_v      = {pn.position_v}")
+        lines.append(f"bias            = {_flt(pn.bias)}")
+        lines.append(f"ionosphere      = {pn.ionosphere}")
+        lines.append(f"iono_max        = {pn.iono_max}")
+        lines.append(f"troposphere     = {_flt(pn.troposphere)}")
+        lines.append(f"iono_time_const = {pn.iono_time_const}")
         lines.append(f"clock_stability = {_flt(pn.clock_stability)}")
+        if pn.ifb: lines.append(f"ifb             = {pn.ifb}")
         lines.append("")
 
         # ── [adaptive_filter] ────────────────────────────────────────────
         af = config.adaptive_filter
-        if af.enabled:
-            lines.append("[adaptive_filter]")
-            lines.append(f"enabled         = true")
-            lines.append(f"iono_forgetting = {af.iono_forgetting}")
-            lines.append(f"iono_gain       = {af.iono_gain}")
-            lines.append(f"pva_forgetting  = {af.pva_forgetting}")
-            lines.append(f"pva_gain        = {af.pva_gain}")
-            lines.append("")
+        lines.append("[adaptive_filter]")
+        lines.append(f"iono_forgetting = {af.iono_forgetting}")
+        lines.append(f"iono_gain       = {af.iono_gain}")
+        lines.append(f"enabled         = {_b(af.enabled)}")
+        lines.append(f"pva_forgetting  = {af.pva_forgetting}")
+        lines.append(f"pva_gain        = {af.pva_gain}")
+        lines.append("")
 
         # ── [signals] ────────────────────────────────────────────────────
         sig = config.signal_selection
@@ -664,8 +664,10 @@ class MrtkPostService:
         if rx.max_age != 30.0: lines.append(f"max_age         = {rx.max_age}")
         if rx.baseline_length: lines.append(f"baseline_length = {rx.baseline_length}")
         if rx.baseline_sigma: lines.append(f"baseline_sigma  = {rx.baseline_sigma}")
-        if rx.phase_shift != "off": lines.append(f"phase_shift     = {_s(rx.phase_shift)}")
         if rx.isb: lines.append(f"isb             = true")
+        if rx.phase_shift != "off": lines.append(f"phase_shift     = {_s(rx.phase_shift)}")
+        if rx.reference_type:
+            lines.append(f"reference_type  = {_s(rx.reference_type)}")
         lines.append("")
 
         # ── [antenna.rover] ──────────────────────────────────────────────
