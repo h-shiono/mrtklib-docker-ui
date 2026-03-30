@@ -349,8 +349,8 @@ class MrtkRunService:
         self._stdout_task = asyncio.create_task(self._read_stdout())
         self._stderr_task = asyncio.create_task(self._read_stderr())
 
-        # Wait for rtkrcv to start listening
-        await asyncio.sleep(2.0)
+        # Wait for rtkrcv to start and stabilize before telnet connection
+        await asyncio.sleep(5.0)
 
         # Check if process crashed immediately
         if not self._process or self._process.returncode is not None:
