@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
 import { Stack, Group, Text, ScrollArea, UnstyledButton } from '@mantine/core';
 import { IconClock, IconDownload, IconTools, IconDatabase, IconSparkles, IconSettings, IconCheck, IconAlertCircle } from '@tabler/icons-react';
 
 interface ToolsSidebarProps {
   selected: string;
   onSelect: (id: string) => void;
+  aiConfigured?: boolean;
 }
 
 function SidebarGroup({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
@@ -59,16 +59,7 @@ function SidebarItem({ label, icon, section, active, onClick }: {
   );
 }
 
-export function ToolsSidebar({ selected, onSelect }: ToolsSidebarProps) {
-  const [aiConfigured, setAiConfigured] = useState(false);
-
-  useEffect(() => {
-    fetch('/api/ai/settings')
-      .then((r) => r.json())
-      .then((data) => setAiConfigured(data.configured))
-      .catch(() => {});
-  }, [selected]);
-
+export function ToolsSidebar({ selected, onSelect, aiConfigured }: ToolsSidebarProps) {
   return (
     <ScrollArea style={{ width: '100%', height: '100%' }}>
       <Stack gap={0}>

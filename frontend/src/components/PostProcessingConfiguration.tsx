@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useLocalStorage, useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
@@ -30,6 +30,7 @@ import { tomlToConfig } from '../utils/tomlImport';
 interface PostProcessingConfigurationProps {
   onConfigChange: (config: MrtkPostConfig) => void;
   onNavigateToAiSettings?: () => void;
+  aiConfigured?: boolean;
   // Execution tab props
   roverFile: string;
   onRoverFileChange: (v: string) => void;
@@ -54,6 +55,7 @@ interface PostProcessingConfigurationProps {
 export function PostProcessingConfiguration({
   onConfigChange,
   onNavigateToAiSettings,
+  aiConfigured,
   roverFile,
   onRoverFileChange,
   baseFile,
@@ -90,15 +92,6 @@ export function PostProcessingConfiguration({
   const [tomlOpened, { open: openToml, close: closeToml }] = useDisclosure(false);
   const [presetsOpened, { open: openPresets, close: closePresets }] = useDisclosure(false);
   const [assistantOpened, { open: openAssistant, close: closeAssistant }] = useDisclosure(false);
-
-  // AI configured status
-  const [aiConfigured, setAiConfigured] = useState(false);
-  useEffect(() => {
-    fetch('/api/ai/settings')
-      .then((r) => r.json())
-      .then((data) => setAiConfigured(data.configured))
-      .catch(() => {});
-  }, []);
 
   // Ref to allow auto-focusing sidebar section on validation error
   const activeSectionRef = useRef<((section: string) => void) | null>(null);

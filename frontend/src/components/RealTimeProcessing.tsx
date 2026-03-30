@@ -193,9 +193,10 @@ const OUTPUT_LOG_SLOTS = [
 interface RealTimeProcessingProps {
   onConfigChange?: (config: MrtkPostConfig) => void;
   onNavigateToAiSettings?: () => void;
+  aiConfigured?: boolean;
 }
 
-export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings }: RealTimeProcessingProps) {
+export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiConfigured }: RealTimeProcessingProps) {
   const [config, setConfig] = useLocalStorage<MrtkPostConfig>({
     key: 'mrtklib-web-ui-mrtk-run-config-v2',
     defaultValue: DEFAULT_MRTK_POST_CONFIG,
@@ -209,15 +210,6 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings }: R
   const [tomlOpened, { open: openToml, close: closeToml }] = useDisclosure(false);
   const [presetsOpened, { open: openPresets, close: closePresets }] = useDisclosure(false);
   const [assistantOpened, { open: openAssistant, close: closeAssistant }] = useDisclosure(false);
-
-  // AI configured status
-  const [aiConfigured, setAiConfigured] = useState(false);
-  useEffect(() => {
-    fetch('/api/ai/settings')
-      .then((r) => r.json())
-      .then((data) => setAiConfigured(data.configured))
-      .catch(() => {});
-  }, []);
   const importFileRef = useRef<HTMLInputElement>(null);
   const handleImportToml = useCallback(async (file: File) => {
     try {

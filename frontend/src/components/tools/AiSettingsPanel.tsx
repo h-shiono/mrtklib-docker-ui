@@ -19,7 +19,11 @@ const MODEL_OPTIONS = [
   { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
 ];
 
-export function AiSettingsPanel() {
+interface AiSettingsPanelProps {
+  onSettingsSaved?: () => void;
+}
+
+export function AiSettingsPanel({ onSettingsSaved }: AiSettingsPanelProps) {
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('claude-sonnet-4-5');
   const [configured, setConfigured] = useState(false);
@@ -54,13 +58,14 @@ export function AiSettingsPanel() {
       const data = await res.json();
       setConfigured(data.configured);
       setTestResult(null);
+      onSettingsSaved?.();
       notifications.show({ title: 'Saved', message: 'AI settings saved', color: 'green' });
     } catch {
       notifications.show({ title: 'Error', message: 'Failed to save settings', color: 'red' });
     } finally {
       setSaving(false);
     }
-  }, [apiKey, model]);
+  }, [apiKey, model, onSettingsSaved]);
 
   const handleTest = useCallback(async () => {
     setTesting(true);
@@ -128,7 +133,7 @@ export function AiSettingsPanel() {
             variant="light"
             p="xs"
           >
-            {testResult.ok ? 'Connected' : `Invalid key: ${testResult.error}`}
+            {testResult.ok ? 'Connected' : (testResult.error || 'Test failed')}
           </Alert>
         )}
       </Stack>

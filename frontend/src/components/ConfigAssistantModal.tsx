@@ -9,6 +9,7 @@ import {
   Alert,
   ScrollArea,
   Code,
+  UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconSparkles, IconAlertTriangle } from '@tabler/icons-react';
@@ -127,15 +128,13 @@ export function ConfigAssistantModal({ opened, onClose, mode, onApply }: ConfigA
         <Stack gap={4}>
           <Text size="xs" c="dimmed">Example prompts:</Text>
           {EXAMPLE_PROMPTS.map((ex) => (
-            <Text
+            <UnstyledButton
               key={ex}
-              size="xs"
-              c="dimmed"
-              style={{ cursor: 'pointer' }}
               onClick={() => setPrompt(ex)}
+              style={{ fontSize: '12px', color: 'var(--mantine-color-dimmed)', textAlign: 'left' }}
             >
               &bull; &quot;{ex}&quot;
-            </Text>
+            </UnstyledButton>
           ))}
         </Stack>
 
