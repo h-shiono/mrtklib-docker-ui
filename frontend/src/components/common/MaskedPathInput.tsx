@@ -11,6 +11,8 @@ interface MaskedPathInputProps
 export function MaskedPathInput({
   value,
   onChange,
+  onFocus,
+  onBlur,
   ...props
 }: MaskedPathInputProps) {
   const [focused, setFocused] = useState(false);
@@ -20,8 +22,14 @@ export function MaskedPathInput({
       {...props}
       value={focused ? value : maskPath(value)}
       onChange={(e) => onChange(e.currentTarget.value)}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+      onFocus={(e) => {
+        setFocused(true);
+        onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        onBlur?.(e);
+      }}
     />
   );
 }

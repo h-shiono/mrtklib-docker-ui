@@ -303,6 +303,7 @@ class MrtkRunService:
             async def _masked_cb(line: str) -> None:
                 await _raw_cb(mask_log_line(line))
             self._log_callback = _masked_cb
+            log_callback = self._log_callback
         else:
             self._log_callback = None
 

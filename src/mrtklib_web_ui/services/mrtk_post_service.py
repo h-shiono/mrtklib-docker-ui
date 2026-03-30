@@ -801,8 +801,9 @@ class MrtkPostService:
         # Wrap log callback to mask credentials
         if log_callback:
             _raw_log_cb = log_callback
-            async def log_callback(line: str) -> None:
+            async def _masked_log_cb(line: str) -> None:
                 await _raw_log_cb(mask_log_line(line))
+            log_callback = _masked_log_cb
         conf_content = self.generate_conf_file(job.config)
 
         with tempfile.NamedTemporaryFile(

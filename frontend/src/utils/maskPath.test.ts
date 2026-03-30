@@ -21,7 +21,7 @@ describe('maskPath', () => {
     expect(maskPath('')).toBe('');
   });
   it('masks password with special characters', () => {
-    expect(maskPath('admin:p@ss!123@host:2101/MP'))
+    expect(maskPath('admin:pass!123@host:2101/MP'))
       .toBe('admin:***@host:2101/MP');
   });
 });

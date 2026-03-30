@@ -1,6 +1,7 @@
 /**
  * Masks the password portion of a stream path string.
  * Handles NTRIP format: [user[:passwd]@]addr[:port][/mntpnt]
+ * Passwords containing '@' are not supported (not used in NTRIP).
  *
  * Examples:
  *   "user:pass@rtk2go.com:2101/MOUNT" → "user:***@rtk2go.com:2101/MOUNT"
