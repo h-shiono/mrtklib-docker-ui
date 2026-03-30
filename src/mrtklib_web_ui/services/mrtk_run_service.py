@@ -552,6 +552,8 @@ class MrtkRunService:
                 if not self.is_running:
                     if self._log_callback:
                         await self._log_callback("[INFO] Process no longer running, stopping poll")
+                    if self._status_callback:
+                        await self._status_callback({"server_state": "stop"})
                     break
                 status = await self.get_status()
                 poll_count += 1
