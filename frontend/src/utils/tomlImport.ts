@@ -308,7 +308,6 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
       ) as MrtkPostConfig['output']['latLonFormat'],
       fieldSeparator: get(out, 'field_separator', d.output.fieldSeparator),
       height: get(out, 'height_type', d.output.height),
-      datum: get(out, 'datum', d.output.datum),
       geoidModel: get(out, 'geoid_model', d.output.geoidModel),
       staticSolutionMode: get(out, 'static_solution', d.output.staticSolutionMode),
       outputSingleOnOutage: get(out, 'single_output', d.output.outputSingleOnOutage),

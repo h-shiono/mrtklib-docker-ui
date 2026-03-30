@@ -544,8 +544,8 @@ class MrtkPostService:
             return _s(v)
 
         lines.append(f"mode       = {_s(ar.mode)}")
-        if ar.glonass_ar != "off": lines.append(f"glonass_ar = {_ar_flag(ar.glonass_ar)}")
-        if ar.bds_ar != "off": lines.append(f"bds_ar     = {_ar_flag(ar.bds_ar)}")
+        lines.append(f"glonass_ar = {_ar_flag(ar.glonass_ar)}")
+        lines.append(f"bds_ar     = {_ar_flag(ar.bds_ar)}")
         lines.append(f"qzs_ar     = {_ar_flag(ar.qzs_ar)}")
         lines.append("")
 
@@ -643,6 +643,7 @@ class MrtkPostService:
         lines.append(f"accel_v         = {pn.accel_v}")
         lines.append(f"position_h      = {pn.position_h}")
         lines.append(f"position_v      = {pn.position_v}")
+        lines.append(f"position        = {pn.position}")
         lines.append(f"bias            = {_flt(pn.bias)}")
         lines.append(f"ionosphere      = {pn.ionosphere}")
         lines.append(f"iono_max        = {pn.iono_max}")
