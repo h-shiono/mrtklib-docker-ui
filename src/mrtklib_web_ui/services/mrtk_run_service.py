@@ -340,7 +340,7 @@ class MrtkRunService:
 
         self._process = await asyncio.create_subprocess_exec(
             *cmd,
-            stdin=asyncio.subprocess.PIPE,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -561,8 +561,9 @@ class MrtkRunService:
             try:
                 await asyncio.sleep(1.0)
                 if not self.is_running:
+                    exit_code = self._process.returncode if self._process else "unknown"
                     if self._log_callback:
-                        await self._log_callback("[INFO] Process no longer running, stopping poll")
+                        await self._log_callback(f"[INFO] Process no longer running (exit code: {exit_code}), stopping poll")
                     if self._status_callback:
                         await self._status_callback({"server_state": "stop"})
                     break
