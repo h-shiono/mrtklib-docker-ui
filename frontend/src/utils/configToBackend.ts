@@ -227,6 +227,8 @@ export function configToBackend(config: MrtkPostConfig): Record<string, unknown>
       ppp_option: config.server.pppOption ?? '',
       rtcm_option: config.server.rtcmOption ?? '',
       l6_margin: config.server.l6Margin ?? 0,
+      max_obs_loss: config.server.maxObsLoss ?? 90.0,
+      float_count: config.server.floatCount ?? 15,
     },
   };
 }

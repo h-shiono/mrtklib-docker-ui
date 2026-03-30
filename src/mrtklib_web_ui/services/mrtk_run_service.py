@@ -230,6 +230,7 @@ class MrtkRunService:
         self._console_port: int = 0
         self._config_path: Optional[str] = None
         self._poll_task: Optional[asyncio.Task] = None
+        self._stdout_task: Optional[asyncio.Task] = None
         self._stderr_task: Optional[asyncio.Task] = None
         self._status_callback: Optional[callable] = None
         self._log_callback: Optional[callable] = None
@@ -317,6 +318,11 @@ class MrtkRunService:
             s.bind(("", 0))
             self._console_port = s.getsockname()[1]
 
+        # Resolve trace level from config
+        trace_levels = {"level1": "1", "level2": "2", "level3": "3", "level4": "4", "level5": "5"}
+        debug_trace = request.config.get("output", {}).get("debug_trace", "off")
+        trace_arg = trace_levels.get(debug_trace)
+
         # Launch: mrtk run -s -o config.toml -p <port>
         cmd = [
             self.mrtk_bin_path, "run",
@@ -325,6 +331,8 @@ class MrtkRunService:
             "-p", str(self._console_port),
             "-w", "",  # no password for telnet console
         ]
+        if trace_arg:
+            cmd.extend(["-t", trace_arg])
 
         if log_callback:
             await log_callback(f"[CMD] {' '.join(cmd)}")
@@ -332,22 +340,25 @@ class MrtkRunService:
 
         self._process = await asyncio.create_subprocess_exec(
             *cmd,
-            stdin=asyncio.subprocess.PIPE,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
 
-        # Start stderr reader
+        # Start stdout/stderr readers
+        self._stdout_task = asyncio.create_task(self._read_stdout())
         self._stderr_task = asyncio.create_task(self._read_stderr())
 
-        # Wait for rtkrcv to start listening
-        await asyncio.sleep(2.0)
+        # Wait for rtkrcv to start and stabilize before telnet connection
+        await asyncio.sleep(5.0)
 
         # Check if process crashed immediately
-        if self._process.returncode is not None:
+        if not self._process or self._process.returncode is not None:
+            code = self._process.returncode if self._process else "unknown"
             if log_callback:
-                await log_callback(f"[ERROR] Process exited with code {self._process.returncode}")
-            raise RuntimeError(f"mrtk run exited with code {self._process.returncode}")
+                await log_callback(f"[ERROR] Process exited with code {code}")
+            self._process = None
+            raise RuntimeError(f"mrtk run exited with code {code}")
 
         # Connect telnet console
         retries = 3
@@ -426,13 +437,15 @@ class MrtkRunService:
                 self._process.kill()
                 await self._process.wait()
 
-        if self._stderr_task:
-            self._stderr_task.cancel()
-            try:
-                await self._stderr_task
-            except asyncio.CancelledError:
-                pass
-            self._stderr_task = None
+        for task_attr in ('_stdout_task', '_stderr_task'):
+            task = getattr(self, task_attr)
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                setattr(self, task_attr, None)
 
         self._process = None
 
@@ -548,8 +561,11 @@ class MrtkRunService:
             try:
                 await asyncio.sleep(1.0)
                 if not self.is_running:
+                    exit_code = self._process.returncode if self._process else "unknown"
                     if self._log_callback:
-                        await self._log_callback("[INFO] Process no longer running, stopping poll")
+                        await self._log_callback(f"[INFO] Process no longer running (exit code: {exit_code}), stopping poll")
+                    if self._status_callback:
+                        await self._status_callback({"server_state": "stop"})
                     break
                 status = await self.get_status()
                 poll_count += 1
@@ -562,13 +578,32 @@ class MrtkRunService:
                 if self._log_callback:
                     await self._log_callback(f"[WARN] Status poll: {e}")
 
-    async def _read_stderr(self) -> None:
-        """Read stderr from the process and forward to log callback."""
-        if not self._process or not self._process.stderr:
+    async def _read_stdout(self) -> None:
+        """Read stdout from the process and forward to log callback."""
+        proc = self._process
+        if not proc or not proc.stdout:
             return
         try:
             while True:
-                line = await self._process.stderr.readline()
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                text = line.decode("utf-8", errors="replace").strip()
+                if text and self._log_callback:
+                    await self._log_callback(f"[STDOUT] {text}")
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.warning(f"stdout read error: {e}")
+
+    async def _read_stderr(self) -> None:
+        """Read stderr from the process and forward to log callback."""
+        proc = self._process
+        if not proc or not proc.stderr:
+            return
+        try:
+            while True:
+                line = await proc.stderr.readline()
                 if not line:
                     break
                 text = line.decode("utf-8", errors="replace").strip()

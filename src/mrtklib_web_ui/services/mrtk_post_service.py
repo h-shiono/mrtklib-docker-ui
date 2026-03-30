@@ -342,6 +342,8 @@ class ServerConfig(BaseModel):
     ppp_option: str = ""
     rtcm_option: str = ""
     l6_margin: int = 0
+    max_obs_loss: float = 90.0
+    float_count: int = 15
 
 
 # ── Top-level config ─────────────────────────────────────────────────────────
@@ -509,6 +511,8 @@ class MrtkPostService:
         lines.append(f"iono_compensation  = {_s(cor.iono_compensation)}")
         lines.append(f"partial_ar         = {_b(cor.partial_ar)}")
         lines.append(f"shapiro_delay      = {_b(cor.shapiro_delay)}")
+        lines.append(f"exclude_qzs_ref    = {_b(cor.exclude_qzs_ref)}")
+        lines.append(f"no_phase_bias_adj  = {_b(cor.no_phase_bias_adj)}")
         lines.append(f"tidal_correction   = {_s(cor.tidal_correction)}")
         lines.append("")
 
@@ -533,11 +537,16 @@ class MrtkPostService:
         # ── [ambiguity_resolution] ────────────────────────────────────────
         ar = config.ambiguity_resolution
         lines.append("[ambiguity_resolution]")
+        def _ar_flag(v: str) -> str:
+            """AR flag: 'on'→true, 'off'→false, else quoted string."""
+            if v == "on": return "true"
+            if v == "off": return "false"
+            return _s(v)
+
         lines.append(f"mode       = {_s(ar.mode)}")
-        lines.append(f"gps_ar     = {_b(ar.gps_ar)}")
-        lines.append(f"glonass_ar = {_s(ar.glonass_ar)}")
-        lines.append(f"bds_ar     = {_s(ar.bds_ar)}")
-        lines.append(f"qzs_ar     = {_s(ar.qzs_ar)}")
+        lines.append(f"glonass_ar = {_ar_flag(ar.glonass_ar)}")
+        lines.append(f"bds_ar     = {_ar_flag(ar.bds_ar)}")
+        lines.append(f"qzs_ar     = {_ar_flag(ar.qzs_ar)}")
         lines.append("")
 
         # ── [ambiguity_resolution.thresholds] ─────────────────────────────
@@ -567,8 +576,12 @@ class MrtkPostService:
         # ── [ambiguity_resolution.partial_ar] ─────────────────────────────
         par = ar.partial_ar
         lines.append("[ambiguity_resolution.partial_ar]")
-        lines.append(f"min_fix_sats = {par.min_fix_sats}")
-        lines.append(f"ar_filter    = {_b(par.ar_filter)}")
+        if par.min_ambiguities: lines.append(f"min_ambiguities   = {par.min_ambiguities}")
+        if par.max_excluded_sats: lines.append(f"max_excluded_sats = {par.max_excluded_sats}")
+        lines.append(f"min_fix_sats      = {par.min_fix_sats}")
+        if par.min_drop_sats: lines.append(f"min_drop_sats     = {par.min_drop_sats}")
+        if par.min_hold_sats: lines.append(f"min_hold_sats     = {par.min_hold_sats}")
+        lines.append(f"ar_filter         = {_b(par.ar_filter)}")
         lines.append("")
 
         # ── [ambiguity_resolution.hold] ───────────────────────────────────
@@ -580,12 +593,15 @@ class MrtkPostService:
         # ── [rejection] ──────────────────────────────────────────────────
         rej = config.rejection
         lines.append("[rejection]")
-        lines.append(f"innovation = {rej.innovation}")
-        lines.append(f"gdop       = {rej.gdop}")
-        if rej.l1_l2_residual: lines.append(f"l1_l2_residual = {rej.l1_l2_residual}")
-        if rej.dispersive: lines.append(f"dispersive = {rej.dispersive}")
-        if rej.non_dispersive: lines.append(f"non_dispersive = {rej.non_dispersive}")
-        if rej.pseudorange_diff: lines.append(f"pseudorange_diff = {rej.pseudorange_diff}")
+        lines.append(f"innovation         = {rej.innovation}")
+        lines.append(f"gdop               = {rej.gdop}")
+        if rej.l1_l2_residual: lines.append(f"l1_l2_residual     = {rej.l1_l2_residual}")
+        if rej.dispersive: lines.append(f"dispersive         = {rej.dispersive}")
+        if rej.non_dispersive: lines.append(f"non_dispersive     = {rej.non_dispersive}")
+        if rej.hold_chi_square: lines.append(f"hold_chi_square    = {rej.hold_chi_square}")
+        if rej.fix_chi_square: lines.append(f"fix_chi_square     = {rej.fix_chi_square}")
+        if rej.pseudorange_diff: lines.append(f"pseudorange_diff   = {rej.pseudorange_diff}")
+        if rej.position_error_count: lines.append(f"position_error_count = {rej.position_error_count}")
         lines.append("")
 
         # ── [slip_detection] ─────────────────────────────────────────────
@@ -623,39 +639,40 @@ class MrtkPostService:
 
         pn = kf.process_noise
         lines.append("[kalman_filter.process_noise]")
-        lines.append(f"bias            = {_flt(pn.bias)}")
-        lines.append(f"ionosphere      = {pn.ionosphere}")
-        if pn.iono_max: lines.append(f"iono_max        = {pn.iono_max}")
-        lines.append(f"troposphere     = {_flt(pn.troposphere)}")
         lines.append(f"accel_h         = {pn.accel_h}")
         lines.append(f"accel_v         = {pn.accel_v}")
-        if pn.position_h: lines.append(f"position_h      = {pn.position_h}")
-        if pn.position_v: lines.append(f"position_v      = {pn.position_v}")
-        if pn.ifb: lines.append(f"ifb             = {pn.ifb}")
-        if pn.iono_time_const: lines.append(f"iono_time_const = {pn.iono_time_const}")
+        lines.append(f"position_h      = {pn.position_h}")
+        lines.append(f"position_v      = {pn.position_v}")
+        lines.append(f"position        = {pn.position}")
+        lines.append(f"bias            = {_flt(pn.bias)}")
+        lines.append(f"ionosphere      = {pn.ionosphere}")
+        lines.append(f"iono_max        = {pn.iono_max}")
+        lines.append(f"troposphere     = {_flt(pn.troposphere)}")
+        lines.append(f"iono_time_const = {pn.iono_time_const}")
         lines.append(f"clock_stability = {_flt(pn.clock_stability)}")
+        if pn.ifb: lines.append(f"ifb             = {pn.ifb}")
         lines.append("")
 
         # ── [adaptive_filter] ────────────────────────────────────────────
         af = config.adaptive_filter
-        if af.enabled:
-            lines.append("[adaptive_filter]")
-            lines.append(f"enabled         = true")
-            lines.append(f"iono_forgetting = {af.iono_forgetting}")
-            lines.append(f"iono_gain       = {af.iono_gain}")
-            lines.append(f"pva_forgetting  = {af.pva_forgetting}")
-            lines.append(f"pva_gain        = {af.pva_gain}")
-            lines.append("")
-
-        # ── [signals] ────────────────────────────────────────────────────
-        sig = config.signal_selection
-        lines.append("[signals]")
-        lines.append(f"gps     = {_s(sig.gps)}")
-        lines.append(f"qzs     = {_s(sig.qzs)}")
-        lines.append(f"galileo = {_s(sig.galileo)}")
-        lines.append(f"bds2    = {_s(sig.bds2)}")
-        lines.append(f"bds3    = {_s(sig.bds3)}")
+        lines.append("[adaptive_filter]")
+        lines.append(f"iono_forgetting = {af.iono_forgetting}")
+        lines.append(f"iono_gain       = {af.iono_gain}")
+        lines.append(f"enabled         = {_b(af.enabled)}")
+        lines.append(f"pva_forgetting  = {af.pva_forgetting}")
+        lines.append(f"pva_gain        = {af.pva_gain}")
         lines.append("")
+
+        # ── [signals] (only when using frequency mode, not signals list) ─
+        if not use_signals:
+            sig = config.signal_selection
+            lines.append("[signals]")
+            lines.append(f"gps     = {_s(sig.gps)}")
+            lines.append(f"qzs     = {_s(sig.qzs)}")
+            lines.append(f"galileo = {_s(sig.galileo)}")
+            lines.append(f"bds2    = {_s(sig.bds2)}")
+            lines.append(f"bds3    = {_s(sig.bds3)}")
+            lines.append("")
 
         # ── [receiver] ───────────────────────────────────────────────────
         rx = config.receiver
@@ -664,8 +681,10 @@ class MrtkPostService:
         if rx.max_age != 30.0: lines.append(f"max_age         = {rx.max_age}")
         if rx.baseline_length: lines.append(f"baseline_length = {rx.baseline_length}")
         if rx.baseline_sigma: lines.append(f"baseline_sigma  = {rx.baseline_sigma}")
-        if rx.phase_shift != "off": lines.append(f"phase_shift     = {_s(rx.phase_shift)}")
         if rx.isb: lines.append(f"isb             = true")
+        if rx.phase_shift != "off": lines.append(f"phase_shift     = {_s(rx.phase_shift)}")
+        if rx.reference_type:
+            lines.append(f"reference_type  = {_s(rx.reference_type)}")
         lines.append("")
 
         # ── [antenna.rover] ──────────────────────────────────────────────
@@ -764,6 +783,8 @@ class MrtkPostService:
         if srv.ppp_option: lines.append(f"ppp_option         = {_s(srv.ppp_option)}")
         if srv.rtcm_option: lines.append(f"rtcm_option        = {_s(srv.rtcm_option)}")
         if srv.l6_margin: lines.append(f"l6_margin          = {srv.l6_margin}")
+        lines.append(f"max_obs_loss       = {srv.max_obs_loss}")
+        lines.append(f"float_count        = {srv.float_count}")
         lines.append("")
 
         return "\n".join(lines)
