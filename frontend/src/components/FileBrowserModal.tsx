@@ -120,7 +120,7 @@ export function FileBrowserModal({
     if (opened && rootsLoaded && currentPath) {
       loadDirectory(currentPath);
     }
-  }, [opened, currentPath, loadDirectory]);
+  }, [opened, rootsLoaded, currentPath, loadDirectory]);
 
   const handleRootChange = (root: string) => {
     setActiveRoot(root);

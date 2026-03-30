@@ -110,9 +110,14 @@ PP and RT presets are namespaced independently.
 ### Path security
 All file API endpoints enforce:
 ```python
-ALLOWED_ROOTS = [Path("/workspace"), Path("/data")]
+ALLOWED_ROOTS = [
+    Path("/workspace"),              # read-write
+    Path("/data"),                   # read-only
+    Path("/opt/mrtklib/corrections"),# read-only (bundled system files)
+]
 ```
 Reject any path outside these roots with 403.
+Writes are restricted to `/workspace` only.
 
 ### Color semantics (quality badges / scatter)
 ```typescript
