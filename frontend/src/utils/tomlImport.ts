@@ -39,9 +39,23 @@ const FREQ_REV: Record<string, string> = {
   'l1': 'l1', 'l1+2': 'l1+l2', 'l1+2+3': 'l1+l2+l5',
   'l1+2+3+4': 'l1+l2+l5+l6', 'l1+2+3+4+5': 'l1+l2+l5+l6+l7',
 };
+const MODE_REV: Record<string, string> = {
+  'ppp-kine': 'ppp-kinematic', 'movingbase': 'moving-base',
+};
+const COORD_FMT_REV: Record<string, string> = {
+  'deg': 'ddd.ddddddd', 'dms': 'ddd-mm-ss.sss',
+};
 
 function revMap(v: string, map: Record<string, string>): string {
   return map[v] ?? v;
+}
+
+/** Reconstruct frontend timeFormat from TOML time_system + time_format. */
+function revTimeFormat(timeSys: string, timeFmt: string): string {
+  if (timeSys === 'utc') return 'utc';
+  if (timeSys === 'jst') return 'jst';
+  // gpst: tow → "gpst", hms → "gpst-hms"
+  return timeFmt === 'tow' ? 'gpst' : 'gpst-hms';
 }
 
 export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
@@ -87,7 +101,7 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
 
   return {
     positioning: {
-      positioningMode: get(pos, 'mode', d.positioning.positioningMode),
+      positioningMode: revMap(get(pos, 'mode', d.positioning.positioningMode), MODE_REV) as MrtkPostConfig['positioning']['positioningMode'],
       frequency: revMap(get(pos, 'frequency', d.positioning.frequency), FREQ_REV) as MrtkPostConfig['positioning']['frequency'],
       signals: Array.isArray(pos.signals) ? (pos.signals as string[]).join(',') : get(pos, 'signals', d.positioning.signals),
       signalMode: pos.signals ? 'signals' : 'frequency',
@@ -119,6 +133,8 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
         ionoCompensation: get(corr, 'iono_compensation', d.positioning.corrections.ionoCompensation),
         partialAr: get(corr, 'partial_ar', d.positioning.corrections.partialAr),
         shapiroDelay: get(corr, 'shapiro_delay', d.positioning.corrections.shapiroDelay),
+        excludeQzsRef: get(corr, 'exclude_qzs_ref', d.positioning.corrections.excludeQzsRef),
+        noPhaseBiasAdj: get(corr, 'no_phase_bias_adj', d.positioning.corrections.noPhaseBiasAdj),
         tidalCorrection: get(corr, 'tidal_correction', d.positioning.corrections.tidalCorrection),
       },
       atmosphere: {
@@ -145,6 +161,10 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
         ratio: get(arTh, 'ratio', d.ambiguityResolution.thresholds.ratio),
         ratio1: get(arTh, 'ratio1', d.ambiguityResolution.thresholds.ratio1),
         ratio2: get(arTh, 'ratio2', d.ambiguityResolution.thresholds.ratio2),
+        ratio3: get(arTh, 'ratio3', d.ambiguityResolution.thresholds.ratio3),
+        ratio4: get(arTh, 'ratio4', d.ambiguityResolution.thresholds.ratio4),
+        ratio5: get(arTh, 'ratio5', d.ambiguityResolution.thresholds.ratio5),
+        ratio6: get(arTh, 'ratio6', d.ambiguityResolution.thresholds.ratio6),
         alpha: get(arTh, 'alpha', d.ambiguityResolution.thresholds.alpha),
         elevationMask: get(arTh, 'elevation_mask', d.ambiguityResolution.thresholds.elevationMask),
         holdElevation: get(arTh, 'hold_elevation', d.ambiguityResolution.thresholds.holdElevation),
@@ -158,7 +178,11 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
       },
       partialAr: {
         ...d.ambiguityResolution.partialAr,
+        minAmbiguities: get(arPar, 'min_ambiguities', d.ambiguityResolution.partialAr.minAmbiguities),
+        maxExcludedSats: get(arPar, 'max_excluded_sats', d.ambiguityResolution.partialAr.maxExcludedSats),
         minFixSats: get(arPar, 'min_fix_sats', d.ambiguityResolution.partialAr.minFixSats),
+        minDropSats: get(arPar, 'min_drop_sats', d.ambiguityResolution.partialAr.minDropSats),
+        minHoldSats: get(arPar, 'min_hold_sats', d.ambiguityResolution.partialAr.minHoldSats),
         arFilter: get(arPar, 'ar_filter', d.ambiguityResolution.partialAr.arFilter),
       },
       hold: {
@@ -170,6 +194,13 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
       ...d.rejection,
       innovation: get(rej, 'innovation', d.rejection.innovation),
       gdop: get(rej, 'gdop', d.rejection.gdop),
+      l1L2Residual: get(rej, 'l1_l2_residual', d.rejection.l1L2Residual),
+      dispersive: get(rej, 'dispersive', d.rejection.dispersive),
+      nonDispersive: get(rej, 'non_dispersive', d.rejection.nonDispersive),
+      holdChiSquare: get(rej, 'hold_chi_square', d.rejection.holdChiSquare),
+      fixChiSquare: get(rej, 'fix_chi_square', d.rejection.fixChiSquare),
+      pseudorangeDiff: get(rej, 'pseudorange_diff', d.rejection.pseudorangeDiff),
+      positionErrorCount: get(rej, 'position_error_count', d.rejection.positionErrorCount),
     },
     slipDetection: {
       ...d.slipDetection,
@@ -195,12 +226,18 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
       },
       processNoise: {
         ...d.kalmanFilter.processNoise,
-        bias: get(kfPn, 'bias', d.kalmanFilter.processNoise.bias),
-        ionosphere: get(kfPn, 'ionosphere', d.kalmanFilter.processNoise.ionosphere),
-        troposphere: get(kfPn, 'troposphere', d.kalmanFilter.processNoise.troposphere),
         accelH: get(kfPn, 'accel_h', d.kalmanFilter.processNoise.accelH),
         accelV: get(kfPn, 'accel_v', d.kalmanFilter.processNoise.accelV),
+        positionH: get(kfPn, 'position_h', d.kalmanFilter.processNoise.positionH),
+        positionV: get(kfPn, 'position_v', d.kalmanFilter.processNoise.positionV),
+        position: get(kfPn, 'position', d.kalmanFilter.processNoise.position),
+        bias: get(kfPn, 'bias', d.kalmanFilter.processNoise.bias),
+        ionosphere: get(kfPn, 'ionosphere', d.kalmanFilter.processNoise.ionosphere),
+        ionoMax: get(kfPn, 'iono_max', d.kalmanFilter.processNoise.ionoMax),
+        troposphere: get(kfPn, 'troposphere', d.kalmanFilter.processNoise.troposphere),
+        ionoTimeConst: get(kfPn, 'iono_time_const', d.kalmanFilter.processNoise.ionoTimeConst),
         clockStability: get(kfPn, 'clock_stability', d.kalmanFilter.processNoise.clockStability),
+        ifb: get(kfPn, 'ifb', d.kalmanFilter.processNoise.ifb),
       },
     },
     signalSelection: {
@@ -213,6 +250,9 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
     receiver: {
       ...d.receiver,
       ionoCorrection: get(rx, 'iono_correction', d.receiver.ionoCorrection),
+      isb: get(rx, 'isb', d.receiver.isb),
+      phaseShift: get(rx, 'phase_shift', d.receiver.phaseShift),
+      referenceType: get(rx, 'reference_type', d.receiver.referenceType),
       maxAge: get(rx, 'max_age', d.receiver.maxAge),
       baselineLength: get(rx, 'baseline_length', d.receiver.baselineLength),
       baselineSigma: get(rx, 'baseline_sigma', d.receiver.baselineSigma),
@@ -257,10 +297,18 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
       outputHeader: get(out, 'header', d.output.outputHeader),
       outputProcessingOptions: get(out, 'options', d.output.outputProcessingOptions),
       outputVelocity: get(out, 'velocity', d.output.outputVelocity),
-      timeFormat: get(out, 'time_system', d.output.timeFormat),
+      timeFormat: revTimeFormat(
+        get(out, 'time_system', 'gpst'),
+        get(out, 'time_format', 'hms'),
+      ) as MrtkPostConfig['output']['timeFormat'],
       numDecimals: get(out, 'time_decimals', d.output.numDecimals),
-      latLonFormat: get(out, 'coordinate_format', d.output.latLonFormat),
+      latLonFormat: revMap(
+        get(out, 'coordinate_format', d.output.latLonFormat),
+        COORD_FMT_REV,
+      ) as MrtkPostConfig['output']['latLonFormat'],
       fieldSeparator: get(out, 'field_separator', d.output.fieldSeparator),
+      height: get(out, 'height_type', d.output.height),
+      datum: get(out, 'datum', d.output.datum),
       geoidModel: get(out, 'geoid_model', d.output.geoidModel),
       staticSolutionMode: get(out, 'static_solution', d.output.staticSolutionMode),
       outputSingleOnOutage: get(out, 'single_output', d.output.outputSingleOnOutage),
@@ -280,6 +328,11 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
       eop: get(files, 'eop', d.files.eop),
       oceanLoading: get(files, 'ocean_loading', d.files.oceanLoading),
       cssrGrid: get(files, 'cssr_grid', d.files.cssrGrid),
+      isbTable: get(files, 'isb_table', d.files.isbTable),
+      phaseCycle: get(files, 'phase_cycle', d.files.phaseCycle),
+      fcb: get(files, 'fcb', d.files.fcb),
+      biasSinex: get(files, 'bias_sinex', d.files.biasSinex),
+      elevationMaskFile: get(files, 'elevation_mask_file', d.files.elevationMaskFile),
     },
     server: {
       ...d.server,
