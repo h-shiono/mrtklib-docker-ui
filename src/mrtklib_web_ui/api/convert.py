@@ -271,12 +271,7 @@ async def websocket_convert(websocket: WebSocket) -> None:
 
 # ── Preview endpoint ────────────────────────────────────────────────────────
 
-_ALLOWED_ROOTS = [Path("/workspace"), Path("/data")]
-
-
-def _is_allowed_preview_path(p: Path) -> bool:
-    resolved = p.resolve()
-    return any(resolved == root or root in resolved.parents for root in _ALLOWED_ROOTS)
+from mrtklib_web_ui.paths import is_allowed_path as _is_allowed_preview_path
 
 
 def _parse_rinex_preview(path: Path, max_epochs: int = 5) -> dict[str, Any]:

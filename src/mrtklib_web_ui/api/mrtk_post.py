@@ -184,6 +184,11 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
                     status_code=400,
                     detail=f"{label} not found: {file_path}",
                 )
+            if resolved.is_dir():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{label} is a directory, not a file: {file_path}",
+                )
             return resolved_str
 
     rover_resolved = validate_input_path(request.input_files.rover_obs_file, "Rover observation file")
