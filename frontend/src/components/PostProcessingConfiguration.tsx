@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocalStorage, useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
@@ -18,15 +18,18 @@ import {
   IconCode,
   IconUpload,
   IconBookmark,
+  IconSparkles,
 } from '@tabler/icons-react';
 import type { MrtkPostConfig } from '../types/mrtkPostConfig';
 import { DEFAULT_MRTK_POST_CONFIG } from '../types/mrtkPostConfig';
 import { ProcessingConfigPanel, TomlDrawer } from './ProcessingConfigTabs';
 import { PresetPanel } from './PresetPanel';
+import { ConfigAssistantModal } from './ConfigAssistantModal';
 import { tomlToConfig } from '../utils/tomlImport';
 
 interface PostProcessingConfigurationProps {
   onConfigChange: (config: MrtkPostConfig) => void;
+  onNavigateToAiSettings?: () => void;
   // Execution tab props
   roverFile: string;
   onRoverFileChange: (v: string) => void;
@@ -50,6 +53,7 @@ interface PostProcessingConfigurationProps {
 
 export function PostProcessingConfiguration({
   onConfigChange,
+  onNavigateToAiSettings,
   roverFile,
   onRoverFileChange,
   baseFile,
@@ -85,6 +89,16 @@ export function PostProcessingConfiguration({
 
   const [tomlOpened, { open: openToml, close: closeToml }] = useDisclosure(false);
   const [presetsOpened, { open: openPresets, close: closePresets }] = useDisclosure(false);
+  const [assistantOpened, { open: openAssistant, close: closeAssistant }] = useDisclosure(false);
+
+  // AI configured status
+  const [aiConfigured, setAiConfigured] = useState(false);
+  useEffect(() => {
+    fetch('/api/ai/settings')
+      .then((r) => r.json())
+      .then((data) => setAiConfigured(data.configured))
+      .catch(() => {});
+  }, []);
 
   // Ref to allow auto-focusing sidebar section on validation error
   const activeSectionRef = useRef<((section: string) => void) | null>(null);
@@ -152,6 +166,19 @@ export function PostProcessingConfiguration({
                 <IconBookmark size={16} />
               </ActionIcon>
             </Tooltip>
+            {aiConfigured ? (
+              <Tooltip label="Config Assistant">
+                <ActionIcon variant="light" color="yellow" size="lg" onClick={openAssistant}>
+                  <IconSparkles size={16} />
+                </ActionIcon>
+              </Tooltip>
+            ) : (
+              <Tooltip label="Configure API key in Tools → AI Settings">
+                <ActionIcon variant="light" color="gray" size="lg" onClick={onNavigateToAiSettings}>
+                  <IconSparkles size={16} />
+                </ActionIcon>
+              </Tooltip>
+            )}
             <Tooltip label="Import TOML">
               <ActionIcon variant="light" color="gray" size="lg" onClick={() => importFileRef.current?.click()}>
                 <IconUpload size={16} />
@@ -212,6 +239,12 @@ export function PostProcessingConfiguration({
       mode="post"
       currentConfig={config}
       onLoad={(c) => setConfig(c)}
+    />
+    <ConfigAssistantModal
+      opened={assistantOpened}
+      onClose={closeAssistant}
+      mode="post"
+      onApply={(mapped) => setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig))}
     />
     </>
   );

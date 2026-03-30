@@ -30,6 +30,7 @@ import {
   IconUpload,
   IconX,
   IconBookmark,
+  IconSparkles,
 } from '@tabler/icons-react';
 import type { MrtkPostConfig } from '../types/mrtkPostConfig';
 import { DEFAULT_MRTK_POST_CONFIG } from '../types/mrtkPostConfig';
@@ -47,6 +48,7 @@ import { ProcessingConfigPanel, TomlDrawer } from './ProcessingConfigTabs';
 import { PresetPanel } from './PresetPanel';
 import { StreamPathHelp } from './StreamPathHelp';
 import { tomlToConfig } from '../utils/tomlImport';
+import { ConfigAssistantModal } from './ConfigAssistantModal';
 import { configToBackend } from '../utils/configToBackend';
 import { mrtkRunApi } from '../api/mrtkRun';
 import { PositionScatter, type PositionPoint } from './PositionScatter';
@@ -190,9 +192,10 @@ const OUTPUT_LOG_SLOTS = [
 
 interface RealTimeProcessingProps {
   onConfigChange?: (config: MrtkPostConfig) => void;
+  onNavigateToAiSettings?: () => void;
 }
 
-export function RealTimeProcessing({ onConfigChange }: RealTimeProcessingProps) {
+export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings }: RealTimeProcessingProps) {
   const [config, setConfig] = useLocalStorage<MrtkPostConfig>({
     key: 'mrtklib-web-ui-mrtk-run-config-v2',
     defaultValue: DEFAULT_MRTK_POST_CONFIG,
@@ -205,6 +208,16 @@ export function RealTimeProcessing({ onConfigChange }: RealTimeProcessingProps) 
 
   const [tomlOpened, { open: openToml, close: closeToml }] = useDisclosure(false);
   const [presetsOpened, { open: openPresets, close: closePresets }] = useDisclosure(false);
+  const [assistantOpened, { open: openAssistant, close: closeAssistant }] = useDisclosure(false);
+
+  // AI configured status
+  const [aiConfigured, setAiConfigured] = useState(false);
+  useEffect(() => {
+    fetch('/api/ai/settings')
+      .then((r) => r.json())
+      .then((data) => setAiConfigured(data.configured))
+      .catch(() => {});
+  }, []);
   const importFileRef = useRef<HTMLInputElement>(null);
   const handleImportToml = useCallback(async (file: File) => {
     try {
@@ -406,6 +419,19 @@ export function RealTimeProcessing({ onConfigChange }: RealTimeProcessingProps) 
                     <IconBookmark size={16} />
                   </ActionIcon>
                 </Tooltip>
+                {aiConfigured ? (
+                  <Tooltip label="Config Assistant">
+                    <ActionIcon variant="light" color="yellow" size="lg" onClick={openAssistant}>
+                      <IconSparkles size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                ) : (
+                  <Tooltip label="Configure API key in Tools → AI Settings">
+                    <ActionIcon variant="light" color="gray" size="lg" onClick={onNavigateToAiSettings}>
+                      <IconSparkles size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                )}
                 <Tooltip label="Import TOML">
                   <ActionIcon variant="light" color="gray" size="lg" onClick={() => importFileRef.current?.click()}>
                     <IconUpload size={16} />
@@ -699,6 +725,12 @@ export function RealTimeProcessing({ onConfigChange }: RealTimeProcessingProps) 
       mode="realtime"
       currentConfig={config}
       onLoad={(c) => setConfig(c)}
+    />
+    <ConfigAssistantModal
+      opened={assistantOpened}
+      onClose={closeAssistant}
+      mode="realtime"
+      onApply={(mapped) => setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig))}
     />
     </>
   );

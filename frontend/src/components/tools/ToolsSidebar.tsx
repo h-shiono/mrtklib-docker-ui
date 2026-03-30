@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import { Stack, Group, Text, ScrollArea, UnstyledButton } from '@mantine/core';
-import { IconClock, IconDownload, IconTools, IconDatabase } from '@tabler/icons-react';
+import { IconClock, IconDownload, IconTools, IconDatabase, IconSparkles, IconSettings, IconCheck, IconAlertCircle } from '@tabler/icons-react';
 
 interface ToolsSidebarProps {
   selected: string;
@@ -59,6 +60,15 @@ function SidebarItem({ label, icon, section, active, onClick }: {
 }
 
 export function ToolsSidebar({ selected, onSelect }: ToolsSidebarProps) {
+  const [aiConfigured, setAiConfigured] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/ai/settings')
+      .then((r) => r.json())
+      .then((data) => setAiConfigured(data.configured))
+      .catch(() => {});
+  }, [selected]);
+
   return (
     <ScrollArea style={{ width: '100%', height: '100%' }}>
       <Stack gap={0}>
@@ -67,6 +77,33 @@ export function ToolsSidebar({ selected, onSelect }: ToolsSidebarProps) {
         </SidebarGroup>
         <SidebarGroup label="DATA" icon={<IconDatabase size={12} />}>
           <SidebarItem label="Downloader" icon={<IconDownload size={14} />} section="downloader" active={selected} onClick={onSelect} />
+        </SidebarGroup>
+        <SidebarGroup label="AI" icon={<IconSparkles size={12} />}>
+          <UnstyledButton
+            onClick={() => onSelect('ai-settings')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              width: '100%',
+              padding: '6px 8px',
+              fontSize: '11px',
+              borderLeft: selected === 'ai-settings' ? '2px solid var(--mantine-primary-color-filled)' : '2px solid transparent',
+              backgroundColor: selected === 'ai-settings' ? 'var(--mantine-color-default-hover)' : undefined,
+              color: selected === 'ai-settings' ? 'var(--mantine-color-text)' : 'var(--mantine-color-dimmed)',
+              fontWeight: selected === 'ai-settings' ? 500 : 400,
+            }}
+          >
+            <Group gap={8} style={{ flex: 1 }}>
+              <IconSettings size={14} />
+              AI Settings
+            </Group>
+            {aiConfigured
+              ? <IconCheck size={12} color="var(--mantine-color-green-6)" />
+              : <IconAlertCircle size={12} color="var(--mantine-color-orange-6)" />
+            }
+          </UnstyledButton>
         </SidebarGroup>
       </Stack>
     </ScrollArea>

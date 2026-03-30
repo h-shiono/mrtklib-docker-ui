@@ -45,6 +45,7 @@ import { maskLogLine } from './utils/maskPath';
 import { GnssTimeConverter } from './components/tools/GnssTimeConverter';
 import { DataDownloader } from './components/tools/DataDownloader';
 import { ToolsSidebar } from './components/tools/ToolsSidebar';
+import { AiSettingsPanel } from './components/tools/AiSettingsPanel';
 import { configToBackend } from './utils/configToBackend';
 import { ObsViewerModal } from './components/obsViewer';
 import type { ProcessStatus } from './components';
@@ -471,7 +472,7 @@ function SolutionView({
   );
 }
 
-function PostProcessingPanel() {
+function PostProcessingPanel({ onNavigateToAiSettings }: { onNavigateToAiSettings?: () => void }) {
   const [roverFile, setRoverFile] = useState('/workspace/rover.obs');
   const [baseFile, setBaseFile] = useState('');
   const [navFile, setNavFile] = useState('/workspace/nav.nav');
@@ -657,6 +658,7 @@ function PostProcessingPanel() {
         <Stack gap="xs">
           <PostProcessingConfiguration
             onConfigChange={setConfig}
+            onNavigateToAiSettings={onNavigateToAiSettings}
             roverFile={roverFile}
             onRoverFileChange={setRoverFile}
             baseFile={baseFile}
@@ -1227,8 +1229,8 @@ function StreamServerPanel() {
   );
 }
 
-function RealTimePanel() {
-  return <RealTimeProcessing />;
+function RealTimePanel({ onNavigateToAiSettings }: { onNavigateToAiSettings?: () => void }) {
+  return <RealTimeProcessing onNavigateToAiSettings={onNavigateToAiSettings} />;
 }
 
 // ConversionPanel is now imported from ./components/ConversionPanel
@@ -1327,10 +1329,10 @@ function App() {
 
         {/* Tab Content - keep all panels mounted to preserve state */}
         <div style={{ display: activeTab === 'post-processing' ? undefined : 'none' }}>
-          <PostProcessingPanel />
+          <PostProcessingPanel onNavigateToAiSettings={() => { setActiveTab('tools'); setSelectedTool('ai-settings'); }} />
         </div>
         <div style={{ display: activeTab === 'realtime' ? undefined : 'none' }}>
-          <RealTimePanel />
+          <RealTimePanel onNavigateToAiSettings={() => { setActiveTab('tools'); setSelectedTool('ai-settings'); }} />
         </div>
         <div style={{ display: activeTab === 'stream-server' ? undefined : 'none' }}>
           <StreamServerPanel />
@@ -1345,6 +1347,7 @@ function App() {
           <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '1.5rem 2rem' }}>
             {selectedTool === 'time-converter' && <GnssTimeConverter />}
             {selectedTool === 'downloader' && <DataDownloader />}
+            {selectedTool === 'ai-settings' && <AiSettingsPanel />}
           </div>
         </div>
       </AppShell.Main>
