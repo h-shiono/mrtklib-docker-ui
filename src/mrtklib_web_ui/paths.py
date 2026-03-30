@@ -1,7 +1,7 @@
 """Shared path resolution and validation for allowed roots.
 
-All file access in the application must go through these helpers
-to ensure paths stay within /workspace, /data, or /opt/mrtklib/corrections.
+Centralizes the allowed-root definitions and path helpers used by
+file-access endpoints (files, mrtk_post, obs_qc, convert, etc.).
 """
 
 from pathlib import Path
