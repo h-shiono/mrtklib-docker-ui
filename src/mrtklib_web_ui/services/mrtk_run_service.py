@@ -344,10 +344,12 @@ class MrtkRunService:
         await asyncio.sleep(2.0)
 
         # Check if process crashed immediately
-        if self._process.returncode is not None:
+        if not self._process or self._process.returncode is not None:
+            code = self._process.returncode if self._process else "unknown"
             if log_callback:
-                await log_callback(f"[ERROR] Process exited with code {self._process.returncode}")
-            raise RuntimeError(f"mrtk run exited with code {self._process.returncode}")
+                await log_callback(f"[ERROR] Process exited with code {code}")
+            self._process = None
+            raise RuntimeError(f"mrtk run exited with code {code}")
 
         # Connect telnet console
         retries = 3
@@ -564,11 +566,12 @@ class MrtkRunService:
 
     async def _read_stderr(self) -> None:
         """Read stderr from the process and forward to log callback."""
-        if not self._process or not self._process.stderr:
+        proc = self._process
+        if not proc or not proc.stderr:
             return
         try:
             while True:
-                line = await self._process.stderr.readline()
+                line = await proc.stderr.readline()
                 if not line:
                     break
                 text = line.decode("utf-8", errors="replace").strip()
