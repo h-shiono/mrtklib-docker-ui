@@ -351,6 +351,8 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
       pppOption: get(srv, 'ppp_option', d.server.pppOption),
       rtcmOption: get(srv, 'rtcm_option', d.server.rtcmOption),
       l6Margin: get(srv, 'l6_margin', d.server.l6Margin),
+      maxObsLoss: get(srv, 'max_obs_loss', d.server.maxObsLoss),
+      floatCount: get(srv, 'float_count', d.server.floatCount),
     },
     adaptiveFilter: {
       ...d.adaptiveFilter,

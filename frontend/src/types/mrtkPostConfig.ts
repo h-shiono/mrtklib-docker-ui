@@ -396,6 +396,8 @@ export interface ServerConfig {
   pppOption: string;
   rtcmOption: string;
   l6Margin: number;
+  maxObsLoss: number;
+  floatCount: number;
 }
 
 // ─── Time (UI-only, maps to CLI flags -ts/-te/-ti) ───────────────────────────
@@ -702,6 +704,8 @@ export const DEFAULT_SERVER: ServerConfig = {
   pppOption: '',
   rtcmOption: '',
   l6Margin: 0,
+  maxObsLoss: 90.0,
+  floatCount: 15,
 };
 
 // Generate today's date as YYYY/MM/DD

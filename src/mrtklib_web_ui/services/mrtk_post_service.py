@@ -342,6 +342,8 @@ class ServerConfig(BaseModel):
     ppp_option: str = ""
     rtcm_option: str = ""
     l6_margin: int = 0
+    max_obs_loss: float = 90.0
+    float_count: int = 15
 
 
 # ── Top-level config ─────────────────────────────────────────────────────────
@@ -568,8 +570,12 @@ class MrtkPostService:
         # ── [ambiguity_resolution.partial_ar] ─────────────────────────────
         par = ar.partial_ar
         lines.append("[ambiguity_resolution.partial_ar]")
-        lines.append(f"min_fix_sats = {par.min_fix_sats}")
-        lines.append(f"ar_filter    = {_b(par.ar_filter)}")
+        if par.min_ambiguities: lines.append(f"min_ambiguities   = {par.min_ambiguities}")
+        if par.max_excluded_sats: lines.append(f"max_excluded_sats = {par.max_excluded_sats}")
+        lines.append(f"min_fix_sats      = {par.min_fix_sats}")
+        if par.min_drop_sats: lines.append(f"min_drop_sats     = {par.min_drop_sats}")
+        if par.min_hold_sats: lines.append(f"min_hold_sats     = {par.min_hold_sats}")
+        lines.append(f"ar_filter         = {_b(par.ar_filter)}")
         lines.append("")
 
         # ── [ambiguity_resolution.hold] ───────────────────────────────────
@@ -581,12 +587,15 @@ class MrtkPostService:
         # ── [rejection] ──────────────────────────────────────────────────
         rej = config.rejection
         lines.append("[rejection]")
-        lines.append(f"innovation = {rej.innovation}")
-        lines.append(f"gdop       = {rej.gdop}")
-        if rej.l1_l2_residual: lines.append(f"l1_l2_residual = {rej.l1_l2_residual}")
-        if rej.dispersive: lines.append(f"dispersive = {rej.dispersive}")
-        if rej.non_dispersive: lines.append(f"non_dispersive = {rej.non_dispersive}")
-        if rej.pseudorange_diff: lines.append(f"pseudorange_diff = {rej.pseudorange_diff}")
+        lines.append(f"innovation         = {rej.innovation}")
+        lines.append(f"gdop               = {rej.gdop}")
+        if rej.l1_l2_residual: lines.append(f"l1_l2_residual     = {rej.l1_l2_residual}")
+        if rej.dispersive: lines.append(f"dispersive         = {rej.dispersive}")
+        if rej.non_dispersive: lines.append(f"non_dispersive     = {rej.non_dispersive}")
+        if rej.hold_chi_square: lines.append(f"hold_chi_square    = {rej.hold_chi_square}")
+        if rej.fix_chi_square: lines.append(f"fix_chi_square     = {rej.fix_chi_square}")
+        if rej.pseudorange_diff: lines.append(f"pseudorange_diff   = {rej.pseudorange_diff}")
+        if rej.position_error_count: lines.append(f"position_error_count = {rej.position_error_count}")
         lines.append("")
 
         # ── [slip_detection] ─────────────────────────────────────────────
@@ -766,6 +775,8 @@ class MrtkPostService:
         if srv.ppp_option: lines.append(f"ppp_option         = {_s(srv.ppp_option)}")
         if srv.rtcm_option: lines.append(f"rtcm_option        = {_s(srv.rtcm_option)}")
         if srv.l6_margin: lines.append(f"l6_margin          = {srv.l6_margin}")
+        lines.append(f"max_obs_loss       = {srv.max_obs_loss}")
+        lines.append(f"float_count        = {srv.float_count}")
         lines.append("")
 
         return "\n".join(lines)
