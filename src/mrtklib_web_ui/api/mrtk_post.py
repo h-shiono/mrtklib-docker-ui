@@ -151,25 +151,45 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
     # Generate job ID
     job_id = request.job_id or f"mrtk_post-{uuid.uuid4().hex[:8]}"
 
-    # Normalize path: handle both "/workspace/obs/file.obs" and "obs/file.obs"
-    workspace = Path("/workspace")
+    # Normalize path: handle "/workspace/...", "/data/...", "/opt/mrtklib/corrections/...",
+    # and bare relative paths (default to /workspace).
+    ALLOWED_ROOTS = [Path("/workspace"), Path("/data"), Path("/opt/mrtklib/corrections")]
 
-    def resolve_workspace_path(file_path: str) -> Path:
-        """Resolve a file path relative to /workspace, handling /workspace prefix."""
-        stripped = file_path
-        if stripped.startswith("/workspace/"):
-            stripped = stripped[len("/workspace/"):]
-        elif stripped.startswith("/workspace"):
-            stripped = stripped[len("/workspace"):]
-        return workspace / stripped.lstrip("/")
+    def resolve_input_path(file_path: str) -> Path:
+        """Resolve a file path within allowed roots.
+
+        Handles absolute paths under /workspace, /data, /opt/mrtklib/corrections
+        and relative paths (defaulting to /workspace).
+        """
+        stripped = file_path.strip()
+        for root in ALLOWED_ROOTS:
+            prefix = str(root) + "/"
+            if stripped.startswith(prefix):
+                return (root / stripped[len(prefix):].lstrip("/")).resolve()
+            if stripped == str(root):
+                return root.resolve()
+        # Default to /workspace for relative paths or /workspace prefix
+        workspace = Path("/workspace")
+        if stripped.startswith("/workspace"):
+            stripped = stripped[len("/workspace"):].lstrip("/")
+        return (workspace / stripped.lstrip("/")).resolve()
+
+    def _is_allowed(p: Path) -> bool:
+        """Check that resolved path is within an allowed root."""
+        resolved = p.resolve()
+        return any(resolved == r or r in resolved.parents for r in ALLOWED_ROOTS)
 
     def validate_input_path(file_path: str, label: str) -> str:
         """Validate an input file path, supporting wildcards.
 
-        Returns the original path string (wildcards are passed through to mrtk_post).
+        Returns the resolved path string (wildcards are passed through to mrtk).
         """
-        resolved = resolve_workspace_path(file_path)
+        resolved = resolve_input_path(file_path)
         resolved_str = str(resolved)
+
+        if not _is_allowed(resolved):
+            raise HTTPException(status_code=403, detail=f"{label}: access denied: {file_path}")
+
         # Check if path contains glob wildcards
         if any(c in resolved_str for c in ("*", "?", "[")):
             matches = glob_mod.glob(resolved_str)
@@ -201,8 +221,12 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
         if cf.strip():
             correction_resolved.append(validate_input_path(cf, f"Correction file #{i + 1}"))
 
-    # Ensure output file path is absolute and within workspace
-    output_path = resolve_workspace_path(request.input_files.output_file)
+    # Ensure output file path is absolute and within /workspace (write-only root)
+    output_path = resolve_input_path(request.input_files.output_file)
+    workspace = Path("/workspace")
+    output_resolved = output_path.resolve()
+    if not (output_resolved == workspace or workspace in output_resolved.parents):
+        raise HTTPException(status_code=403, detail=f"Output must be within /workspace: {request.input_files.output_file}")
 
     # Create job
     job = MrtkPostJob(
