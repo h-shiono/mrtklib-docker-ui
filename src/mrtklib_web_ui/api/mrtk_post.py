@@ -9,6 +9,12 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
+from mrtklib_web_ui.paths import (
+    WORKSPACE_ROOT,
+    resolve_path,
+    is_allowed_path,
+    is_within,
+)
 from mrtklib_web_ui.services import ws_manager
 from mrtklib_web_ui.services.mrtk_post_service import (
     MrtkPostConfig,
@@ -151,25 +157,18 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
     # Generate job ID
     job_id = request.job_id or f"mrtk_post-{uuid.uuid4().hex[:8]}"
 
-    # Normalize path: handle both "/workspace/obs/file.obs" and "obs/file.obs"
-    workspace = Path("/workspace")
-
-    def resolve_workspace_path(file_path: str) -> Path:
-        """Resolve a file path relative to /workspace, handling /workspace prefix."""
-        stripped = file_path
-        if stripped.startswith("/workspace/"):
-            stripped = stripped[len("/workspace/"):]
-        elif stripped.startswith("/workspace"):
-            stripped = stripped[len("/workspace"):]
-        return workspace / stripped.lstrip("/")
-
     def validate_input_path(file_path: str, label: str) -> str:
         """Validate an input file path, supporting wildcards.
 
-        Returns the original path string (wildcards are passed through to mrtk_post).
+        Returns a resolved absolute path string under an allowed root.
+        Any wildcard characters in the input are preserved in the resolved path.
         """
-        resolved = resolve_workspace_path(file_path)
+        resolved = resolve_path(file_path)
         resolved_str = str(resolved)
+
+        if not is_allowed_path(resolved):
+            raise HTTPException(status_code=403, detail=f"{label}: access denied: {file_path}")
+
         # Check if path contains glob wildcards
         if any(c in resolved_str for c in ("*", "?", "[")):
             matches = glob_mod.glob(resolved_str)
@@ -184,6 +183,11 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
                 raise HTTPException(
                     status_code=400,
                     detail=f"{label} not found: {file_path}",
+                )
+            if resolved.is_dir():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{label} is a directory, not a file: {file_path}",
                 )
             return resolved_str
 
@@ -201,8 +205,18 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
         if cf.strip():
             correction_resolved.append(validate_input_path(cf, f"Correction file #{i + 1}"))
 
-    # Ensure output file path is absolute and within workspace
-    output_path = resolve_workspace_path(request.input_files.output_file)
+    # Ensure output file path is strictly inside /workspace (not equal to it)
+    output_path = resolve_path(request.input_files.output_file)
+    if not is_within(output_path, WORKSPACE_ROOT):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Output must be within /workspace: {request.input_files.output_file}",
+        )
+    if output_path.is_dir():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Output file must not be a directory: {request.input_files.output_file}",
+        )
 
     # Create job
     job = MrtkPostJob(

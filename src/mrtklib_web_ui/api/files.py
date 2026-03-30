@@ -7,21 +7,16 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from mrtklib_web_ui.paths import (
+    ALLOWED_ROOTS,
+    WORKSPACE_ROOT,
+    DATA_ROOT,
+    CORRECTIONS_ROOT,
+    resolve_path as _resolve_path,
+    is_allowed_path as _is_allowed_path,
+)
+
 router = APIRouter()
-
-WORKSPACE_ROOT = Path("/workspace")
-DATA_ROOT = Path("/data")
-CORRECTIONS_ROOT = Path("/opt/mrtklib/corrections")
-ALLOWED_ROOTS = [WORKSPACE_ROOT, DATA_ROOT, CORRECTIONS_ROOT]
-
-
-def _is_allowed_path(p: Path) -> bool:
-    """Check if a resolved path is within an allowed root."""
-    resolved = p.resolve()
-    return any(
-        resolved == root or root in resolved.parents
-        for root in ALLOWED_ROOTS
-    )
 
 
 def _find_root(p: Path) -> Path:
@@ -31,22 +26,6 @@ def _find_root(p: Path) -> Path:
         if resolved == root or root in resolved.parents:
             return root
     raise HTTPException(status_code=403, detail="Access denied")
-
-
-def _resolve_path(path: str) -> Path:
-    """Resolve a path to an absolute path within an allowed root.
-
-    Handles paths like "/workspace/foo", "/data/bar", "foo" (defaults to /workspace).
-    """
-    stripped = path.strip()
-    for root in ALLOWED_ROOTS:
-        prefix = str(root) + "/"
-        if stripped.startswith(prefix):
-            return (root / stripped[len(prefix):].lstrip("/")).resolve()
-        if stripped == str(root):
-            return root.resolve()
-    # Default to workspace for relative paths
-    return (WORKSPACE_ROOT / stripped.lstrip("/")).resolve()
 
 
 class FileInfo(BaseModel):

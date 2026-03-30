@@ -9,6 +9,8 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
+from mrtklib_web_ui.paths import is_allowed_path
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -271,12 +273,6 @@ async def websocket_convert(websocket: WebSocket) -> None:
 
 # ── Preview endpoint ────────────────────────────────────────────────────────
 
-_ALLOWED_ROOTS = [Path("/workspace"), Path("/data")]
-
-
-def _is_allowed_preview_path(p: Path) -> bool:
-    resolved = p.resolve()
-    return any(resolved == root or root in resolved.parents for root in _ALLOWED_ROOTS)
 
 
 def _parse_rinex_preview(path: Path, max_epochs: int = 5) -> dict[str, Any]:
@@ -356,7 +352,7 @@ async def preview_rinex(
     """Preview a RINEX file (header + first N epochs)."""
     target = Path(path).resolve()
 
-    if not _is_allowed_preview_path(target):
+    if not is_allowed_path(target):
         raise HTTPException(status_code=403, detail="Access denied: path outside allowed directories")
 
     if not target.exists():
