@@ -21,8 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 
-# Clone MRTKLIB
-RUN git clone --depth 1 https://github.com/h-shiono/MRTKLIB.git
+# Clone MRTKLIB (optionally from a specific branch)
+ARG MRTKLIB_BRANCH=main
+RUN git clone --depth 1 --branch ${MRTKLIB_BRANCH} https://github.com/h-shiono/MRTKLIB.git
 
 # Build MRTKLIB with CMake
 WORKDIR /build/MRTKLIB
