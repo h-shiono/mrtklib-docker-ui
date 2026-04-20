@@ -77,7 +77,8 @@ GNSS positioning capabilities. No compilation required — just
 
 ### Prerequisites
 
-- Docker and Docker Compose
+- Docker (the **Build from source** flow additionally uses
+  `docker compose`, which ships with Docker Desktop)
 - GNSS data files (RINEX observation and navigation files)
 
 ### Quick Start (pre-built image)
@@ -113,12 +114,15 @@ Images are published for both `linux/amd64` and `linux/arm64`
 
 4. **Open the UI** at <http://localhost:8080>
 
-Published tags:
+Published images:
 
-| Registry | Image |
+| Registry | Repository |
 |---|---|
 | Docker Hub | [`hatognss/mrtklib-docker-ui`](https://hub.docker.com/r/hatognss/mrtklib-docker-ui) |
 | GHCR | [`ghcr.io/h-shiono/mrtklib-docker-ui`](https://github.com/h-shiono/mrtklib-docker-ui/pkgs/container/mrtklib-docker-ui) |
+
+Both repositories carry the same multi-arch manifest. See the
+repository pages above for the list of available tags.
 
 ### Build from source
 

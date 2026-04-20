@@ -9,6 +9,9 @@ on:
       - .github/workflows/dockerhub-description.yml
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   sync:
     runs-on: ubuntu-latest
