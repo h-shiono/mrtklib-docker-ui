@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       args:
-        MRTKLIB_VERSION: ${MRTKLIB_VERSION:-0.0.0}
+        APP_VERSION: ${APP_VERSION:-0.0.0}
         MRTKLIB_BRANCH: ${MRTKLIB_BRANCH:-main}
     ports:
       - "8080:8000"
