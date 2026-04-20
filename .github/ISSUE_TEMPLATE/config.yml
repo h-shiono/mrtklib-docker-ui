@@ -1,0 +1,13 @@
+blank_issues_enabled: false
+contact_links:
+  - name: MRTKLIB issue tracker (positioning / CLI bugs)
+    url: https://github.com/h-shiono/MRTKLIB/issues
+    about: |
+      Report positioning-accuracy problems, Fix-rate regressions, or
+      crashes in the `mrtk` binary upstream, not in this UI repository.
+  - name: MRTKLIB documentation
+    url: https://h-shiono.github.io/MRTKLIB/
+    about: Browse the user guide and TOML reference before filing an issue.
+  - name: Upstream RTKLIB resources
+    url: https://www.rtklib.com/
+    about: Background on RTKLIB concepts, file formats, and positioning modes.

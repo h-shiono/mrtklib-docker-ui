@@ -1,0 +1,141 @@
+# mrtklib-docker-ui issue/PR labels
+#
+# Hybrid scheme, aligned with MRTKLIB's labels.yml:
+#   - The "what kind of work" axis reuses the GitHub default labels
+#     (`bug`, `enhancement`, `documentation`, `question`) so the vocabulary
+#     stays familiar to external contributors. Three extra type-like labels
+#     (`refactor`, `regression`, `performance`) are added to cover concepts
+#     the defaults do not express.
+#   - All other axes use prefix-based labels (`module:*`, `area:*`,
+#     `priority:*`, `status:*`) so filters along each axis stay predictable.
+#
+# Conventions:
+#   - One "type" label per issue (choose from the Type section below).
+#   - Other axes may have multiple labels on the same issue.
+#   - Keep this list minimal; add new labels only when an existing one no
+#     longer fits.
+#
+# Positioning-scope labels (`gnss:*`, `mode:*`) are intentionally absent:
+# positioning concerns are tracked upstream in MRTKLIB.
+#
+# This file is a declarative source of truth. Syncing to GitHub (via e.g.
+# EndBug/label-sync) is deferred to a follow-up PR.
+
+# -----------------------------------------------------------------------------
+# Type — kind of work (GitHub defaults retained, plus three additions)
+# -----------------------------------------------------------------------------
+- name: "bug"
+  color: "d73a4a"
+  description: "Something is not working as intended"
+- name: "enhancement"
+  color: "a2eeef"
+  description: "New feature or enhancement request"
+- name: "documentation"
+  color: "0075ca"
+  description: "Improvements or additions to documentation"
+- name: "question"
+  color: "d876e3"
+  description: "Usage question or request for information"
+- name: "refactor"
+  color: "c5def5"
+  description: "Internal code change with no behavior change"
+- name: "regression"
+  color: "b60205"
+  description: "Previously-working behavior has degraded"
+- name: "performance"
+  color: "fbca04"
+  description: "Latency, throughput, or resource-usage improvement"
+
+# -----------------------------------------------------------------------------
+# module:* — which layer of the stack is affected
+# -----------------------------------------------------------------------------
+- name: "module:frontend"
+  color: "5319e7"
+  description: "React / Mantine UI, components, theme, charts"
+- name: "module:backend"
+  color: "5319e7"
+  description: "FastAPI routers, services, WebSocket, subprocess handling"
+- name: "module:docker"
+  color: "5319e7"
+  description: "Dockerfile, docker-compose, image build, volumes, runtime"
+- name: "module:ci"
+  color: "5319e7"
+  description: "GitHub Actions workflows, release automation"
+- name: "module:docs"
+  color: "5319e7"
+  description: "README, Docker Hub Overview, in-repo docs, CLAUDE.md"
+
+# -----------------------------------------------------------------------------
+# area:* — which UI tab or feature surface is affected
+# (MRTKLIB's `mode:*` axis is replaced by `area:*` here, since this UI
+# exposes multiple tool surfaces beyond just real-time / post-processing.)
+# -----------------------------------------------------------------------------
+- name: "area:post-processing"
+  color: "0e8a16"
+  description: "Post Processing tab (mrtk post)"
+- name: "area:real-time"
+  color: "0e8a16"
+  description: "Real-Time tab (mrtk run)"
+- name: "area:stream-server"
+  color: "0e8a16"
+  description: "Stream Server tab (mrtk relay)"
+- name: "area:conversion"
+  color: "0e8a16"
+  description: "Conversion tab (mrtk convert / RINEX tools)"
+- name: "area:monitor"
+  color: "0e8a16"
+  description: "Monitor tab (receiver NMEA / UBX / SBF)"
+- name: "area:tools"
+  color: "0e8a16"
+  description: "Tools tab (Time Converter, Data Downloader, AI Assistant)"
+
+# -----------------------------------------------------------------------------
+# priority:* — maintainer triage signal
+# -----------------------------------------------------------------------------
+- name: "priority:high"
+  color: "d93f0b"
+  description: "Should be addressed soon"
+- name: "priority:medium"
+  color: "fbca04"
+  description: "Normal priority"
+- name: "priority:low"
+  color: "c2e0c6"
+  description: "Nice to have; no deadline"
+
+# -----------------------------------------------------------------------------
+# status:* — current state of the issue
+# -----------------------------------------------------------------------------
+- name: "status:needs-triage"
+  color: "ededed"
+  description: "Awaiting initial maintainer review"
+- name: "status:confirmed"
+  color: "ededed"
+  description: "Reproduced or accepted by a maintainer"
+- name: "status:blocked"
+  color: "ededed"
+  description: "Blocked on external input or another issue"
+- name: "status:waiting-for-info"
+  color: "ededed"
+  description: "Waiting for more information from the reporter"
+- name: "status:upstream"
+  color: "ededed"
+  description: "Root cause lives in MRTKLIB; tracked upstream"
+
+# -----------------------------------------------------------------------------
+# Community signals (GitHub defaults retained)
+# -----------------------------------------------------------------------------
+- name: "good first issue"
+  color: "7057ff"
+  description: "Good for newcomers"
+- name: "help wanted"
+  color: "008672"
+  description: "Extra attention is needed"
+- name: "duplicate"
+  color: "cfd3d7"
+  description: "This issue or pull request already exists"
+- name: "wontfix"
+  color: "ffffff"
+  description: "This will not be worked on"
+- name: "invalid"
+  color: "e4e669"
+  description: "This does not seem right"
