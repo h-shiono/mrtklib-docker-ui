@@ -12,7 +12,7 @@ assignees: []
 Where is the problem? Prefer a precise pointer.
 - README: https://github.com/h-shiono/mrtklib-docker-ui/blob/main/README.md#L42
 - Docker Hub Overview: https://hub.docker.com/r/hatognss/mrtklib-docker-ui
-- CLAUDE.md, tasks/lessons.md
+- CLAUDE.md or other markdown docs in the repository
 - In-UI help text, tooltip, section header (?)
 -->
 

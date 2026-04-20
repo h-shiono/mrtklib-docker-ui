@@ -28,7 +28,7 @@ output.
 
 - [ ] `cd frontend && npm run lint`
 - [ ] `cd frontend && npm run build`
-- [ ] `uv sync && uv run uvicorn mrtklib_web_ui.main:app --reload`
+- [ ] `uv sync && uv run uvicorn mrtklib_web_ui.main:app --reload --host 0.0.0.0 --port 8000`
 - [ ] `docker compose up --build` reaches http://localhost:8080
 - [ ] Manually exercised the affected tab(s) in a browser
 - [ ] TOML import → export round-trip preserved (if config I/O touched)
@@ -60,7 +60,6 @@ changes, Docker volume/port changes, etc.
 ## Checklist
 
 - [ ] I have read the project conventions in `CLAUDE.md`
-- [ ] I have checked `tasks/lessons.md` for relevant patterns
 - [ ] Mantine v8 patterns only (no `sx` prop, no v6 patterns)
 - [ ] `minWidth: 0` added where flex children need it
 - [ ] No unrelated changes included in this PR
