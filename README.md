@@ -9,12 +9,12 @@ GNSS positioning capabilities. No compilation required — just
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![React](https://img.shields.io/badge/react-18+-blue.svg)
-![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.6.2-green.svg)
+![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.6.4-green.svg)
 
 > **Status**: v0.1.0-alpha — core features are functional.
 > Known limitations are listed in [Known Issues](#known-issues).
 
-![MRTKLIB Web UI Dashboard](./docs/screenshot.png)
+![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
 
 ## Features
 
