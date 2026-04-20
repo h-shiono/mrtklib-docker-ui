@@ -77,10 +77,57 @@ GNSS positioning capabilities. No compilation required — just
 
 ### Prerequisites
 
-- Docker and Docker Compose
+- Docker (the **Build from source** flow additionally uses
+  `docker compose`, which ships with Docker Desktop)
 - GNSS data files (RINEX observation and navigation files)
 
-### Quick Start
+### Quick Start (pre-built image)
+
+The fastest way to try MRTKLIB Web UI. No cloning or building required.
+
+Images are published for both `linux/amd64` and `linux/arm64`
+(Apple Silicon native).
+
+1. **Pull the image**
+   ```bash
+   # Docker Hub
+   docker pull hatognss/mrtklib-docker-ui:0.1.0-alpha
+
+   # or GitHub Container Registry
+   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.1.0-alpha
+   ```
+
+2. **Prepare host directories**
+   ```bash
+   mkdir -p ./workspace ./data
+   # Place your GNSS data files under ./data (read-only in container)
+   ```
+
+3. **Run the container**
+   ```bash
+   docker run -d --name mrtklib-web-ui \
+     -p 8080:8000 \
+     -v "$(pwd)/workspace:/workspace:rw" \
+     -v "$(pwd)/data:/data:ro" \
+     hatognss/mrtklib-docker-ui:0.1.0-alpha
+   ```
+
+4. **Open the UI** at <http://localhost:8080>
+
+Published images:
+
+| Registry | Repository |
+|---|---|
+| Docker Hub | [`hatognss/mrtklib-docker-ui`](https://hub.docker.com/r/hatognss/mrtklib-docker-ui) |
+| GHCR | [`ghcr.io/h-shiono/mrtklib-docker-ui`](https://github.com/h-shiono/mrtklib-docker-ui/pkgs/container/mrtklib-docker-ui) |
+
+Both repositories carry the same multi-arch manifest. See the
+repository pages above for the list of available tags.
+
+### Build from source
+
+Use this flow if you need to customise the MRTKLIB version, build
+against a local MRTKLIB checkout, or develop the Web UI itself.
 
 1. **Clone the repository**
    ```bash
@@ -100,10 +147,7 @@ GNSS positioning capabilities. No compilation required — just
    docker compose up --build
    ```
 
-4. **Open the UI**
-   ```
-   http://localhost:8080
-   ```
+4. **Open the UI** at <http://localhost:8080>
 
 ### Data Directory Configuration
 
