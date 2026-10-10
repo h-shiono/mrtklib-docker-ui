@@ -229,26 +229,23 @@ function RawLogEditor({
                 format: '',
               }
             : { ...log, type: 'off' })} />
-        {enabled && (
-          <Tooltip label="Write a .tag file so the log can be replayed in real time (file::T)" openDelay={300}>
-            <div>
-              <Switch size="xs" label="Time tag" checked={timetag}
-                onChange={(e) => onChange({ ...log, path: composeRawLogPath(base, e.currentTarget.checked) })}
-                styles={{ label: { fontSize: '11px' } }} />
-            </div>
-          </Tooltip>
-        )}
+        <Tooltip label="Write a .tag file so the log can be replayed in real time (file::T)" openDelay={300}>
+          <div>
+            <Switch size="xs" label="Time tag" checked={timetag} disabled={!enabled}
+              onChange={(e) => onChange({ ...log, path: composeRawLogPath(base, e.currentTarget.checked) })}
+              styles={{ label: { fontSize: '11px' } }} />
+          </div>
+        </Tooltip>
       </Group>
-      {enabled && (
-        <Group wrap="nowrap" align="center" gap="xs">
-          <Text size="xs" c="dimmed" style={LABEL_STYLE}>Raw Path</Text>
-          <TextInput size="xs" value={base}
-            onChange={(e) => onChange({ ...log, path: composeRawLogPath(e.currentTarget.value, timetag) })}
-            placeholder={defaultRawLogBase(input, inputStream.format)}
-            style={{ flex: 1, minWidth: 0 }}
-            styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }} />
-        </Group>
-      )}
+      <Group wrap="nowrap" align="center" gap="xs">
+        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Raw Path</Text>
+        <TextInput size="xs" value={enabled ? base : ''}
+          onChange={(e) => onChange({ ...log, path: composeRawLogPath(e.currentTarget.value, timetag) })}
+          placeholder={defaultRawLogBase(input, inputStream.format)}
+          disabled={!enabled}
+          style={{ flex: 1, minWidth: 0 }}
+          styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }} />
+      </Group>
     </>
   );
 }

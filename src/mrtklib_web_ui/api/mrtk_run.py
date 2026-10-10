@@ -83,9 +83,12 @@ def _validate_write_streams(streams: StreamsConfigModel) -> str | None:
         if s.type != "file":
             continue
         base = s.path.split("::", 1)[0].strip()
-        # An empty file path makes mrtk write to stdout
+        # An empty file path makes mrtk write to stdout (shown as [STDOUT]
+        # in the console). Fine for solutions; raw binary logs would flood it.
         if not base:
-            return f"{name}: file path is required"
+            if name.endswith("raw log"):
+                return f"{name}: file path is required"
+            continue
         p = Path(base)
         if not p.is_absolute() or not is_within(p, WORKSPACE_ROOT):
             return f"{name} must be within /workspace: {base}"
