@@ -257,6 +257,14 @@ uv sync
 uv run uvicorn mrtklib_web_ui.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+The QC Preview option needs the optional `qc` extra (cssrlib):
+
+```bash
+uv sync --extra qc
+```
+
+Docker builds include it by default; set `INSTALL_QC=0` in `.env` to skip it.
+
 ### Frontend
 ```bash
 cd frontend
