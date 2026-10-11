@@ -103,7 +103,7 @@ Backend endpoints: `GET/POST/PUT/DELETE /api/presets/{mode}/{id}`.
 PP and RT presets are namespaced independently.
 
 ### Credential priority (Data Downloader)
-1. `/root/.netrc` mount (highest)
+1. `~/.netrc` mount — `/home/mrtk/.netrc` in the container (highest)
 2. `EARTHDATA_USER` / `GSI_USER` env vars
 3. `/workspace/.credentials.toml` stored via UI
 

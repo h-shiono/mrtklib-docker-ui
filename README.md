@@ -131,6 +131,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
      -p 8080:8000 \
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
+     -e PUID="$(id -u)" -e PGID="$(id -g)" \
      hatognss/mrtklib-docker-ui:0.3.1-alpha
    ```
 
@@ -182,6 +183,13 @@ against a local MRTKLIB checkout, or develop the Web UI itself.
 DATA_DIR=/path/to/your/gnss-data
 ```
 
+The app runs as `PUID:PGID` (default `1000:1000`), not root, so files
+it writes to `/workspace` belong to that host user. Set them to your
+own IDs (`id -u` / `id -g`) in `.env`. On start, existing files under
+`/workspace` owned by someone else (for example root, from versions
+that ran as root) are chowned to `PUID:PGID`. `PUID=0` restores the
+old run-as-root behaviour.
+
 ### Serial Device Passthrough (Monitor tab and CLAS Pipeline)
 
 To connect to a GNSS receiver via serial port, add the device
@@ -217,7 +225,9 @@ visible to the container by default. Use one of:
 ### Credentials (Data Downloader)
 
 The Data Downloader supports three credential sources
-(priority order: `.netrc` mount > environment variables > UI):
+(priority order: `.netrc` mount > environment variables > UI).
+Mount a `.netrc` at `/home/mrtk/.netrc` (see `docker-compose.yml`);
+an existing `/root/.netrc` mount is copied there on start.
 ```bash
 # .env
 EARTHDATA_USER=your_username    # NASA Earthdata (IGS products)
