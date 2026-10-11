@@ -40,6 +40,9 @@ _last_status: dict[str, Any] = {}
 MAX_TRACE_HISTORY = 1000
 _trace_history: deque[str] = deque(maxlen=MAX_TRACE_HISTORY)
 _trace_file: dict[str, str] = {}
+# Bumped on each accepted start. A previous run's trace tailer may still be
+# draining after a natural exit; its callbacks carry the old id and are dropped.
+_run_id = 0
 _POSITION_KEYS = ("timestamp", "lat", "lon", "height", "quality", "ns", "ratio", "age")
 
 
@@ -87,16 +90,22 @@ async def _log_callback(line: str) -> None:
     await _broadcast({"type": "log", "message": line})
 
 
-async def _trace_file_callback(path: str) -> None:
-    """Called by MrtkRunService once the run's trace file exists."""
-    _trace_file["path"] = path
-    await _broadcast({"type": "trace_file", "path": path})
+def _trace_callbacks(run_id: int):
+    """Trace callbacks for MrtkRunService, bound to one run."""
 
+    async def on_file(path: str) -> None:
+        if run_id != _run_id:
+            return
+        _trace_file["path"] = path
+        await _broadcast({"type": "trace_file", "path": path})
 
-async def _trace_callback(lines: list[str]) -> None:
-    """Called by MrtkRunService with each batch of new trace lines."""
-    _trace_history.extend(lines)
-    await _broadcast({"type": "trace", "lines": lines})
+    async def on_lines(lines: list[str]) -> None:
+        if run_id != _run_id:
+            return
+        _trace_history.extend(lines)
+        await _broadcast({"type": "trace", "lines": lines})
+
+    return on_file, on_lines
 
 
 class StartResponse(BaseModel):
@@ -163,14 +172,19 @@ async def start_run(request: MrtkRunStartRequest) -> StartResponse:
     if _service.is_running:
         # Checked here too so a rejected start never wipes the live run's history.
         return StartResponse(status="error", message="mrtk run is already running")
+    global _run_id
+    _run_id += 1
     _clear_history()
+    # Other connected tabs still show the previous run's trace.
+    await _broadcast({"type": "trace_reset"})
+    on_trace_file, on_trace = _trace_callbacks(_run_id)
     try:
         await _service.start(
             request,
             status_callback=_status_callback,
             log_callback=_log_callback,
-            trace_callback=_trace_callback,
-            trace_file_callback=_trace_file_callback,
+            trace_callback=on_trace,
+            trace_file_callback=on_trace_file,
         )
         # Per-poll statuses carry no `running`; tell other connected clients
         # (e.g. a second tab) explicitly so their button flips to Stop.
@@ -235,6 +249,7 @@ async def websocket_run(websocket: WebSocket) -> None:
        "traces": [...], "trace_file": "..." | None} (once, on connect)
     - {"type": "status", "lat": ..., "lon": ..., "quality": ..., ...}
     - {"type": "log", "message": "..."}
+    - {"type": "trace_reset"} (a new run was accepted)
     - {"type": "trace_file", "path": "..."} (debug trace file found)
     - {"type": "trace", "lines": [...]}
     """

@@ -543,6 +543,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           }
         } else if (msg.type === 'log') {
           setLogLines(prev => [...prev.slice(-500), msg.message]);
+        } else if (msg.type === 'trace_reset') {
+          // A run was started (possibly from another tab).
+          setTraceFile(null);
+          setTraceLines([]);
         } else if (msg.type === 'trace_file') {
           // A new run's trace file: drop the previous run's lines.
           setTraceFile(msg.path as string);

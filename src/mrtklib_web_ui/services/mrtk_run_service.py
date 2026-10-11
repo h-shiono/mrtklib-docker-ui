@@ -693,7 +693,9 @@ class MrtkRunService:
             await log_callback(f"[INFO] Working directory: {workdir or Path.cwd()}")
             await log_callback(f"[INFO] Console port: {self._console_port}")
 
-        started_at = time.time()
+        # Snapshot existing traces before launch so an earlier run's file
+        # is never mistaken for this run's.
+        tailer = TraceTailer(workdir or Path.cwd()) if trace_arg else None
         self._process = await asyncio.create_subprocess_exec(
             *cmd,
             stdin=asyncio.subprocess.DEVNULL,
@@ -702,9 +704,7 @@ class MrtkRunService:
             cwd=workdir,
         )
 
-        if trace_arg:
-            # Filesystem mtimes can trail time.time() slightly.
-            tailer = TraceTailer(workdir or Path.cwd(), since=started_at - 1.0)
+        if tailer:
             self._trace_task = asyncio.create_task(
                 self._tail_trace(tailer, trace_callback, trace_file_callback)
             )

@@ -2,8 +2,9 @@
 
 rtkrcv opens a single trace file per run (``rtkrcv_%Y%m%d%h%M.trace``,
 relative to its working directory, time keywords expanded in GPST at open
-time) and never rotates it. The name is not predicted here: the newest
-matching file modified since the run started is picked up instead.
+time) and never rotates it. The name is not predicted here: files present
+before launch are recorded, and the first one created or rewritten after
+that is picked up instead.
 
 At level 3+ the file can grow by megabytes per minute, so each read is
 capped; anything beyond the cap is skipped and reported with a marker line.
@@ -23,37 +24,42 @@ class TraceTailer:
     def __init__(
         self,
         directory: Path,
-        since: float,
         pattern: str = TRACE_GLOB,
         max_read: int = MAX_READ_BYTES,
     ) -> None:
+        """Create before launching the process: snapshots existing traces."""
         self.directory = directory
-        self.since = since
         self.pattern = pattern
         self.max_read = max_read
         self.path: Optional[Path] = None
         self._offset = 0
         self._partial = bytearray()
+        self._before = self._scan()
+
+    def _scan(self) -> dict[Path, int]:
+        out: dict[Path, int] = {}
+        try:
+            candidates = list(self.directory.glob(self.pattern))
+        except OSError:
+            return out
+        for p in candidates:
+            try:
+                out[p] = p.stat().st_mtime_ns
+            except OSError:
+                continue
+        return out
 
     def find(self) -> Optional[Path]:
         """Locate the trace file of this run (None until rtkrcv creates it)."""
         if self.path is None:
-            newest: Optional[tuple[float, Path]] = None
-            try:
-                candidates = list(self.directory.glob(self.pattern))
-            except OSError:
-                return None
-            for p in candidates:
-                try:
-                    mtime = p.stat().st_mtime
-                except OSError:
-                    continue
-                # A file left by an earlier run in the same GPST minute is
-                # reopened with "w", which also bumps its mtime.
-                if mtime >= self.since and (newest is None or mtime > newest[0]):
-                    newest = (mtime, p)
-            if newest:
-                self.path = newest[1]
+            # Earlier runs' files only qualify once rewritten: a restart in
+            # the same GPST minute reopens the same name with "w".
+            fresh = [
+                (mtime, p) for p, mtime in self._scan().items()
+                if self._before.get(p) != mtime
+            ]
+            if fresh:
+                self.path = max(fresh)[1]
         return self.path
 
     def read(self, final: bool = False) -> list[str]:
