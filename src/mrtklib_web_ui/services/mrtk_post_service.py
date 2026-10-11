@@ -499,26 +499,36 @@ class MrtkPostService:
             sats = [s.strip() for s in p.excluded_satellites.replace(",", " ").split() if s.strip()]
             lines.append(f"excluded_sats       = [{', '.join(_s(s) for s in sats)}]")
         else:
-            lines.append(f"excluded_sats       = []")
+            lines.append("excluded_sats       = []")
 
         c = p.constellations
         systems = []
-        if c.gps: systems.append('"GPS"')
-        if c.glonass: systems.append('"GLONASS"')
-        if c.galileo: systems.append('"Galileo"')
-        if c.qzss: systems.append('"QZSS"')
-        if c.sbas: systems.append('"SBAS"')
-        if c.beidou: systems.append('"BeiDou"')
-        if c.irnss: systems.append('"NavIC"')
+        if c.gps:
+            systems.append('"GPS"')
+        if c.glonass:
+            systems.append('"GLONASS"')
+        if c.galileo:
+            systems.append('"Galileo"')
+        if c.qzss:
+            systems.append('"QZSS"')
+        if c.sbas:
+            systems.append('"SBAS"')
+        if c.beidou:
+            systems.append('"BeiDou"')
+        if c.irnss:
+            systems.append('"NavIC"')
         lines.append(f"systems             = [{', '.join(systems)}]")
         # v0.7.6: robust estimation + TDCP
         if p.robust != "off":
             lines.append(f"robust              = {_s(p.robust)}")
-            if p.robust_k0: lines.append(f"robust_k0           = {p.robust_k0}")
-            if p.robust_k1: lines.append(f"robust_k1           = {p.robust_k1}")
+            if p.robust_k0:
+                lines.append(f"robust_k0           = {p.robust_k0}")
+            if p.robust_k1:
+                lines.append(f"robust_k1           = {p.robust_k1}")
         if p.tdcp != "off":
             lines.append(f"tdcp                = {_s(p.tdcp)}")
-            if p.tdcp_jump: lines.append(f"tdcp_jump           = {p.tdcp_jump}")
+            if p.tdcp_jump:
+                lines.append(f"tdcp_jump           = {p.tdcp_jump}")
         lines.append("")
 
         # ── [positioning.snr_mask] ────────────────────────────────────────
@@ -545,7 +555,8 @@ class MrtkPostService:
         lines.append(f"no_phase_bias_adj  = {_b(cor.no_phase_bias_adj)}")
         lines.append(f"gps_frequency      = {_s(cor.gps_frequency)}")
         lines.append(f"qzs_frequency      = {_s(cor.qzs_frequency)}")
-        if cor.snr_fixed: lines.append(f"snr_fixed          = {cor.snr_fixed}")
+        if cor.snr_fixed:
+            lines.append(f"snr_fixed          = {cor.snr_fixed}")
         lines.append(f"tidal_correction   = {_s(cor.tidal_correction)}")
         lines.append("")
 
@@ -566,19 +577,27 @@ class MrtkPostService:
         # ── [positioning.relative] ────────────────────────────────────────
         lines.append("[positioning.relative]")
         lines.append(f"max_age            = {rx.max_age}")
-        if rx.baseline_length: lines.append(f"baseline_length    = {rx.baseline_length}")
-        if rx.baseline_sigma: lines.append(f"baseline_sigma     = {rx.baseline_sigma}")
+        if rx.baseline_length:
+            lines.append(f"baseline_length    = {rx.baseline_length}")
+        if rx.baseline_sigma:
+            lines.append(f"baseline_sigma     = {rx.baseline_sigma}")
         lines.append(f"time_interpolation = {_b(srv.time_interpolation)}")
         lines.append("")
 
         # ── [positioning.ppp] ─────────────────────────────────────────────
         ppp_lines = []
-        if rx.ppp_sat_clock_bias: ppp_lines.append(f"satellite_clock_bias  = {rx.ppp_sat_clock_bias}")
-        if rx.ppp_sat_phase_bias: ppp_lines.append(f"satellite_phase_bias  = {rx.ppp_sat_phase_bias}")
-        if rx.uncorr_bias: ppp_lines.append(f"drop_uncorrected_code = true")
-        if rx.clock_jump: ppp_lines.append(f"clock_jump            = true")
-        if rx.max_bias_dt: ppp_lines.append(f"max_bias_dt           = {rx.max_bias_dt}")
-        if srv.ppp_option: ppp_lines.append(f"options               = {_s(srv.ppp_option)}")
+        if rx.ppp_sat_clock_bias:
+            ppp_lines.append(f"satellite_clock_bias  = {rx.ppp_sat_clock_bias}")
+        if rx.ppp_sat_phase_bias:
+            ppp_lines.append(f"satellite_phase_bias  = {rx.ppp_sat_phase_bias}")
+        if rx.uncorr_bias:
+            ppp_lines.append("drop_uncorrected_code = true")
+        if rx.clock_jump:
+            ppp_lines.append("clock_jump            = true")
+        if rx.max_bias_dt:
+            ppp_lines.append(f"max_bias_dt           = {rx.max_bias_dt}")
+        if srv.ppp_option:
+            ppp_lines.append(f"options               = {_s(srv.ppp_option)}")
         if ppp_lines:
             lines.append("[positioning.ppp]")
             lines.extend(ppp_lines)
@@ -609,8 +628,10 @@ class MrtkPostService:
             lines.append("[positioning.clas.resilience]")
             lines.append(f"max_obs_loss   = {srv.max_obs_loss}")
             lines.append(f"float_count    = {srv.float_count}")
-            if cl.l6_merge: lines.append(f"l6_merge       = {cl.l6_merge}")
-            if cl.reset_interval: lines.append(f"reset_interval = {cl.reset_interval}")
+            if cl.l6_merge:
+                lines.append(f"l6_merge       = {cl.l6_merge}")
+            if cl.reset_interval:
+                lines.append(f"reset_interval = {cl.reset_interval}")
             lines.append("")
 
             af = config.adaptive_filter
@@ -627,8 +648,10 @@ class MrtkPostService:
         lines.append("[ambiguity_resolution]")
         def _ar_flag(v: str) -> str:
             """AR flag: 'on'→true, 'off'→false, else quoted string."""
-            if v == "on": return "true"
-            if v == "off": return "false"
+            if v == "on":
+                return "true"
+            if v == "off":
+                return "false"
             return _s(v)
 
         lines.append(f"mode       = {_s(ar.mode)}")
@@ -643,14 +666,19 @@ class MrtkPostService:
         lines.append("[ambiguity_resolution.thresholds]")
         lines.append(f"ratio          = {t.ratio}")
         lines.append(f"ratio1         = {t.ratio1}")
-        if t.ratio5: lines.append(f"ratio5         = {t.ratio5}")
-        if t.ratio6: lines.append(f"ratio6         = {t.ratio6}")
+        if t.ratio5:
+            lines.append(f"ratio5         = {t.ratio5}")
+        if t.ratio6:
+            lines.append(f"ratio6         = {t.ratio6}")
         lines.append(f"alpha          = {_s(alpha_map.get(t.alpha, '0.1%'))}")
         lines.append(f"elevation_mask = {t.elevation_mask}")
         lines.append(f"hold_elevation = {t.hold_elevation}")
-        if t.max_pdop_ar: lines.append(f"max_pdop_ar    = {t.max_pdop_ar}")
-        if t.max_pdop_hold: lines.append(f"max_pdop_hold  = {t.max_pdop_hold}")
-        if t.reference_dop != "zd": lines.append(f"reference_dop  = {_s(t.reference_dop)}")
+        if t.max_pdop_ar:
+            lines.append(f"max_pdop_ar    = {t.max_pdop_ar}")
+        if t.max_pdop_hold:
+            lines.append(f"max_pdop_hold  = {t.max_pdop_hold}")
+        if t.reference_dop != "zd":
+            lines.append(f"reference_dop  = {_s(t.reference_dop)}")
         lines.append("")
 
         # ── [ambiguity_resolution.counters] ───────────────────────────────
@@ -665,11 +693,15 @@ class MrtkPostService:
         # ── [ambiguity_resolution.partial_ar] ─────────────────────────────
         par = ar.partial_ar
         lines.append("[ambiguity_resolution.partial_ar]")
-        if par.min_ambiguities: lines.append(f"min_ambiguities   = {par.min_ambiguities}")
-        if par.max_excluded_sats: lines.append(f"max_excluded_sats = {par.max_excluded_sats}")
+        if par.min_ambiguities:
+            lines.append(f"min_ambiguities   = {par.min_ambiguities}")
+        if par.max_excluded_sats:
+            lines.append(f"max_excluded_sats = {par.max_excluded_sats}")
         lines.append(f"min_fix_sats      = {par.min_fix_sats}")
-        if par.min_drop_sats: lines.append(f"min_drop_sats     = {par.min_drop_sats}")
-        if par.min_hold_sats: lines.append(f"min_hold_sats     = {par.min_hold_sats}")
+        if par.min_drop_sats:
+            lines.append(f"min_drop_sats     = {par.min_drop_sats}")
+        if par.min_hold_sats:
+            lines.append(f"min_hold_sats     = {par.min_hold_sats}")
         lines.append(f"ar_filter         = {_b(par.ar_filter)}")
         lines.append("")
 
@@ -683,22 +715,32 @@ class MrtkPostService:
         lines.append("[rejection]")
         lines.append(f"innovation         = {rej.innovation}")
         lines.append(f"gdop               = {rej.gdop}")
-        if rej.l1_l2_residual: lines.append(f"l1_l2_residual     = {rej.l1_l2_residual}")
-        if rej.dispersive: lines.append(f"dispersive         = {rej.dispersive}")
-        if rej.non_dispersive: lines.append(f"non_dispersive     = {rej.non_dispersive}")
-        if rej.hold_chi_square: lines.append(f"hold_chi_square    = {rej.hold_chi_square}")
-        if rej.fix_chi_square: lines.append(f"fix_chi_square     = {rej.fix_chi_square}")
-        if rej.spp_residual: lines.append(f"spp_residual       = {rej.spp_residual}")
-        if rej.spp_min_sats != 7: lines.append(f"spp_min_sats       = {rej.spp_min_sats}")
-        if rej.pseudorange_diff: lines.append(f"pseudorange_diff   = {rej.pseudorange_diff}")
-        if rej.position_error_count: lines.append(f"position_error_count = {rej.position_error_count}")
+        if rej.l1_l2_residual:
+            lines.append(f"l1_l2_residual     = {rej.l1_l2_residual}")
+        if rej.dispersive:
+            lines.append(f"dispersive         = {rej.dispersive}")
+        if rej.non_dispersive:
+            lines.append(f"non_dispersive     = {rej.non_dispersive}")
+        if rej.hold_chi_square:
+            lines.append(f"hold_chi_square    = {rej.hold_chi_square}")
+        if rej.fix_chi_square:
+            lines.append(f"fix_chi_square     = {rej.fix_chi_square}")
+        if rej.spp_residual:
+            lines.append(f"spp_residual       = {rej.spp_residual}")
+        if rej.spp_min_sats != 7:
+            lines.append(f"spp_min_sats       = {rej.spp_min_sats}")
+        if rej.pseudorange_diff:
+            lines.append(f"pseudorange_diff   = {rej.pseudorange_diff}")
+        if rej.position_error_count:
+            lines.append(f"position_error_count = {rej.position_error_count}")
         lines.append("")
 
         # ── [slip_detection] ─────────────────────────────────────────────
         sd = config.slip_detection
         lines.append("[slip_detection]")
         lines.append(f"threshold = {sd.threshold}")
-        if sd.doppler: lines.append(f"doppler   = {sd.doppler}")
+        if sd.doppler:
+            lines.append(f"doppler   = {sd.doppler}")
         lines.append("")
 
         # ── [kalman_filter] ──────────────────────────────────────────────
@@ -716,11 +758,16 @@ class MrtkPostService:
         lines.append(f"phase_elevation     = {me.phase_elevation}")
         lines.append(f"phase_baseline      = {me.phase_baseline}")
         lines.append(f"doppler             = {me.doppler}")
-        if me.snr_max: lines.append(f"snr_max             = {me.snr_max}")
-        if me.snr_error: lines.append(f"snr_error           = {me.snr_error}")
-        if me.ionosphere: lines.append(f"ionosphere          = {me.ionosphere}")
-        if me.troposphere: lines.append(f"troposphere         = {me.troposphere}")
-        if me.ura_ratio: lines.append(f"ura_ratio           = {me.ura_ratio}")
+        if me.snr_max:
+            lines.append(f"snr_max             = {me.snr_max}")
+        if me.snr_error:
+            lines.append(f"snr_error           = {me.snr_error}")
+        if me.ionosphere:
+            lines.append(f"ionosphere          = {me.ionosphere}")
+        if me.troposphere:
+            lines.append(f"troposphere         = {me.troposphere}")
+        if me.ura_ratio:
+            lines.append(f"ura_ratio           = {me.ura_ratio}")
         lines.append("")
 
         ist = kf.initial_std
@@ -743,7 +790,8 @@ class MrtkPostService:
         lines.append(f"troposphere     = {_flt(pn.troposphere)}")
         lines.append(f"iono_time_const = {pn.iono_time_const}")
         lines.append(f"clock_stability = {_flt(pn.clock_stability)}")
-        if pn.ifb: lines.append(f"ifb             = {pn.ifb}")
+        if pn.ifb:
+            lines.append(f"ifb             = {pn.ifb}")
         lines.append("")
 
         # NOTE: [adaptive_filter] moved to [positioning.clas.adaptive_filter]
@@ -766,8 +814,10 @@ class MrtkPostService:
         # ── [input.*] (decoding options; emitted only when set) ──────────
         if srv.rinex_option_1 or srv.rinex_option_2:
             lines.append("[input.rinex]")
-            if srv.rinex_option_1: lines.append(f"option_1 = {_s(srv.rinex_option_1)}")
-            if srv.rinex_option_2: lines.append(f"option_2 = {_s(srv.rinex_option_2)}")
+            if srv.rinex_option_1:
+                lines.append(f"option_1 = {_s(srv.rinex_option_1)}")
+            if srv.rinex_option_2:
+                lines.append(f"option_2 = {_s(srv.rinex_option_2)}")
             lines.append("")
         if srv.rtcm_option:
             lines.append("[input.rtcm]")
@@ -797,9 +847,9 @@ class MrtkPostService:
         lines.append("[antenna.base]")
         if p.positioning_mode in no_base:
             lines.append(f"position_type      = {_s('llh')}")
-            lines.append(f"position_1         = 90.0")
-            lines.append(f"position_2         = 0.0")
-            lines.append(f"position_3         = -6335367.6285")
+            lines.append("position_1         = 90.0")
+            lines.append("position_2         = 0.0")
+            lines.append("position_3         = -6335367.6285")
         else:
             lines.append(f"position_type      = {_s(postype_map.get(ant.base.mode, 'llh'))}")
             lines.append(f"position_1         = {ant.base.values[0]}")
@@ -848,16 +898,26 @@ class MrtkPostService:
         lines.append(f"dcb                = {_s(fl.dcb)}")
         lines.append(f"eop                = {_s(fl.eop)}")
         lines.append(f"ocean_loading      = {_s(fl.ocean_loading)}")
-        if fl.temp_dir: lines.append(f"temp_dir           = {_s(fl.temp_dir)}")
-        if fl.trace: lines.append(f"trace              = {_s(fl.trace)}")
-        if fl.fcb: lines.append(f"fcb                = {_s(fl.fcb)}")
-        if fl.bias_sinex: lines.append(f"bias_sinex         = {_s(fl.bias_sinex)}")
-        if fl.cssr_grid: lines.append(f"cssr_grid          = {_s(fl.cssr_grid)}")
-        if fl.isb_table: lines.append(f"isb_table          = {_s(fl.isb_table)}")
-        if fl.phase_cycle: lines.append(f"phase_cycle        = {_s(fl.phase_cycle)}")
-        if fl.cmd_file_1: lines.append(f"cmd_file_1         = {_s(fl.cmd_file_1)}")
-        if fl.cmd_file_2: lines.append(f"cmd_file_2         = {_s(fl.cmd_file_2)}")
-        if fl.cmd_file_3: lines.append(f"cmd_file_3         = {_s(fl.cmd_file_3)}")
+        if fl.temp_dir:
+            lines.append(f"temp_dir           = {_s(fl.temp_dir)}")
+        if fl.trace:
+            lines.append(f"trace              = {_s(fl.trace)}")
+        if fl.fcb:
+            lines.append(f"fcb                = {_s(fl.fcb)}")
+        if fl.bias_sinex:
+            lines.append(f"bias_sinex         = {_s(fl.bias_sinex)}")
+        if fl.cssr_grid:
+            lines.append(f"cssr_grid          = {_s(fl.cssr_grid)}")
+        if fl.isb_table:
+            lines.append(f"isb_table          = {_s(fl.isb_table)}")
+        if fl.phase_cycle:
+            lines.append(f"phase_cycle        = {_s(fl.phase_cycle)}")
+        if fl.cmd_file_1:
+            lines.append(f"cmd_file_1         = {_s(fl.cmd_file_1)}")
+        if fl.cmd_file_2:
+            lines.append(f"cmd_file_2         = {_s(fl.cmd_file_2)}")
+        if fl.cmd_file_3:
+            lines.append(f"cmd_file_3         = {_s(fl.cmd_file_3)}")
         lines.append("")
 
         # ── [server] (rtkrcv runtime only; v0.7.6 trimmed) ───────────────
@@ -873,8 +933,10 @@ class MrtkPostService:
         lines.append(f"nav_msg_select = {_s(srv.nav_msg_select)}")
         lines.append(f"proxy          = {_s(srv.proxy)}")
         lines.append(f"swap_margin    = {srv.swap_margin}")
-        if srv.start_cmd: lines.append(f"start_cmd      = {_s(srv.start_cmd)}")
-        if srv.stop_cmd: lines.append(f"stop_cmd       = {_s(srv.stop_cmd)}")
+        if srv.start_cmd:
+            lines.append(f"start_cmd      = {_s(srv.start_cmd)}")
+        if srv.stop_cmd:
+            lines.append(f"stop_cmd       = {_s(srv.stop_cmd)}")
         lines.append("")
 
         return "\n".join(lines)

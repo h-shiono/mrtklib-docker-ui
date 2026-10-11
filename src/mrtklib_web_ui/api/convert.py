@@ -201,7 +201,6 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
         async def read_stream(stream, prefix=""):
             import time as _time
             buf = b""
-            last_progress = ""
             last_progress_time = 0.0
             while True:
                 chunk = await stream.read(4096)
@@ -232,7 +231,6 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
                         now = _time.monotonic()
                         if now - last_progress_time >= 1.0:
                             last_progress_time = now
-                            last_progress = line
                             await _broadcast({"type": "progress", "message": f"{prefix}{line}"})
                     else:
                         await _broadcast({"type": "log", "message": f"{prefix}{line}"})
@@ -367,8 +365,8 @@ def _parse_rinex_preview(path: Path, max_epochs: int = 5) -> dict[str, Any]:
     # Count total epochs for truncation check
     total_epochs = sum(
         1
-        for l in data_lines
-        if l.startswith(">") or (len(l) > 25 and l[0] == " " and l[1:3].strip().isdigit())
+        for ln in data_lines
+        if ln.startswith(">") or (len(ln) > 25 and ln[0] == " " and ln[1:3].strip().isdigit())
     )
     truncated = epoch_count <= total_epochs and epoch_count > max_epochs or total_epochs > max_epochs
 

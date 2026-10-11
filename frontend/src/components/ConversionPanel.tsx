@@ -281,7 +281,6 @@ export function ConversionPanel() {
   const [form, setForm] = useState<ConvertFormState>(DEFAULT_FORM);
   const [status, setStatus] = useState<ConvertStatus>('idle');
   const [logLines, setLogLines] = useState<string[]>([]);
-  const [_selectedSidebar] = useState('rinex-converter');
   const consoleRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
