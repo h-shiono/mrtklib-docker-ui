@@ -1,16 +1,16 @@
 """Data downloader API for GNSS data files."""
 
-import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from mrtklib_web_ui.paths import WORKSPACE_ROOT, has_hidden_component, is_within, resolve_path
 from mrtklib_web_ui.services.credentials import (
     get_credential,
     get_credential_source,
@@ -21,12 +21,26 @@ from mrtklib_web_ui.services.credentials import (
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-WORKSPACE_ROOT = Path("/workspace")
 DOWNLOADS_DIR = WORKSPACE_ROOT / "downloads"
 
 # In-memory download history (last 50)
 _download_history: list[dict[str, Any]] = []
 MAX_HISTORY = 50
+
+
+# Request fields that end up in file names or remote paths
+Year = Annotated[int, Field(ge=1980, le=2100)]
+Doy = Annotated[int, Field(ge=1, le=366)]
+Session = Annotated[str, Field(pattern=r"^([a-x]|\*)$")]
+
+
+def _dest_dir(value: str) -> Path:
+    """Resolve a download directory; it must be inside /workspace."""
+    path = resolve_path(value)
+    inside = path == WORKSPACE_ROOT.resolve() or is_within(path, WORKSPACE_ROOT)
+    if not inside or has_hidden_component(path):
+        raise HTTPException(403, f"Destination must be within /workspace: {value}")
+    return path
 
 
 def _add_history(entry: dict[str, Any]) -> None:
@@ -122,37 +136,39 @@ async def download_status() -> list[dict[str, Any]]:
 # ── QZSS downloads ──────────────────────────────────────────────────────
 
 class QzssClasRequest(BaseModel):
-    year: int
-    doy: int
-    session: str = "a"
+    year: Year
+    doy: Doy
+    session: Session = "a"
     dest_dir: str = "/workspace/downloads/clas"
 
 
 @router.post("/qzss/clas")
 async def download_qzss_clas(body: QzssClasRequest) -> list[dict[str, Any]]:
     """Download QZSS CLAS L6 files."""
+    dest_dir = _dest_dir(body.dest_dir)
     sessions = list("abcdefghijklmnopqrstuvwx") if body.session == "*" else [body.session]
     results = []
     for ses in sessions:
         filename = f"{body.year:04d}{body.doy:03d}{ses}.l6"
         url = f"https://sys.qzss.go.jp/archives/l6/{body.year:04d}/{filename}"
-        dest = Path(body.dest_dir) / filename
+        dest = dest_dir / filename
         result = await _download_file(url, dest)
         results.append(result)
     return results
 
 
 class QzssMadocaRequest(BaseModel):
-    year: int
-    doy: int
-    session: str = "a"
-    prn: str = "Q01"
+    year: Year
+    doy: Doy
+    session: Session = "a"
+    prn: str = Field(default="Q01", pattern=r"^(Q0[1-7]|all)$")
     dest_dir: str = "/workspace/downloads/madoca"
 
 
 @router.post("/qzss/madoca")
 async def download_qzss_madoca(body: QzssMadocaRequest) -> list[dict[str, Any]]:
     """Download QZSS MADOCA L6 files."""
+    dest_dir = _dest_dir(body.dest_dir)
     sessions = list("abcdefghijklmnopqrstuvwx") if body.session == "*" else [body.session]
     prns = [f"Q{i:02d}" for i in range(1, 8)] if body.prn == "all" else [body.prn]
     results = []
@@ -160,7 +176,7 @@ async def download_qzss_madoca(body: QzssMadocaRequest) -> list[dict[str, Any]]:
         for prn in prns:
             filename = f"{body.year:04d}{body.doy:03d}{ses}.{prn}.l6"
             url = f"https://l6msg.go.gnss.go.jp/archives/{body.year:04d}/{body.doy:03d}/{filename}"
-            dest = Path(body.dest_dir) / filename
+            dest = dest_dir / filename
             result = await _download_file(url, dest)
             results.append(result)
     return results
@@ -177,16 +193,17 @@ async def download_igs_atx() -> dict[str, Any]:
 
 
 class IgsProductRequest(BaseModel):
-    year: int
-    doy: int
+    year: Year
+    doy: Doy
     product_type: str = "brdc"
-    analysis_center: str = "IGS"
+    analysis_center: str = Field(default="IGS", pattern=r"^[A-Za-z0-9]{3}$")
     dest_dir: str = "/workspace/downloads/igs"
 
 
 @router.post("/igs/products")
 async def download_igs_products(body: IgsProductRequest) -> dict[str, Any]:
     """Download IGS products (requires NASA Earthdata credentials)."""
+    dest_dir = _dest_dir(body.dest_dir)
     cred = get_credential("earthdata")
     if not cred:
         raise HTTPException(401, "NASA Earthdata credentials required")
@@ -212,22 +229,23 @@ async def download_igs_products(body: IgsProductRequest) -> dict[str, Any]:
     else:
         raise HTTPException(400, f"Unknown product type: {body.product_type}")
 
-    dest = Path(body.dest_dir) / filename
+    dest = dest_dir / filename
     return await _download_file(url, dest, auth=cred)
 
 
 # ── GSI CORS ────────────────────────────────────────────────────────────
 
 class GsiCorsRequest(BaseModel):
-    station: str
-    year: int
-    doy: int
+    station: str = Field(pattern=r"^[A-Za-z0-9_-]+$")
+    year: Year
+    doy: Doy
     dest_dir: str = "/workspace/downloads/gsi"
 
 
 @router.post("/gsi/cors")
 async def download_gsi_cors(body: GsiCorsRequest) -> dict[str, Any]:
     """Download GSI CORS data (requires GSI credentials)."""
+    dest = _dest_dir(body.dest_dir)
     cred = get_credential("gsi")
     if not cred:
         raise HTTPException(401, "GSI FTP credentials required")
@@ -236,7 +254,7 @@ async def download_gsi_cors(body: GsiCorsRequest) -> dict[str, Any]:
         "id": str(uuid.uuid4()),
         "filename": f"{body.station}_{body.year:04d}{body.doy:03d}.obs",
         "url": f"ftp://terras.gsi.go.jp/data/GPS_1sec/{body.year}/{body.doy:03d}/{body.station}/",
-        "dest": str(Path(body.dest_dir) / f"{body.station}_{body.year:04d}{body.doy:03d}.obs"),
+        "dest": str(dest / f"{body.station}_{body.year:04d}{body.doy:03d}.obs"),
         "status": "downloading",
         "size_bytes": 0,
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
@@ -246,7 +264,6 @@ async def download_gsi_cors(body: GsiCorsRequest) -> dict[str, Any]:
 
     try:
         import ftplib
-        dest = Path(body.dest_dir)
         dest.mkdir(parents=True, exist_ok=True)
 
         ftp = ftplib.FTP("terras.gsi.go.jp")
@@ -256,6 +273,9 @@ async def download_gsi_cors(body: GsiCorsRequest) -> dict[str, Any]:
         files = ftp.nlst()
         downloaded = 0
         for fname in files:
+            # Names come from the remote server; never let them leave dest
+            if "/" in fname or "\\" in fname or fname.startswith("."):
+                continue
             local_path = dest / fname
             if local_path.exists() and local_path.stat().st_size > 0:
                 continue

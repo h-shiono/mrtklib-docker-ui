@@ -3,7 +3,14 @@
 import os
 from pathlib import Path
 
+from mrtklib_web_ui.services.private_toml import dumps_tables, write_private_toml
+
 CRED_FILE = Path("/workspace/.credentials.toml")
+
+
+def _netrc_path() -> Path:
+    """The running user's .netrc (the container no longer runs as root)."""
+    return Path.home() / ".netrc"
 
 NETRC_HOSTS = {
     "earthdata": "urs.earthdata.nasa.gov",
@@ -79,14 +86,7 @@ def save_credential(service: str, username: str, password: str) -> None:
             pass
 
     existing[service] = {"username": username, "password": password}
-    lines = []
-    for k, v in existing.items():
-        lines.append(f'[{k}]')
-        lines.append(f'username = "{v["username"]}"')
-        lines.append(f'password = "{v["password"]}"')
-        lines.append('')
-    CRED_FILE.write_text("\n".join(lines))
-    CRED_FILE.chmod(0o600)
+    _write_cred_file(existing)
 
 
 def delete_credential(service: str) -> None:
@@ -100,18 +100,21 @@ def delete_credential(service: str) -> None:
     except Exception:
         return
     existing.pop(service, None)
-    lines = []
-    for k, v in existing.items():
-        lines.append(f'[{k}]')
-        lines.append(f'username = "{v["username"]}"')
-        lines.append(f'password = "{v["password"]}"')
-        lines.append('')
-    CRED_FILE.write_text("\n".join(lines))
-    CRED_FILE.chmod(0o600)
+    _write_cred_file(existing)
+
+
+def _write_cred_file(existing: dict) -> None:
+    """Rewrite the credentials file with every value properly escaped."""
+    tables = {
+        svc: {"username": str(v.get("username", "")), "password": str(v.get("password", ""))}
+        for svc, v in existing.items()
+        if isinstance(v, dict)
+    }
+    write_private_toml(CRED_FILE, dumps_tables(tables))
 
 
 def setup_netrc_from_env() -> None:
-    """Generate /root/.netrc entries from environment variables."""
+    """Generate ~/.netrc entries from environment variables."""
     entries = []
     for service, (env_u, env_p) in ENV_MAP.items():
         u = os.getenv(env_u)
@@ -121,7 +124,7 @@ def setup_netrc_from_env() -> None:
             entries.append(f"machine {host} login {u} password {p}")
 
     if entries:
-        netrc_path = Path("/root/.netrc")
+        netrc_path = _netrc_path()
         if not netrc_path.exists() or netrc_path.stat().st_size == 0:
             netrc_path.write_text("\n".join(entries) + "\n")
             netrc_path.chmod(0o600)
@@ -131,7 +134,7 @@ def _read_netrc(service: str) -> tuple[str, str] | None:
     host = NETRC_HOSTS.get(service)
     if not host:
         return None
-    netrc_path = Path("/root/.netrc")
+    netrc_path = _netrc_path()
     if not netrc_path.exists():
         return None
     try:

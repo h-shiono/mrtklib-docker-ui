@@ -13,11 +13,21 @@ export interface ProcessStatus {
   started_at: string | null;
   stopped_at: string | null;
   error_message: string | null;
+  /** Command line arguments, with credentials masked */
+  args: string[];
+}
+
+/** A relay started from the Stream Server tab, with its recent log */
+export interface RelayStreamInfo extends ProcessStatus {
+  name: string;
+  log: string[];
 }
 
 export interface StartRequest {
   args?: string[];
   process_id?: string;
+  /** Stream name, returned by listStreams() after a page reload */
+  name?: string;
 }
 
 export interface StopRequest {
@@ -71,6 +81,14 @@ export async function getRelayStatus(processId: string): Promise<ProcessStatus> 
 export async function listProcesses(): Promise<ProcessStatus[]> {
   const response = await fetch(`${API_BASE}/processes`);
   return handleResponse<ProcessStatus[]>(response);
+}
+
+/**
+ * List the relays started from the Stream Server tab, running or recently ended
+ */
+export async function listStreams(): Promise<RelayStreamInfo[]> {
+  const response = await fetch(`${API_BASE}/streams`);
+  return handleResponse<RelayStreamInfo[]>(response);
 }
 
 /**

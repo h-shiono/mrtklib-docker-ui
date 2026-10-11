@@ -62,7 +62,7 @@ import type { MrtkPostConfig } from './types/mrtkPostConfig';
 import { DEFAULT_MRTK_POST_CONFIG } from './types/mrtkPostConfig';
 import type { InputStream, OutputStream, StreamType } from './types/streamConfig';
 import type { BuilderConfig } from './types/streamConfig';
-import { generateRelayArgs } from './utils/streamArgs';
+import { generateRelayArgs, parseRelayArgs } from './utils/streamArgs';
 
 function ColorSchemeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -102,7 +102,7 @@ function PostProcessingRightPanel({
   const [rightTab, setRightTab] = useState<string | null>('chart');
   const [refreshKey, setRefreshKey] = useState(0);
   const consoleViewportRef = useRef<HTMLDivElement>(null);
-  const prevStatusRef = useRef(processStatus);
+  const [prevStatus, setPrevStatus] = useState(processStatus);
 
   // Auto-scroll console when new lines arrive
   useEffect(() => {
@@ -115,12 +115,12 @@ function PostProcessingRightPanel({
   }, [logLines, rightTab]);
 
   // Auto-refresh chart when processing completes
-  useEffect(() => {
-    if (prevStatusRef.current === 'running' && processStatus === 'success') {
+  if (prevStatus !== processStatus) {
+    setPrevStatus(processStatus);
+    if (prevStatus === 'running' && processStatus === 'success') {
       setRefreshKey((k) => k + 1);
     }
-    prevStatusRef.current = processStatus;
-  }, [processStatus]);
+  }
 
   const handleCopyLog = useCallback(() => {
     navigator.clipboard.writeText(logLines.join('\n'));
@@ -402,19 +402,31 @@ function SolutionView({
   refreshKey: number;
   maxHeight: number;
 }) {
-  const [content, setContent] = useState<string | null>(null);
+  const [loadedContent, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const content = outputFile ? loadedContent : null;
 
-  useEffect(() => {
-    if (!outputFile) {
-      setContent(null);
-      return;
+  // Enter the loading state while rendering, not from the fetch effect
+  const loadKey = `${refreshKey}:${outputFile}`;
+  const [startedLoadKey, setStartedLoadKey] = useState<string | null>(null);
+  if (!outputFile) {
+    // A fetch cancelled by clearing the path never clears these itself
+    if (startedLoadKey !== null) {
+      setStartedLoadKey(null);
+      setLoading(false);
+      setError(null);
     }
-    let cancelled = false;
+  } else if (startedLoadKey !== loadKey) {
+    setStartedLoadKey(loadKey);
     setLoading(true);
     setError(null);
+  }
+
+  useEffect(() => {
+    if (!outputFile) return;
+    let cancelled = false;
 
     fetch(`/api/files/read?path=${encodeURIComponent(outputFile)}&max_lines=5000`)
       .then((res) => {
@@ -610,7 +622,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
           correction_files: correctionFiles.filter((f) => f.trim() !== ''),
           output_file: outputFile,
         },
-        config: backendConfig as any,
+        config: backendConfig as unknown as MrtkPostConfig,
         time_range: timeRange,
       });
 
@@ -775,18 +787,97 @@ const PATH_PLACEHOLDER_FOR_TYPE: Record<StreamType, string> = {
   file: '/workspace/output.ubx',
 };
 
-function StreamServerPanel() {
-  const [streams, setStreams] = useState<RelayStream[]>([{
+const MAX_RELAY_LOG_LINES = 500;
+
+const RELAY_STATE_TO_STATUS: Record<string, RelayStream['status']> = {
+  idle: 'idle', starting: 'running', running: 'running',
+  stopping: 'running', stopped: 'idle', error: 'error',
+};
+
+function newRelayStream(name: string): RelayStream {
+  return {
     id: randomUUID(),
-    name: 'Stream 1',
+    name,
     status: 'idle',
     processId: null,
     input: { ...DEFAULT_SS_INPUT, id: randomUUID() },
     outputs: [{ ...DEFAULT_SS_OUTPUT, id: randomUUID() }],
     logLines: [],
-  }]);
-  const [activeStreamId, setActiveStreamId] = useState<string>(streams[0].id);
+  };
+}
+
+/** The single default stream a fresh page starts with, not yet used or edited */
+function isPristineRelayStream(s: RelayStream): boolean {
+  return s.status === 'idle' && !s.processId && s.logLines.length === 0
+    && s.input.type === DEFAULT_SS_INPUT.type && s.input.path === DEFAULT_SS_INPUT.path
+    && s.outputs.length === 1
+    && s.outputs[0].type === DEFAULT_SS_OUTPUT.type && s.outputs[0].path === DEFAULT_SS_OUTPUT.path;
+}
+
+/** Rebuild a stream card for a relay the backend runs but this page did not start */
+function adoptRelayStream(r: mrtkRelayApi.RelayStreamInfo): RelayStream {
+  const { input, outputs = [] } = parseRelayArgs(r.args);
+  return {
+    id: randomUUID(),
+    name: r.name,
+    status: RELAY_STATE_TO_STATUS[r.state] ?? 'idle',
+    processId: r.id,
+    input: input ? { ...input, id: randomUUID() } : { ...DEFAULT_SS_INPUT, id: randomUUID() },
+    outputs: outputs.map((o) => ({ ...o, id: randomUUID() })),
+    logLines: r.log.slice(-MAX_RELAY_LOG_LINES),
+  };
+}
+
+/**
+ * Bring the stream list in line with the backend after a page load or a
+ * WebSocket reconnect: refresh state and log of the streams this page knows,
+ * and adopt the running relays it does not, so they can be monitored and stopped.
+ */
+function reconcileRelayStreams(
+  prev: RelayStream[],
+  remote: mrtkRelayApi.RelayStreamInfo[],
+  changedSince: Set<string>,
+): RelayStream[] {
+  // Relays this page started or stopped after the list was requested are
+  // newer here than in the list: leave them alone, and never re-adopt them
+  remote = remote.filter((r) => !changedSince.has(r.id));
+  const byId = new Map(remote.map((r) => [r.id, r]));
+  let next = prev.map((s) => {
+    if (!s.processId || changedSince.has(s.processId)) return s;
+    const r = byId.get(s.processId);
+    if (!r) return { ...s, status: 'idle' as const, processId: null };
+    const status = RELAY_STATE_TO_STATUS[r.state] ?? 'idle';
+    return {
+      ...s,
+      status,
+      processId: status === 'idle' ? null : s.processId,
+      logLines: r.log.length > 0 ? r.log.slice(-MAX_RELAY_LOG_LINES) : s.logLines,
+    };
+  });
+  const known = new Set(prev.map((s) => s.processId));
+  const adopted = remote
+    .filter((r) => !known.has(r.id) && RELAY_STATE_TO_STATUS[r.state] === 'running')
+    .map(adoptRelayStream);
+  if (adopted.length === 0) return next;
+  if (next.length === 1 && isPristineRelayStream(next[0])) next = [];
+  return [...next, ...adopted];
+}
+
+/** A password still masked as *** (e.g. in an adopted stream) cannot be sent */
+function hasMaskedPassword(stream: RelayStream): boolean {
+  return [stream.input, ...stream.outputs].some((c) => /^[^:@/]*:\*\*\*@/.test(c.path));
+}
+
+function StreamServerPanel() {
+  const [streams, setStreams] = useState<RelayStream[]>(() => [newRelayStream('Stream 1')]);
+  const [selectedStreamId, setActiveStreamId] = useState<string>(streams[0].id);
+  // Adopting relays may replace the selected stream; fall back to the first
+  const activeStreamId = streams.some((s) => s.id === selectedStreamId) ? selectedStreamId : streams[0].id;
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
+
+  // When this page last started or stopped each relay, or saw it stop over
+  // the WebSocket (performance.now()): a list requested earlier is older
+  const localChangeAtRef = useRef<Map<string, number>>(new Map());
 
   // Ref for process-id-to-stream-id mapping (avoids re-creating WS callback)
   const processMapRef = useRef<Map<string, string>>(new Map());
@@ -814,26 +905,41 @@ function StreamServerPanel() {
   useWebSocket({
     onMessage: useCallback((message: LogMessage) => {
       if (!message.process_id) return;
+      // Record a stop even for a relay not mapped yet (fresh page, list still
+      // in flight), so the older list cannot re-adopt it as running
+      if (message.type === 'status' && message.status
+          && RELAY_STATE_TO_STATUS[message.status] !== 'running') {
+        localChangeAtRef.current.set(message.process_id, performance.now());
+      }
       const streamId = processMapRef.current.get(message.process_id);
       if (!streamId) return;
 
       if (message.type === 'log' && message.message) {
         setStreams((prev) => prev.map((s) =>
-          s.id === streamId ? { ...s, logLines: [...s.logLines.slice(-500), message.message!] } : s
+          s.id === streamId ? { ...s, logLines: [...s.logLines.slice(-(MAX_RELAY_LOG_LINES - 1)), message.message!] } : s
         ));
       }
       if (message.type === 'status' && message.status) {
-        const statusMap: Record<string, RelayStream['status']> = {
-          idle: 'idle', starting: 'running', running: 'running',
-          stopping: 'running', stopped: 'idle', error: 'error',
-        };
-        const newStatus = statusMap[message.status] || 'idle';
+        const newStatus = RELAY_STATE_TO_STATUS[message.status] || 'idle';
         setStreams((prev) => prev.map((s) =>
           s.id === streamId ? { ...s, status: newStatus, processId: newStatus === 'idle' ? null : s.processId } : s
         ));
       }
     }, []),
-    onConnect: useCallback(() => {}, []),
+    // Runs on the first connect and on every reconnect: pick up relays that
+    // kept running across a page reload or a dropped connection (#52)
+    onConnect: useCallback(() => {
+      const requestedAt = performance.now();
+      mrtkRelayApi.listStreams()
+        .then((remote) => {
+          const changedSince = new Set<string>();
+          for (const [pid, at] of localChangeAtRef.current) {
+            if (at >= requestedAt) changedSince.add(pid);
+          }
+          setStreams((prev) => reconcileRelayStreams(prev, remote, changedSince));
+        })
+        .catch(() => { /* keep the current view; the next reconnect retries */ });
+    }, []),
     onDisconnect: useCallback(() => {}, []),
   });
 
@@ -844,16 +950,7 @@ function StreamServerPanel() {
 
   const handleAddStream = () => {
     if (streams.length >= 4) return;
-    const num = streams.length + 1;
-    const newStream: RelayStream = {
-      id: randomUUID(),
-      name: `Stream ${num}`,
-      status: 'idle',
-      processId: null,
-      input: { ...DEFAULT_SS_INPUT, id: randomUUID() },
-      outputs: [{ ...DEFAULT_SS_OUTPUT, id: randomUUID() }],
-      logLines: [],
-    };
+    const newStream = newRelayStream(`Stream ${streams.length + 1}`);
     setStreams((prev) => [...prev, newStream]);
     setActiveStreamId(newStream.id);
   };
@@ -880,11 +977,16 @@ function StreamServerPanel() {
   const handleStartStream = async (id: string) => {
     const stream = streams.find((s) => s.id === id);
     if (!stream || stream.status === 'running') return;
+    if (hasMaskedPassword(stream)) {
+      updateStream(id, { status: 'error', logLines: [...stream.logLines, '[ERROR] Re-enter the password (shown as ***) before starting'] });
+      return;
+    }
 
     setLoadingIds((prev) => new Set(prev).add(id));
     try {
       const args = buildArgs(stream);
-      const result = await mrtkRelayApi.startRelay({ args });
+      const result = await mrtkRelayApi.startRelay({ args, name: stream.name });
+      localChangeAtRef.current.set(result.id, performance.now());
       updateStream(id, { processId: result.id, status: 'running', logLines: [`[INFO] Started (${result.id})`] });
     } catch (err) {
       updateStream(id, { status: 'error', logLines: [...stream.logLines, `[ERROR] ${err instanceof Error ? err.message : 'Failed to start'}`] });
@@ -900,6 +1002,7 @@ function StreamServerPanel() {
     setLoadingIds((prev) => new Set(prev).add(id));
     try {
       await mrtkRelayApi.stopRelay({ process_id: stream.processId });
+      localChangeAtRef.current.set(stream.processId, performance.now());
       updateStream(id, { status: 'idle', processId: null });
     } catch (err) {
       updateStream(id, { logLines: [...stream.logLines, `[ERROR] ${err instanceof Error ? err.message : 'Failed to stop'}`] });

@@ -43,3 +43,17 @@ def is_within(p: Path, root: Path) -> bool:
     """Check if a resolved path is strictly inside a given root (not equal to it)."""
     resolved = p.resolve()
     return root in resolved.parents
+
+
+def has_hidden_component(p: Path) -> bool:
+    """Check if a resolved path has a dot-prefixed component below its root.
+
+    Secrets live in dotfiles (/workspace/.ai_settings.toml,
+    /workspace/.credentials.toml), so the file API refuses them. The
+    resolved path is checked, so a symlink pointing at a dotfile is caught.
+    """
+    resolved = p.resolve()
+    for root in ALLOWED_ROOTS:
+        if resolved == root or root in resolved.parents:
+            return any(part.startswith(".") for part in resolved.relative_to(root).parts)
+    return False

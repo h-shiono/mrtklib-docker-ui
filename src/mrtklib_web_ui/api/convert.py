@@ -9,7 +9,14 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from mrtklib_web_ui.paths import is_allowed_path
+from mrtklib_web_ui.paths import (
+    DATA_ROOT,
+    WORKSPACE_ROOT,
+    has_hidden_component,
+    is_allowed_path,
+    is_within,
+    resolve_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +31,7 @@ async def _broadcast(msg: dict[str, Any]) -> None:
     global _ws_clients
     text = json.dumps(msg)
     disconnected = set()
-    for ws in _ws_clients:
+    for ws in list(_ws_clients):  # sends yield; handlers may discard meanwhile
         try:
             await ws.send_text(text)
         except Exception:
@@ -40,7 +47,8 @@ class ConvertRequest(BaseModel):
     output_nav: str | None = None
     output_dir: str | None = None
     rinex_version: str = "3.04"
-    station_id: str | None = None
+    # Expanded into output names via %r after -d is applied: no path characters
+    station_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]*$")
     time_start: str | None = None
     time_end: str | None = None
     time_ref: str | None = None
@@ -135,6 +143,34 @@ def build_convert_cmd(req: ConvertRequest) -> list[str]:
     return cmd
 
 
+def _validate_convert_paths(req: ConvertRequest) -> str | None:
+    """Resolve the request's paths in place; return an error message if any is not allowed.
+
+    Without -d, convbin writes the outputs not named by -o/-n next to the
+    input file, so the input must come from /workspace or the read-only
+    /data mount. Outputs must be inside /workspace.
+    """
+    inp = resolve_path(req.input_file)
+    if not (is_within(inp, WORKSPACE_ROOT) or is_within(inp, DATA_ROOT)) or has_hidden_component(inp):
+        return f"Input file must be within /workspace or /data: {req.input_file}"
+    req.input_file = str(inp)
+    for field, label in (("output_obs", "Observation file"), ("output_nav", "Navigation file")):
+        value = getattr(req, field)
+        if not value:
+            continue
+        out = resolve_path(value)
+        if not is_within(out, WORKSPACE_ROOT) or has_hidden_component(out):
+            return f"{label} must be within /workspace: {value}"
+        setattr(req, field, str(out))
+    if req.output_dir:
+        out_dir = resolve_path(req.output_dir)
+        inside = out_dir == WORKSPACE_ROOT.resolve() or is_within(out_dir, WORKSPACE_ROOT)
+        if not inside or has_hidden_component(out_dir):
+            return f"Output directory must be within /workspace: {req.output_dir}"
+        req.output_dir = str(out_dir)
+    return None
+
+
 class ConvertResponse(BaseModel):
     status: str
     message: str
@@ -147,6 +183,9 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
     global _process
     if _process and _process.returncode is None:
         return ConvertResponse(status="error", message="Conversion already running")
+
+    if err := _validate_convert_paths(request):
+        return ConvertResponse(status="error", message=err)
 
     cmd = build_convert_cmd(request)
     cmd_str = " ".join(cmd)
@@ -162,7 +201,6 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
         async def read_stream(stream, prefix=""):
             import time as _time
             buf = b""
-            last_progress = ""
             last_progress_time = 0.0
             while True:
                 chunk = await stream.read(4096)
@@ -193,7 +231,6 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
                         now = _time.monotonic()
                         if now - last_progress_time >= 1.0:
                             last_progress_time = now
-                            last_progress = line
                             await _broadcast({"type": "progress", "message": f"{prefix}{line}"})
                     else:
                         await _broadcast({"type": "log", "message": f"{prefix}{line}"})
@@ -328,8 +365,8 @@ def _parse_rinex_preview(path: Path, max_epochs: int = 5) -> dict[str, Any]:
     # Count total epochs for truncation check
     total_epochs = sum(
         1
-        for l in data_lines
-        if l.startswith(">") or (len(l) > 25 and l[0] == " " and l[1:3].strip().isdigit())
+        for ln in data_lines
+        if ln.startswith(">") or (len(ln) > 25 and ln[0] == " " and ln[1:3].strip().isdigit())
     )
     truncated = epoch_count <= total_epochs and epoch_count > max_epochs or total_epochs > max_epochs
 
@@ -352,7 +389,7 @@ async def preview_rinex(
     """Preview a RINEX file (header + first N epochs)."""
     target = Path(path).resolve()
 
-    if not is_allowed_path(target):
+    if not is_allowed_path(target) or has_hidden_component(target):
         raise HTTPException(status_code=403, detail="Access denied: path outside allowed directories")
 
     if not target.exists():

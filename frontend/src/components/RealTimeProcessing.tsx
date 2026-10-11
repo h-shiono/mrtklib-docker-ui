@@ -40,6 +40,7 @@ import type {
   StreamFormat,
   RunStatus,
   PositionUpdate,
+  InputStreamStatus,
 } from '../types/mrtkRunConfig';
 import { DEFAULT_STREAMS } from '../types/mrtkRunConfig';
 import { ProcessingConfigPanel, TomlDrawer } from './ProcessingConfigTabs';
@@ -55,8 +56,10 @@ import { TimeSeriesChart, type TimeSeriesPoint } from './TimeSeriesChart';
 import { MaskedPathInput } from './common/MaskedPathInput';
 import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { RtMetricsRow } from './RtMetricsRow';
+import { RtInputStatusRow } from './RtInputStatusRow';
 import { MapView, type PosEpoch } from './viewer';
 import { maskLogLine } from '../utils/maskPath';
+import { useFollowScroll } from '../hooks/useFollowScroll';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -115,7 +118,7 @@ function StreamEditor({
       <Group wrap="nowrap" align="center" gap="xs">
         <Text size="xs" c="dimmed" style={LABEL_STYLE}>Type</Text>
         <Select size="xs" value={stream.type}
-          onChange={(v: any) => onChange({ ...stream, type: v as StreamType })}
+          onChange={(v) => onChange({ ...stream, type: v as StreamType })}
           data={STREAM_TYPES} style={{ flex: 1 }} />
       </Group>
       <Group wrap="nowrap" align="center" gap="xs">
@@ -136,7 +139,7 @@ function StreamEditor({
       <Group wrap="nowrap" align="center" gap="xs">
         <Text size="xs" c="dimmed" style={LABEL_STYLE}>Format</Text>
         <Select size="xs" value={stream.format}
-          onChange={(v: any) => onChange({ ...stream, format: v as StreamFormat })}
+          onChange={(v) => onChange({ ...stream, format: v as StreamFormat })}
           data={formats} disabled={isOff} style={{ flex: 1 }} />
       </Group>
       {showNmea && !isOff && (
@@ -149,13 +152,13 @@ function StreamEditor({
           <Group wrap="nowrap" align="center" gap="xs">
             <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Lat</Text>
             <NumberInput size="xs" value={baseStream.nmealat ?? 0}
-              onChange={(v: any) => onChange({ ...baseStream, nmealat: Number(v) })}
+              onChange={(v) => onChange({ ...baseStream, nmealat: Number(v) })}
               decimalScale={6} disabled={!baseStream.nmeareq} style={{ flex: 1 }} />
           </Group>
           <Group wrap="nowrap" align="center" gap="xs">
             <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Lon</Text>
             <NumberInput size="xs" value={baseStream.nmealon ?? 0}
-              onChange={(v: any) => onChange({ ...baseStream, nmealon: Number(v) })}
+              onChange={(v) => onChange({ ...baseStream, nmealon: Number(v) })}
               decimalScale={6} disabled={!baseStream.nmeareq} style={{ flex: 1 }} />
           </Group>
         </>
@@ -343,19 +346,29 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const [showOutput2, setShowOutput2] = useState(false);
   const outputLogCount = showOutput2 || streams.output.stream2.type !== 'off' ? 2 : 1;
   const [runStatus, setRunStatus] = useState<RunStatus>('idle');
-  // Tracks whether the user currently intends a run to be active (true between
-  // handleStart and handleStop). Updated synchronously so the WebSocket
-  // onmessage closure (created once with empty deps) never reads a stale value.
-  const runIntentRef = useRef(false);
+  // True only while /start is in flight: a "not running" status without
+  // `exited` (sent on WS connect) is stale then and must not reset the button.
+  // A ref so the WebSocket onmessage closure (created once with empty deps)
+  // never reads a stale value.
+  const startingRef = useRef(false);
   const [lastPosition, setLastPosition] = useState<PositionUpdate | null>(null);
   const [positionHistory, setPositionHistory] = useState<PositionPoint[]>([]);
   const [timeSeriesHistory, setTimeSeriesHistory] = useState<TimeSeriesPoint[]>([]);
   const [logLines, setLogLines] = useState<string[]>([]);
+  // Debug trace of the current (or last) run, tailed by the backend.
+  const [traceLines, setTraceLines] = useState<string[]>([]);
+  const [traceFile, setTraceFile] = useState<string | null>(null);
   const [chartViews, setChartViews] = useState<string[]>(['scatter']);
   const [satellites, setSatellites] = useState<Satellite[]>([]);
+  const [inputStreams, setInputStreams] = useState<InputStreamStatus[]>([]);
+  // When the last `streams` arrived (a failed poll omits it: shown as stale).
+  const [inputStreamsAt, setInputStreamsAt] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
-  const logEndRef = useRef<HTMLDivElement | null>(null);
+  const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unmountedRef = useRef(false);
+  const [monitorTab, setMonitorTab] = useState<string | null>('chart');
   const MAX_HISTORY = 600;
+  const MAX_TRACE_LINES = 1000;
 
   // Measured height for the live map (leaflet needs an explicit pixel height).
   const { ref: mapWrapRef, height: mapHeight } = useElementSize();
@@ -392,10 +405,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
   const isRunning = runStatus === 'running' || runStatus === 'starting';
 
-  // Auto-scroll log to bottom
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logLines]);
+  // Keep the Solution and Console panels at their latest line.
+  const solutionScroll = useFollowScroll(monitorTab === 'solution', positionHistory);
+  const consoleScroll = useFollowScroll(monitorTab === 'console', logLines);
+  const traceScroll = useFollowScroll(monitorTab === 'trace', traceLines);
 
   // Feed live status to the global bottom status bar (null clears it on stop).
   useEffect(() => {
@@ -428,16 +441,51 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
     log_stream3: asRawLogFile(streams.log.stream3),
   }), [streams]);
 
-  // Connect WebSocket for real-time updates
+  // WebSocket for real-time updates. Connected for the component's whole
+  // lifetime (not per run) and re-established on drop, so a reloaded page or a
+  // reconnected SSH tunnel reattaches to a run the backend is still doing.
   const connectWs = useCallback(() => {
-    if (wsRef.current) return;
+    if (wsRef.current || unmountedRef.current) return;
     const ws = mrtkRunApi.connectWs();
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'status') {
+        if (msg.type === 'history') {
+          // Sent once on connect: what the backend buffered for this run. It is
+          // authoritative, so an empty list (no run, or it ended while we were
+          // disconnected) clears positions left over from before.
+          if (Array.isArray(msg.logs)) setLogLines(msg.logs as string[]);
+          setTraceLines(Array.isArray(msg.traces) ? (msg.traces as string[]) : []);
+          setTraceFile(typeof msg.trace_file === 'string' ? msg.trace_file : null);
+          const positions = (Array.isArray(msg.positions) ? msg.positions : []) as PositionUpdate[];
+          if (positions.length === 0) {
+            setLastPosition(null);
+            setPositionHistory([]);
+            setTimeSeriesHistory([]);
+            setSatellites([]);
+            setInputStreams([]);
+          } else {
+            const pts = positions.map((p) => ({
+              timestamp: p.timestamp || '',
+              lat: p.lat,
+              lon: p.lon,
+              height: p.height || 0,
+              quality: p.quality || 0,
+              ns: p.ns || 0,
+              ratio: p.ratio || 0,
+              age: p.age || 0,
+            }));
+            setLastPosition(pts[pts.length - 1]);
+            setPositionHistory(pts.slice(-MAX_HISTORY).map((p) => (
+              { lat: p.lat, lon: p.lon, height: p.height, quality: p.quality, timestamp: p.timestamp }
+            )));
+            setTimeSeriesHistory(pts.slice(-MAX_HISTORY).map((p) => (
+              { timestamp: p.timestamp, quality: p.quality, ns: p.ns, ratio: p.ratio }
+            )));
+          }
+        } else if (msg.type === 'status') {
           // Lifecycle (button state) is driven ONLY by explicit process signals,
           // never by the per-poll rtkrcv `server_state`. That field reflects the
           // rtkrcv RTK server *thread* state (run/stop) and can read "stop" while
@@ -446,15 +494,23 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           if (msg.running === true) {
             // Positive confirmation the managed process is up (e.g. WS reconnect
             // while a run is active).
-            runIntentRef.current = true;
             setRunStatus('running');
           } else if (msg.running === false) {
-            // Only return to idle on a genuine process exit, or when we are not
-            // intending to run (stale "not running" sent right on WS connect
-            // during startup must be ignored so the button stays on Stop).
-            if (msg.exited || !runIntentRef.current) {
-              runIntentRef.current = false;
+            // Only return to idle on a genuine process exit, or when no start is
+            // in flight (stale "not running" sent right on WS connect during
+            // startup must be ignored so the button stays on Stop). Outside
+            // startup, a connect-time "not running" means the run ended while
+            // this client was disconnected.
+            if (msg.exited || !startingRef.current) {
+              // Same as a local Stop: drop the dead run's position so the map,
+              // charts and global status bar stop showing it as live (covers a
+              // process exit and a Stop issued from another tab).
               setRunStatus('idle');
+              setLastPosition(null);
+              setPositionHistory([]);
+              setTimeSeriesHistory([]);
+              setSatellites([]);
+              setInputStreams([]);
             }
           }
           if (msg.lat !== undefined) {
@@ -481,8 +537,22 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           if (msg.satellites) {
             setSatellites(msg.satellites as Satellite[]);
           }
+          if (Array.isArray(msg.streams)) {
+            setInputStreams(msg.streams as InputStreamStatus[]);
+            setInputStreamsAt(Date.now());
+          }
         } else if (msg.type === 'log') {
           setLogLines(prev => [...prev.slice(-500), msg.message]);
+        } else if (msg.type === 'trace_reset') {
+          // A run was started (possibly from another tab).
+          setTraceFile(null);
+          setTraceLines([]);
+        } else if (msg.type === 'trace_file') {
+          // A new run's trace file: drop the previous run's lines.
+          setTraceFile(msg.path as string);
+          setTraceLines([]);
+        } else if (msg.type === 'trace' && Array.isArray(msg.lines)) {
+          setTraceLines(prev => [...prev, ...(msg.lines as string[])].slice(-MAX_TRACE_LINES));
         }
       } catch {
         // ignore parse errors
@@ -490,22 +560,36 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
     };
 
     ws.onclose = () => {
+      // A stale socket (already replaced or torn down) must not touch state.
+      if (wsRef.current !== ws) return;
       wsRef.current = null;
+      if (unmountedRef.current) return;
+      wsReconnectRef.current = setTimeout(() => {
+        wsReconnectRef.current = null;
+        connectWs();
+      }, 2000);
     };
   }, []);
 
-  // Disconnect WebSocket
-  const disconnectWs = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
+  useEffect(() => {
+    unmountedRef.current = false;
+    connectWs();
+    return () => {
+      unmountedRef.current = true;
+      if (wsReconnectRef.current) clearTimeout(wsReconnectRef.current);
+      wsReconnectRef.current = null;
+      const ws = wsRef.current;
       wsRef.current = null;
-    }
-  }, []);
+      ws?.close();
+    };
+  }, [connectWs]);
 
   const handleStart = async () => {
-    runIntentRef.current = true;
+    startingRef.current = true;
     setRunStatus('starting');
     setLogLines(prev => [...prev, '[INFO] Starting mrtk run -s ...']);
+    setTraceLines([]);
+    setTraceFile(null);
     try {
       // Connect WebSocket FIRST so we receive logs during start()
       connectWs();
@@ -528,21 +612,18 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
         setRunStatus('running');
         setLogLines(prev => [...prev, `[INFO] ${resp.message}`]);
       } else {
-        runIntentRef.current = false;
         setRunStatus('error');
         setLogLines(prev => [...prev, `[ERROR] ${resp.message}`]);
-        disconnectWs();
       }
     } catch (err) {
-      runIntentRef.current = false;
       setRunStatus('error');
       setLogLines(prev => [...prev, `[ERROR] ${err instanceof Error ? err.message : String(err)}`]);
-      disconnectWs();
+    } finally {
+      startingRef.current = false;
     }
   };
 
   const handleStop = async () => {
-    runIntentRef.current = false;
     setRunStatus('stopping');
     setLogLines(prev => [...prev, '[INFO] Stopping ...']);
     try {
@@ -551,7 +632,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       setLastPosition(null);
       setPositionHistory([]);
       setTimeSeriesHistory([]);
-      disconnectWs();
+      setInputStreams([]);
       setLogLines(prev => [...prev, '[INFO] Stopped']);
     } catch (err) {
       setRunStatus('error');
@@ -743,7 +824,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
             <RtMetricsRow lastPosition={lastPosition} satellites={satellites} />
 
             {/* 3. Tab bar + 4. Chart area */}
-            <Tabs defaultValue="chart" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <Tabs value={monitorTab} onChange={setMonitorTab} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <Group justify="space-between" align="center" gap={0}>
                 <Tabs.List>
                   <Tabs.Tab value="chart" style={{ fontSize: 11 }}>Chart</Tabs.Tab>
@@ -794,6 +875,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               <Tabs.Panel value="solution" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
                 <ScrollArea
                   h={300}
+                  {...solutionScroll}
                   styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
                 >
                   <Text
@@ -813,6 +895,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               <Tabs.Panel value="console" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
                 <ScrollArea
                   h={300}
+                  {...consoleScroll}
                   styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
                 >
                   {logLines.length > 0 ? (
@@ -837,22 +920,62 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                       No log output yet.
                     </Text>
                   )}
-                  <div ref={logEndRef} />
                 </ScrollArea>
               </Tabs.Panel>
 
               <Tabs.Panel value="trace" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
+                {traceFile && (
+                  <Group gap={6} mb={4} wrap="nowrap">
+                    <Text
+                      size="xs"
+                      c="dimmed"
+                      truncate="start"
+                      title={traceFile}
+                      style={{ flex: 1, minWidth: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}
+                    >
+                      {traceFile}
+                    </Text>
+                    {traceFile.startsWith('/workspace/') && (
+                      <Button
+                        variant="light"
+                        leftSection={<IconDownload size={12} />}
+                        size="compact-xs"
+                        component="a"
+                        href={`/api/files/download?path=${encodeURIComponent(traceFile)}`}
+                        download
+                        style={{ flexShrink: 0 }}
+                      >
+                        Download
+                      </Button>
+                    )}
+                  </Group>
+                )}
                 <ScrollArea
-                  h={300}
+                  h={traceFile ? 278 : 300}
+                  {...traceScroll}
                   styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
                 >
-                  <Text c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5 }}>
-                    Trace output will appear here when trace level is enabled.
+                  <Text
+                    c={traceLines.length > 0 ? 'gray.4' : 'dimmed'}
+                    fs={traceLines.length > 0 ? undefined : 'italic'}
+                    style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5, wordBreak: 'break-all' }}
+                  >
+                    {traceLines.length > 0
+                      ? traceLines.join('\n')
+                      : traceFile
+                        ? 'Waiting for trace output...'
+                        : config.output.debugTrace === 'off'
+                          ? 'Trace output is disabled. Set Debug Trace level > 0 in the Output section.'
+                          : isRunning
+                            ? 'Waiting for the trace file...'
+                            : 'Trace output will appear here while running.'}
                   </Text>
                 </ScrollArea>
               </Tabs.Panel>
             </Tabs>
 
+            {/* 5. Streaming status (Rover · Base · Correction) */}
+            <RtInputStatusRow streams={inputStreams} updatedAt={inputStreamsAt} />
           </Stack>
         </Card>
       }

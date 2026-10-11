@@ -1,6 +1,8 @@
 """FastAPI entry point for MRTKLIB Web UI."""
 
+import asyncio
 import importlib.metadata
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
@@ -16,7 +18,7 @@ except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0-dev"
 
 from mrtklib_web_ui.api import (
-    files, process, config, mrtk_relay, mrtk_post, mrtk_run, obs_qc,
+    files, config, mrtk_relay, mrtk_post, mrtk_run, obs_qc,
     presets, downloader, convert, ai, clas_pipeline,
 )
 from mrtklib_web_ui.services import clas_pipeline_service, process_manager, ws_manager
@@ -30,6 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler."""
     # Startup: Wire up process manager to WebSocket manager
     process_manager.set_log_callback(ws_manager.broadcast_log)
+    process_manager.set_status_callback(ws_manager.broadcast_status)
 
     async def _on_clas_pvt(fix) -> None:
         await ws_manager.broadcast({"type": "clas_pvt", **fix.to_json()})
@@ -75,7 +78,6 @@ app.add_middleware(
 
 # Include API routers
 app.include_router(files.router, prefix="/api/files", tags=["files"])
-app.include_router(process.router, prefix="/api/process", tags=["process"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
 app.include_router(mrtk_relay.router, prefix="/api/mrtk-relay", tags=["mrtk-relay"])
 app.include_router(mrtk_post.router, prefix="/api/mrtk-post", tags=["mrtk-post"])
@@ -94,9 +96,46 @@ async def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
+_MRTK_VERSION_PATTERN = re.compile(r"ver\.(\S+?)\)?(?:\s+git\s+(\S+?))?\)?\s*$")
+_mrtk_version_cache: tuple[str, str] | None = None
+_MRTK_VERSION_TIMEOUT = 5.0
+
+
+async def _read_mrtk_version(mrtk_path: str) -> tuple[str, str]:
+    """Return (version, git describe) from ``mrtk --version``, cached once found.
+
+    The binary is the source of truth: the image may be built from a
+    MRTKLIB_BRANCH other than the one pinned in .mrtklib-version.
+    """
+    global _mrtk_version_cache
+    if _mrtk_version_cache is not None:
+        return _mrtk_version_cache
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            mrtk_path, "--version",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+        )
+    except OSError:
+        return ("", "")
+    try:
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=_MRTK_VERSION_TIMEOUT)
+    except asyncio.TimeoutError:
+        return ("", "")
+    finally:
+        # Timed out or request cancelled: don't leave the child running
+        if proc.returncode is None:
+            proc.kill()
+            await proc.wait()
+    m = _MRTK_VERSION_PATTERN.search(out.decode(errors="replace").strip())
+    if not m:
+        return ("", "")
+    _mrtk_version_cache = (m.group(1), m.group(2) or "")
+    return _mrtk_version_cache
+
+
 @app.get("/api/mrtklib/version")
 async def mrtklib_version() -> dict[str, str | list[str]]:
-    """Get MRTKLIB version (from git tag) and available subcommands."""
+    """Get the MRTKLIB version (from ``mrtk --version``) and available subcommands."""
     import shutil
 
     mrtk_path = shutil.which("mrtk") or "/usr/local/bin/mrtk"
@@ -105,9 +144,12 @@ async def mrtklib_version() -> dict[str, str | list[str]]:
     # Known mrtk subcommands
     known_subcommands = ["post", "run", "relay", "convert", "ssr2obs", "ssr2osr", "bias", "dump", "cssr2rtcm3"]
     subcommands = known_subcommands if mrtk_available else []
+    version, git = await _read_mrtk_version(mrtk_path) if mrtk_available else ("", "")
 
     return {
-        "version": __version__,
+        "version": version,
+        "git": git,
+        "ui_version": __version__,
         "binary": "mrtk" if mrtk_available else "",
         "subcommands": subcommands,
     }
@@ -151,9 +193,10 @@ if STATIC_DIR.exists():
     @app.get("/{full_path:path}")
     async def serve_spa(request: Request, full_path: str) -> FileResponse:
         """Serve the SPA for all non-API routes."""
-        # Check if the file exists in static directory
-        file_path = STATIC_DIR / full_path
-        if file_path.exists() and file_path.is_file():
+        # Serve a file only if it is really inside the static directory:
+        # full_path arrives percent-decoded, so it may contain "..".
+        file_path = (STATIC_DIR / full_path).resolve()
+        if STATIC_DIR.resolve() in file_path.parents and file_path.is_file():
             return FileResponse(file_path)
         # Fall back to index.html for SPA routing
         return FileResponse(STATIC_DIR / "index.html")

@@ -9,15 +9,26 @@ import asyncio
 import logging
 import re
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from mrtklib_web_ui.paths import WORKSPACE_ROOT
 from mrtklib_web_ui.services.mask_credentials import mask_log_line
+from mrtklib_web_ui.services.stream_lines import iter_lines
+from mrtklib_web_ui.services.trace_tail import TraceTailer
 
 logger = logging.getLogger(__name__)
+
+# Working directory of `mrtk run`. rtkrcv writes its debug trace
+# (rtkrcv_<time>.trace), solution status file and navigation cache
+# (rtkrcv.nav, reused on the next start) relative to it, so keep it
+# in /workspace where the user can reach them.
+RUN_WORKDIR = WORKSPACE_ROOT / "rtlog" / "rtkrcv"
+TRACE_POLL_INTERVAL = 0.5
 
 # ── Status parsing ───────────────────────────────────────────────────────────
 
@@ -190,6 +201,212 @@ def parse_status_output(text: str) -> dict[str, Any]:
     return result
 
 
+# ── Input stream status ──────────────────────────────────────────────────────
+#
+# rtkrcv's `stream` command prints one row per stream:
+#   input1  ntripcli rtcm3 C   2202  3196  0  0 <path:24 chars> <message>
+# The S column is NOT live (stream_t.state is set once at open), so the state
+# is derived from the byte counter and the message, which strread() keeps
+# current. An NTRIP client with a bad mountpoint keeps reconnecting forever and
+# only says so in the message, which is overwritten by "connecting..." on each
+# retry — hence the tracker latches the last error.
+
+INPUT_NAMES = ("rover", "base", "correction")
+
+# Fmt may print empty (rtkrcv has no label for rinex/nmea)
+_STREAM_ROW_PATTERN = re.compile(
+    r"^input([123])\s+(\S+)\s+(\S*)\s+[-CE]\s+(-?\d+)\s+(-?\d+)\s+-?\d+\s+-?\d+\s(.{24})\s?(.*)$"
+)
+_INPUT_DATA_PATTERN = re.compile(r"# of input([123]) data\s*:\s*(.*)")
+_INPUT_COUNT_PATTERN = re.compile(r"(\w+)\((\d+)\)")
+
+_STREAM_ERROR_PATTERN = re.compile(
+    r"error|timeout|disconnect|no mountp|sourcetable|unauthori|forbidden|not found|HTTP/\d",
+    re.IGNORECASE,
+)
+# A connected stream reports just its address: "host" (tcp) or
+# "host/mountpoint" (ntrip). Words in those names are not errors.
+_STREAM_ADDRESS_PATTERN = re.compile(r"^(?!HTTP/)[^\s]*[.:/][^\s]*$", re.IGNORECASE)
+
+
+def is_stream_error(message: str) -> bool:
+    """Whether a stream message reports an error (not a connection name)."""
+    message = message.strip()
+    if _STREAM_ADDRESS_PATTERN.match(message):
+        return False
+    return bool(_STREAM_ERROR_PATTERN.search(message))
+
+
+# (pattern, hint) — first match wins
+_STREAM_ERROR_HINTS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"no mountp|sourcetable|bad mountpoint|\b404\b|not found", re.I),
+     "Mountpoint not found on caster"),
+    (re.compile(r"\b401\b|unauthori|bad password", re.I),
+     "Authentication failed (check user/password)"),
+    (re.compile(r"\b403\b|forbidden", re.I), "Access denied by caster"),
+    (re.compile(r"connect error|recv error|send error|socket error|address error", re.I),
+     "Cannot connect to host"),
+    (re.compile(r"timeout", re.I), "No response from host (timeout)"),
+    (re.compile(r"disconnect", re.I), "Disconnected by remote host"),
+    (re.compile(r"open error", re.I), "Cannot open device/file"),
+]
+
+# Seconds without new bytes before a stream that had data counts as stalled
+STREAM_STALL_S = 5.0
+# Bytes received with nothing decoded before a rover/base is flagged
+STREAM_NODECODE_BYTES = 8192
+
+
+def _strip_console(text: str) -> str:
+    text = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', text)
+    return re.sub(r'[\xff\xfb\xfc\xfd\xfe][\x00-\xff]', '', text)
+
+
+def parse_stream_output(text: str) -> dict[str, dict[str, Any]]:
+    """Parse the input1..3 rows of the mrtk run `stream` command."""
+    result: dict[str, dict[str, Any]] = {}
+    for line in _strip_console(text).split("\n"):
+        # A multi-line message (raw HTTP response) continues on the next
+        # lines; only its first line is kept.
+        m = _STREAM_ROW_PATTERN.match(line.rstrip("\r"))
+        if not m:
+            continue
+        result[INPUT_NAMES[int(m.group(1)) - 1]] = {
+            "type": m.group(2),
+            "format": m.group(3),
+            "in_bytes": int(m.group(4)),
+            "in_bps": int(m.group(5)),
+            "message": m.group(7).strip("\r ").strip(),
+        }
+    return result
+
+
+def parse_input_counts(text: str) -> dict[str, dict[str, int]]:
+    """Parse `# of inputN data` lines of the `status` command.
+
+    Returns {name: {"decoded": <obs+nav+...+ssr>, "errors": <err>}}.
+    """
+    result: dict[str, dict[str, int]] = {}
+    for m in _INPUT_DATA_PATTERN.finditer(_strip_console(text)):
+        counts = {k: int(v) for k, v in _INPUT_COUNT_PATTERN.findall(m.group(2))}
+        errors = counts.pop("err", 0)
+        result[INPUT_NAMES[int(m.group(1)) - 1]] = {
+            "decoded": sum(counts.values()),
+            "errors": errors,
+        }
+    return result
+
+
+def stream_error_hint(message: str) -> str:
+    for pattern, hint in _STREAM_ERROR_HINTS:
+        if pattern.search(message):
+            return hint
+    return "Stream error"
+
+
+class InputStreamTracker:
+    """Derives a live per-input state from successive `stream` polls.
+
+    States: off | connecting | receiving | stalled | nodecode | error
+    """
+
+    def __init__(self) -> None:
+        self._prev_bytes: dict[str, int] = {}
+        self._last_rx: dict[str, float] = {}
+        self._last_error: dict[str, str] = {}
+        self._prev_state: dict[str, str] = {}
+        self._prev_hint: dict[str, Optional[str]] = {}
+
+    def update(
+        self,
+        streams: dict[str, dict[str, Any]],
+        counts: dict[str, dict[str, int]],
+        now: float,
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        """Return (per-input status list, log lines for state changes)."""
+        out: list[dict[str, Any]] = []
+        events: list[str] = []
+        for name in INPUT_NAMES:
+            s = streams.get(name)
+            if s is None:
+                continue
+            c = counts.get(name, {})
+            message = mask_log_line(s["message"])
+            in_bytes = s["in_bytes"]
+            entry: dict[str, Any] = {
+                "name": name,
+                "type": s["type"],
+                "format": s["format"],
+                "in_bytes": in_bytes,
+                "in_bps": s["in_bps"],
+                "message": message,
+                "decoded": c.get("decoded"),
+                "errors": c.get("errors"),
+                "last_error": None,
+                "hint": None,
+            }
+
+            if s["type"] == "-":
+                entry["state"] = "off"
+                out.append(entry)
+                continue
+
+            # Bytes counter is a uint32 printed as %d: any change is new data
+            fresh = in_bytes != self._prev_bytes.get(name, 0)
+            if fresh:
+                self._last_rx[name] = now
+            self._prev_bytes[name] = in_bytes
+
+            # Latch an error until fresh data arrives under a non-error message
+            if is_stream_error(message):
+                self._last_error[name] = message
+            elif fresh:
+                self._last_error.pop(name, None)
+
+            last_rx = self._last_rx.get(name)
+            if name in self._last_error:
+                state = "error"
+                entry["last_error"] = self._last_error[name]
+                entry["hint"] = stream_error_hint(self._last_error[name])
+            elif last_rx is not None and now - last_rx < STREAM_STALL_S:
+                if (
+                    name != "correction"  # CLAS L6 SSR is not counted
+                    and in_bytes >= STREAM_NODECODE_BYTES
+                    and c.get("decoded") == 0
+                ):
+                    state = "nodecode"
+                    entry["hint"] = (
+                        f"Data received but nothing decoded (check format '{s['format']}'"
+                        " and that the receiver outputs raw observations)"
+                    )
+                else:
+                    state = "receiving"
+            elif last_rx is not None:
+                state = "stalled"
+                entry["hint"] = f"No data for {now - last_rx:.0f} s"
+            else:
+                state = "connecting"
+            entry["state"] = state
+
+            # Log transitions (and a changed error kind) to the console
+            prev = self._prev_state.get(name)
+            prev_hint = self._prev_hint.get(name)
+            label = name.capitalize()
+            if state in ("error", "nodecode"):
+                if state != prev or entry["hint"] != prev_hint:
+                    detail = f" ({entry['last_error']})" if entry["last_error"] else ""
+                    events.append(f"[WARN] {label} stream: {entry['hint']}{detail}")
+            elif state != prev:
+                if state == "stalled":
+                    events.append(f"[WARN] {label} stream: no data received")
+                elif state == "receiving" and prev is not None:
+                    events.append(f"[INFO] {label} stream: receiving data")
+            self._prev_state[name] = state
+            self._prev_hint[name] = entry["hint"]
+            out.append(entry)
+        return out, events
+
+
 # ── File stream path numbering ───────────────────────────────────────────────
 
 # GPST - UTC (s); mrtk expands file path keywords in GPST.
@@ -323,8 +540,10 @@ class MrtkRunService:
         self._poll_task: Optional[asyncio.Task] = None
         self._stdout_task: Optional[asyncio.Task] = None
         self._stderr_task: Optional[asyncio.Task] = None
+        self._trace_task: Optional[asyncio.Task] = None
         self._status_callback: Optional[callable] = None
         self._log_callback: Optional[callable] = None
+        self._stream_tracker = InputStreamTracker()
 
     @property
     def is_running(self) -> bool:
@@ -386,12 +605,20 @@ class MrtkRunService:
         request: MrtkRunStartRequest,
         status_callback: Optional[callable] = None,
         log_callback: Optional[callable] = None,
+        trace_callback: Optional[callable] = None,
+        trace_file_callback: Optional[callable] = None,
     ) -> None:
-        """Start mrtk run -s process."""
+        """Start mrtk run -s process.
+
+        With a debug trace level set, ``trace_file_callback(path)`` is called
+        once the trace file appears and ``trace_callback(lines)`` with each
+        batch of new (credential-masked) trace lines.
+        """
         if self.is_running:
             raise RuntimeError("mrtk run is already running")
 
         self._status_callback = status_callback
+        self._stream_tracker = InputStreamTracker()
         # Wrap log callback to mask credentials before broadcasting
         if log_callback:
             _raw_cb = log_callback
@@ -453,16 +680,34 @@ class MrtkRunService:
         if trace_arg:
             cmd.extend(["-t", trace_arg])
 
+        workdir: Optional[Path] = RUN_WORKDIR
+        try:
+            RUN_WORKDIR.mkdir(parents=True, exist_ok=True)
+        except OSError as e:  # e.g. local dev without /workspace
+            workdir = None
+            if log_callback:
+                await log_callback(f"[WARN] Cannot create {RUN_WORKDIR} ({e}); using {Path.cwd()}")
+
         if log_callback:
             await log_callback(f"[CMD] {' '.join(cmd)}")
+            await log_callback(f"[INFO] Working directory: {workdir or Path.cwd()}")
             await log_callback(f"[INFO] Console port: {self._console_port}")
 
+        # Snapshot existing traces before launch so an earlier run's file
+        # is never mistaken for this run's.
+        tailer = TraceTailer(workdir or Path.cwd()) if trace_arg else None
         self._process = await asyncio.create_subprocess_exec(
             *cmd,
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            cwd=workdir,
         )
+
+        if tailer:
+            self._trace_task = asyncio.create_task(
+                self._tail_trace(tailer, trace_callback, trace_file_callback)
+            )
 
         # Start stdout/stderr readers
         self._stdout_task = asyncio.create_task(self._read_stdout())
@@ -555,6 +800,17 @@ class MrtkRunService:
             except asyncio.TimeoutError:
                 self._process.kill()
                 await self._process.wait()
+
+        # The tailer drains the rest of the file on its own once the
+        # process has exited; cancel only if that takes too long.
+        if self._trace_task:
+            try:
+                await asyncio.wait_for(self._trace_task, timeout=TRACE_POLL_INTERVAL * 4)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+            except Exception as e:
+                logger.warning(f"trace tail error: {e}")
+            self._trace_task = None
 
         for task_attr in ('_stdout_task', '_stderr_task'):
             task = getattr(self, task_attr)
@@ -665,6 +921,21 @@ class MrtkRunService:
             except Exception:
                 pass  # Don't break status polling if satellite command fails
 
+            # Poll input stream state (rover / base / correction)
+            try:
+                stream_text = await self._send_command("stream")
+                streams = parse_stream_output(stream_text)
+                if streams:
+                    entries, events = self._stream_tracker.update(
+                        streams, parse_input_counts(text), time.monotonic()
+                    )
+                    result["streams"] = entries
+                    if self._log_callback:
+                        for line in events:
+                            await self._log_callback(line)
+            except Exception:
+                pass  # Don't break status polling if stream command fails
+
             return result
 
         except Exception as e:
@@ -703,17 +974,43 @@ class MrtkRunService:
                 if self._log_callback:
                     await self._log_callback(f"[WARN] Status poll: {e}")
 
+    async def _tail_trace(
+        self,
+        tailer: TraceTailer,
+        trace_callback: Optional[callable],
+        trace_file_callback: Optional[callable],
+    ) -> None:
+        """Follow the trace file until the process exits, then drain it."""
+        proc = self._process
+        announced = False
+        try:
+            while True:
+                exited = proc is None or proc.returncode is not None
+                lines = tailer.read(final=exited)
+                if tailer.path and not announced:
+                    announced = True
+                    if self._log_callback:
+                        await self._log_callback(f"[INFO] Trace file: {tailer.path}")
+                    if trace_file_callback:
+                        await trace_file_callback(str(tailer.path))
+                if lines and trace_callback:
+                    await trace_callback([mask_log_line(line) for line in lines])
+                if exited:
+                    break
+                await asyncio.sleep(TRACE_POLL_INTERVAL)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.warning(f"trace tail error: {e}")
+
     async def _read_stdout(self) -> None:
         """Read stdout from the process and forward to log callback."""
         proc = self._process
         if not proc or not proc.stdout:
             return
         try:
-            while True:
-                line = await proc.stdout.readline()
-                if not line:
-                    break
-                text = line.decode("utf-8", errors="replace").strip()
+            async for line in iter_lines(proc.stdout):
+                text = line.strip()
                 if text and self._log_callback:
                     await self._log_callback(f"[STDOUT] {text}")
         except asyncio.CancelledError:
@@ -727,11 +1024,8 @@ class MrtkRunService:
         if not proc or not proc.stderr:
             return
         try:
-            while True:
-                line = await proc.stderr.readline()
-                if not line:
-                    break
-                text = line.decode("utf-8", errors="replace").strip()
+            async for line in iter_lines(proc.stderr):
+                text = line.strip()
                 if text and self._log_callback:
                     await self._log_callback(f"[STDERR] {text}")
         except asyncio.CancelledError:

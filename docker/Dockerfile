@@ -21,9 +21,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 
-# Clone MRTKLIB (optionally from a specific branch)
-ARG MRTKLIB_BRANCH=main
-RUN git clone --depth 1 --branch ${MRTKLIB_BRANCH} https://github.com/h-shiono/MRTKLIB.git
+# Clone MRTKLIB at the version pinned in .mrtklib-version, unless
+# MRTKLIB_BRANCH names another branch or tag
+COPY .mrtklib-version /build/.mrtklib-version
+ARG MRTKLIB_BRANCH=""
+RUN ref="${MRTKLIB_BRANCH:-$(tr -d '[:space:]' < /build/.mrtklib-version)}" && \
+    echo "Building MRTKLIB ${ref}" && \
+    git clone --depth 1 --branch "${ref}" https://github.com/h-shiono/MRTKLIB.git
 
 # Build MRTKLIB with CMake
 WORKDIR /build/MRTKLIB
@@ -85,9 +89,11 @@ FROM python:3.12-slim-bookworm AS runtime
 WORKDIR /app
 
 # Install runtime dependencies for MRTKLIB
+# gosu: the entrypoint drops root to PUID:PGID
 RUN apt-get update && apt-get install -y --no-install-recommends \
     liblapack3 \
     libopenblas0 \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy MRTKLIB unified binary from builder
@@ -141,5 +147,8 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" || exit 1
 
-# Run the application
+# Run the application as PUID:PGID (see docker/entrypoint.sh)
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod 755 /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["uvicorn", "mrtklib_web_ui.main:app", "--host", "0.0.0.0", "--port", "8000"]

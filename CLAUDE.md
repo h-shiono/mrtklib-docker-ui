@@ -10,7 +10,7 @@ monitoring from a browser without compiling anything.
 - **MRTKLIB version:** 0.7.11 (pinned in `.mrtklib-version`)
 - **Unified binary:** `mrtk` with subcommands (`post`, `run`, `relay`,
   `convert`, `ssr2obs`, `ssr2osr`, `bias`, `dump`, `cssr2rtcm3`)
-- **UI version:** v0.3.1-alpha (next: v0.4.0-alpha)
+- **UI version:** v0.3.2-alpha (next: v0.4.0-alpha)
 
 ## Tech Stack
 
@@ -103,7 +103,7 @@ Backend endpoints: `GET/POST/PUT/DELETE /api/presets/{mode}/{id}`.
 PP and RT presets are namespaced independently.
 
 ### Credential priority (Data Downloader)
-1. `/root/.netrc` mount (highest)
+1. `~/.netrc` mount — `/home/mrtk/.netrc` in the container (highest)
 2. `EARTHDATA_USER` / `GSI_USER` env vars
 3. `/workspace/.credentials.toml` stored via UI
 

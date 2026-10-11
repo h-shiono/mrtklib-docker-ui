@@ -1,6 +1,5 @@
 """AI configuration and generation API."""
 
-import os
 import re
 import tomllib
 from pathlib import Path
@@ -9,6 +8,8 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+from mrtklib_web_ui.services.private_toml import dumps_tables, write_private_toml
 
 router = APIRouter()
 
@@ -118,42 +119,12 @@ def _load_settings() -> dict[str, Any] | None:
         return None
 
 
-def _escape_toml_string(value: str) -> str:
-    """Escape a value for use inside a TOML double-quoted string."""
-    return (
-        value
-        .replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-        .replace("\t", "\\t")
-    )
-
-
 def _save_settings(api_key: str, model: str) -> None:
-    """Save AI settings to TOML file with restricted permissions.
-
-    Uses atomic write (temp + rename) and validates the result
-    round-trips through tomllib before committing.
-    """
-    escaped_key = _escape_toml_string(api_key)
-    escaped_model = _escape_toml_string(model)
-    content = (
-        "[anthropic]\n"
-        f'api_key = "{escaped_key}"\n'
-        f'model   = "{escaped_model}"\n'
+    """Save AI settings to TOML file with restricted permissions."""
+    write_private_toml(
+        AI_SETTINGS_PATH,
+        dumps_tables({"anthropic": {"api_key": api_key, "model": model}}),
     )
-    # Validate round-trip before writing
-    tomllib.loads(content)
-
-    # Atomic write: write to temp file then rename
-    tmp_path = AI_SETTINGS_PATH.with_suffix(".tmp")
-    fd = os.open(str(tmp_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    try:
-        os.write(fd, content.encode())
-    finally:
-        os.close(fd)
-    os.rename(str(tmp_path), str(AI_SETTINGS_PATH))
 
 
 # --- Request / Response models ---

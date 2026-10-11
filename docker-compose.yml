@@ -5,7 +5,8 @@ services:
       dockerfile: docker/Dockerfile
       args:
         APP_VERSION: ${APP_VERSION:-0.0.0}
-        MRTKLIB_BRANCH: ${MRTKLIB_BRANCH:-main}
+        # Empty = the version pinned in .mrtklib-version
+        MRTKLIB_BRANCH: ${MRTKLIB_BRANCH:-}
         # QC Preview support through cssrlib. Set INSTALL_QC=0 in .env to disable it.
         INSTALL_QC: ${INSTALL_QC:-1}
     ports:
@@ -16,7 +17,7 @@ services:
       # Input GNSS data files (read-only)
       - ${DATA_DIR:-./data}:/data:ro
       # Optional: mount host .netrc for data download credentials
-      # - ${NETRC_FILE:-/dev/null}:/root/.netrc:ro
+      # - ${NETRC_FILE:-/dev/null}:/home/mrtk/.netrc:ro
       # CLAS Pipeline (Stream Server tab → CLAS Pipeline) needs serial
       # passthrough. Uncomment the lines below and set the device paths
       # in .env (CLAS_INPUT_DEVICE, CLAS_OUTPUT_DEVICE) — defaults to
@@ -24,6 +25,9 @@ services:
       # - /dev/serial:/dev/serial:ro
     environment:
       - PYTHONUNBUFFERED=1
+      # Host user/group that owns WORKSPACE_DIR files (see .env.example)
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
       - EARTHDATA_USER=${EARTHDATA_USER:-}
       - EARTHDATA_PASSWORD=${EARTHDATA_PASSWORD:-}
       - GSI_USER=${GSI_USER:-}
