@@ -15,6 +15,7 @@ from pydantic import BaseModel, BeforeValidator, Field
 
 from mrtklib_web_ui.services.mask_credentials import mask_log_line
 from mrtklib_web_ui.services.input_staging import remove_stage_dir, stage_paths
+from mrtklib_web_ui.services.stream_lines import iter_lines
 
 
 def _bool_to_onoff(v: Any) -> str:
@@ -943,12 +944,9 @@ class MrtkPostService:
             )
 
             async def read_stdout(stream, callback):
-                while True:
-                    line = await stream.readline()
-                    if not line:
-                        break
+                async for line in iter_lines(stream):
                     if callback:
-                        await callback(line.decode().strip())
+                        await callback(line.strip())
 
             async def read_stderr_with_progress(stream, log_cb, progress_cb):
                 buf = b""

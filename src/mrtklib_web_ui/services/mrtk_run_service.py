@@ -17,6 +17,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 from mrtklib_web_ui.services.mask_credentials import mask_log_line
+from mrtklib_web_ui.services.stream_lines import iter_lines
 
 logger = logging.getLogger(__name__)
 
@@ -921,11 +922,8 @@ class MrtkRunService:
         if not proc or not proc.stdout:
             return
         try:
-            while True:
-                line = await proc.stdout.readline()
-                if not line:
-                    break
-                text = line.decode("utf-8", errors="replace").strip()
+            async for line in iter_lines(proc.stdout):
+                text = line.strip()
                 if text and self._log_callback:
                     await self._log_callback(f"[STDOUT] {text}")
         except asyncio.CancelledError:
@@ -939,11 +937,8 @@ class MrtkRunService:
         if not proc or not proc.stderr:
             return
         try:
-            while True:
-                line = await proc.stderr.readline()
-                if not line:
-                    break
-                text = line.decode("utf-8", errors="replace").strip()
+            async for line in iter_lines(proc.stderr):
+                text = line.strip()
                 if text and self._log_callback:
                     await self._log_callback(f"[STDERR] {text}")
         except asyncio.CancelledError:
