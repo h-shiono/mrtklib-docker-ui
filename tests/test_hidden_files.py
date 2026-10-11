@@ -41,6 +41,7 @@ def test_browse_hides_dotfiles(client):
     c, ws = client
     names = [i["name"] for i in c.get("/api/files/browse", params={"path": str(ws)}).json()["items"]]
     assert ".ai_settings.toml" not in names
+    assert "link.toml" not in names
     assert "result.pos" in names
 
 

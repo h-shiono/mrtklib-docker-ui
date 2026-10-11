@@ -7,6 +7,7 @@ permissions so a failed write never leaves a truncated secrets file.
 
 import os
 import re
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -44,13 +45,20 @@ def dumps_tables(tables: dict[str, dict[str, str]]) -> str:
 
 
 def write_private_toml(path: Path, content: str) -> None:
-    """Validate content as TOML, then atomically replace path (mode 0600)."""
+    """Validate content as TOML, then atomically replace path (mode 0600).
+
+    The temp file is created exclusively under a fresh name (mkstemp), so
+    a planted file or symlink is never written through, and the target is
+    only replaced once every byte is on disk.
+    """
     tomllib.loads(content)
-    tmp_path = path.with_name(path.name + ".tmp")
-    fd = os.open(str(tmp_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        os.fchmod(fd, 0o600)
-        os.write(fd, content.encode())
-    finally:
-        os.close(fd)
-    os.replace(tmp_path, path)
+        with os.fdopen(fd, "wb") as f:
+            f.write(content.encode())
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_name, path)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise

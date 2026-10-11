@@ -43,3 +43,30 @@ def test_delete_keeps_other_services(cred_file):
 
     assert credentials.get_credential("gsi") is None
     assert credentials.get_credential("earthdata") == ("alice", 'q"\\')
+
+
+def test_planted_tmp_symlink_is_not_written_through(cred_file):
+    leak = cred_file.parent / "leak.txt"
+    leak.write_text("")
+    for name in (cred_file.name + ".tmp", f".{cred_file.name}.tmp"):
+        (cred_file.parent / name).symlink_to(leak)
+    credentials.save_credential("earthdata", "alice", "secret")
+
+    assert leak.read_text() == ""
+    assert credentials.get_credential("earthdata") == ("alice", "secret")
+    assert stat.S_IMODE(cred_file.stat().st_mode) == 0o600
+    assert not list(cred_file.parent.glob(f".{cred_file.name}.*.tmp"))
+
+
+def test_failed_write_keeps_existing_file(cred_file, monkeypatch):
+    credentials.save_credential("earthdata", "alice", "secret")
+
+    def boom(*a, **kw):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("mrtklib_web_ui.services.private_toml.os.fsync", boom)
+    with pytest.raises(OSError):
+        credentials.save_credential("gsi", "bob", "pw")
+
+    assert credentials.get_credential("earthdata") == ("alice", "secret")
+    assert not list(cred_file.parent.glob(f".{cred_file.name}.*.tmp"))

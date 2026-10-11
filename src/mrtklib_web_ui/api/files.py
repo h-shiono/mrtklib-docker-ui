@@ -135,7 +135,11 @@ async def browse_directory(path: str = "/workspace") -> DirectoryListing:
     items: list[FileInfo] = []
     try:
         for item in sorted(target_path.iterdir(), key=lambda x: (x.is_file(), x.name)):
-            if item.name.startswith("."):
+            # Also skip normal-named symlinks into a hidden path; read/download refuse them
+            try:
+                if item.name.startswith(".") or has_hidden_component(item):
+                    continue
+            except (OSError, RuntimeError):  # e.g. symlink loop
                 continue
             item_type: Literal["file", "directory"] = "directory" if item.is_dir() else "file"
             relative_path = str(item.relative_to(root))
