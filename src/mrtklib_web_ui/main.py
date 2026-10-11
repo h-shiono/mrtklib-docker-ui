@@ -32,6 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler."""
     # Startup: Wire up process manager to WebSocket manager
     process_manager.set_log_callback(ws_manager.broadcast_log)
+    process_manager.set_status_callback(ws_manager.broadcast_status)
 
     async def _on_clas_pvt(fix) -> None:
         await ws_manager.broadcast({"type": "clas_pvt", **fix.to_json()})
