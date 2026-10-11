@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import { useLocalStorage, useDisclosure, useElementSize } from '@mantine/hooks';
 import {
   Card,
@@ -9,6 +9,7 @@ import {
   Group,
   Switch,
   NumberInput,
+  TextInput,
   Button,
   ActionIcon,
   Tooltip,
@@ -86,18 +87,24 @@ const OUTPUT_FORMATS: { value: StreamFormat; label: string }[] = [
 
 const LABEL_STYLE = { width: 90, flexShrink: 0, fontSize: '11px' } as const;
 
+// Switch rows: match the xs input height of the neighboring Select/TextInput
+// rows. --input-height-xs is scoped to Mantine's Input, so use its value.
+const SWITCH_ROW_STYLE = { minHeight: 'calc(1.875rem * var(--mantine-scale))' } as const;
+
 function StreamEditor({
   label,
   stream,
   onChange,
   formats = INPUT_FORMATS,
   showNmea = false,
+  footer,
 }: {
   label: string;
   stream: StreamConfig | BaseStreamConfig;
   onChange: (s: StreamConfig | BaseStreamConfig) => void;
   formats?: { value: StreamFormat; label: string }[];
   showNmea?: boolean;
+  footer?: ReactNode;
 }) {
   const isOff = stream.type === 'off';
   const baseStream = stream as BaseStreamConfig;
@@ -134,7 +141,7 @@ function StreamEditor({
       </Group>
       {showNmea && !isOff && (
         <>
-          <Group wrap="nowrap" align="center" gap="xs">
+          <Group wrap="nowrap" align="center" gap="xs" style={SWITCH_ROW_STYLE}>
             <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Req.</Text>
             <Switch size="xs" checked={baseStream.nmeareq ?? false}
               onChange={(e) => onChange({ ...baseStream, nmeareq: e.currentTarget.checked })} />
@@ -153,13 +160,113 @@ function StreamEditor({
           </Group>
         </>
       )}
+      {footer}
     </Stack>
+  );
+}
+
+// ─── Raw input log (logstrN) ────────────────────────────────────────────────
+
+// mrtk writes each input stream's raw bytes (before decoding) to logstrN:
+// log.stream1 = rover, log.stream2 = base, log.stream3 = correction.
+type RawLogInput = 'rover' | 'base' | 'correction';
+
+const RAW_LOG_PREFIX: Record<RawLogInput, string> = {
+  rover: 'rovr',
+  base: 'base',
+  correction: 'corr',
+};
+
+const RAW_LOG_EXT: Record<StreamFormat, string> = {
+  rtcm3: 'rtcm3', ubx: 'ubx', sbf: 'sbf', binex: 'bnx', rinex: 'obs',
+  clas: 'l6', l6e: 'l6', nmea: 'nmea', '': 'raw',
+};
+
+// Hourly files: %Y=year, %n=DOY, %H=hour code (a-x). Keywords are expanded
+// by mrtk in GPST; ::S=1 swaps to a new file every hour.
+function defaultRawLogBase(input: RawLogInput, format: StreamFormat): string {
+  return `/workspace/rtlog/%Y/%n/${RAW_LOG_PREFIX[input]}_%n%H.${RAW_LOG_EXT[format] ?? 'raw'}`;
+}
+
+function parseRawLogPath(path: string): { base: string; timetag: boolean } {
+  const [base, ...opts] = path.split('::');
+  return { base, timetag: opts.includes('T') };
+}
+
+function composeRawLogPath(base: string, timetag: boolean): string {
+  return `${base}::S=1${timetag ? '::T' : ''}`;
+}
+
+/**
+ * Raw logs are file-only. Logs saved by the old generic Log 1-3 editor may
+ * carry another transport (tcpcli, serial, ...); treat any enabled log as a
+ * file so what the switch shows is what mrtk gets (a non-file path is then
+ * rejected at start instead of silently streaming elsewhere).
+ */
+function asRawLogFile(log: StreamConfig): StreamConfig {
+  return log.type === 'off' || log.type === 'file' ? log : { ...log, type: 'file' };
+}
+
+/** Keep an untouched default log path's extension in sync with the input format. */
+function syncRawLogFormat(
+  log: StreamConfig, input: RawLogInput, oldFormat: StreamFormat, newFormat: StreamFormat,
+): StreamConfig {
+  const { base, timetag } = parseRawLogPath(log.path);
+  if (oldFormat === newFormat || base !== defaultRawLogBase(input, oldFormat)) return log;
+  return { ...log, path: composeRawLogPath(defaultRawLogBase(input, newFormat), timetag) };
+}
+
+function RawLogEditor({
+  input,
+  inputStream,
+  log,
+  onChange,
+}: {
+  input: RawLogInput;
+  inputStream: StreamConfig;
+  log: StreamConfig;
+  onChange: (s: StreamConfig) => void;
+}) {
+  const enabled = log.type !== 'off';
+  const { base, timetag } = parseRawLogPath(log.path);
+
+  return (
+    <>
+      <Group wrap="nowrap" align="center" gap="xs" style={SWITCH_ROW_STYLE}>
+        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Save Raw</Text>
+        <Switch size="xs" checked={enabled}
+          disabled={!enabled && inputStream.type === 'off'}
+          onChange={(e) => onChange(e.currentTarget.checked
+            ? {
+                type: 'file',
+                path: composeRawLogPath(base || defaultRawLogBase(input, inputStream.format), timetag),
+                format: '',
+              }
+            : { ...log, type: 'off' })} />
+        <Tooltip label="Write a .tag file so the log can be replayed in real time (file::T)" openDelay={300}>
+          <div>
+            <Switch size="xs" label="Time tag" checked={timetag} disabled={!enabled}
+              onChange={(e) => onChange({ ...log, type: 'file', path: composeRawLogPath(base, e.currentTarget.checked) })}
+              styles={{ label: { fontSize: '11px' } }} />
+          </div>
+        </Tooltip>
+      </Group>
+      <Group wrap="nowrap" align="center" gap="xs">
+        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Raw Path</Text>
+        <TextInput size="xs" value={enabled ? base : ''}
+          onChange={(e) => onChange({ ...log, type: 'file', path: composeRawLogPath(e.currentTarget.value, timetag) })}
+          placeholder={defaultRawLogBase(input, inputStream.format)}
+          disabled={!enabled}
+          style={{ flex: 1, minWidth: 0 }}
+          styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }} />
+      </Group>
+    </>
   );
 }
 
 // ─── Quality badge ──────────────────────────────────────────────────────────
 
-// Output & Log stream slots (unified list, expandable)
+// Output stream slots (expandable)
 const OUTPUT_LOG_SLOTS = [
   {
     key: 'out1', label: 'Output 1 (Solution)', formats: OUTPUT_FORMATS,
@@ -170,21 +277,6 @@ const OUTPUT_LOG_SLOTS = [
     key: 'out2', label: 'Output 2', formats: OUTPUT_FORMATS,
     get: (s: StreamsConfig) => s.output.stream2,
     set: (s: StreamsConfig, v: StreamConfig): StreamsConfig => ({ ...s, output: { ...s.output, stream2: v } }),
-  },
-  {
-    key: 'log1', label: 'Log 1', formats: INPUT_FORMATS,
-    get: (s: StreamsConfig) => s.log.stream1,
-    set: (s: StreamsConfig, v: StreamConfig): StreamsConfig => ({ ...s, log: { ...s.log, stream1: v } }),
-  },
-  {
-    key: 'log2', label: 'Log 2', formats: INPUT_FORMATS,
-    get: (s: StreamsConfig) => s.log.stream2,
-    set: (s: StreamsConfig, v: StreamConfig): StreamsConfig => ({ ...s, log: { ...s.log, stream2: v } }),
-  },
-  {
-    key: 'log3', label: 'Log 3', formats: INPUT_FORMATS,
-    get: (s: StreamsConfig) => s.log.stream3,
-    set: (s: StreamsConfig, v: StreamConfig): StreamsConfig => ({ ...s, log: { ...s.log, stream3: v } }),
   },
 ];
 
@@ -246,7 +338,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       notifications.show({ title: 'Import failed', message: e instanceof Error ? e.message : 'Unknown error', color: 'red' });
     }
   }, [setConfig]);
-  const [outputLogCount, setOutputLogCount] = useState(1);
+  // Derived each render: useLocalStorage hydrates after mount, so a lazy
+  // useState initializer would only ever see DEFAULT_STREAMS.
+  const [showOutput2, setShowOutput2] = useState(false);
+  const outputLogCount = showOutput2 || streams.output.stream2.type !== 'off' ? 2 : 1;
   const [runStatus, setRunStatus] = useState<RunStatus>('idle');
   // Tracks whether the user currently intends a run to be active (true between
   // handleStart and handleStop). Updated synchronously so the WebSocket
@@ -328,9 +423,9 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
     input_correction: streams.input.correction,
     output_stream1: streams.output.stream1,
     output_stream2: streams.output.stream2,
-    log_stream1: streams.log.stream1,
-    log_stream2: streams.log.stream2,
-    log_stream3: streams.log.stream3,
+    log_stream1: asRawLogFile(streams.log.stream1),
+    log_stream2: asRawLogFile(streams.log.stream2),
+    log_stream3: asRawLogFile(streams.log.stream3),
   }), [streams]);
 
   // Connect WebSocket for real-time updates
@@ -569,17 +664,35 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                     <Stack gap="xs">
                       <Group gap={4}><Text size="xs" fw={600}>Input Streams</Text><StreamPathHelp /></Group>
                       <StreamEditor label="Rover" stream={streams.input.rover}
-                        onChange={(s) => setStreams({ ...streams, input: { ...streams.input, rover: s as StreamConfig } })} />
+                        onChange={(s) => setStreams({
+                          ...streams,
+                          input: { ...streams.input, rover: s as StreamConfig },
+                          log: { ...streams.log, stream1: syncRawLogFormat(streams.log.stream1, 'rover', streams.input.rover.format, s.format) },
+                        })}
+                        footer={<RawLogEditor input="rover" inputStream={streams.input.rover} log={streams.log.stream1}
+                          onChange={(l) => setStreams({ ...streams, log: { ...streams.log, stream1: l } })} />} />
                       <StreamEditor label="Base Station" stream={streams.input.base}
-                        onChange={(s) => setStreams({ ...streams, input: { ...streams.input, base: s as BaseStreamConfig } })} showNmea />
+                        onChange={(s) => setStreams({
+                          ...streams,
+                          input: { ...streams.input, base: s as BaseStreamConfig },
+                          log: { ...streams.log, stream2: syncRawLogFormat(streams.log.stream2, 'base', streams.input.base.format, s.format) },
+                        })} showNmea
+                        footer={<RawLogEditor input="base" inputStream={streams.input.base} log={streams.log.stream2}
+                          onChange={(l) => setStreams({ ...streams, log: { ...streams.log, stream2: l } })} />} />
                       <StreamEditor label="Correction (L6 / RTCM / SSR)" stream={streams.input.correction}
-                        onChange={(s) => setStreams({ ...streams, input: { ...streams.input, correction: s as StreamConfig } })} />
+                        onChange={(s) => setStreams({
+                          ...streams,
+                          input: { ...streams.input, correction: s as StreamConfig },
+                          log: { ...streams.log, stream3: syncRawLogFormat(streams.log.stream3, 'correction', streams.input.correction.format, s.format) },
+                        })}
+                        footer={<RawLogEditor input="correction" inputStream={streams.input.correction} log={streams.log.stream3}
+                          onChange={(l) => setStreams({ ...streams, log: { ...streams.log, stream3: l } })} />} />
 
                       <Group justify="space-between" mt="xs">
-                        <Group gap={4}><Text size="xs" fw={600}>Output & Log Streams</Text><StreamPathHelp /></Group>
-                        {outputLogCount < 5 && (
-                          <Tooltip label="Add output/log stream" openDelay={300}>
-                            <ActionIcon size="xs" variant="light" onClick={() => setOutputLogCount(c => Math.min(c + 1, 5))}>
+                        <Group gap={4}><Text size="xs" fw={600}>Output Streams</Text><StreamPathHelp /></Group>
+                        {outputLogCount < OUTPUT_LOG_SLOTS.length && (
+                          <Tooltip label="Add output stream" openDelay={300}>
+                            <ActionIcon size="xs" variant="light" onClick={() => setShowOutput2(true)}>
                               <IconPlus size={12} />
                             </ActionIcon>
                           </Tooltip>
@@ -605,7 +718,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                                 // Reset this slot to off and shrink count
                                 const reset: StreamConfig = { type: 'off', path: '', format: '' };
                                 setStreams(slot.set(streams, reset));
-                                setOutputLogCount(c => Math.max(1, c - 1));
+                                setShowOutput2(false);
                               }}
                               title="Remove"
                             >
@@ -750,9 +863,9 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       'input.correction': streams.input.correction,
       'output.stream1': streams.output.stream1,
       'output.stream2': streams.output.stream2,
-      'log.stream1': streams.log.stream1,
-      'log.stream2': streams.log.stream2,
-      'log.stream3': streams.log.stream3,
+      'log.stream1': asRawLogFile(streams.log.stream1),
+      'log.stream2': asRawLogFile(streams.log.stream2),
+      'log.stream3': asRawLogFile(streams.log.stream3),
     }} />
     <PresetPanel
       opened={presetsOpened}

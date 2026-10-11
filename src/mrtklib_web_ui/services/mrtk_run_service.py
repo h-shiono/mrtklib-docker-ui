@@ -9,6 +9,7 @@ import asyncio
 import logging
 import re
 import tempfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -189,6 +190,94 @@ def parse_status_output(text: str) -> dict[str, Any]:
     return result
 
 
+# ── File stream path numbering ───────────────────────────────────────────────
+
+# GPST - UTC (s); mrtk expands file path keywords in GPST.
+_GPS_LEAP_SECONDS = 18
+_GPS_EPOCH = datetime(1980, 1, 6, tzinfo=timezone.utc)
+
+
+def gpst_now() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(seconds=_GPS_LEAP_SECONDS)
+
+
+def expand_path_keywords(path: str, t: datetime) -> str:
+    """Python port of MRTKLIB reppath() time keywords (same replacement order)."""
+    week, sow = divmod((t - _GPS_EPOCH).total_seconds(), 604800)
+    reps = [
+        ("%ha", f"{t.hour // 3 * 3:02d}"),
+        ("%hb", f"{t.hour // 6 * 6:02d}"),
+        ("%hc", f"{t.hour // 12 * 12:02d}"),
+        ("%Y", f"{t.year:04d}"),
+        ("%y", f"{t.year % 100:02d}"),
+        ("%m", f"{t.month:02d}"),
+        ("%d", f"{t.day:02d}"),
+        ("%h", f"{t.hour:02d}"),
+        ("%M", f"{t.minute:02d}"),
+        ("%S", f"{t.second:02d}"),
+        ("%n", f"{t.timetuple().tm_yday:03d}"),
+        ("%W", f"{int(week):04d}"),
+        ("%D", f"{int(sow // 86400)}"),
+        ("%H", chr(ord("a") + t.hour)),
+        ("%t", f"{t.minute // 15 * 15:02d}"),
+    ]
+    for key, val in reps:
+        path = path.replace(key, val)
+    return path
+
+
+def _with_suffix_number(base: str, n: int) -> str:
+    """Insert _n before the file extension: dir/name.ext -> dir/name_n.ext."""
+    head, sep, name = base.rpartition("/")
+    stem, dot, ext = name.rpartition(".")
+    name = f"{stem}_{n}.{ext}" if dot and stem else f"{name}_{n}"
+    return f"{head}{sep}{name}"
+
+
+_MAX_SUFFIX_NUMBER = 999
+
+
+def number_file_stream_path(path: str, t: datetime, reserved: set[str]) -> str:
+    """Avoid overwriting an existing file on (re)start.
+
+    mrtk opens write file streams with "wb", so restarting within the same
+    keyword period (e.g. the same %H hour) truncates the earlier file. If the
+    file the stream would open now (or its .tag) exists, or another stream of
+    this run already claimed it (``reserved``), insert _2, _3, ... into the
+    template so this run writes alongside it. The suffix stays for the whole
+    run, including later ::S swaps. The chosen path and its .tag are added to
+    ``reserved`` as resolved paths, so aliases (``a/../x``, symlinks) and tag
+    files of other streams are caught too.
+
+    Raises RuntimeError when no free name is left, rather than overwriting.
+    """
+    base, sep, opts = path.partition("::")
+    # Empty path = stdout; nothing on disk to protect
+    if not base.strip():
+        return path
+
+    def target(b: str) -> str:
+        return str(Path(expand_path_keywords(b, t)).resolve())
+
+    def taken(b: str) -> bool:
+        p = target(b)
+        tag = f"{p}.tag"
+        return p in reserved or tag in reserved or Path(p).exists() or Path(tag).exists()
+
+    candidate = base
+    n = 1
+    while taken(candidate):
+        n += 1
+        if n > _MAX_SUFFIX_NUMBER:
+            raise RuntimeError(
+                f"No free file name for {target(base)} (_2.._{_MAX_SUFFIX_NUMBER} all exist)"
+            )
+        candidate = _with_suffix_number(base, n)
+    chosen = target(candidate)
+    reserved.update((chosen, f"{chosen}.tag"))
+    return f"{candidate}{sep}{opts}"
+
+
 # ── Pydantic models ──────────────────────────────────────────────────────────
 
 class StreamConfigModel(BaseModel):
@@ -313,8 +402,22 @@ class MrtkRunService:
         else:
             self._log_callback = None
 
+        # Number file outputs/logs that would overwrite an existing file
+        streams = request.streams.model_copy(deep=True)
+        now = gpst_now()
+        reserved: set[str] = set()
+        for name in ("output_stream1", "output_stream2", "log_stream1", "log_stream2", "log_stream3"):
+            s: StreamConfigModel = getattr(streams, name)
+            if s.type != "file":
+                continue
+            numbered = number_file_stream_path(s.path, now, reserved)
+            if numbered != s.path:
+                s.path = numbered
+                if log_callback:
+                    await log_callback(f"[INFO] {name}: target in use, writing to {numbered}")
+
         # Generate config
-        toml_content = self.generate_run_toml(request.config, request.streams)
+        toml_content = self.generate_run_toml(request.config, streams)
 
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".toml", delete=False, prefix="mrtkrun_"

@@ -3,14 +3,19 @@
 import asyncio
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
+from mrtklib_web_ui.paths import WORKSPACE_ROOT, is_within
 from mrtklib_web_ui.services.mrtk_run_service import (
     MrtkRunService,
     MrtkRunStartRequest,
+    StreamsConfigModel,
+    expand_path_keywords,
+    gpst_now,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,9 +67,52 @@ class StatusResponse(BaseModel):
     status: dict = Field(default_factory=dict)
 
 
+def _validate_write_streams(streams: StreamsConfigModel) -> str | None:
+    """Ensure file-type output/log streams write only inside /workspace.
+
+    Returns an error message, or None when all write streams are valid.
+    The path is checked without its ``::`` file options (``::T``, ``::S=``),
+    both as written and with its time keywords expanded for now, so a
+    keyword directory that is a symlink out of /workspace is rejected.
+    """
+    now = gpst_now()
+    targets = (
+        ("Output 1", streams.output_stream1),
+        ("Output 2", streams.output_stream2),
+        ("Rover raw log", streams.log_stream1),
+        ("Base raw log", streams.log_stream2),
+        ("Correction raw log", streams.log_stream3),
+    )
+    for name, s in targets:
+        if s.type != "file":
+            continue
+        base = s.path.split("::", 1)[0].strip()
+        # An empty file path makes mrtk write to stdout (shown as [STDOUT]
+        # in the console). Fine for solutions; raw binary logs would flood it.
+        if not base:
+            if name.endswith("raw log"):
+                return f"{name}: file path is required"
+            continue
+        p = Path(base)
+        expanded = Path(expand_path_keywords(base, now))
+        try:
+            inside = (
+                p.is_absolute()
+                and is_within(p, WORKSPACE_ROOT)
+                and is_within(expanded, WORKSPACE_ROOT)
+            )
+        except (OSError, RuntimeError) as e:  # e.g. symlink loop (RuntimeError < 3.13)
+            return f"{name}: cannot resolve path {base}: {e}"
+        if not inside:
+            return f"{name} must be within /workspace: {base}"
+    return None
+
+
 @router.post("/start")
 async def start_run(request: MrtkRunStartRequest) -> StartResponse:
     """Start mrtk run -s with the given configuration."""
+    if err := _validate_write_streams(request.streams):
+        return StartResponse(status="error", message=err)
     try:
         await _service.start(
             request,
