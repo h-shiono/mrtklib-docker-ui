@@ -98,6 +98,18 @@ def test_tracker_latches_error_across_reconnect():
     assert events == []  # unchanged error kind is not re-logged
 
 
+def test_tracker_error_right_after_data_is_kept():
+    t = InputStreamTracker()
+    t.update(parse_stream_output(_row(2, "tcpcli", 500, 4000, "host")), {}, 0.0)
+    # Error within the stall window, bytes unchanged: must not be dropped
+    e, ev = t.update(parse_stream_output(_row(2, "tcpcli", 500, 0, "recv error (111)")), {}, 1.0)
+    assert e[0]["state"] == "error"
+    assert ev == ["[WARN] Base stream: Cannot connect to host (recv error (111))"]
+    e, _ = t.update(parse_stream_output(_row(2, "tcpcli", 500, 0, "connecting...")), {}, 2.0)
+    assert e[0]["state"] == "error"
+    assert e[0]["last_error"] == "recv error (111)"
+
+
 def test_tracker_auth_error():
     t = InputStreamTracker()
     entries, _ = t.update(

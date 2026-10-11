@@ -358,6 +358,8 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const [chartViews, setChartViews] = useState<string[]>(['scatter']);
   const [satellites, setSatellites] = useState<Satellite[]>([]);
   const [inputStreams, setInputStreams] = useState<InputStreamStatus[]>([]);
+  // When the last `streams` arrived (a failed poll omits it: shown as stale).
+  const [inputStreamsAt, setInputStreamsAt] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
@@ -530,6 +532,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           }
           if (Array.isArray(msg.streams)) {
             setInputStreams(msg.streams as InputStreamStatus[]);
+            setInputStreamsAt(Date.now());
           }
         } else if (msg.type === 'log') {
           setLogLines(prev => [...prev.slice(-500), msg.message]);
@@ -914,7 +917,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
             </Tabs>
 
             {/* 5. Streaming status (Rover · Base · Correction) */}
-            <RtInputStatusRow streams={inputStreams} />
+            <RtInputStatusRow streams={inputStreams} updatedAt={inputStreamsAt} />
           </Stack>
         </Card>
       }

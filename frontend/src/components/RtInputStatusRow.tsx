@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Box, Group, Stack, Text, Tooltip } from '@mantine/core';
 import type { InputStreamState, InputStreamStatus } from '../types/mrtkRunConfig';
 
@@ -21,6 +22,9 @@ const STATE: Record<InputStreamState, { label: string; color: string }> = {
   error:      { label: 'ERROR',      color: 'var(--mantine-color-red-6)' },
   off:        { label: 'OFF',        color: 'var(--color-single)' },
 };
+
+// Polls run every ~1 s; a slow cycle (telnet timeouts) can take several.
+const STALE_MS = 10_000;
 
 const CAP = {
   fontFamily: MONO,
@@ -62,7 +66,7 @@ function StreamCell({ s }: { s: InputStreamStatus }) {
 
   return (
     <Tooltip label={tooltip} disabled={off} openDelay={300} multiline maw={420} withArrow>
-      <Box style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 0', minWidth: 160 }}>
+      <Box style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 160px', minWidth: 0 }}>
         <Text component="span" style={CAP}>
           {LABEL[s.name]}{!off && ` · ${s.type}`}
         </Text>
@@ -91,7 +95,19 @@ function StreamCell({ s }: { s: InputStreamStatus }) {
   );
 }
 
-export function RtInputStatusRow({ streams }: { streams: InputStreamStatus[] }) {
+export function RtInputStatusRow({ streams, updatedAt }: { streams: InputStreamStatus[]; updatedAt: number }) {
+  // Re-render every second while running so a stopped update shows as stale
+  // (failed polls omit `streams`, which would otherwise freeze the last state).
+  const [now, setNow] = useState(() => Date.now());
+  const live = streams.length > 0;
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [live]);
+  const ageS = Math.max(0, Math.round((now - updatedAt) / 1000));
+  const stale = live && now - updatedAt > STALE_MS;
+
   // Kept mounted while idle so the panel layout does not jump on Start/Stop.
   return (
     <Box
@@ -104,9 +120,14 @@ export function RtInputStatusRow({ streams }: { streams: InputStreamStatus[] }) 
     >
       <Text component="span" style={{ ...CAP, display: 'block', marginBottom: 6 }}>
         Streaming status
+        {stale && (
+          <Text component="span" inherit style={{ color: 'var(--color-float)' }}>
+            {` · no update for ${ageS} s`}
+          </Text>
+        )}
       </Text>
-      {streams.length > 0 ? (
-        <Box style={{ display: 'flex', flexWrap: 'wrap', gap: 30, rowGap: 10, minWidth: 0 }}>
+      {live ? (
+        <Box style={{ display: 'flex', flexWrap: 'wrap', gap: 30, rowGap: 10, minWidth: 0, opacity: stale ? 0.45 : 1 }}>
           {streams.map((s) => <StreamCell key={s.name} s={s} />)}
         </Box>
       ) : (

@@ -330,16 +330,23 @@ class InputStreamTracker:
                 continue
 
             # Bytes counter is a uint32 printed as %d: any change is new data
-            if in_bytes != self._prev_bytes.get(name, 0) or s["in_bps"] > 0:
+            fresh = in_bytes != self._prev_bytes.get(name, 0)
+            if fresh:
                 self._last_rx[name] = now
             self._prev_bytes[name] = in_bytes
 
+            # Latch an error until fresh data arrives under a non-error message
             if _STREAM_ERROR_PATTERN.search(message):
                 self._last_error[name] = message
+            elif fresh:
+                self._last_error.pop(name, None)
 
             last_rx = self._last_rx.get(name)
-            if last_rx is not None and now - last_rx < STREAM_STALL_S:
-                self._last_error.pop(name, None)
+            if name in self._last_error:
+                state = "error"
+                entry["last_error"] = self._last_error[name]
+                entry["hint"] = stream_error_hint(self._last_error[name])
+            elif last_rx is not None and now - last_rx < STREAM_STALL_S:
                 if (
                     name != "correction"  # CLAS L6 SSR is not counted
                     and in_bytes >= STREAM_NODECODE_BYTES
@@ -352,10 +359,6 @@ class InputStreamTracker:
                     )
                 else:
                     state = "receiving"
-            elif name in self._last_error:
-                state = "error"
-                entry["last_error"] = self._last_error[name]
-                entry["hint"] = stream_error_hint(self._last_error[name])
             elif last_rx is not None:
                 state = "stalled"
                 entry["hint"] = f"No data for {now - last_rx:.0f} s"
