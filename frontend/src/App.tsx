@@ -412,7 +412,12 @@ function SolutionView({
   const loadKey = `${refreshKey}:${outputFile}`;
   const [startedLoadKey, setStartedLoadKey] = useState<string | null>(null);
   if (!outputFile) {
-    if (startedLoadKey !== null) setStartedLoadKey(null);
+    // A fetch cancelled by clearing the path never clears these itself
+    if (startedLoadKey !== null) {
+      setStartedLoadKey(null);
+      setLoading(false);
+      setError(null);
+    }
   } else if (startedLoadKey !== loadKey) {
     setStartedLoadKey(loadKey);
     setLoading(true);
@@ -831,10 +836,14 @@ function adoptRelayStream(r: mrtkRelayApi.RelayStreamInfo): RelayStream {
 function reconcileRelayStreams(
   prev: RelayStream[],
   remote: mrtkRelayApi.RelayStreamInfo[],
+  changedSince: Set<string>,
 ): RelayStream[] {
+  // Relays this page started or stopped after the list was requested are
+  // newer here than in the list: leave them alone, and never re-adopt them
+  remote = remote.filter((r) => !changedSince.has(r.id));
   const byId = new Map(remote.map((r) => [r.id, r]));
   let next = prev.map((s) => {
-    if (!s.processId) return s;
+    if (!s.processId || changedSince.has(s.processId)) return s;
     const r = byId.get(s.processId);
     if (!r) return { ...s, status: 'idle' as const, processId: null };
     const status = RELAY_STATE_TO_STATUS[r.state] ?? 'idle';
@@ -856,7 +865,7 @@ function reconcileRelayStreams(
 
 /** A password still masked as *** (e.g. in an adopted stream) cannot be sent */
 function hasMaskedPassword(stream: RelayStream): boolean {
-  return [stream.input, ...stream.outputs].some((c) => /^[^:@/]+:\*\*\*@/.test(c.path));
+  return [stream.input, ...stream.outputs].some((c) => /^[^:@/]*:\*\*\*@/.test(c.path));
 }
 
 function StreamServerPanel() {
@@ -865,6 +874,9 @@ function StreamServerPanel() {
   // Adopting relays may replace the selected stream; fall back to the first
   const activeStreamId = streams.some((s) => s.id === selectedStreamId) ? selectedStreamId : streams[0].id;
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
+
+  // When this page last started or stopped each relay (performance.now())
+  const localChangeAtRef = useRef<Map<string, number>>(new Map());
 
   // Ref for process-id-to-stream-id mapping (avoids re-creating WS callback)
   const processMapRef = useRef<Map<string, string>>(new Map());
@@ -910,8 +922,15 @@ function StreamServerPanel() {
     // Runs on the first connect and on every reconnect: pick up relays that
     // kept running across a page reload or a dropped connection (#52)
     onConnect: useCallback(() => {
+      const requestedAt = performance.now();
       mrtkRelayApi.listStreams()
-        .then((remote) => setStreams((prev) => reconcileRelayStreams(prev, remote)))
+        .then((remote) => {
+          const changedSince = new Set<string>();
+          for (const [pid, at] of localChangeAtRef.current) {
+            if (at >= requestedAt) changedSince.add(pid);
+          }
+          setStreams((prev) => reconcileRelayStreams(prev, remote, changedSince));
+        })
         .catch(() => { /* keep the current view; the next reconnect retries */ });
     }, []),
     onDisconnect: useCallback(() => {}, []),
@@ -960,6 +979,7 @@ function StreamServerPanel() {
     try {
       const args = buildArgs(stream);
       const result = await mrtkRelayApi.startRelay({ args, name: stream.name });
+      localChangeAtRef.current.set(result.id, performance.now());
       updateStream(id, { processId: result.id, status: 'running', logLines: [`[INFO] Started (${result.id})`] });
     } catch (err) {
       updateStream(id, { status: 'error', logLines: [...stream.logLines, `[ERROR] ${err instanceof Error ? err.message : 'Failed to start'}`] });
@@ -975,6 +995,7 @@ function StreamServerPanel() {
     setLoadingIds((prev) => new Set(prev).add(id));
     try {
       await mrtkRelayApi.stopRelay({ process_id: stream.processId });
+      localChangeAtRef.current.set(stream.processId, performance.now());
       updateStream(id, { status: 'idle', processId: null });
     } catch (err) {
       updateStream(id, { logLines: [...stream.logLines, `[ERROR] ${err instanceof Error ? err.message : 'Failed to stop'}`] });

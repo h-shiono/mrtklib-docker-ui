@@ -311,10 +311,13 @@ class ProcessManager:
             self._read_stdout(process_id, process),
         )
         rc = await process.wait()
-        if info.state in (ProcessState.RUNNING, ProcessState.STARTING):
+        # Not STOPPING: stop() announces that itself. A STOPPED state may
+        # already have been set by get_status() before the pipes drained,
+        # and must not swallow the exit announcement.
+        if info.state != ProcessState.STOPPING:
             info.state = ProcessState.STOPPED
             info.return_code = rc
-            info.stopped_at = datetime.now()
+            info.stopped_at = info.stopped_at or datetime.now()
             await self._broadcast_log(process_id, f"[SYSTEM] Process exited (exit code: {rc})")
             await self._broadcast_status(process_id, info.state)
         if self._processes.get(process_id) is process:

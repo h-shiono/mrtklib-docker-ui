@@ -136,3 +136,42 @@ def test_streams_endpoint_lists_ui_relays_with_log(pm):
         pm._prune_finished()
         assert c.get("/api/mrtk-relay/streams").json() == []
         assert mrtk_relay._stream_names == {}
+
+
+def test_exit_is_announced_after_get_status_marked_it_stopped(monkeypatch):
+    pm = ProcessManager()
+    monkeypatch.setattr(pm, "SUBCOMMAND_MAP", {"str2str": "relay"})
+    real_exec = asyncio.create_subprocess_exec
+
+    async def fake_exec(_mrtk, _sub, *args, **kw):
+        return await real_exec(sys.executable, "-c", "import time; time.sleep(0.2)", **kw)
+
+    monkeypatch.setattr(pm_mod.asyncio, "create_subprocess_exec", fake_exec)
+    states = []
+
+    async def on_status(pid, state):
+        states.append((pid, state))
+
+    pm.set_status_callback(on_status)
+
+    async def run():
+        info = await pm.start("str2str", [], process_id="r3")
+        # what get_status() does once the process has exited but before
+        # the supervisor has drained its pipes (e.g. a /streams request)
+        info.state = ProcessState.STOPPED
+        await asyncio.wait_for(pm._log_tasks["r3"], timeout=10)
+
+    asyncio.run(run())
+    assert states == [("r3", "stopped")]
+    assert pm.get_log("r3")[-1] == "[SYSTEM] Process exited (exit code: 0)"
+
+
+@pytest.mark.parametrize("arg, masked", [
+    ("ntrip://u:secret@h:2101/M", "ntrip://u:***@h:2101/M"),
+    ("ntrip://:secret@h:2101/M", "ntrip://:***@h:2101/M"),
+    ("ntrip://u@h:2101/M", "ntrip://u@h:2101/M"),
+    ("file:///workspace/a.ubx", "file:///workspace/a.ubx"),
+    ("-out", "-out"),
+])
+def test_mask_stream_arg(arg, masked):
+    assert mrtk_relay._mask_stream_arg(arg) == masked

@@ -75,8 +75,8 @@ class RelayStreamResponse(ProcessStatusResponse):
     log: list[str] = Field(default_factory=list)
 
 
-# [user[:passwd]@]addr... after the scheme, as the frontend's maskPath()
-_STREAM_PASSWORD = re.compile(r"^([^:@/]+):([^@]+)@")
+# [user[:passwd]@]addr... after the scheme; the user may be empty (":pw@host")
+_STREAM_PASSWORD = re.compile(r"^([^:@/]*):([^@]+)@")
 
 
 def _mask_stream_arg(arg: str) -> str:
