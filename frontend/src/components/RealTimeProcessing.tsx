@@ -218,8 +218,9 @@ function RawLogEditor({
 
   return (
     <>
-      {/* Match the xs input height of the neighboring Select/TextInput rows */}
-      <Group wrap="nowrap" align="center" gap="xs" style={{ minHeight: 'var(--input-height-xs)' }}>
+      {/* Match the xs input height of the neighboring Select/TextInput rows.
+          --input-height-xs is scoped to Mantine's Input, so use its value. */}
+      <Group wrap="nowrap" align="center" gap="xs" style={{ minHeight: 'calc(1.875rem * var(--mantine-scale))' }}>
         <Text size="xs" c="dimmed" style={LABEL_STYLE}>Save Raw</Text>
         <Switch size="xs" checked={enabled}
           disabled={!enabled && inputStream.type === 'off'}
