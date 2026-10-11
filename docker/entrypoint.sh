@@ -37,6 +37,11 @@ usermod -aG dialout "$APP_USER"
 for dev in /dev/ttyUSB* /dev/ttyACM* /dev/ttyS* /dev/serial/by-id/*; do
     [ -e "$dev" ] || continue
     gid="$(stat -Lc %g "$dev")"
+    # Never join group root; a root-group device must be opened via its mode
+    if [ "$gid" = "0" ]; then
+        echo "entrypoint: $dev is group root; not adding $APP_USER to it" >&2
+        continue
+    fi
     getent group "$gid" >/dev/null || groupadd -g "$gid" "tty$gid"
     usermod -aG "$(getent group "$gid" | cut -d: -f1)" "$APP_USER"
 done
