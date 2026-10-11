@@ -15,6 +15,7 @@ binary, we copy the compressed file into a writable temp directory under
 copy. The temp directory is removed when the job finishes.
 """
 
+import re
 import shutil
 import tempfile
 from contextlib import contextmanager
@@ -46,12 +47,35 @@ def is_compressed(name: str) -> bool:
     return False
 
 
+def expand_wildcard(path: str) -> list[Path]:
+    """Expand a ``*`` file-name pattern the way MRTKLIB ``expath()`` does.
+
+    mrtk expands input wildcards itself, so this mirrors it rather than
+    using ``glob``: only ``*`` is special (``?`` and ``[`` are literal), it
+    applies to the file name only, matching is case-insensitive and
+    dotfiles are skipped. Returns the matches sorted by name.
+    """
+    p = Path(path)
+    regex = re.compile(".*".join(re.escape(t) for t in p.name.split("*")), re.IGNORECASE)
+    try:
+        entries = list(p.parent.iterdir())
+    except OSError:
+        return []
+    return sorted(
+        (e for e in entries if not e.name.startswith(".") and regex.fullmatch(e.name)),
+        key=lambda e: e.name,
+    )
+
+
 def _under_readonly_root(p: Path) -> bool:
     resolved = p.resolve()
     return any(root.resolve() in resolved.parents for root in _READONLY_ROOTS)
 
 
 def _needs_staging(path: str) -> bool:
+    if "*" in path:
+        matches = expand_wildcard(path)
+        return any(is_compressed(m.name) for m in matches) and _under_readonly_root(Path(path))
     return is_compressed(Path(path).name) and _under_readonly_root(Path(path))
 
 
@@ -70,11 +94,16 @@ def stage_paths(paths: Iterator[str]) -> tuple[dict[str, str], "Path | None"]:
     if to_stage:
         WORKSPACE_ROOT.mkdir(parents=True, exist_ok=True)
         tmpdir = Path(tempfile.mkdtemp(prefix=".mrtk_stage_", dir=str(WORKSPACE_ROOT)))
-        for p in to_stage:
+        for i, p in enumerate(to_stage):
             src = Path(p.strip())
-            dst = tmpdir / src.name
-            shutil.copy2(src, dst)
-            mapping[p] = str(dst)
+            # One subdir per input so same-named files never collide. A
+            # wildcard stages every match; the subdir holds only those
+            # copies, so the same pattern still selects exactly them.
+            dst_dir = tmpdir / str(i)
+            dst_dir.mkdir()
+            for f in expand_wildcard(str(src)) if "*" in src.name else [src]:
+                shutil.copy2(f, dst_dir / f.name)
+            mapping[p] = str(dst_dir / src.name)
     return mapping, tmpdir
 
 
