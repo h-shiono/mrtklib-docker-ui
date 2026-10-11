@@ -57,6 +57,7 @@ import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { RtMetricsRow } from './RtMetricsRow';
 import { MapView, type PosEpoch } from './viewer';
 import { maskLogLine } from '../utils/maskPath';
+import { useFollowScroll } from '../hooks/useFollowScroll';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -357,7 +358,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const wsRef = useRef<WebSocket | null>(null);
   const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
-  const logEndRef = useRef<HTMLDivElement | null>(null);
+  const [monitorTab, setMonitorTab] = useState<string | null>('chart');
   const MAX_HISTORY = 600;
 
   // Measured height for the live map (leaflet needs an explicit pixel height).
@@ -395,10 +396,9 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
   const isRunning = runStatus === 'running' || runStatus === 'starting';
 
-  // Auto-scroll log to bottom
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logLines]);
+  // Keep the Solution and Console panels at their latest line.
+  const solutionScroll = useFollowScroll(monitorTab === 'solution', positionHistory);
+  const consoleScroll = useFollowScroll(monitorTab === 'console', logLines);
 
   // Feed live status to the global bottom status bar (null clears it on stop).
   useEffect(() => {
@@ -793,7 +793,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
             <RtMetricsRow lastPosition={lastPosition} satellites={satellites} />
 
             {/* 3. Tab bar + 4. Chart area */}
-            <Tabs defaultValue="chart" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <Tabs value={monitorTab} onChange={setMonitorTab} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <Group justify="space-between" align="center" gap={0}>
                 <Tabs.List>
                   <Tabs.Tab value="chart" style={{ fontSize: 11 }}>Chart</Tabs.Tab>
@@ -844,6 +844,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               <Tabs.Panel value="solution" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
                 <ScrollArea
                   h={300}
+                  {...solutionScroll}
                   styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
                 >
                   <Text
@@ -863,6 +864,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               <Tabs.Panel value="console" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
                 <ScrollArea
                   h={300}
+                  {...consoleScroll}
                   styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
                 >
                   {logLines.length > 0 ? (
@@ -887,7 +889,6 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                       No log output yet.
                     </Text>
                   )}
-                  <div ref={logEndRef} />
                 </ScrollArea>
               </Tabs.Panel>
 
