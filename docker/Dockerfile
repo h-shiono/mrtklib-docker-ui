@@ -21,9 +21,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 
-# Clone MRTKLIB (optionally from a specific branch)
-ARG MRTKLIB_BRANCH=main
-RUN git clone --depth 1 --branch ${MRTKLIB_BRANCH} https://github.com/h-shiono/MRTKLIB.git
+# Clone MRTKLIB at the version pinned in .mrtklib-version, unless
+# MRTKLIB_BRANCH names another branch or tag
+COPY .mrtklib-version /build/.mrtklib-version
+ARG MRTKLIB_BRANCH=""
+RUN ref="${MRTKLIB_BRANCH:-$(tr -d '[:space:]' < /build/.mrtklib-version)}" && \
+    echo "Building MRTKLIB ${ref}" && \
+    git clone --depth 1 --branch "${ref}" https://github.com/h-shiono/MRTKLIB.git
 
 # Build MRTKLIB with CMake
 WORKDIR /build/MRTKLIB

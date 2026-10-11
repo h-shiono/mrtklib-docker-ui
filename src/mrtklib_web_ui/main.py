@@ -16,7 +16,7 @@ except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0-dev"
 
 from mrtklib_web_ui.api import (
-    files, process, config, mrtk_relay, mrtk_post, mrtk_run, obs_qc,
+    files, config, mrtk_relay, mrtk_post, mrtk_run, obs_qc,
     presets, downloader, convert, ai, clas_pipeline,
 )
 from mrtklib_web_ui.services import clas_pipeline_service, process_manager, ws_manager
@@ -75,7 +75,6 @@ app.add_middleware(
 
 # Include API routers
 app.include_router(files.router, prefix="/api/files", tags=["files"])
-app.include_router(process.router, prefix="/api/process", tags=["process"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
 app.include_router(mrtk_relay.router, prefix="/api/mrtk-relay", tags=["mrtk-relay"])
 app.include_router(mrtk_post.router, prefix="/api/mrtk-post", tags=["mrtk-post"])
@@ -151,9 +150,10 @@ if STATIC_DIR.exists():
     @app.get("/{full_path:path}")
     async def serve_spa(request: Request, full_path: str) -> FileResponse:
         """Serve the SPA for all non-API routes."""
-        # Check if the file exists in static directory
-        file_path = STATIC_DIR / full_path
-        if file_path.exists() and file_path.is_file():
+        # Serve a file only if it is really inside the static directory:
+        # full_path arrives percent-decoded, so it may contain "..".
+        file_path = (STATIC_DIR / full_path).resolve()
+        if STATIC_DIR.resolve() in file_path.parents and file_path.is_file():
             return FileResponse(file_path)
         # Fall back to index.html for SPA routing
         return FileResponse(STATIC_DIR / "index.html")
