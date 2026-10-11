@@ -97,6 +97,7 @@ async def health_check() -> dict[str, str]:
 
 _MRTK_VERSION_PATTERN = re.compile(r"ver\.(\S+?)\)?(?:\s+git\s+(\S+?))?\)?\s*$")
 _mrtk_version_cache: tuple[str, str] | None = None
+_MRTK_VERSION_TIMEOUT = 5.0
 
 
 async def _read_mrtk_version(mrtk_path: str) -> tuple[str, str]:
@@ -113,9 +114,17 @@ async def _read_mrtk_version(mrtk_path: str) -> tuple[str, str]:
             mrtk_path, "--version",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
         )
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
-    except (OSError, asyncio.TimeoutError):
+    except OSError:
         return ("", "")
+    try:
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=_MRTK_VERSION_TIMEOUT)
+    except asyncio.TimeoutError:
+        return ("", "")
+    finally:
+        # Timed out or request cancelled: don't leave the child running
+        if proc.returncode is None:
+            proc.kill()
+            await proc.wait()
     m = _MRTK_VERSION_PATTERN.search(out.decode(errors="replace").strip())
     if not m:
         return ("", "")

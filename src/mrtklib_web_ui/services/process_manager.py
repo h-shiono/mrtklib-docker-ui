@@ -297,11 +297,14 @@ class ProcessManager:
         self._prune_finished()
 
     def _prune_finished(self) -> None:
-        """Forget the oldest finished processes beyond _MAX_FINISHED."""
-        finished = [
-            pid for pid, i in self._process_info.items()
-            if pid not in self._processes and i.state != ProcessState.RUNNING
-        ]
+        """Forget the earliest-finished processes beyond _MAX_FINISHED."""
+        finished = sorted(
+            (
+                pid for pid, i in self._process_info.items()
+                if pid not in self._processes and i.state != ProcessState.RUNNING
+            ),
+            key=lambda pid: self._process_info[pid].stopped_at or datetime.min,
+        )
         for pid in finished[: max(0, len(finished) - self._MAX_FINISHED)]:
             del self._process_info[pid]
 
@@ -351,6 +354,7 @@ class ProcessManager:
         """
         buf = bytearray()
         last_cr_emit = 0.0
+        skip_lf = False  # a read ended in \r: drop the \n if the next one starts with it
         try:
             while True:
                 chunk = await stream.read(8192)
@@ -360,6 +364,9 @@ class ProcessManager:
                         buf.clear()
                     return
                 buf.extend(chunk)
+                if skip_lf and buf[:1] == b"\n":
+                    del buf[:1]
+                skip_lf = False
                 while True:
                     cr, nl = buf.find(b"\r"), buf.find(b"\n")
                     if cr < 0 and nl < 0:
@@ -370,9 +377,15 @@ class ProcessManager:
                             buf.clear()
                         break
                     end = nl if cr < 0 or 0 <= nl < cr else cr
-                    if end == cr and end == len(buf) - 1:
-                        break  # may be the \r of a \r\n split across reads
                     line = bytes(buf[:end])
+                    # A \r ending this read may be half of a \r\n: emit the
+                    # line now (unthrottled, it may be a real line) and drop
+                    # a \n that starts the next read.
+                    if end == cr and end == len(buf) - 1:
+                        skip_lf = True
+                        buf.clear()
+                        await self._emit_line(process_id, line, prefix)
+                        break
                     bare_cr = buf[end:end + 1] == b"\r" and buf[end + 1:end + 2] != b"\n"
                     del buf[: end + (2 if buf[end:end + 2] == b"\r\n" else 1)]
                     if bare_cr and line.strip():

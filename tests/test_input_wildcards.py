@@ -31,6 +31,27 @@ def test_staging_a_compressed_wildcard(data_root):
         input_staging.remove_stage_dir(tmpdir)
 
 
+def test_matching_folders_are_ignored(data_root):
+    (data_root / "rover_archive.24d").mkdir()  # a folder that matches the pattern
+    pattern = str(data_root / "rover*.24d")
+    assert [p.name for p in input_staging.expand_wildcard(pattern)] == ["ROVER2.24D", "rover1.24d"]
+    mapping, tmpdir = input_staging.stage_paths([pattern])
+    try:
+        assert [p.name for p in input_staging.expand_wildcard(mapping[pattern])] == ["ROVER2.24D", "rover1.24d"]
+    finally:
+        input_staging.remove_stage_dir(tmpdir)
+
+
+def test_failed_staging_removes_its_dir(data_root, monkeypatch):
+    def boom(*a, **kw):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(input_staging.shutil, "copy2", boom)
+    with pytest.raises(OSError):
+        input_staging.stage_paths([str(data_root / "rover*.24d")])
+    assert list(input_staging.WORKSPACE_ROOT.iterdir()) == []
+
+
 def test_same_names_from_two_dirs_do_not_collide(data_root):
     other = data_root / "base"
     other.mkdir()

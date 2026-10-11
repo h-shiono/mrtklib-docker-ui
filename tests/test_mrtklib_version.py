@@ -1,6 +1,7 @@
 """/api/mrtklib/version reports the mrtk binary's version (#39 item 2)."""
 
 import asyncio
+import os
 
 import pytest
 
@@ -26,3 +27,16 @@ def test_read_mrtk_version(tmp_path, monkeypatch, out, expected):
 def test_missing_binary(monkeypatch):
     monkeypatch.setattr(main, "_mrtk_version_cache", None)
     assert asyncio.run(main._read_mrtk_version("/nonexistent/mrtk")) == ("", "")
+
+
+def test_timed_out_child_is_killed(tmp_path, monkeypatch):
+    pidfile = tmp_path / "pid"
+    fake = tmp_path / "mrtk"
+    fake.write_text(f"#!/bin/sh\necho $$ > {pidfile}\nexec sleep 30\n")
+    fake.chmod(0o755)
+    monkeypatch.setattr(main, "_mrtk_version_cache", None)
+    monkeypatch.setattr(main, "_MRTK_VERSION_TIMEOUT", 0.5)
+    assert asyncio.run(main._read_mrtk_version(str(fake))) == ("", "")
+    pid = int(pidfile.read_text())
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)

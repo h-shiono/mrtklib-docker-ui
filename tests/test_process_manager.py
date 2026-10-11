@@ -42,10 +42,46 @@ def test_cr_lines_are_throttled(monkeypatch):
     assert lines == ["a", "done"]
 
 
+def _pump_live(monkeypatch, steps):
+    """Run the pump while feeding data step by step; return lines seen after each step.
+
+    Each step is fed only after the pump has consumed the previous one, so
+    every step is its own read() — the read-boundary cases really happen.
+    """
+    pm = ProcessManager()
+    lines = []
+
+    async def cb(pid, line):
+        lines.append(line)
+
+    pm.set_log_callback(cb)
+    monkeypatch.setattr(pm_mod, "monotonic", lambda: 100.0)
+
+    async def run():
+        reader = asyncio.StreamReader()
+        task = asyncio.create_task(pm._pump_stream("p", reader, prefix=""))
+        seen = []
+        for data in steps:
+            reader.feed_data(data)
+            for _ in range(5):
+                await asyncio.sleep(0)
+            seen.append(list(lines))
+        reader.feed_eof()
+        await task
+        return seen, lines
+
+    return asyncio.run(run())
+
+
+def test_cr_line_is_emitted_before_more_output(monkeypatch):
+    seen, lines = _pump_live(monkeypatch, [b"progress 1\r"])
+    assert seen == [["progress 1"]]  # not held back waiting for a possible \n
+
+
 def test_crlf_split_across_reads_is_one_line(monkeypatch):
-    # if the \r were taken as a bare CR, the throttle would drop "second"
-    lines = _pump([b"first\r", b"\nsecond\r", b"\n"], monkeypatch, clock=[10.0])
-    assert lines == ["first", "second"]
+    seen, lines = _pump_live(monkeypatch, [b"first\r", b"\nsecond\r", b"\n"])
+    assert seen[0] == ["first"]
+    assert lines == ["first", "second"]  # the split \r\n yields no extra line
 
 
 def test_natural_exit_is_recorded(monkeypatch):
@@ -67,3 +103,21 @@ def test_natural_exit_is_recorded(monkeypatch):
     assert info.state == ProcessState.STOPPED and info.return_code == 3
     assert pm.peek_state("r1") == ProcessState.STOPPED
     assert "r1" not in pm._processes and "r1" not in pm._log_tasks
+
+
+def test_prune_drops_earliest_finished_not_earliest_started():
+    from datetime import datetime, timedelta
+
+    from mrtklib_web_ui.services.process_manager import ProcessInfo
+
+    pm = ProcessManager()
+    pm._MAX_FINISHED = 2
+    t0 = datetime(2026, 1, 1)
+    # "long" started first but finished last
+    for pid, finished in (("long", 10), ("a", 1), ("b", 2), ("c", 3)):
+        pm._process_info[pid] = ProcessInfo(
+            id=pid, command="str2str", args=[], state=ProcessState.STOPPED,
+            stopped_at=t0 + timedelta(seconds=finished),
+        )
+    pm._prune_finished()
+    assert set(pm._process_info) == {"c", "long"}

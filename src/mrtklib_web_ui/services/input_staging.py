@@ -53,7 +53,8 @@ def expand_wildcard(path: str) -> list[Path]:
     mrtk expands input wildcards itself, so this mirrors it rather than
     using ``glob``: only ``*`` is special (``?`` and ``[`` are literal), it
     applies to the file name only, matching is case-insensitive and
-    dotfiles are skipped. Returns the matches sorted by name.
+    dotfiles are skipped. Only regular files are returned (expath also
+    lists directories, but mrtk cannot read them as input), sorted by name.
     """
     p = Path(path)
     regex = re.compile(".*".join(re.escape(t) for t in p.name.split("*")), re.IGNORECASE)
@@ -62,7 +63,7 @@ def expand_wildcard(path: str) -> list[Path]:
     except OSError:
         return []
     return sorted(
-        (e for e in entries if not e.name.startswith(".") and regex.fullmatch(e.name)),
+        (e for e in entries if not e.name.startswith(".") and regex.fullmatch(e.name) and e.is_file()),
         key=lambda e: e.name,
     )
 
@@ -94,17 +95,26 @@ def stage_paths(paths: Iterator[str]) -> tuple[dict[str, str], "Path | None"]:
     if to_stage:
         WORKSPACE_ROOT.mkdir(parents=True, exist_ok=True)
         tmpdir = Path(tempfile.mkdtemp(prefix=".mrtk_stage_", dir=str(WORKSPACE_ROOT)))
-        for i, p in enumerate(to_stage):
-            src = Path(p.strip())
-            # One subdir per input so same-named files never collide. A
-            # wildcard stages every match; the subdir holds only those
-            # copies, so the same pattern still selects exactly them.
-            dst_dir = tmpdir / str(i)
-            dst_dir.mkdir()
-            for f in expand_wildcard(str(src)) if "*" in src.name else [src]:
-                shutil.copy2(f, dst_dir / f.name)
-            mapping[p] = str(dst_dir / src.name)
+        try:
+            _copy_inputs(to_stage, tmpdir, mapping)
+        except BaseException:
+            remove_stage_dir(tmpdir)  # the caller never gets tmpdir to clean up
+            raise
     return mapping, tmpdir
+
+
+def _copy_inputs(to_stage: list[str], tmpdir: Path, mapping: dict[str, str]) -> None:
+    """Copy each input (every match of a wildcard) into its own subdir."""
+    for i, p in enumerate(to_stage):
+        src = Path(p.strip())
+        # One subdir per input so same-named files never collide. A
+        # wildcard stages every match; the subdir holds only those
+        # copies, so the same pattern still selects exactly them.
+        dst_dir = tmpdir / str(i)
+        dst_dir.mkdir()
+        for f in expand_wildcard(str(src)) if "*" in src.name else [src]:
+            shutil.copy2(f, dst_dir / f.name)
+        mapping[p] = str(dst_dir / src.name)
 
 
 def remove_stage_dir(tmpdir: "Path | None") -> None:
