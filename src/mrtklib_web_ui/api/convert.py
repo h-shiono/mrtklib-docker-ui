@@ -47,7 +47,8 @@ class ConvertRequest(BaseModel):
     output_nav: str | None = None
     output_dir: str | None = None
     rinex_version: str = "3.04"
-    station_id: str | None = None
+    # Expanded into output names via %r after -d is applied: no path characters
+    station_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]*$")
     time_start: str | None = None
     time_end: str | None = None
     time_ref: str | None = None

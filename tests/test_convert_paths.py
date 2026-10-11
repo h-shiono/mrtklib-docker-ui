@@ -1,6 +1,7 @@
 """mrtk convert only reads allowed inputs and writes into /workspace (#38 item 4)."""
 
 import pytest
+from pydantic import ValidationError
 
 from mrtklib_web_ui.api.convert import ConvertRequest, _validate_convert_paths
 
@@ -38,3 +39,9 @@ def test_foreign_absolute_paths_land_in_workspace():
     assert req.input_file == "/workspace/etc/shadow"
     assert req.output_obs == "/workspace/etc/cron.d/x"
     assert req.output_dir == "/workspace/tmp"
+
+
+@pytest.mark.parametrize("station_id", ["../../etc/cron.d/evil", "a/b", "x y"])
+def test_station_id_cannot_carry_a_path(station_id):
+    with pytest.raises(ValidationError):
+        _req(station_id=station_id)
