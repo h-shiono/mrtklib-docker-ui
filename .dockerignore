@@ -15,3 +15,5 @@ uv.lock
 .pytest_cache
 .ruff_cache
 workspace/
+data/
+tmp/
