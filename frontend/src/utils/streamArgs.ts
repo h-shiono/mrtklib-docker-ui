@@ -55,28 +55,33 @@ export function generateCommandString(config: BuilderConfig): string {
 export function parseCommandString(commandStr: string): Partial<BuilderConfig> | null {
   try {
     const cleaned = commandStr.trim().replace(/^(?:mrtk\s+relay|str2str)\s+/, '');
-    const args = cleaned.split(/\s+/);
-
-    const config: Partial<BuilderConfig> = {
-      outputs: [],
-    };
-
-    for (let i = 0; i < args.length; i++) {
-      if (args[i] === '-in' && i + 1 < args.length) {
-        const streamConfig = parseStreamArg(args[i + 1]);
-        if (streamConfig) config.input = streamConfig;
-        i++;
-      } else if (args[i] === '-out' && i + 1 < args.length) {
-        const streamConfig = parseStreamArg(args[i + 1]);
-        if (streamConfig && config.outputs) config.outputs.push(streamConfig);
-        i++;
-      }
-    }
-
-    return config;
+    return parseRelayArgs(cleaned.split(/\s+/));
   } catch {
     return null;
   }
+}
+
+/**
+ * Parse an mrtk relay arguments array back to builder config (best effort)
+ */
+export function parseRelayArgs(args: string[]): Partial<BuilderConfig> {
+  const config: Partial<BuilderConfig> = {
+    outputs: [],
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '-in' && i + 1 < args.length) {
+      const streamConfig = parseStreamArg(args[i + 1]);
+      if (streamConfig) config.input = streamConfig;
+      i++;
+    } else if (args[i] === '-out' && i + 1 < args.length) {
+      const streamConfig = parseStreamArg(args[i + 1]);
+      if (streamConfig && config.outputs) config.outputs.push(streamConfig);
+      i++;
+    }
+  }
+
+  return config;
 }
 
 /**

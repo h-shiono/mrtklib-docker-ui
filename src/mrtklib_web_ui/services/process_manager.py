@@ -3,6 +3,7 @@
 import asyncio
 import uuid
 from asyncio.subprocess import Process
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -65,6 +66,15 @@ class ProcessManager:
     # Log broadcast callback
     _log_callback: Callable[[str, str], Awaitable[None]] | None = None
 
+    # State broadcast callback, called with (process_id, state) once a
+    # process has ended, so clients learn about natural exits too
+    _status_callback: Callable[[str, str], Awaitable[None]] | None = None
+
+    # Recent (credential-masked) log lines per process, replayed to clients
+    # that reconnect mid-run, e.g. after a page reload (#52)
+    _log_history: dict[str, deque[str]] = field(default_factory=dict)
+    _MAX_LOG_HISTORY = 500
+
     # One supervisor task per process: reads stderr+stdout, then records the
     # exit. Holding the reference also keeps the readers from being GC'd.
     _log_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
@@ -81,6 +91,20 @@ class ProcessManager:
             callback: Async function that receives (process_id, log_line)
         """
         self._log_callback = callback
+
+    def set_status_callback(
+        self, callback: Callable[[str, str], Awaitable[None]]
+    ) -> None:
+        """Set callback for state broadcasting.
+
+        Args:
+            callback: Async function that receives (process_id, state)
+        """
+        self._status_callback = callback
+
+    def get_log(self, process_id: str) -> list[str]:
+        """Return the recent log lines of a process (oldest first)."""
+        return list(self._log_history.get(process_id, ()))
 
     async def start(
         self,
@@ -122,6 +146,7 @@ class ProcessManager:
             started_at=datetime.now(),
         )
         self._process_info[proc_id] = info
+        self._log_history[proc_id] = deque(maxlen=self._MAX_LOG_HISTORY)
 
         try:
             # Map to mrtk subcommand
@@ -234,6 +259,7 @@ class ProcessManager:
             self._processes.pop(process_id, None)
             self._prune_finished()
 
+        await self._broadcast_status(process_id, info.state)
         return info
 
     async def get_status(self, process_id: str) -> ProcessInfo | None:
@@ -290,6 +316,7 @@ class ProcessManager:
             info.return_code = rc
             info.stopped_at = datetime.now()
             await self._broadcast_log(process_id, f"[SYSTEM] Process exited (exit code: {rc})")
+            await self._broadcast_status(process_id, info.state)
         if self._processes.get(process_id) is process:
             del self._processes[process_id]
         if self._log_tasks.get(process_id) is asyncio.current_task():
@@ -307,6 +334,7 @@ class ProcessManager:
         )
         for pid in finished[: max(0, len(finished) - self._MAX_FINISHED)]:
             del self._process_info[pid]
+            self._log_history.pop(pid, None)
 
     # Cap a single broadcast line at 8 KiB so a runaway upstream (e.g. a
     # cssr2rtcm3 dump or accidentally-printed binary buffer) cannot blow
@@ -421,11 +449,22 @@ class ProcessManager:
 
     async def _broadcast_log(self, process_id: str, message: str) -> None:
         """Broadcast a log message (with credentials masked)."""
+        message = mask_log_line(message)
+        history = self._log_history.get(process_id)
+        if history is not None:
+            history.append(message)
         if self._log_callback:
             try:
-                await self._log_callback(process_id, mask_log_line(message))
+                await self._log_callback(process_id, message)
             except Exception:
                 pass  # Don't let broadcast errors affect process
+
+    async def _broadcast_status(self, process_id: str, state: ProcessState) -> None:
+        if self._status_callback:
+            try:
+                await self._status_callback(process_id, state.value)
+            except Exception:
+                pass
 
 
 # Global process manager instance
