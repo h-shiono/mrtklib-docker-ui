@@ -89,9 +89,11 @@ FROM python:3.12-slim-bookworm AS runtime
 WORKDIR /app
 
 # Install runtime dependencies for MRTKLIB
+# gosu: the entrypoint drops root to PUID:PGID
 RUN apt-get update && apt-get install -y --no-install-recommends \
     liblapack3 \
     libopenblas0 \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy MRTKLIB unified binary from builder
@@ -145,5 +147,8 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" || exit 1
 
-# Run the application
+# Run the application as PUID:PGID (see docker/entrypoint.sh)
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod 755 /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["uvicorn", "mrtklib_web_ui.main:app", "--host", "0.0.0.0", "--port", "8000"]

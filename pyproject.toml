@@ -50,3 +50,8 @@ packages = ["src/mrtklib_web_ui"]
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/mrtklib_web_ui/_version.py"
+
+[tool.ruff.lint]
+# Pin ruff's classic default rules: uv.lock is not committed, so CI may get
+# a newer ruff whose defaults differ from a local install.
+select = ["E4", "E7", "E9", "F"]

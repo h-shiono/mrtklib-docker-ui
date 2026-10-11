@@ -7,6 +7,11 @@ from mrtklib_web_ui.services.private_toml import dumps_tables, write_private_tom
 
 CRED_FILE = Path("/workspace/.credentials.toml")
 
+
+def _netrc_path() -> Path:
+    """The running user's .netrc (the container no longer runs as root)."""
+    return Path.home() / ".netrc"
+
 NETRC_HOSTS = {
     "earthdata": "urs.earthdata.nasa.gov",
     "gsi": "terras.gsi.go.jp",
@@ -109,7 +114,7 @@ def _write_cred_file(existing: dict) -> None:
 
 
 def setup_netrc_from_env() -> None:
-    """Generate /root/.netrc entries from environment variables."""
+    """Generate ~/.netrc entries from environment variables."""
     entries = []
     for service, (env_u, env_p) in ENV_MAP.items():
         u = os.getenv(env_u)
@@ -119,7 +124,7 @@ def setup_netrc_from_env() -> None:
             entries.append(f"machine {host} login {u} password {p}")
 
     if entries:
-        netrc_path = Path("/root/.netrc")
+        netrc_path = _netrc_path()
         if not netrc_path.exists() or netrc_path.stat().st_size == 0:
             netrc_path.write_text("\n".join(entries) + "\n")
             netrc_path.chmod(0o600)
@@ -129,7 +134,7 @@ def _read_netrc(service: str) -> tuple[str, str] | None:
     host = NETRC_HOSTS.get(service)
     if not host:
         return None
-    netrc_path = Path("/root/.netrc")
+    netrc_path = _netrc_path()
     if not netrc_path.exists():
         return None
     try:
