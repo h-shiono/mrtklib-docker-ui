@@ -42,7 +42,8 @@ GNSS positioning capabilities. No compilation required — just
 - Time series chart
 - Sky plot + SNR bar chart (per-constellation color coding,
   used/unused satellite highlighting)
-- Solution and trace output streaming
+- Solution and debug-trace streaming (trace files in
+  `/workspace/rtlog/rtkrcv/`)
 - **Raw input logging**: per-input "Save Raw" switch (Rover / Base /
   Correction) records the received bytes before decoding, hourly
   files under `/workspace/rtlog/%Y/%n/` (e.g. `rovr_%n%H.sbf`),

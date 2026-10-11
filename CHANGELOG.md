@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Real-Time: the Trace sub-tab follows the rtkrcv debug trace live
+  when Debug Trace is set (last 1000 lines, replayed after a page
+  reload), shows the trace file path and offers a download (#53).
+  At high trace levels the view streams at most 64 KB/s and marks
+  skipped output; the file itself is complete.
+
+### Changed
+- Real-Time: `mrtk run` now runs in `/workspace/rtlog/rtkrcv/`. The
+  files rtkrcv writes relative to its working directory — the debug
+  trace (`rtkrcv_<GPST yyyymmddhhmm>.trace`), the solution status file
+  and the navigation cache `rtkrcv.nav` — now land there instead of
+  the container's `/app`, so they persist and show in the file browser.
+  Relative paths in a Real-Time config are resolved against this
+  directory.
+
 ## [0.3.1-alpha] - 2026-10-11
 
 ### Added

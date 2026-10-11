@@ -16,10 +16,19 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from mrtklib_web_ui.paths import WORKSPACE_ROOT
 from mrtklib_web_ui.services.mask_credentials import mask_log_line
 from mrtklib_web_ui.services.stream_lines import iter_lines
+from mrtklib_web_ui.services.trace_tail import TraceTailer
 
 logger = logging.getLogger(__name__)
+
+# Working directory of `mrtk run`. rtkrcv writes its debug trace
+# (rtkrcv_<time>.trace), solution status file and navigation cache
+# (rtkrcv.nav, reused on the next start) relative to it, so keep it
+# in /workspace where the user can reach them.
+RUN_WORKDIR = WORKSPACE_ROOT / "rtlog" / "rtkrcv"
+TRACE_POLL_INTERVAL = 0.5
 
 # ── Status parsing ───────────────────────────────────────────────────────────
 
@@ -531,6 +540,7 @@ class MrtkRunService:
         self._poll_task: Optional[asyncio.Task] = None
         self._stdout_task: Optional[asyncio.Task] = None
         self._stderr_task: Optional[asyncio.Task] = None
+        self._trace_task: Optional[asyncio.Task] = None
         self._status_callback: Optional[callable] = None
         self._log_callback: Optional[callable] = None
         self._stream_tracker = InputStreamTracker()
@@ -595,8 +605,15 @@ class MrtkRunService:
         request: MrtkRunStartRequest,
         status_callback: Optional[callable] = None,
         log_callback: Optional[callable] = None,
+        trace_callback: Optional[callable] = None,
+        trace_file_callback: Optional[callable] = None,
     ) -> None:
-        """Start mrtk run -s process."""
+        """Start mrtk run -s process.
+
+        With a debug trace level set, ``trace_file_callback(path)`` is called
+        once the trace file appears and ``trace_callback(lines)`` with each
+        batch of new (credential-masked) trace lines.
+        """
         if self.is_running:
             raise RuntimeError("mrtk run is already running")
 
@@ -663,16 +680,34 @@ class MrtkRunService:
         if trace_arg:
             cmd.extend(["-t", trace_arg])
 
+        workdir: Optional[Path] = RUN_WORKDIR
+        try:
+            RUN_WORKDIR.mkdir(parents=True, exist_ok=True)
+        except OSError as e:  # e.g. local dev without /workspace
+            workdir = None
+            if log_callback:
+                await log_callback(f"[WARN] Cannot create {RUN_WORKDIR} ({e}); using {Path.cwd()}")
+
         if log_callback:
             await log_callback(f"[CMD] {' '.join(cmd)}")
+            await log_callback(f"[INFO] Working directory: {workdir or Path.cwd()}")
             await log_callback(f"[INFO] Console port: {self._console_port}")
 
+        started_at = time.time()
         self._process = await asyncio.create_subprocess_exec(
             *cmd,
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            cwd=workdir,
         )
+
+        if trace_arg:
+            # Filesystem mtimes can trail time.time() slightly.
+            tailer = TraceTailer(workdir or Path.cwd(), since=started_at - 1.0)
+            self._trace_task = asyncio.create_task(
+                self._tail_trace(tailer, trace_callback, trace_file_callback)
+            )
 
         # Start stdout/stderr readers
         self._stdout_task = asyncio.create_task(self._read_stdout())
@@ -765,6 +800,17 @@ class MrtkRunService:
             except asyncio.TimeoutError:
                 self._process.kill()
                 await self._process.wait()
+
+        # The tailer drains the rest of the file on its own once the
+        # process has exited; cancel only if that takes too long.
+        if self._trace_task:
+            try:
+                await asyncio.wait_for(self._trace_task, timeout=TRACE_POLL_INTERVAL * 4)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+            except Exception as e:
+                logger.warning(f"trace tail error: {e}")
+            self._trace_task = None
 
         for task_attr in ('_stdout_task', '_stderr_task'):
             task = getattr(self, task_attr)
@@ -927,6 +973,35 @@ class MrtkRunService:
                 logger.warning(f"Status poll error: {e}")
                 if self._log_callback:
                     await self._log_callback(f"[WARN] Status poll: {e}")
+
+    async def _tail_trace(
+        self,
+        tailer: TraceTailer,
+        trace_callback: Optional[callable],
+        trace_file_callback: Optional[callable],
+    ) -> None:
+        """Follow the trace file until the process exits, then drain it."""
+        proc = self._process
+        announced = False
+        try:
+            while True:
+                exited = proc is None or proc.returncode is not None
+                lines = tailer.read(final=exited)
+                if tailer.path and not announced:
+                    announced = True
+                    if self._log_callback:
+                        await self._log_callback(f"[INFO] Trace file: {tailer.path}")
+                    if trace_file_callback:
+                        await trace_file_callback(str(tailer.path))
+                if lines and trace_callback:
+                    await trace_callback([mask_log_line(l) for l in lines])
+                if exited:
+                    break
+                await asyncio.sleep(TRACE_POLL_INTERVAL)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.warning(f"trace tail error: {e}")
 
     async def _read_stdout(self) -> None:
         """Read stdout from the process and forward to log callback."""

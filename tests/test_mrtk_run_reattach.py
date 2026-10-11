@@ -16,7 +16,7 @@ class FakeService:
     async def get_status(self):  # the WS handler must not query the console
         raise AssertionError("get_status() called from WS handler")
 
-    async def start(self, request, status_callback=None, log_callback=None) -> None:
+    async def start(self, request, status_callback=None, log_callback=None, **_callbacks) -> None:
         self.is_running = True
 
     async def stop(self) -> None:
@@ -112,3 +112,23 @@ def test_start_broadcasts_running_to_idle_clients(client):
         body = {"config": {}, "streams": {}}
         assert c.post("/api/mrtk-run/start", json=body).json()["status"] == "ok"
         assert ws.receive_json() == {"type": "status", "running": True}
+
+
+def test_trace_replayed_after_exit_and_cleared_on_start(client):
+    c, fake = client
+    fake.is_running = True
+    asyncio.run(mrtk_run._trace_file_callback("/workspace/rtlog/rtkrcv/rtkrcv_x.trace"))
+    asyncio.run(mrtk_run._trace_callback(["3 0.001: rtksvrthread:", "3 0.002: decode"]))
+    fake.is_running = False
+    _feed(status={"server_state": "stop", "running": False, "exited": True})
+
+    with c.websocket_connect("/api/mrtk-run/ws") as ws:
+        hist = ws.receive_json()
+        assert hist["trace_file"] == "/workspace/rtlog/rtkrcv/rtkrcv_x.trace"
+        assert hist["traces"] == ["3 0.001: rtksvrthread:", "3 0.002: decode"]
+
+    body = {"config": {}, "streams": {}}
+    assert c.post("/api/mrtk-run/start", json=body).json()["status"] == "ok"
+    with c.websocket_connect("/api/mrtk-run/ws") as ws:
+        hist = ws.receive_json()
+        assert hist["traces"] == [] and hist["trace_file"] is None

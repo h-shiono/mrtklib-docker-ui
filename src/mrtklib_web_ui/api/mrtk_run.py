@@ -37,6 +37,10 @@ MAX_STATUS_HISTORY = 600
 _log_history: deque[str] = deque(maxlen=MAX_LOG_HISTORY)
 _status_history: deque[dict[str, Any]] = deque(maxlen=MAX_STATUS_HISTORY)
 _last_status: dict[str, Any] = {}
+# Debug trace of the current (or last) run: kept after exit like the log.
+MAX_TRACE_HISTORY = 1000
+_trace_history: deque[str] = deque(maxlen=MAX_TRACE_HISTORY)
+_trace_file: dict[str, str] = {}
 _POSITION_KEYS = ("timestamp", "lat", "lon", "height", "quality", "ns", "ratio", "age")
 
 
@@ -57,6 +61,8 @@ def _clear_history() -> None:
     _log_history.clear()
     _status_history.clear()
     _last_status.clear()
+    _trace_history.clear()
+    _trace_file.clear()
 
 
 async def _status_callback(status: dict[str, Any]) -> None:
@@ -80,6 +86,18 @@ async def _log_callback(line: str) -> None:
     """Called by MrtkRunService for each log line."""
     _log_history.append(line)
     await _broadcast({"type": "log", "message": line})
+
+
+async def _trace_file_callback(path: str) -> None:
+    """Called by MrtkRunService once the run's trace file exists."""
+    _trace_file["path"] = path
+    await _broadcast({"type": "trace_file", "path": path})
+
+
+async def _trace_callback(lines: list[str]) -> None:
+    """Called by MrtkRunService with each batch of new trace lines."""
+    _trace_history.extend(lines)
+    await _broadcast({"type": "trace", "lines": lines})
 
 
 class StartResponse(BaseModel):
@@ -152,6 +170,8 @@ async def start_run(request: MrtkRunStartRequest) -> StartResponse:
             request,
             status_callback=_status_callback,
             log_callback=_log_callback,
+            trace_callback=_trace_callback,
+            trace_file_callback=_trace_file_callback,
         )
         # Per-poll statuses carry no `running`; tell other connected clients
         # (e.g. a second tab) explicitly so their button flips to Stop.
@@ -212,9 +232,12 @@ async def websocket_run(websocket: WebSocket) -> None:
     back while a run is active reattaches to it.
 
     Messages sent to clients:
-    - {"type": "history", "logs": [...], "positions": [...]} (once, on connect)
+    - {"type": "history", "logs": [...], "positions": [...],
+       "traces": [...], "trace_file": "..." | None} (once, on connect)
     - {"type": "status", "lat": ..., "lon": ..., "quality": ..., ...}
     - {"type": "log", "message": "..."}
+    - {"type": "trace_file", "path": "..."} (debug trace file found)
+    - {"type": "trace", "lines": [...]}
     """
     await websocket.accept()
     _ws_clients.add(websocket)
@@ -224,6 +247,8 @@ async def websocket_run(websocket: WebSocket) -> None:
             "type": "history",
             "logs": list(_log_history),
             "positions": list(_status_history) if _service.is_running else [],
+            "traces": list(_trace_history),
+            "trace_file": _trace_file.get("path"),
         }))
         # Send initial status. The explicit `running` flag drives the client's
         # Start/Stop lifecycle; the per-poll rtkrcv `server_state` never does.
