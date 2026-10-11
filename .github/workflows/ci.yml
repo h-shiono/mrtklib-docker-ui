@@ -3,6 +3,9 @@ name: CI
 # Tests + build on every PR and on pushes to develop/main.
 # Lint runs on the files a PR changes only: develop still carries older
 # ruff/eslint errors, so a whole-repo lint gate would fail every PR.
+# A pull_request run checks out the PR merged into the current base, so
+# "changed" is HEAD^1 (that base tip) vs HEAD. pull_request.base.sha is
+# not used: it can predate later merges into the base.
 
 on:
   pull_request:
@@ -42,10 +45,8 @@ jobs:
 
       - name: Lint changed Python files
         if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$BASE_SHA"...HEAD -- '*.py')
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR HEAD^1 HEAD -- '*.py')
           if [ ${#files[@]} -eq 0 ]; then echo "No Python changes"; exit 0; fi
           uv run ruff check "${files[@]}"
 
@@ -76,10 +77,8 @@ jobs:
 
       - name: Lint changed TypeScript files
         if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          mapfile -t files < <(git diff --name-only --diff-filter=ACMR --relative "$BASE_SHA"...HEAD -- '*.ts' '*.tsx')
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR --relative HEAD^1 HEAD -- '*.ts' '*.tsx')
           if [ ${#files[@]} -eq 0 ]; then echo "No TypeScript changes"; exit 0; fi
           npx eslint "${files[@]}"
 
