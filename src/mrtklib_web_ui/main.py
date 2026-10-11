@@ -16,7 +16,7 @@ except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0-dev"
 
 from mrtklib_web_ui.api import (
-    files, process, config, mrtk_relay, mrtk_post, mrtk_run, obs_qc,
+    files, config, mrtk_relay, mrtk_post, mrtk_run, obs_qc,
     presets, downloader, convert, ai, clas_pipeline,
 )
 from mrtklib_web_ui.services import clas_pipeline_service, process_manager, ws_manager
@@ -75,7 +75,6 @@ app.add_middleware(
 
 # Include API routers
 app.include_router(files.router, prefix="/api/files", tags=["files"])
-app.include_router(process.router, prefix="/api/process", tags=["process"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
 app.include_router(mrtk_relay.router, prefix="/api/mrtk-relay", tags=["mrtk-relay"])
 app.include_router(mrtk_post.router, prefix="/api/mrtk-post", tags=["mrtk-post"])
