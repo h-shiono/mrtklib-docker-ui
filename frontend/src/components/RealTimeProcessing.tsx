@@ -57,6 +57,7 @@ import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { RtMetricsRow } from './RtMetricsRow';
 import { MapView, type PosEpoch } from './viewer';
 import { maskLogLine } from '../utils/maskPath';
+import { useFollowScroll } from '../hooks/useFollowScroll';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -358,9 +359,6 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
   const [monitorTab, setMonitorTab] = useState<string | null>('chart');
-  const logViewportRef = useRef<HTMLDivElement | null>(null);
-  // Follow new console output unless the user has scrolled up to read.
-  const logFollowRef = useRef(true);
   const MAX_HISTORY = 600;
 
   // Measured height for the live map (leaflet needs an explicit pixel height).
@@ -398,14 +396,9 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
   const isRunning = runStatus === 'running' || runStatus === 'starting';
 
-  // Auto-scroll log to bottom. Instant, not smooth: with lines arriving every poll a smooth scroll is
-  // interrupted by the next update and never reaches the bottom. Also re-run
-  // on tab switch, since a hidden (display: none) panel cannot be scrolled.
-  useEffect(() => {
-    const vp = logViewportRef.current;
-    if (monitorTab !== 'console' || !vp || !logFollowRef.current) return;
-    vp.scrollTop = vp.scrollHeight;
-  }, [logLines, monitorTab]);
+  // Keep the Solution and Console panels at their latest line.
+  const solutionScroll = useFollowScroll(monitorTab === 'solution', positionHistory);
+  const consoleScroll = useFollowScroll(monitorTab === 'console', logLines);
 
   // Feed live status to the global bottom status bar (null clears it on stop).
   useEffect(() => {
@@ -851,6 +844,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               <Tabs.Panel value="solution" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
                 <ScrollArea
                   h={300}
+                  {...solutionScroll}
                   styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
                 >
                   <Text
@@ -870,11 +864,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               <Tabs.Panel value="console" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
                 <ScrollArea
                   h={300}
-                  viewportRef={logViewportRef}
-                  onScrollPositionChange={() => {
-                    const vp = logViewportRef.current;
-                    if (vp) logFollowRef.current = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 24;
-                  }}
+                  {...consoleScroll}
                   styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
                 >
                   {logLines.length > 0 ? (
