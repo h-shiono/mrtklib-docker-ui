@@ -87,6 +87,10 @@ const OUTPUT_FORMATS: { value: StreamFormat; label: string }[] = [
 
 const LABEL_STYLE = { width: 90, flexShrink: 0, fontSize: '11px' } as const;
 
+// Switch rows: match the xs input height of the neighboring Select/TextInput
+// rows. --input-height-xs is scoped to Mantine's Input, so use its value.
+const SWITCH_ROW_STYLE = { minHeight: 'calc(1.875rem * var(--mantine-scale))' } as const;
+
 function StreamEditor({
   label,
   stream,
@@ -137,7 +141,7 @@ function StreamEditor({
       </Group>
       {showNmea && !isOff && (
         <>
-          <Group wrap="nowrap" align="center" gap="xs">
+          <Group wrap="nowrap" align="center" gap="xs" style={SWITCH_ROW_STYLE}>
             <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Req.</Text>
             <Switch size="xs" checked={baseStream.nmeareq ?? false}
               onChange={(e) => onChange({ ...baseStream, nmeareq: e.currentTarget.checked })} />
@@ -218,9 +222,7 @@ function RawLogEditor({
 
   return (
     <>
-      {/* Match the xs input height of the neighboring Select/TextInput rows.
-          --input-height-xs is scoped to Mantine's Input, so use its value. */}
-      <Group wrap="nowrap" align="center" gap="xs" style={{ minHeight: 'calc(1.875rem * var(--mantine-scale))' }}>
+      <Group wrap="nowrap" align="center" gap="xs" style={SWITCH_ROW_STYLE}>
         <Text size="xs" c="dimmed" style={LABEL_STYLE}>Save Raw</Text>
         <Switch size="xs" checked={enabled}
           disabled={!enabled && inputStream.type === 'off'}
