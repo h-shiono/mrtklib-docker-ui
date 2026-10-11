@@ -151,6 +151,15 @@ def test_keyword_dir_symlinked_out_of_workspace_is_rejected(tmp_path, monkeypatc
     assert _validate(output_stream1=f"{ws}/new_%Y.pos") is None
 
 
+def test_symlink_loop_returns_error_instead_of_raising(tmp_path, monkeypatch):
+    ws = tmp_path.resolve() / "ws"
+    ws.mkdir()
+    loop = ws / str(mrtk_run.gpst_now().year)
+    loop.symlink_to(loop)
+    monkeypatch.setattr(mrtk_run, "WORKSPACE_ROOT", ws)
+    assert "cannot resolve path" in (_validate(output_stream1=f"{ws}/%Y/new.pos") or "")
+
+
 def test_non_file_streams_are_not_checked():
     s = StreamsConfigModel(output_stream1={"type": "tcpsvr", "path": ":2101"})
     assert _validate_write_streams(s) is None

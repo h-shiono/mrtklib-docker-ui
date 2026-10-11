@@ -95,11 +95,15 @@ def _validate_write_streams(streams: StreamsConfigModel) -> str | None:
             continue
         p = Path(base)
         expanded = Path(expand_path_keywords(base, now))
-        if (
-            not p.is_absolute()
-            or not is_within(p, WORKSPACE_ROOT)
-            or not is_within(expanded, WORKSPACE_ROOT)
-        ):
+        try:
+            inside = (
+                p.is_absolute()
+                and is_within(p, WORKSPACE_ROOT)
+                and is_within(expanded, WORKSPACE_ROOT)
+            )
+        except (OSError, RuntimeError) as e:  # e.g. symlink loop (RuntimeError < 3.13)
+            return f"{name}: cannot resolve path {base}: {e}"
+        if not inside:
             return f"{name} must be within /workspace: {base}"
     return None
 
