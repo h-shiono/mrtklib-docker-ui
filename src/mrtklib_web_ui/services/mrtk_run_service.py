@@ -197,7 +197,7 @@ _GPS_LEAP_SECONDS = 18
 _GPS_EPOCH = datetime(1980, 1, 6, tzinfo=timezone.utc)
 
 
-def _gpst_now() -> datetime:
+def gpst_now() -> datetime:
     return datetime.now(timezone.utc) + timedelta(seconds=_GPS_LEAP_SECONDS)
 
 
@@ -245,7 +245,9 @@ def number_file_stream_path(path: str, t: datetime, reserved: set[str]) -> str:
     file the stream would open now (or its .tag) exists, or another stream of
     this run already claimed it (``reserved``), insert _2, _3, ... into the
     template so this run writes alongside it. The suffix stays for the whole
-    run, including later ::S swaps. The chosen path is added to ``reserved``.
+    run, including later ::S swaps. The chosen path and its .tag are added to
+    ``reserved`` as resolved paths, so aliases (``a/../x``, symlinks) and tag
+    files of other streams are caught too.
 
     Raises RuntimeError when no free name is left, rather than overwriting.
     """
@@ -255,11 +257,12 @@ def number_file_stream_path(path: str, t: datetime, reserved: set[str]) -> str:
         return path
 
     def target(b: str) -> str:
-        return str(Path(expand_path_keywords(b, t)))
+        return str(Path(expand_path_keywords(b, t)).resolve())
 
     def taken(b: str) -> bool:
         p = target(b)
-        return p in reserved or Path(p).exists() or Path(f"{p}.tag").exists()
+        tag = f"{p}.tag"
+        return p in reserved or tag in reserved or Path(p).exists() or Path(tag).exists()
 
     candidate = base
     n = 1
@@ -270,7 +273,8 @@ def number_file_stream_path(path: str, t: datetime, reserved: set[str]) -> str:
                 f"No free file name for {target(base)} (_2.._{_MAX_SUFFIX_NUMBER} all exist)"
             )
         candidate = _with_suffix_number(base, n)
-    reserved.add(target(candidate))
+    chosen = target(candidate)
+    reserved.update((chosen, f"{chosen}.tag"))
     return f"{candidate}{sep}{opts}"
 
 
@@ -400,7 +404,7 @@ class MrtkRunService:
 
         # Number file outputs/logs that would overwrite an existing file
         streams = request.streams.model_copy(deep=True)
-        now = _gpst_now()
+        now = gpst_now()
         reserved: set[str] = set()
         for name in ("output_stream1", "output_stream2", "log_stream1", "log_stream2", "log_stream3"):
             s: StreamConfigModel = getattr(streams, name)

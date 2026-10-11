@@ -11,7 +11,7 @@ GNSS positioning capabilities. No compilation required — just
 ![React](https://img.shields.io/badge/react-19-blue.svg)
 ![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.11-green.svg)
 
-> **Status**: v0.3.0-alpha — core features are functional.
+> **Status**: v0.3.1-alpha — core features are functional.
 > Known limitations are listed in [Known Issues](#known-issues).
 
 ![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
@@ -43,6 +43,12 @@ GNSS positioning capabilities. No compilation required — just
 - Sky plot + SNR bar chart (per-constellation color coding,
   used/unused satellite highlighting)
 - Solution and trace output streaming
+- **Raw input logging**: per-input "Save Raw" switch (Rover / Base /
+  Correction) records the received bytes before decoding, hourly
+  files under `/workspace/rtlog/%Y/%n/` (e.g. `rovr_%n%H.sbf`),
+  optional time tag (`.tag`) for real-time replay
+- Restart-safe file outputs: if a solution or raw-log file already
+  exists, the run writes to `_2`, `_3`, … instead of overwriting it
 
 ### Stream Relay (`mrtk relay`)
 - Multi-stream configuration (up to 4 simultaneous streams)
@@ -107,10 +113,10 @@ Images are published for both `linux/amd64` and `linux/arm64`
 1. **Pull the image**
    ```bash
    # Docker Hub
-   docker pull hatognss/mrtklib-docker-ui:0.3.0-alpha
+   docker pull hatognss/mrtklib-docker-ui:0.3.1-alpha
 
    # or GitHub Container Registry
-   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.3.0-alpha
+   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.3.1-alpha
    ```
 
 2. **Prepare host directories**
@@ -125,7 +131,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
      -p 8080:8000 \
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
-     hatognss/mrtklib-docker-ui:0.3.0-alpha
+     hatognss/mrtklib-docker-ui:0.3.1-alpha
    ```
 
 4. **Open the UI** at <http://localhost:8080>
@@ -265,6 +271,12 @@ uv sync --extra qc
 
 Docker builds include it by default; set `INSTALL_QC=0` in `.env` to skip it.
 
+Run the backend tests (pytest is in the `dev` dependency group):
+
+```bash
+uv run pytest
+```
+
 ### Frontend
 ```bash
 cd frontend
@@ -323,7 +335,8 @@ surface orphan state in its UI.
 |---------|-------------|
 | **v0.1.x-alpha** | Core UI for all `mrtk` subcommands, presets, TOML I/O, Monitor tab |
 | **v0.2.x-alpha** | Template presets, GNSS time converter, Monitor Sky+SNR, IGS/GSI downloader, GHCR/Docker Hub publish |
-| **v0.3.0-alpha** (current) | MRTKLIB 0.7.6 config migration, console redesign, CLAS pipeline, RINEX Converter overhaul, unified dark consoles, XYZ-ECEF / NMEA-0183 result views, live basemap map |
+| **v0.3.0-alpha** | MRTKLIB 0.7.6 config migration, console redesign, CLAS pipeline, RINEX Converter overhaul, unified dark consoles, XYZ-ECEF / NMEA-0183 result views, live basemap map |
+| **v0.3.1-alpha** (current) | MRTKLIB 0.7.11, Real-Time raw input logging, restart-safe file outputs |
 
 ---
 

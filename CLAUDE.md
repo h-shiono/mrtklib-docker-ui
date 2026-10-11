@@ -10,7 +10,7 @@ monitoring from a browser without compiling anything.
 - **MRTKLIB version:** 0.7.11 (pinned in `.mrtklib-version`)
 - **Unified binary:** `mrtk` with subcommands (`post`, `run`, `relay`,
   `convert`, `ssr2obs`, `ssr2osr`, `bias`, `dump`, `cssr2rtcm3`)
-- **UI version:** v0.3.0-alpha (next: v0.4.0-alpha)
+- **UI version:** v0.3.1-alpha (next: v0.4.0-alpha)
 
 ## Tech Stack
 
@@ -149,6 +149,7 @@ const SYS_COLOR = {
 ```bash
 uv sync
 uv run uvicorn mrtklib_web_ui.main:app --reload --host 0.0.0.0 --port 8000
+uv run pytest      # backend tests (tests/)
 ```
 
 ### Frontend
