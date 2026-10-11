@@ -468,7 +468,7 @@ export function ConversionPanel() {
       args.push('-d', form.outputDirectory);
     }
     if (form.stationId) {
-      args.push('-sta', form.stationId);
+      args.push('-c', form.stationId);
     }
     if (form.receiverOptions) {
       args.push('-ro', form.receiverOptions);
@@ -480,8 +480,15 @@ export function ConversionPanel() {
     if (form.timeEnd) {
       args.push('-te', form.timeEnd);
     }
+    if (form.rtcmRefTime) {
+      args.push('-tr', form.rtcmRefTime);
+    }
     if (form.interval !== '' && form.interval > 0) {
       args.push('-ti', String(form.interval));
+    }
+    // Backend sends -tt only when it differs from convbin's default
+    if (form.epochTolerance !== 0.005) {
+      args.push('-tt', String(form.epochTolerance));
     }
     if (form.timeSpan !== '' && form.timeSpan > 0) {
       args.push('-span', String(form.timeSpan));
