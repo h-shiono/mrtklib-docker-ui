@@ -1,6 +1,8 @@
 """FastAPI entry point for MRTKLIB Web UI."""
 
+import asyncio
 import importlib.metadata
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
@@ -93,9 +95,37 @@ async def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
+_MRTK_VERSION_PATTERN = re.compile(r"ver\.(\S+?)\)?(?:\s+git\s+(\S+?))?\)?\s*$")
+_mrtk_version_cache: tuple[str, str] | None = None
+
+
+async def _read_mrtk_version(mrtk_path: str) -> tuple[str, str]:
+    """Return (version, git describe) from ``mrtk --version``, cached once found.
+
+    The binary is the source of truth: the image may be built from a
+    MRTKLIB_BRANCH other than the one pinned in .mrtklib-version.
+    """
+    global _mrtk_version_cache
+    if _mrtk_version_cache is not None:
+        return _mrtk_version_cache
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            mrtk_path, "--version",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+        )
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+    except (OSError, asyncio.TimeoutError):
+        return ("", "")
+    m = _MRTK_VERSION_PATTERN.search(out.decode(errors="replace").strip())
+    if not m:
+        return ("", "")
+    _mrtk_version_cache = (m.group(1), m.group(2) or "")
+    return _mrtk_version_cache
+
+
 @app.get("/api/mrtklib/version")
 async def mrtklib_version() -> dict[str, str | list[str]]:
-    """Get MRTKLIB version (from git tag) and available subcommands."""
+    """Get the MRTKLIB version (from ``mrtk --version``) and available subcommands."""
     import shutil
 
     mrtk_path = shutil.which("mrtk") or "/usr/local/bin/mrtk"
@@ -104,9 +134,12 @@ async def mrtklib_version() -> dict[str, str | list[str]]:
     # Known mrtk subcommands
     known_subcommands = ["post", "run", "relay", "convert", "ssr2obs", "ssr2osr", "bias", "dump", "cssr2rtcm3"]
     subcommands = known_subcommands if mrtk_available else []
+    version, git = await _read_mrtk_version(mrtk_path) if mrtk_available else ("", "")
 
     return {
-        "version": __version__,
+        "version": version,
+        "git": git,
+        "ui_version": __version__,
         "binary": "mrtk" if mrtk_available else "",
         "subcommands": subcommands,
     }
