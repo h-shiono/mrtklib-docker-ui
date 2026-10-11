@@ -37,6 +37,14 @@ MAX_STATUS_HISTORY = 600
 _log_history: deque[str] = deque(maxlen=MAX_LOG_HISTORY)
 _status_history: deque[dict[str, Any]] = deque(maxlen=MAX_STATUS_HISTORY)
 _last_status: dict[str, Any] = {}
+# Debug trace of the current (or last) run: kept after exit like the log.
+MAX_TRACE_HISTORY = 1000
+_trace_history: deque[str] = deque(maxlen=MAX_TRACE_HISTORY)
+_trace_file: dict[str, str] = {}
+# Bumped on each accepted start. A previous run's trace tailer may still be
+# draining after a natural exit; its callbacks carry the old id and are dropped.
+_run_id = 0
+_start_lock = asyncio.Lock()
 _POSITION_KEYS = ("timestamp", "lat", "lon", "height", "quality", "ns", "ratio", "age")
 
 
@@ -57,6 +65,8 @@ def _clear_history() -> None:
     _log_history.clear()
     _status_history.clear()
     _last_status.clear()
+    _trace_history.clear()
+    _trace_file.clear()
 
 
 async def _status_callback(status: dict[str, Any]) -> None:
@@ -80,6 +90,24 @@ async def _log_callback(line: str) -> None:
     """Called by MrtkRunService for each log line."""
     _log_history.append(line)
     await _broadcast({"type": "log", "message": line})
+
+
+def _trace_callbacks(run_id: int):
+    """Trace callbacks for MrtkRunService, bound to one run."""
+
+    async def on_file(path: str) -> None:
+        if run_id != _run_id:
+            return
+        _trace_file["path"] = path
+        await _broadcast({"type": "trace_file", "path": path})
+
+    async def on_lines(lines: list[str]) -> None:
+        if run_id != _run_id:
+            return
+        _trace_history.extend(lines)
+        await _broadcast({"type": "trace", "lines": lines})
+
+    return on_file, on_lines
 
 
 class StartResponse(BaseModel):
@@ -143,15 +171,30 @@ async def start_run(request: MrtkRunStartRequest) -> StartResponse:
     """Start mrtk run -s with the given configuration."""
     if err := _validate_write_streams(request.streams):
         return StartResponse(status="error", message=err)
+    # One start at a time: two overlapping requests could both pass the
+    # is_running check, and the rejected one would still clear the history
+    # and advance _run_id, silencing the trace of the run that did start.
+    async with _start_lock:
+        return await _start_locked(request)
+
+
+async def _start_locked(request: MrtkRunStartRequest) -> StartResponse:
+    global _run_id
     if _service.is_running:
         # Checked here too so a rejected start never wipes the live run's history.
         return StartResponse(status="error", message="mrtk run is already running")
+    _run_id += 1
     _clear_history()
+    # Other connected tabs still show the previous run's trace.
+    await _broadcast({"type": "trace_reset"})
+    on_trace_file, on_trace = _trace_callbacks(_run_id)
     try:
         await _service.start(
             request,
             status_callback=_status_callback,
             log_callback=_log_callback,
+            trace_callback=on_trace,
+            trace_file_callback=on_trace_file,
         )
         # Per-poll statuses carry no `running`; tell other connected clients
         # (e.g. a second tab) explicitly so their button flips to Stop.
@@ -212,9 +255,13 @@ async def websocket_run(websocket: WebSocket) -> None:
     back while a run is active reattaches to it.
 
     Messages sent to clients:
-    - {"type": "history", "logs": [...], "positions": [...]} (once, on connect)
+    - {"type": "history", "logs": [...], "positions": [...],
+       "traces": [...], "trace_file": "..." | None} (once, on connect)
     - {"type": "status", "lat": ..., "lon": ..., "quality": ..., ...}
     - {"type": "log", "message": "..."}
+    - {"type": "trace_reset"} (a new run was accepted)
+    - {"type": "trace_file", "path": "..."} (debug trace file found)
+    - {"type": "trace", "lines": [...]}
     """
     await websocket.accept()
     _ws_clients.add(websocket)
@@ -224,6 +271,8 @@ async def websocket_run(websocket: WebSocket) -> None:
             "type": "history",
             "logs": list(_log_history),
             "positions": list(_status_history) if _service.is_running else [],
+            "traces": list(_trace_history),
+            "trace_file": _trace_file.get("path"),
         }))
         # Send initial status. The explicit `running` flag drives the client's
         # Start/Stop lifecycle; the per-poll rtkrcv `server_state` never does.

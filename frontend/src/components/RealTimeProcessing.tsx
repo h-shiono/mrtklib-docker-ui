@@ -118,7 +118,7 @@ function StreamEditor({
       <Group wrap="nowrap" align="center" gap="xs">
         <Text size="xs" c="dimmed" style={LABEL_STYLE}>Type</Text>
         <Select size="xs" value={stream.type}
-          onChange={(v: any) => onChange({ ...stream, type: v as StreamType })}
+          onChange={(v) => onChange({ ...stream, type: v as StreamType })}
           data={STREAM_TYPES} style={{ flex: 1 }} />
       </Group>
       <Group wrap="nowrap" align="center" gap="xs">
@@ -139,7 +139,7 @@ function StreamEditor({
       <Group wrap="nowrap" align="center" gap="xs">
         <Text size="xs" c="dimmed" style={LABEL_STYLE}>Format</Text>
         <Select size="xs" value={stream.format}
-          onChange={(v: any) => onChange({ ...stream, format: v as StreamFormat })}
+          onChange={(v) => onChange({ ...stream, format: v as StreamFormat })}
           data={formats} disabled={isOff} style={{ flex: 1 }} />
       </Group>
       {showNmea && !isOff && (
@@ -152,13 +152,13 @@ function StreamEditor({
           <Group wrap="nowrap" align="center" gap="xs">
             <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Lat</Text>
             <NumberInput size="xs" value={baseStream.nmealat ?? 0}
-              onChange={(v: any) => onChange({ ...baseStream, nmealat: Number(v) })}
+              onChange={(v) => onChange({ ...baseStream, nmealat: Number(v) })}
               decimalScale={6} disabled={!baseStream.nmeareq} style={{ flex: 1 }} />
           </Group>
           <Group wrap="nowrap" align="center" gap="xs">
             <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Lon</Text>
             <NumberInput size="xs" value={baseStream.nmealon ?? 0}
-              onChange={(v: any) => onChange({ ...baseStream, nmealon: Number(v) })}
+              onChange={(v) => onChange({ ...baseStream, nmealon: Number(v) })}
               decimalScale={6} disabled={!baseStream.nmeareq} style={{ flex: 1 }} />
           </Group>
         </>
@@ -355,6 +355,9 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const [positionHistory, setPositionHistory] = useState<PositionPoint[]>([]);
   const [timeSeriesHistory, setTimeSeriesHistory] = useState<TimeSeriesPoint[]>([]);
   const [logLines, setLogLines] = useState<string[]>([]);
+  // Debug trace of the current (or last) run, tailed by the backend.
+  const [traceLines, setTraceLines] = useState<string[]>([]);
+  const [traceFile, setTraceFile] = useState<string | null>(null);
   const [chartViews, setChartViews] = useState<string[]>(['scatter']);
   const [satellites, setSatellites] = useState<Satellite[]>([]);
   const [inputStreams, setInputStreams] = useState<InputStreamStatus[]>([]);
@@ -365,6 +368,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const unmountedRef = useRef(false);
   const [monitorTab, setMonitorTab] = useState<string | null>('chart');
   const MAX_HISTORY = 600;
+  const MAX_TRACE_LINES = 1000;
 
   // Measured height for the live map (leaflet needs an explicit pixel height).
   const { ref: mapWrapRef, height: mapHeight } = useElementSize();
@@ -404,6 +408,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   // Keep the Solution and Console panels at their latest line.
   const solutionScroll = useFollowScroll(monitorTab === 'solution', positionHistory);
   const consoleScroll = useFollowScroll(monitorTab === 'console', logLines);
+  const traceScroll = useFollowScroll(monitorTab === 'trace', traceLines);
 
   // Feed live status to the global bottom status bar (null clears it on stop).
   useEffect(() => {
@@ -452,6 +457,8 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           // authoritative, so an empty list (no run, or it ended while we were
           // disconnected) clears positions left over from before.
           if (Array.isArray(msg.logs)) setLogLines(msg.logs as string[]);
+          setTraceLines(Array.isArray(msg.traces) ? (msg.traces as string[]) : []);
+          setTraceFile(typeof msg.trace_file === 'string' ? msg.trace_file : null);
           const positions = (Array.isArray(msg.positions) ? msg.positions : []) as PositionUpdate[];
           if (positions.length === 0) {
             setLastPosition(null);
@@ -536,6 +543,16 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           }
         } else if (msg.type === 'log') {
           setLogLines(prev => [...prev.slice(-500), msg.message]);
+        } else if (msg.type === 'trace_reset') {
+          // A run was started (possibly from another tab).
+          setTraceFile(null);
+          setTraceLines([]);
+        } else if (msg.type === 'trace_file') {
+          // A new run's trace file: drop the previous run's lines.
+          setTraceFile(msg.path as string);
+          setTraceLines([]);
+        } else if (msg.type === 'trace' && Array.isArray(msg.lines)) {
+          setTraceLines(prev => [...prev, ...(msg.lines as string[])].slice(-MAX_TRACE_LINES));
         }
       } catch {
         // ignore parse errors
@@ -571,6 +588,8 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
     startingRef.current = true;
     setRunStatus('starting');
     setLogLines(prev => [...prev, '[INFO] Starting mrtk run -s ...']);
+    setTraceLines([]);
+    setTraceFile(null);
     try {
       // Connect WebSocket FIRST so we receive logs during start()
       connectWs();
@@ -905,12 +924,51 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               </Tabs.Panel>
 
               <Tabs.Panel value="trace" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
+                {traceFile && (
+                  <Group gap={6} mb={4} wrap="nowrap">
+                    <Text
+                      size="xs"
+                      c="dimmed"
+                      truncate="start"
+                      title={traceFile}
+                      style={{ flex: 1, minWidth: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}
+                    >
+                      {traceFile}
+                    </Text>
+                    {traceFile.startsWith('/workspace/') && (
+                      <Button
+                        variant="light"
+                        leftSection={<IconDownload size={12} />}
+                        size="compact-xs"
+                        component="a"
+                        href={`/api/files/download?path=${encodeURIComponent(traceFile)}`}
+                        download
+                        style={{ flexShrink: 0 }}
+                      >
+                        Download
+                      </Button>
+                    )}
+                  </Group>
+                )}
                 <ScrollArea
-                  h={300}
+                  h={traceFile ? 278 : 300}
+                  {...traceScroll}
                   styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
                 >
-                  <Text c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5 }}>
-                    Trace output will appear here when trace level is enabled.
+                  <Text
+                    c={traceLines.length > 0 ? 'gray.4' : 'dimmed'}
+                    fs={traceLines.length > 0 ? undefined : 'italic'}
+                    style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5, wordBreak: 'break-all' }}
+                  >
+                    {traceLines.length > 0
+                      ? traceLines.join('\n')
+                      : traceFile
+                        ? 'Waiting for trace output...'
+                        : config.output.debugTrace === 'off'
+                          ? 'Trace output is disabled. Set Debug Trace level > 0 in the Output section.'
+                          : isRunning
+                            ? 'Waiting for the trace file...'
+                            : 'Trace output will appear here while running.'}
                   </Text>
                 </ScrollArea>
               </Tabs.Panel>
