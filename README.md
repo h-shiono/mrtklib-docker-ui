@@ -11,7 +11,7 @@ GNSS positioning capabilities. No compilation required — just
 ![React](https://img.shields.io/badge/react-19-blue.svg)
 ![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.11-green.svg)
 
-> **Status**: v0.3.1-alpha — core features are functional.
+> **Status**: v0.3.2-alpha — core features are functional.
 > Known limitations are listed in [Known Issues](#known-issues).
 
 ![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
@@ -44,6 +44,10 @@ GNSS positioning capabilities. No compilation required — just
   used/unused satellite highlighting)
 - Solution and debug-trace streaming (trace files in
   `/workspace/rtlog/rtkrcv/`)
+- Input stream status footer for Rover / Base / Correction
+  (receiving, connecting, stalled, no decode, error with a readable
+  cause such as an unknown NTRIP mountpoint)
+- Reattaches to a running `mrtk run` after a page reload or a closed tab
 - **Raw input logging**: per-input "Save Raw" switch (Rover / Base /
   Correction) records the received bytes before decoding, hourly
   files under `/workspace/rtlog/%Y/%n/` (e.g. `rovr_%n%H.sbf`),
@@ -54,6 +58,7 @@ GNSS positioning capabilities. No compilation required — just
 ### Stream Relay (`mrtk relay`)
 - Multi-stream configuration (up to 4 simultaneous streams)
 - Per-stream Start / Stop control with live console output
+- Running relays are restored after a page reload and can still be stopped
 
 ### CLAS Pipeline (`mrtk relay` + `mrtk cssr2rtcm3`)
 - One-form Wizard for the SBC + receiver + CLAS workflow added in
@@ -114,10 +119,10 @@ Images are published for both `linux/amd64` and `linux/arm64`
 1. **Pull the image**
    ```bash
    # Docker Hub
-   docker pull hatognss/mrtklib-docker-ui:0.3.1-alpha
+   docker pull hatognss/mrtklib-docker-ui:0.3.2-alpha
 
    # or GitHub Container Registry
-   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.3.1-alpha
+   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.3.2-alpha
    ```
 
 2. **Prepare host directories**
@@ -133,7 +138,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
      -e PUID="$(id -u)" -e PGID="$(id -g)" \
-     hatognss/mrtklib-docker-ui:0.3.1-alpha
+     hatognss/mrtklib-docker-ui:0.3.2-alpha
    ```
 
 4. **Open the UI** at <http://localhost:8080>
@@ -347,7 +352,8 @@ surface orphan state in its UI.
 | **v0.1.x-alpha** | Core UI for all `mrtk` subcommands, presets, TOML I/O, Monitor tab |
 | **v0.2.x-alpha** | Template presets, GNSS time converter, Monitor Sky+SNR, IGS/GSI downloader, GHCR/Docker Hub publish |
 | **v0.3.0-alpha** | MRTKLIB 0.7.6 config migration, console redesign, CLAS pipeline, RINEX Converter overhaul, unified dark consoles, XYZ-ECEF / NMEA-0183 result views, live basemap map |
-| **v0.3.1-alpha** (current) | MRTKLIB 0.7.11, Real-Time raw input logging, restart-safe file outputs |
+| **v0.3.1-alpha** | MRTKLIB 0.7.11, Real-Time raw input logging, restart-safe file outputs |
+| **v0.3.2-alpha** (current) | Security hardening, non-root container (`PUID:PGID`), Real-Time input stream status + live trace, reload-safe Real-Time / Stream Server sessions, PR CI |
 
 ---
 

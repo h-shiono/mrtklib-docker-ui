@@ -1,6 +1,5 @@
 """Data downloader API for GNSS data files."""
 
-import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone

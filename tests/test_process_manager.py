@@ -105,6 +105,49 @@ def test_natural_exit_is_recorded(monkeypatch):
     assert "r1" not in pm._processes and "r1" not in pm._log_tasks
 
 
+def test_restart_under_same_id_waits_for_previous_drain(monkeypatch):
+    """The old run's tail output and exit go out before the new run starts."""
+    pm = ProcessManager()
+    monkeypatch.setattr(pm, "SUBCOMMAND_MAP", {"str2str": "relay"})
+    events = []
+
+    async def on_log(pid, line):
+        events.append(("log", line))
+
+    async def on_status(pid, state):
+        events.append(("status", state))
+
+    pm.set_log_callback(on_log)
+    pm.set_status_callback(on_status)
+    real_exec = asyncio.create_subprocess_exec
+    # First run: exits at once, but a child keeps stderr open for a while,
+    # so the supervisor is still draining when the run is restarted
+    child = "import sys, time; time.sleep(0.5); print('tail', file=sys.stderr)"
+    first = f"import subprocess, sys; subprocess.Popen([sys.executable, '-c', {child!r}]); sys.exit(0)"
+    scripts = [first, "import sys; print('second', file=sys.stderr)"]
+
+    async def fake_exec(_mrtk, _sub, *args, **kw):
+        return await real_exec(sys.executable, "-c", scripts.pop(0), **kw)
+
+    monkeypatch.setattr(pm_mod.asyncio, "create_subprocess_exec", fake_exec)
+
+    async def run():
+        await pm.start("str2str", [], process_id="clas")
+        await pm._processes["clas"].wait()
+        assert (await pm.get_status("clas")).state == ProcessState.STOPPED
+        await pm.start("str2str", [], process_id="clas")
+        await asyncio.wait_for(pm._log_tasks["clas"], timeout=10)
+
+    asyncio.run(run())
+    second_start = [i for i, e in enumerate(events) if e[0] == "log" and "Starting" in e[1]][1]
+    before, after = events[:second_start], events[second_start:]
+    assert ("log", "tail") in before
+    assert ("status", "stopped") in before
+    # The new run's only stop is its own, after its own output
+    assert [e for e in after if e[0] == "status"] == [("status", "stopped")]
+    assert after.index(("log", "second")) < after.index(("status", "stopped"))
+
+
 def test_prune_drops_earliest_finished_not_earliest_started():
     from datetime import datetime, timedelta
 
