@@ -150,9 +150,10 @@ if STATIC_DIR.exists():
     @app.get("/{full_path:path}")
     async def serve_spa(request: Request, full_path: str) -> FileResponse:
         """Serve the SPA for all non-API routes."""
-        # Check if the file exists in static directory
-        file_path = STATIC_DIR / full_path
-        if file_path.exists() and file_path.is_file():
+        # Serve a file only if it is really inside the static directory:
+        # full_path arrives percent-decoded, so it may contain "..".
+        file_path = (STATIC_DIR / full_path).resolve()
+        if STATIC_DIR.resolve() in file_path.parents and file_path.is_file():
             return FileResponse(file_path)
         # Fall back to index.html for SPA routing
         return FileResponse(STATIC_DIR / "index.html")
