@@ -1,7 +1,6 @@
 """API endpoints for mrtk_post post-processing."""
 
 import asyncio
-import glob as glob_mod
 import uuid
 from pathlib import Path
 
@@ -17,6 +16,7 @@ from mrtklib_web_ui.paths import (
     has_hidden_component,
 )
 from mrtklib_web_ui.services import ws_manager
+from mrtklib_web_ui.services.input_staging import expand_wildcard
 from mrtklib_web_ui.services.mrtk_post_service import (
     MrtkPostConfig,
     MrtkPostInputFiles,
@@ -159,38 +159,41 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
     job_id = request.job_id or f"mrtk_post-{uuid.uuid4().hex[:8]}"
 
     def validate_input_path(file_path: str, label: str) -> str:
-        """Validate an input file path, supporting wildcards.
+        """Validate an input file path, supporting ``*`` wildcards in the file name.
 
-        Returns a resolved absolute path string under an allowed root.
-        Any wildcard characters in the input are preserved in the resolved path.
+        Returns a resolved absolute path string under an allowed root. A
+        wildcard is kept as-is: mrtk expands it itself (expath), and one
+        pattern must stay one argument so rover/base keep their positions.
         """
         resolved = resolve_path(file_path)
         resolved_str = str(resolved)
+        # Paths outside every root are read under /workspace; say so
+        shown = file_path if resolved_str == file_path.strip() else f"{file_path} (resolved to {resolved_str})"
 
         if not is_allowed_path(resolved):
             raise HTTPException(status_code=403, detail=f"{label}: access denied: {file_path}")
 
-        # Check if path contains glob wildcards
-        if any(c in resolved_str for c in ("*", "?", "[")):
-            matches = glob_mod.glob(resolved_str)
-            if not matches:
+        if "*" in str(resolved.parent):
+            raise HTTPException(
+                status_code=400,
+                detail=f"{label}: wildcards are only supported in the file name: {file_path}",
+            )
+        if "*" in resolved.name:
+            if not expand_wildcard(resolved_str):
                 raise HTTPException(
                     status_code=400,
-                    detail=f"{label} not found (no files match pattern): {file_path}",
+                    detail=f"{label} not found (no files match pattern): {shown}",
                 )
             return resolved_str
-        else:
-            if not resolved.exists():
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"{label} not found: {file_path}",
-                )
-            if resolved.is_dir():
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"{label} is a directory, not a file: {file_path}",
-                )
-            return resolved_str
+        if not resolved.exists():
+            hint = " ('*' is the only wildcard)" if any(c in resolved.name for c in "?[") else ""
+            raise HTTPException(status_code=400, detail=f"{label} not found: {shown}{hint}")
+        if resolved.is_dir():
+            raise HTTPException(
+                status_code=400,
+                detail=f"{label} is a directory, not a file: {file_path}",
+            )
+        return resolved_str
 
     rover_resolved = validate_input_path(request.input_files.rover_obs_file, "Rover observation file")
     nav_resolved = validate_input_path(request.input_files.nav_file, "Navigation file")

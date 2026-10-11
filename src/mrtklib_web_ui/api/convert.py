@@ -31,7 +31,7 @@ async def _broadcast(msg: dict[str, Any]) -> None:
     global _ws_clients
     text = json.dumps(msg)
     disconnected = set()
-    for ws in _ws_clients:
+    for ws in list(_ws_clients):  # sends yield; handlers may discard meanwhile
         try:
             await ws.send_text(text)
         except Exception:
