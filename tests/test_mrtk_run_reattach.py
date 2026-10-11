@@ -147,3 +147,37 @@ def test_trace_replayed_after_exit_and_cleared_on_start(client):
         assert hist["traces"] == [] and hist["trace_file"] is None
     asyncio.run(fake.callbacks["trace_callback"](["new run"]))
     assert list(mrtk_run._trace_history) == ["new run"]
+
+
+def test_overlapping_start_cannot_silence_running_trace(monkeypatch):
+    """A start rejected while another is launching must not bump the run id."""
+    fake = FakeService()
+    monkeypatch.setattr(mrtk_run, "_service", fake)
+    mrtk_run._clear_history()
+    monkeypatch.setattr(mrtk_run, "_start_lock", asyncio.Lock())
+    launched = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow_start(request, status_callback=None, log_callback=None, **callbacks):
+        fake.callbacks = callbacks
+        launched.set()
+        await release.wait()  # child spawned, waiting for the console
+        fake.is_running = True
+
+    fake.start = slow_start
+    req = mrtk_run.MrtkRunStartRequest()
+
+    async def scenario():
+        first = asyncio.create_task(mrtk_run.start_run(req))
+        await launched.wait()
+        second = asyncio.create_task(mrtk_run.start_run(req))
+        await asyncio.sleep(0)
+        release.set()
+        r1, r2 = await first, await second
+        assert r1.status == "ok"
+        assert r2.status == "error" and "already running" in r2.message
+        await fake.callbacks["trace_callback"](["live"])
+
+    asyncio.run(scenario())
+    assert list(mrtk_run._trace_history) == ["live"]
+    mrtk_run._clear_history()

@@ -1,5 +1,6 @@
 """API router for mrtk run (real-time processing)."""
 
+import asyncio
 import json
 import logging
 from collections import deque
@@ -43,6 +44,7 @@ _trace_file: dict[str, str] = {}
 # Bumped on each accepted start. A previous run's trace tailer may still be
 # draining after a natural exit; its callbacks carry the old id and are dropped.
 _run_id = 0
+_start_lock = asyncio.Lock()
 _POSITION_KEYS = ("timestamp", "lat", "lon", "height", "quality", "ns", "ratio", "age")
 
 
@@ -169,10 +171,18 @@ async def start_run(request: MrtkRunStartRequest) -> StartResponse:
     """Start mrtk run -s with the given configuration."""
     if err := _validate_write_streams(request.streams):
         return StartResponse(status="error", message=err)
+    # One start at a time: two overlapping requests could both pass the
+    # is_running check, and the rejected one would still clear the history
+    # and advance _run_id, silencing the trace of the run that did start.
+    async with _start_lock:
+        return await _start_locked(request)
+
+
+async def _start_locked(request: MrtkRunStartRequest) -> StartResponse:
+    global _run_id
     if _service.is_running:
         # Checked here too so a rejected start never wipes the live run's history.
         return StartResponse(status="error", message="mrtk run is already running")
-    global _run_id
     _run_id += 1
     _clear_history()
     # Other connected tabs still show the previous run's trace.
