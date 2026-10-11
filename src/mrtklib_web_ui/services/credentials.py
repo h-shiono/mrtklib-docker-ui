@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 
+from mrtklib_web_ui.services.private_toml import dumps_tables, write_private_toml
+
 CRED_FILE = Path("/workspace/.credentials.toml")
 
 NETRC_HOSTS = {
@@ -79,14 +81,7 @@ def save_credential(service: str, username: str, password: str) -> None:
             pass
 
     existing[service] = {"username": username, "password": password}
-    lines = []
-    for k, v in existing.items():
-        lines.append(f'[{k}]')
-        lines.append(f'username = "{v["username"]}"')
-        lines.append(f'password = "{v["password"]}"')
-        lines.append('')
-    CRED_FILE.write_text("\n".join(lines))
-    CRED_FILE.chmod(0o600)
+    _write_cred_file(existing)
 
 
 def delete_credential(service: str) -> None:
@@ -100,14 +95,17 @@ def delete_credential(service: str) -> None:
     except Exception:
         return
     existing.pop(service, None)
-    lines = []
-    for k, v in existing.items():
-        lines.append(f'[{k}]')
-        lines.append(f'username = "{v["username"]}"')
-        lines.append(f'password = "{v["password"]}"')
-        lines.append('')
-    CRED_FILE.write_text("\n".join(lines))
-    CRED_FILE.chmod(0o600)
+    _write_cred_file(existing)
+
+
+def _write_cred_file(existing: dict) -> None:
+    """Rewrite the credentials file with every value properly escaped."""
+    tables = {
+        svc: {"username": str(v.get("username", "")), "password": str(v.get("password", ""))}
+        for svc, v in existing.items()
+        if isinstance(v, dict)
+    }
+    write_private_toml(CRED_FILE, dumps_tables(tables))
 
 
 def setup_netrc_from_env() -> None:
