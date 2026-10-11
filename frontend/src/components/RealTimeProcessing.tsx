@@ -218,7 +218,8 @@ function RawLogEditor({
 
   return (
     <>
-      <Group wrap="nowrap" align="center" gap="xs">
+      {/* Match the xs input height of the neighboring Select/TextInput rows */}
+      <Group wrap="nowrap" align="center" gap="xs" style={{ minHeight: 'var(--input-height-xs)' }}>
         <Text size="xs" c="dimmed" style={LABEL_STYLE}>Save Raw</Text>
         <Switch size="xs" checked={enabled}
           disabled={!enabled && inputStream.type === 'off'}
