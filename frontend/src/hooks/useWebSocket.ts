@@ -37,9 +37,18 @@ export interface UseWebSocketOptions {
 
 export interface UseWebSocketReturn {
   isConnected: boolean;
-  messages: LogMessage[];
-  clearMessages: () => void;
   sendMessage: (data: string) => void;
+}
+
+// Detach handlers before an intentional close: onclose fires asynchronously,
+// after unmount cleanup has run, and would otherwise schedule a reconnect
+// that opens a socket nobody owns.
+function closeQuietly(ws: WebSocket): void {
+  ws.onopen = null;
+  ws.onmessage = null;
+  ws.onclose = null;
+  ws.onerror = null;
+  ws.close();
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketReturn {
@@ -53,15 +62,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   } = options;
 
   const [isConnected, setIsConnected] = useState(false);
-  const [messages, setMessages] = useState<LogMessage[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-  }, []);
 
   const sendMessage = useCallback((data: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -70,9 +74,15 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   }, []);
 
   const connect = useCallback(() => {
-    // Clean up existing connection
+    // Clean up existing connection and any pending reconnect
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
     if (wsRef.current) {
-      wsRef.current.close();
+      closeQuietly(wsRef.current);
+      wsRef.current = null;
+      setIsConnected(false);
     }
 
     // In development, use Vite proxy
@@ -91,12 +101,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data) as LogMessage;
-
-        // Only add log/status/progress messages to the list
-        if (message.type === 'log' || message.type === 'status' || message.type === 'progress') {
-          setMessages((prev) => [...prev, message]);
-        }
-
         onMessage?.(message);
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);
@@ -127,17 +131,17 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       if (wsRef.current) {
-        wsRef.current.close();
+        closeQuietly(wsRef.current);
+        wsRef.current = null;
       }
     };
   }, [connect]);
 
   return {
     isConnected,
-    messages,
-    clearMessages,
     sendMessage,
   };
 }
