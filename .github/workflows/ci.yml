@@ -1,0 +1,102 @@
+name: CI
+
+# Tests + build on every PR and on pushes to develop/main.
+# Lint runs on the files a PR changes only: develop still carries older
+# ruff/eslint errors, so a whole-repo lint gate would fail every PR.
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Test
+        run: uv run pytest
+
+      - name: Lint changed Python files
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$BASE_SHA"...HEAD -- '*.py')
+          if [ ${#files[@]} -eq 0 ]; then echo "No Python changes"; exit 0; fi
+          uv run ruff check "${files[@]}"
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check and build
+        run: npm run build
+
+      - name: Lint changed TypeScript files
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR --relative "$BASE_SHA"...HEAD -- '*.ts' '*.tsx')
+          if [ ${#files[@]} -eq 0 ]; then echo "No TypeScript changes"; exit 0; fi
+          npx eslint "${files[@]}"
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (amd64, not pushed)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
