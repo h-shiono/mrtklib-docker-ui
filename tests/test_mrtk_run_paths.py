@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from mrtklib_web_ui.api import mrtk_run
 from mrtklib_web_ui.api.mrtk_run import _validate_write_streams
 from mrtklib_web_ui.services import mrtk_run_service as svc
 from mrtklib_web_ui.services.mrtk_run_service import (
@@ -40,7 +41,8 @@ def test_free_path_unchanged_and_reserved(tmp_path):
     tmpl = f"{tmp_path}/%n/rovr_%n%H.ubx"
     reserved: set[str] = set()
     assert number_file_stream_path(f"{tmpl}::S=1::T", T, reserved) == f"{tmpl}::S=1::T"
-    assert reserved == {f"{tmp_path}/284/rovr_284v.ubx"}
+    target = f"{tmp_path.resolve()}/284/rovr_284v.ubx"
+    assert reserved == {target, f"{target}.tag"}
 
 
 def test_existing_file_gets_suffix(tmp_path):
@@ -74,6 +76,26 @@ def test_identical_templates_are_separated(tmp_path):
     a = number_file_stream_path(f"{tmp_path}/x.ubx", T, reserved)
     b = number_file_stream_path(f"{tmp_path}/x.ubx", T, reserved)
     assert (a, b) == (f"{tmp_path}/x.ubx", f"{tmp_path}/x_2.ubx")
+
+
+def test_aliased_paths_are_one_target(tmp_path):
+    (tmp_path / "logs").mkdir()
+    reserved: set[str] = set()
+    a = number_file_stream_path(f"{tmp_path}/out.pos", T, reserved)
+    b = number_file_stream_path(f"{tmp_path}/logs/../out.pos", T, reserved)
+    assert a == f"{tmp_path}/out.pos"
+    assert b == f"{tmp_path}/logs/../out_2.pos"
+
+
+def test_tag_file_of_another_stream_is_reserved(tmp_path):
+    reserved: set[str] = set()
+    number_file_stream_path(f"{tmp_path}/raw.ubx::T", T, reserved)
+    # A stream literally targeting raw.ubx.tag must not reuse it
+    assert number_file_stream_path(f"{tmp_path}/raw.ubx.tag", T, reserved) == f"{tmp_path}/raw.ubx_2.tag"
+    # ...and a stream whose own .tag would be another stream's file is moved too
+    reserved = set()
+    number_file_stream_path(f"{tmp_path}/x.ubx.tag", T, reserved)
+    assert number_file_stream_path(f"{tmp_path}/x.ubx::T", T, reserved) == f"{tmp_path}/x_2.ubx::T"
 
 
 def test_exhaustion_refuses_instead_of_overwriting(tmp_path, monkeypatch):
@@ -115,6 +137,18 @@ def test_accepted_write_paths(field, path):
 ])
 def test_rejected_write_paths(field, path, msg):
     assert msg in (_validate(**{field: path}) or "")
+
+
+def test_keyword_dir_symlinked_out_of_workspace_is_rejected(tmp_path, monkeypatch):
+    ws = tmp_path.resolve() / "ws"
+    outside = tmp_path.resolve() / "outside"
+    ws.mkdir()
+    outside.mkdir()
+    year = mrtk_run.gpst_now().year
+    (ws / str(year)).symlink_to(outside)
+    monkeypatch.setattr(mrtk_run, "WORKSPACE_ROOT", ws)
+    assert _validate(output_stream1=f"{ws}/%Y/new.pos") is not None
+    assert _validate(output_stream1=f"{ws}/new_%Y.pos") is None
 
 
 def test_non_file_streams_are_not_checked():

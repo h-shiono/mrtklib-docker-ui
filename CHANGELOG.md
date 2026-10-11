@@ -26,11 +26,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Fixed
 - Real-Time: a configured Output 2 no longer stays active but hidden
   after a page reload.
+- Real-Time: raw logs saved by the old Log 1–3 editor with a non-file
+  transport are sent as file logs, matching what the Save Raw switch
+  shows.
 
 ### Security
 - Real-Time: file-type outputs and raw logs must be absolute paths
-  inside `/workspace`; an empty raw-log path is rejected. An empty
-  output path still writes solutions to stdout (console).
+  inside `/workspace`, checked both as written and with time keywords
+  expanded (a keyword directory symlinked out of `/workspace` is
+  rejected); an empty raw-log path is rejected. An empty output path
+  still writes solutions to stdout (console).
 
 ## [0.1.0] - 2026-03-09
 

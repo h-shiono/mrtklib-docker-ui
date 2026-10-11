@@ -14,6 +14,8 @@ from mrtklib_web_ui.services.mrtk_run_service import (
     MrtkRunService,
     MrtkRunStartRequest,
     StreamsConfigModel,
+    expand_path_keywords,
+    gpst_now,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,9 +71,11 @@ def _validate_write_streams(streams: StreamsConfigModel) -> str | None:
     """Ensure file-type output/log streams write only inside /workspace.
 
     Returns an error message, or None when all write streams are valid.
-    The path is checked without its ``::`` file options (``::T``, ``::S=``);
-    time keywords (``%Y``, ``%n``, ...) cannot introduce traversal.
+    The path is checked without its ``::`` file options (``::T``, ``::S=``),
+    both as written and with its time keywords expanded for now, so a
+    keyword directory that is a symlink out of /workspace is rejected.
     """
+    now = gpst_now()
     targets = (
         ("Output 1", streams.output_stream1),
         ("Output 2", streams.output_stream2),
@@ -90,7 +94,12 @@ def _validate_write_streams(streams: StreamsConfigModel) -> str | None:
                 return f"{name}: file path is required"
             continue
         p = Path(base)
-        if not p.is_absolute() or not is_within(p, WORKSPACE_ROOT):
+        expanded = Path(expand_path_keywords(base, now))
+        if (
+            not p.is_absolute()
+            or not is_within(p, WORKSPACE_ROOT)
+            or not is_within(expanded, WORKSPACE_ROOT)
+        ):
             return f"{name} must be within /workspace: {base}"
     return None
 

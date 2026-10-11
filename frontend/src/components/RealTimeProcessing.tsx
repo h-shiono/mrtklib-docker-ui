@@ -197,6 +197,16 @@ function composeRawLogPath(base: string, timetag: boolean): string {
   return `${base}::S=1${timetag ? '::T' : ''}`;
 }
 
+/**
+ * Raw logs are file-only. Logs saved by the old generic Log 1-3 editor may
+ * carry another transport (tcpcli, serial, ...); treat any enabled log as a
+ * file so what the switch shows is what mrtk gets (a non-file path is then
+ * rejected at start instead of silently streaming elsewhere).
+ */
+function asRawLogFile(log: StreamConfig): StreamConfig {
+  return log.type === 'off' || log.type === 'file' ? log : { ...log, type: 'file' };
+}
+
 /** Keep an untouched default log path's extension in sync with the input format. */
 function syncRawLogFormat(
   log: StreamConfig, input: RawLogInput, oldFormat: StreamFormat, newFormat: StreamFormat,
@@ -236,7 +246,7 @@ function RawLogEditor({
         <Tooltip label="Write a .tag file so the log can be replayed in real time (file::T)" openDelay={300}>
           <div>
             <Switch size="xs" label="Time tag" checked={timetag} disabled={!enabled}
-              onChange={(e) => onChange({ ...log, path: composeRawLogPath(base, e.currentTarget.checked) })}
+              onChange={(e) => onChange({ ...log, type: 'file', path: composeRawLogPath(base, e.currentTarget.checked) })}
               styles={{ label: { fontSize: '11px' } }} />
           </div>
         </Tooltip>
@@ -244,7 +254,7 @@ function RawLogEditor({
       <Group wrap="nowrap" align="center" gap="xs">
         <Text size="xs" c="dimmed" style={LABEL_STYLE}>Raw Path</Text>
         <TextInput size="xs" value={enabled ? base : ''}
-          onChange={(e) => onChange({ ...log, path: composeRawLogPath(e.currentTarget.value, timetag) })}
+          onChange={(e) => onChange({ ...log, type: 'file', path: composeRawLogPath(e.currentTarget.value, timetag) })}
           placeholder={defaultRawLogBase(input, inputStream.format)}
           disabled={!enabled}
           style={{ flex: 1, minWidth: 0 }}
@@ -413,9 +423,9 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
     input_correction: streams.input.correction,
     output_stream1: streams.output.stream1,
     output_stream2: streams.output.stream2,
-    log_stream1: streams.log.stream1,
-    log_stream2: streams.log.stream2,
-    log_stream3: streams.log.stream3,
+    log_stream1: asRawLogFile(streams.log.stream1),
+    log_stream2: asRawLogFile(streams.log.stream2),
+    log_stream3: asRawLogFile(streams.log.stream3),
   }), [streams]);
 
   // Connect WebSocket for real-time updates
@@ -853,9 +863,9 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       'input.correction': streams.input.correction,
       'output.stream1': streams.output.stream1,
       'output.stream2': streams.output.stream2,
-      'log.stream1': streams.log.stream1,
-      'log.stream2': streams.log.stream2,
-      'log.stream3': streams.log.stream3,
+      'log.stream1': asRawLogFile(streams.log.stream1),
+      'log.stream2': asRawLogFile(streams.log.stream2),
+      'log.stream3': asRawLogFile(streams.log.stream3),
     }} />
     <PresetPanel
       opened={presetsOpened}
