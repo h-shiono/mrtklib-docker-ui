@@ -343,10 +343,11 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const [showOutput2, setShowOutput2] = useState(false);
   const outputLogCount = showOutput2 || streams.output.stream2.type !== 'off' ? 2 : 1;
   const [runStatus, setRunStatus] = useState<RunStatus>('idle');
-  // Tracks whether the user currently intends a run to be active (true between
-  // handleStart and handleStop). Updated synchronously so the WebSocket
-  // onmessage closure (created once with empty deps) never reads a stale value.
-  const runIntentRef = useRef(false);
+  // True only while /start is in flight: a "not running" status without
+  // `exited` (sent on WS connect) is stale then and must not reset the button.
+  // A ref so the WebSocket onmessage closure (created once with empty deps)
+  // never reads a stale value.
+  const startingRef = useRef(false);
   const [lastPosition, setLastPosition] = useState<PositionUpdate | null>(null);
   const [positionHistory, setPositionHistory] = useState<PositionPoint[]>([]);
   const [timeSeriesHistory, setTimeSeriesHistory] = useState<TimeSeriesPoint[]>([]);
@@ -354,6 +355,8 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const [chartViews, setChartViews] = useState<string[]>(['scatter']);
   const [satellites, setSatellites] = useState<Satellite[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
+  const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unmountedRef = useRef(false);
   const logEndRef = useRef<HTMLDivElement | null>(null);
   const MAX_HISTORY = 600;
 
@@ -428,16 +431,48 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
     log_stream3: asRawLogFile(streams.log.stream3),
   }), [streams]);
 
-  // Connect WebSocket for real-time updates
+  // WebSocket for real-time updates. Connected for the component's whole
+  // lifetime (not per run) and re-established on drop, so a reloaded page or a
+  // reconnected SSH tunnel reattaches to a run the backend is still doing.
   const connectWs = useCallback(() => {
-    if (wsRef.current) return;
+    if (wsRef.current || unmountedRef.current) return;
     const ws = mrtkRunApi.connectWs();
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'status') {
+        if (msg.type === 'history') {
+          // Sent once on connect: what the backend buffered for this run. It is
+          // authoritative, so an empty list (no run, or it ended while we were
+          // disconnected) clears positions left over from before.
+          if (Array.isArray(msg.logs)) setLogLines(msg.logs as string[]);
+          const positions = (Array.isArray(msg.positions) ? msg.positions : []) as PositionUpdate[];
+          if (positions.length === 0) {
+            setLastPosition(null);
+            setPositionHistory([]);
+            setTimeSeriesHistory([]);
+            setSatellites([]);
+          } else {
+            const pts = positions.map((p) => ({
+              timestamp: p.timestamp || '',
+              lat: p.lat,
+              lon: p.lon,
+              height: p.height || 0,
+              quality: p.quality || 0,
+              ns: p.ns || 0,
+              ratio: p.ratio || 0,
+              age: p.age || 0,
+            }));
+            setLastPosition(pts[pts.length - 1]);
+            setPositionHistory(pts.slice(-MAX_HISTORY).map((p) => (
+              { lat: p.lat, lon: p.lon, height: p.height, quality: p.quality, timestamp: p.timestamp }
+            )));
+            setTimeSeriesHistory(pts.slice(-MAX_HISTORY).map((p) => (
+              { timestamp: p.timestamp, quality: p.quality, ns: p.ns, ratio: p.ratio }
+            )));
+          }
+        } else if (msg.type === 'status') {
           // Lifecycle (button state) is driven ONLY by explicit process signals,
           // never by the per-poll rtkrcv `server_state`. That field reflects the
           // rtkrcv RTK server *thread* state (run/stop) and can read "stop" while
@@ -446,15 +481,22 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           if (msg.running === true) {
             // Positive confirmation the managed process is up (e.g. WS reconnect
             // while a run is active).
-            runIntentRef.current = true;
             setRunStatus('running');
           } else if (msg.running === false) {
-            // Only return to idle on a genuine process exit, or when we are not
-            // intending to run (stale "not running" sent right on WS connect
-            // during startup must be ignored so the button stays on Stop).
-            if (msg.exited || !runIntentRef.current) {
-              runIntentRef.current = false;
+            // Only return to idle on a genuine process exit, or when no start is
+            // in flight (stale "not running" sent right on WS connect during
+            // startup must be ignored so the button stays on Stop). Outside
+            // startup, a connect-time "not running" means the run ended while
+            // this client was disconnected.
+            if (msg.exited || !startingRef.current) {
+              // Same as a local Stop: drop the dead run's position so the map,
+              // charts and global status bar stop showing it as live (covers a
+              // process exit and a Stop issued from another tab).
               setRunStatus('idle');
+              setLastPosition(null);
+              setPositionHistory([]);
+              setTimeSeriesHistory([]);
+              setSatellites([]);
             }
           }
           if (msg.lat !== undefined) {
@@ -490,20 +532,32 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
     };
 
     ws.onclose = () => {
+      // A stale socket (already replaced or torn down) must not touch state.
+      if (wsRef.current !== ws) return;
       wsRef.current = null;
+      if (unmountedRef.current) return;
+      wsReconnectRef.current = setTimeout(() => {
+        wsReconnectRef.current = null;
+        connectWs();
+      }, 2000);
     };
   }, []);
 
-  // Disconnect WebSocket
-  const disconnectWs = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
+  useEffect(() => {
+    unmountedRef.current = false;
+    connectWs();
+    return () => {
+      unmountedRef.current = true;
+      if (wsReconnectRef.current) clearTimeout(wsReconnectRef.current);
+      wsReconnectRef.current = null;
+      const ws = wsRef.current;
       wsRef.current = null;
-    }
-  }, []);
+      ws?.close();
+    };
+  }, [connectWs]);
 
   const handleStart = async () => {
-    runIntentRef.current = true;
+    startingRef.current = true;
     setRunStatus('starting');
     setLogLines(prev => [...prev, '[INFO] Starting mrtk run -s ...']);
     try {
@@ -528,21 +582,18 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
         setRunStatus('running');
         setLogLines(prev => [...prev, `[INFO] ${resp.message}`]);
       } else {
-        runIntentRef.current = false;
         setRunStatus('error');
         setLogLines(prev => [...prev, `[ERROR] ${resp.message}`]);
-        disconnectWs();
       }
     } catch (err) {
-      runIntentRef.current = false;
       setRunStatus('error');
       setLogLines(prev => [...prev, `[ERROR] ${err instanceof Error ? err.message : String(err)}`]);
-      disconnectWs();
+    } finally {
+      startingRef.current = false;
     }
   };
 
   const handleStop = async () => {
-    runIntentRef.current = false;
     setRunStatus('stopping');
     setLogLines(prev => [...prev, '[INFO] Stopping ...']);
     try {
@@ -551,7 +602,6 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       setLastPosition(null);
       setPositionHistory([]);
       setTimeSeriesHistory([]);
-      disconnectWs();
       setLogLines(prev => [...prev, '[INFO] Stopped']);
     } catch (err) {
       setRunStatus('error');
