@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.1-alpha] - 2026-10-11
+
+### Added
+- Real-Time: per-input "Save Raw" switch (Rover / Base / Correction)
+  that records each input stream's raw bytes before decoding
+  (`streams.log.stream1/2/3`). Hourly files, default
+  `/workspace/rtlog/%Y/%n/{rovr|base|corr}_%n%H.<ext>` (GPST),
+  optional time tag (`::T`) for real-time replay.
+- Tests for file-stream numbering and write-path validation (`tests/`).
+
+### Changed
+- MRTKLIB pinned to v0.7.11 (no TOML schema changes since v0.7.6).
+- Real-Time: the generic Log 1–3 slots are replaced by the per-input
+  switches; the output list now holds Output 1/2 only.
+- Real-Time: file outputs and raw logs never overwrite an existing
+  file. If the target (or its `.tag`) exists, or another stream of the
+  same run uses it, the run writes to `_2`, `_3`, … instead. Start is
+  refused if `_2`–`_999` are all taken.
+
+### Fixed
+- Real-Time: a configured Output 2 no longer stays active but hidden
+  after a page reload.
+
+### Security
+- Real-Time: file-type outputs and raw logs must be absolute paths
+  inside `/workspace`; an empty raw-log path is rejected. An empty
+  output path still writes solutions to stdout (console).
+
 ## [0.1.0] - 2026-03-09
 
 Initial public release.
