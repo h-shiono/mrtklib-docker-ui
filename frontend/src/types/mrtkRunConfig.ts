@@ -95,4 +95,21 @@ export interface PositionUpdate {
   age: number;       // age of differential (s)
 }
 
-export type RunStatus = 'idle' | 'starting' | 'running' | 'stopping' | 'stopped' | 'error';
+/** Live state of one input stream, derived by the backend from rtkrcv `stream`. */
+export type InputStreamState = 'off' | 'connecting' | 'receiving' | 'stalled' | 'nodecode' | 'error';
+
+export interface InputStreamStatus {
+  name: 'rover' | 'base' | 'correction';
+  type: string;           // rtkrcv stream type (ntripcli, tcpcli, serial, ...; '-' = off)
+  format: string;
+  state: InputStreamState;
+  in_bytes: number;
+  in_bps: number;
+  message: string;        // current rtkrcv stream message (credentials masked)
+  decoded: number | null; // decoded messages (obs/nav/ssr/...) from `status`
+  errors: number | null;  // decode errors from `status`
+  last_error: string | null; // latched error message (survives reconnect retries)
+  hint: string | null;    // human-readable cause
+}
+
+export type RunStatus ='idle' | 'starting' | 'running' | 'stopping' | 'stopped' | 'error';

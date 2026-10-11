@@ -40,6 +40,7 @@ import type {
   StreamFormat,
   RunStatus,
   PositionUpdate,
+  InputStreamStatus,
 } from '../types/mrtkRunConfig';
 import { DEFAULT_STREAMS } from '../types/mrtkRunConfig';
 import { ProcessingConfigPanel, TomlDrawer } from './ProcessingConfigTabs';
@@ -55,6 +56,7 @@ import { TimeSeriesChart, type TimeSeriesPoint } from './TimeSeriesChart';
 import { MaskedPathInput } from './common/MaskedPathInput';
 import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { RtMetricsRow } from './RtMetricsRow';
+import { RtInputStatusRow } from './RtInputStatusRow';
 import { MapView, type PosEpoch } from './viewer';
 import { maskLogLine } from '../utils/maskPath';
 import { useFollowScroll } from '../hooks/useFollowScroll';
@@ -355,6 +357,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const [logLines, setLogLines] = useState<string[]>([]);
   const [chartViews, setChartViews] = useState<string[]>(['scatter']);
   const [satellites, setSatellites] = useState<Satellite[]>([]);
+  const [inputStreams, setInputStreams] = useState<InputStreamStatus[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
@@ -453,6 +456,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
             setPositionHistory([]);
             setTimeSeriesHistory([]);
             setSatellites([]);
+            setInputStreams([]);
           } else {
             const pts = positions.map((p) => ({
               timestamp: p.timestamp || '',
@@ -497,6 +501,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               setPositionHistory([]);
               setTimeSeriesHistory([]);
               setSatellites([]);
+              setInputStreams([]);
             }
           }
           if (msg.lat !== undefined) {
@@ -522,6 +527,9 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           }
           if (msg.satellites) {
             setSatellites(msg.satellites as Satellite[]);
+          }
+          if (Array.isArray(msg.streams)) {
+            setInputStreams(msg.streams as InputStreamStatus[]);
           }
         } else if (msg.type === 'log') {
           setLogLines(prev => [...prev.slice(-500), msg.message]);
@@ -602,6 +610,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       setLastPosition(null);
       setPositionHistory([]);
       setTimeSeriesHistory([]);
+      setInputStreams([]);
       setLogLines(prev => [...prev, '[INFO] Stopped']);
     } catch (err) {
       setRunStatus('error');
@@ -904,6 +913,8 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               </Tabs.Panel>
             </Tabs>
 
+            {/* 5. Streaming status (Rover · Base · Correction) */}
+            <RtInputStatusRow streams={inputStreams} />
           </Stack>
         </Card>
       }
