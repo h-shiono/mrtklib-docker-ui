@@ -9,7 +9,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from mrtklib_web_ui.paths import is_allowed_path
+from mrtklib_web_ui.paths import has_hidden_component, is_allowed_path
 
 logger = logging.getLogger(__name__)
 
@@ -352,7 +352,7 @@ async def preview_rinex(
     """Preview a RINEX file (header + first N epochs)."""
     target = Path(path).resolve()
 
-    if not is_allowed_path(target):
+    if not is_allowed_path(target) or has_hidden_component(target):
         raise HTTPException(status_code=403, detail="Access denied: path outside allowed directories")
 
     if not target.exists():

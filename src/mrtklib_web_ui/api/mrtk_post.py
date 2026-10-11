@@ -14,6 +14,7 @@ from mrtklib_web_ui.paths import (
     resolve_path,
     is_allowed_path,
     is_within,
+    has_hidden_component,
 )
 from mrtklib_web_ui.services import ws_manager
 from mrtklib_web_ui.services.mrtk_post_service import (
@@ -207,7 +208,7 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
 
     # Ensure output file path is strictly inside /workspace (not equal to it)
     output_path = resolve_path(request.input_files.output_file)
-    if not is_within(output_path, WORKSPACE_ROOT):
+    if not is_within(output_path, WORKSPACE_ROOT) or has_hidden_component(output_path):
         raise HTTPException(
             status_code=403,
             detail=f"Output must be within /workspace: {request.input_files.output_file}",

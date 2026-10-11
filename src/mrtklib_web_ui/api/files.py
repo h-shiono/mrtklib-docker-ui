@@ -14,6 +14,7 @@ from mrtklib_web_ui.paths import (
     CORRECTIONS_ROOT,
     resolve_path as _resolve_path,
     is_allowed_path as _is_allowed_path,
+    has_hidden_component,
 )
 
 router = APIRouter()
@@ -117,7 +118,7 @@ async def browse_directory(path: str = "/workspace") -> DirectoryListing:
     """Browse files and directories in workspace or data."""
     target_path = _resolve_path(path)
 
-    if not _is_allowed_path(target_path):
+    if not _is_allowed_path(target_path) or has_hidden_component(target_path):
         raise HTTPException(status_code=403, detail="Access denied")
 
     if not target_path.exists():
@@ -134,6 +135,8 @@ async def browse_directory(path: str = "/workspace") -> DirectoryListing:
     items: list[FileInfo] = []
     try:
         for item in sorted(target_path.iterdir(), key=lambda x: (x.is_file(), x.name)):
+            if item.name.startswith("."):
+                continue
             item_type: Literal["file", "directory"] = "directory" if item.is_dir() else "file"
             relative_path = str(item.relative_to(root))
             items.append(
@@ -158,7 +161,7 @@ async def download_file(path: str) -> FileResponse:
     """Download a file from workspace or data."""
     target_path = _resolve_path(path)
 
-    if not _is_allowed_path(target_path):
+    if not _is_allowed_path(target_path) or has_hidden_component(target_path):
         raise HTTPException(status_code=403, detail="Access denied")
 
     if not target_path.exists():
@@ -190,7 +193,7 @@ async def read_file(path: str, max_lines: int = 5000) -> FileReadResponse:
     """Read text contents of a file in workspace or data."""
     target_path = _resolve_path(path)
 
-    if not _is_allowed_path(target_path):
+    if not _is_allowed_path(target_path) or has_hidden_component(target_path):
         raise HTTPException(status_code=403, detail="Access denied")
 
     if not target_path.exists():
@@ -223,6 +226,8 @@ async def write_file(path: str, body: dict[str, Any]) -> dict[str, str]:
     resolved = target_path.resolve()
     if not (resolved == WORKSPACE_ROOT or WORKSPACE_ROOT in resolved.parents):
         raise HTTPException(status_code=403, detail="Write access denied — only /workspace is writable")
+    if has_hidden_component(resolved):
+        raise HTTPException(status_code=403, detail="Access denied")
 
     content = body.get("content", "")
     target_path.parent.mkdir(parents=True, exist_ok=True)
