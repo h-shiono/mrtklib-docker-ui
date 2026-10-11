@@ -82,6 +82,10 @@ class ProcessManager:
     # Finished ProcessInfo entries kept for status polling; older are pruned
     _MAX_FINISHED = 50
 
+    # How long start() waits for a previous run under the same ID to finish
+    # draining its pipes before cutting it off
+    _DRAIN_TIMEOUT = 2.0
+
     def set_log_callback(
         self, callback: Callable[[str, str], Awaitable[None]]
     ) -> None:
@@ -136,6 +140,21 @@ class ProcessManager:
             existing = self._process_info.get(proc_id)
             if existing and existing.state == ProcessState.RUNNING:
                 raise ValueError(f"Process {proc_id} is already running")
+
+        # A previous run under this ID (fixed IDs: CLAS pipeline, relay test)
+        # may have exited -- get_status() marks it STOPPED -- while its
+        # supervisor still drains the pipes. Let it finish first, so its
+        # tail output and exit status go out before this run starts instead
+        # of landing in this run's log and marking it stopped.
+        prev_task = self._log_tasks.get(proc_id)
+        if prev_task is not None and not prev_task.done():
+            done, _ = await asyncio.wait({prev_task}, timeout=self._DRAIN_TIMEOUT)
+            if not done:
+                prev_task.cancel()
+                try:
+                    await prev_task
+                except asyncio.CancelledError:
+                    pass
 
         # Create process info
         info = ProcessInfo(
@@ -318,8 +337,11 @@ class ProcessManager:
             info.state = ProcessState.STOPPED
             info.return_code = rc
             info.stopped_at = info.stopped_at or datetime.now()
-            await self._broadcast_log(process_id, f"[SYSTEM] Process exited (exit code: {rc})")
-            await self._broadcast_status(process_id, info.state)
+            # Announce only while this run still owns the ID: a newer run
+            # under the same ID must not be reported as stopped
+            if self._process_info.get(process_id) is info:
+                await self._broadcast_log(process_id, f"[SYSTEM] Process exited (exit code: {rc})")
+                await self._broadcast_status(process_id, info.state)
         if self._processes.get(process_id) is process:
             del self._processes[process_id]
         if self._log_tasks.get(process_id) is asyncio.current_task():

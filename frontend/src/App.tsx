@@ -875,7 +875,8 @@ function StreamServerPanel() {
   const activeStreamId = streams.some((s) => s.id === selectedStreamId) ? selectedStreamId : streams[0].id;
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
 
-  // When this page last started or stopped each relay (performance.now())
+  // When this page last started or stopped each relay, or saw it stop over
+  // the WebSocket (performance.now()): a list requested earlier is older
   const localChangeAtRef = useRef<Map<string, number>>(new Map());
 
   // Ref for process-id-to-stream-id mapping (avoids re-creating WS callback)
@@ -904,6 +905,12 @@ function StreamServerPanel() {
   useWebSocket({
     onMessage: useCallback((message: LogMessage) => {
       if (!message.process_id) return;
+      // Record a stop even for a relay not mapped yet (fresh page, list still
+      // in flight), so the older list cannot re-adopt it as running
+      if (message.type === 'status' && message.status
+          && RELAY_STATE_TO_STATUS[message.status] !== 'running') {
+        localChangeAtRef.current.set(message.process_id, performance.now());
+      }
       const streamId = processMapRef.current.get(message.process_id);
       if (!streamId) return;
 
