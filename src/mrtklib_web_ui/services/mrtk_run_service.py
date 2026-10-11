@@ -994,7 +994,7 @@ class MrtkRunService:
                     if trace_file_callback:
                         await trace_file_callback(str(tailer.path))
                 if lines and trace_callback:
-                    await trace_callback([mask_log_line(l) for l in lines])
+                    await trace_callback([mask_log_line(line) for line in lines])
                 if exited:
                     break
                 await asyncio.sleep(TRACE_POLL_INTERVAL)

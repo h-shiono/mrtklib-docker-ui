@@ -1,6 +1,5 @@
 """API router for mrtk run (real-time processing)."""
 
-import asyncio
 import json
 import logging
 from collections import deque

@@ -118,7 +118,7 @@ function StreamEditor({
       <Group wrap="nowrap" align="center" gap="xs">
         <Text size="xs" c="dimmed" style={LABEL_STYLE}>Type</Text>
         <Select size="xs" value={stream.type}
-          onChange={(v: any) => onChange({ ...stream, type: v as StreamType })}
+          onChange={(v) => onChange({ ...stream, type: v as StreamType })}
           data={STREAM_TYPES} style={{ flex: 1 }} />
       </Group>
       <Group wrap="nowrap" align="center" gap="xs">
@@ -139,7 +139,7 @@ function StreamEditor({
       <Group wrap="nowrap" align="center" gap="xs">
         <Text size="xs" c="dimmed" style={LABEL_STYLE}>Format</Text>
         <Select size="xs" value={stream.format}
-          onChange={(v: any) => onChange({ ...stream, format: v as StreamFormat })}
+          onChange={(v) => onChange({ ...stream, format: v as StreamFormat })}
           data={formats} disabled={isOff} style={{ flex: 1 }} />
       </Group>
       {showNmea && !isOff && (
@@ -152,13 +152,13 @@ function StreamEditor({
           <Group wrap="nowrap" align="center" gap="xs">
             <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Lat</Text>
             <NumberInput size="xs" value={baseStream.nmealat ?? 0}
-              onChange={(v: any) => onChange({ ...baseStream, nmealat: Number(v) })}
+              onChange={(v) => onChange({ ...baseStream, nmealat: Number(v) })}
               decimalScale={6} disabled={!baseStream.nmeareq} style={{ flex: 1 }} />
           </Group>
           <Group wrap="nowrap" align="center" gap="xs">
             <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Lon</Text>
             <NumberInput size="xs" value={baseStream.nmealon ?? 0}
-              onChange={(v: any) => onChange({ ...baseStream, nmealon: Number(v) })}
+              onChange={(v) => onChange({ ...baseStream, nmealon: Number(v) })}
               decimalScale={6} disabled={!baseStream.nmeareq} style={{ flex: 1 }} />
           </Group>
         </>

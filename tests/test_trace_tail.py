@@ -46,7 +46,7 @@ def test_skips_ahead_when_trace_outruns_reader(tmp_path):
     lines = t.read()
     assert lines[0] == "[... 2000 bytes of trace skipped ...]"
     # Only whole lines after the skip point, ending at the last one written.
-    assert all(l.startswith("line ") and len(l) == 20 for l in lines[1:])
+    assert all(line.startswith("line ") and len(line) == 20 for line in lines[1:])
     assert lines[-1] == "line 0099 xxxxxxxxxx"
     _append(p, b"next\n")
     assert t.read() == ["next"]
