@@ -443,10 +443,17 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'history') {
-          // Sent once on connect: what the backend buffered for this run.
+          // Sent once on connect: what the backend buffered for this run. It is
+          // authoritative, so an empty list (no run, or it ended while we were
+          // disconnected) clears positions left over from before.
           if (Array.isArray(msg.logs)) setLogLines(msg.logs as string[]);
           const positions = (Array.isArray(msg.positions) ? msg.positions : []) as PositionUpdate[];
-          if (positions.length > 0) {
+          if (positions.length === 0) {
+            setLastPosition(null);
+            setPositionHistory([]);
+            setTimeSeriesHistory([]);
+            setSatellites([]);
+          } else {
             const pts = positions.map((p) => ({
               timestamp: p.timestamp || '',
               lat: p.lat,
@@ -482,7 +489,14 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
             // startup, a connect-time "not running" means the run ended while
             // this client was disconnected.
             if (msg.exited || !startingRef.current) {
+              // Same as a local Stop: drop the dead run's position so the map,
+              // charts and global status bar stop showing it as live (covers a
+              // process exit and a Stop issued from another tab).
               setRunStatus('idle');
+              setLastPosition(null);
+              setPositionHistory([]);
+              setTimeSeriesHistory([]);
+              setSatellites([]);
             }
           }
           if (msg.lat !== undefined) {
