@@ -9,7 +9,14 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from mrtklib_web_ui.paths import has_hidden_component, is_allowed_path
+from mrtklib_web_ui.paths import (
+    DATA_ROOT,
+    WORKSPACE_ROOT,
+    has_hidden_component,
+    is_allowed_path,
+    is_within,
+    resolve_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +142,34 @@ def build_convert_cmd(req: ConvertRequest) -> list[str]:
     return cmd
 
 
+def _validate_convert_paths(req: ConvertRequest) -> str | None:
+    """Resolve the request's paths in place; return an error message if any is not allowed.
+
+    Without -d, convbin writes the outputs not named by -o/-n next to the
+    input file, so the input must come from /workspace or the read-only
+    /data mount. Outputs must be inside /workspace.
+    """
+    inp = resolve_path(req.input_file)
+    if not (is_within(inp, WORKSPACE_ROOT) or is_within(inp, DATA_ROOT)) or has_hidden_component(inp):
+        return f"Input file must be within /workspace or /data: {req.input_file}"
+    req.input_file = str(inp)
+    for field, label in (("output_obs", "Observation file"), ("output_nav", "Navigation file")):
+        value = getattr(req, field)
+        if not value:
+            continue
+        out = resolve_path(value)
+        if not is_within(out, WORKSPACE_ROOT) or has_hidden_component(out):
+            return f"{label} must be within /workspace: {value}"
+        setattr(req, field, str(out))
+    if req.output_dir:
+        out_dir = resolve_path(req.output_dir)
+        inside = out_dir == WORKSPACE_ROOT.resolve() or is_within(out_dir, WORKSPACE_ROOT)
+        if not inside or has_hidden_component(out_dir):
+            return f"Output directory must be within /workspace: {req.output_dir}"
+        req.output_dir = str(out_dir)
+    return None
+
+
 class ConvertResponse(BaseModel):
     status: str
     message: str
@@ -147,6 +182,9 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
     global _process
     if _process and _process.returncode is None:
         return ConvertResponse(status="error", message="Conversion already running")
+
+    if err := _validate_convert_paths(request):
+        return ConvertResponse(status="error", message=err)
 
     cmd = build_convert_cmd(request)
     cmd_str = " ".join(cmd)
