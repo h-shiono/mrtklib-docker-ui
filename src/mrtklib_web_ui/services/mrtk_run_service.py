@@ -234,28 +234,44 @@ def _with_suffix_number(base: str, n: int) -> str:
     return f"{head}{sep}{name}"
 
 
-def number_file_stream_path(path: str, t: datetime) -> str:
+_MAX_SUFFIX_NUMBER = 999
+
+
+def number_file_stream_path(path: str, t: datetime, reserved: set[str]) -> str:
     """Avoid overwriting an existing file on (re)start.
 
     mrtk opens write file streams with "wb", so restarting within the same
     keyword period (e.g. the same %H hour) truncates the earlier file. If the
-    file the stream would open now (or its .tag) exists, insert _2, _3, ...
-    into the template so this run writes alongside it. The suffix stays for
-    the whole run, including later ::S swaps.
+    file the stream would open now (or its .tag) exists, or another stream of
+    this run already claimed it (``reserved``), insert _2, _3, ... into the
+    template so this run writes alongside it. The suffix stays for the whole
+    run, including later ::S swaps. The chosen path is added to ``reserved``.
+
+    Raises RuntimeError when no free name is left, rather than overwriting.
     """
     base, sep, opts = path.partition("::")
+    # Empty path = stdout; nothing on disk to protect
+    if not base.strip():
+        return path
+
+    def target(b: str) -> str:
+        return str(Path(expand_path_keywords(b, t)))
 
     def taken(b: str) -> bool:
-        p = Path(expand_path_keywords(b, t))
-        return p.exists() or Path(f"{p}.tag").exists()
+        p = target(b)
+        return p in reserved or Path(p).exists() or Path(f"{p}.tag").exists()
 
-    if not base.strip() or not taken(base):
-        return path
-    for n in range(2, 1000):
+    candidate = base
+    n = 1
+    while taken(candidate):
+        n += 1
+        if n > _MAX_SUFFIX_NUMBER:
+            raise RuntimeError(
+                f"No free file name for {target(base)} (_2.._{_MAX_SUFFIX_NUMBER} all exist)"
+            )
         candidate = _with_suffix_number(base, n)
-        if not taken(candidate):
-            return f"{candidate}{sep}{opts}"
-    return path
+    reserved.add(target(candidate))
+    return f"{candidate}{sep}{opts}"
 
 
 # ── Pydantic models ──────────────────────────────────────────────────────────
@@ -385,15 +401,16 @@ class MrtkRunService:
         # Number file outputs/logs that would overwrite an existing file
         streams = request.streams.model_copy(deep=True)
         now = _gpst_now()
+        reserved: set[str] = set()
         for name in ("output_stream1", "output_stream2", "log_stream1", "log_stream2", "log_stream3"):
             s: StreamConfigModel = getattr(streams, name)
             if s.type != "file":
                 continue
-            numbered = number_file_stream_path(s.path, now)
+            numbered = number_file_stream_path(s.path, now, reserved)
             if numbered != s.path:
                 s.path = numbered
                 if log_callback:
-                    await log_callback(f"[INFO] {name}: existing file kept, writing to {numbered}")
+                    await log_callback(f"[INFO] {name}: target in use, writing to {numbered}")
 
         # Generate config
         toml_content = self.generate_run_toml(request.config, streams)
