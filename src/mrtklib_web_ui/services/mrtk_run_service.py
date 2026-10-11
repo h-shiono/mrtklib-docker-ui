@@ -215,6 +215,18 @@ _STREAM_ERROR_PATTERN = re.compile(
     r"error|timeout|disconnect|no mountp|sourcetable|unauthori|forbidden|not found|HTTP/\d",
     re.IGNORECASE,
 )
+# A connected stream reports just its address: "host" (tcp) or
+# "host/mountpoint" (ntrip). Words in those names are not errors.
+_STREAM_ADDRESS_PATTERN = re.compile(r"^(?!HTTP/)[^\s]*[.:/][^\s]*$", re.IGNORECASE)
+
+
+def is_stream_error(message: str) -> bool:
+    """Whether a stream message reports an error (not a connection name)."""
+    message = message.strip()
+    if _STREAM_ADDRESS_PATTERN.match(message):
+        return False
+    return bool(_STREAM_ERROR_PATTERN.search(message))
+
 
 # (pattern, hint) — first match wins
 _STREAM_ERROR_HINTS: list[tuple[re.Pattern, str]] = [
@@ -337,7 +349,7 @@ class InputStreamTracker:
             self._prev_bytes[name] = in_bytes
 
             # Latch an error until fresh data arrives under a non-error message
-            if _STREAM_ERROR_PATTERN.search(message):
+            if is_stream_error(message):
                 self._last_error[name] = message
             elif fresh:
                 self._last_error.pop(name, None)

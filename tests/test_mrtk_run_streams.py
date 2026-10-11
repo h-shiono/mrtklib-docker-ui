@@ -165,3 +165,27 @@ def test_tracker_masks_credentials_in_message():
         parse_stream_output(_row(1, "ntripcli", 0, 0, "user:secret@host error")), {}, 0.0
     )
     assert "secret" not in entries[0]["message"]
+
+
+def test_connection_name_with_error_words_is_not_an_error():
+    t = InputStreamTracker()
+    t.update(parse_stream_output(_row(1, "ntripcli", 0, 0, "connecting...")), {}, 0.0)
+    for i, msg in enumerate(("caster.example.com/ERROR_TEST", "timeout.example.com/NOTFOUND")):
+        entries, events = t.update(
+            parse_stream_output(_row(1, "ntripcli", 500 * (i + 1), 4000, msg)), {}, 1.0 + i
+        )
+        assert entries[0]["state"] == "receiving", msg
+        assert entries[0]["last_error"] is None
+    assert not any("WARN" in e for e in events)
+
+
+def test_is_stream_error():
+    from mrtklib_web_ui.services.mrtk_run_service import is_stream_error
+
+    for msg in ("127.0.0.1/GOOD", "caster:2101/forbidden_mnt", "errors.example.com", "connecting..."):
+        assert not is_stream_error(msg), msg
+    for msg in (
+        "recv error (61)", "timeout", "no mountp. reconnect...",
+        "HTTP/1.0 401 Unauthorized", "SOURCETABLE 200 OK\r\r\nContent-Typ",
+    ):
+        assert is_stream_error(msg), msg
