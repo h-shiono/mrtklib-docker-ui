@@ -24,29 +24,93 @@ KNOWN_KEYS = {(section, key) for _, section, key, _ in MAPPING}
 NOT_EMITTED = {
     # Legacy alias; v0.7.6 uses positioning.clas.resilience.l6_merge.
     "server.l6_margin",
+    # Passed on the command line (mrtk post -x / mrtk run -t), not in TOML.
+    "output.debug_trace",
+    # UI state that always mirrors whether `signals` is set (the form sets
+    # both together); the generator decides from `signals` itself.
+    "positioning.signal_mode",
+}
+
+# A valid non-default value for every string field with a non-empty
+# default (option lists from frontend/src/types/mrtkPostConfig.ts and the
+# form). Empty-default strings get a path; numbers and lists are shifted.
+ALT_VALUES = {
+    "positioning.positioning_mode": "static",
+    "positioning.correction": "igs",
+    "positioning.frequency": "l1+l2+l5",
+    "positioning.signal_mode": "signals",
+    "positioning.filter_type": "combined",
+    "positioning.receiver_dynamics": "on",
+    "positioning.ephemeris_option": "precise",
+    "positioning.robust": "on",
+    "positioning.tdcp": "on",
+    "positioning.corrections.phase_windup": "on",
+    "positioning.corrections.iono_compensation": "ssr",
+    "positioning.corrections.gps_frequency": "l1+l5",
+    "positioning.corrections.qzs_frequency": "l1+l5",
+    "positioning.corrections.tidal_correction": "on",
+    "positioning.atmosphere.ionosphere": "dual-freq",
+    "positioning.atmosphere.troposphere": "est-ztd",
+    "positioning.clas.enhanced_spp_seed": "cn0+tdcp+robust",
+    "ambiguity_resolution.mode": "fix-and-hold",
+    "ambiguity_resolution.glonass_ar": "autocal",
+    "ambiguity_resolution.bds_ar": "off",
+    "ambiguity_resolution.qzs_ar": "off",
+    "ambiguity_resolution.thresholds.alpha": "1%",
+    "ambiguity_resolution.thresholds.reference_dop": "sd",
+    "signal_selection.gps": "L1/L5",
+    "signal_selection.qzs": "L1/L2",
+    "signal_selection.galileo": "E1/E5b",
+    "signal_selection.bds2": "B1I/B2I",
+    "signal_selection.bds3": "B1I/B2I",
+    "receiver.phase_shift": "table",
+    "antenna.rover.mode": "xyz",
+    "antenna.base.mode": "xyz",
+    "output.solution_format": "xyz",
+    "output.time_format": "utc",
+    "output.lat_lon_format": "ddd-mm-ss.sss",
+    "output.height": "geodetic",
+    "output.geoid_model": "egm96",
+    "output.static_solution_mode": "single",
+    "output.output_solution_status": "state",
+    "output.debug_trace": "level2",
+    "server.nav_msg_select": "rover",
+    "server.sbas_satellite": "129",
 }
 
 svc = MrtkPostService()
 
 
-def _perturb(model: BaseModel) -> BaseModel:
+def _shift(v):
+    """Numbers (also inside nested lists) moved off their default."""
+    if isinstance(v, list):
+        return [_shift(x) for x in v]
+    if isinstance(v, bool):
+        return not v
+    if isinstance(v, int):
+        return v + 1
+    if isinstance(v, float):
+        return v + 1.5
+    return v
+
+
+def _perturb(model: BaseModel, path=()) -> BaseModel:
     """Every leaf set to a non-default value of its type."""
     upd = {}
     for name, field in type(model).model_fields.items():
         v = getattr(model, name)
+        dotted = ".".join(path + (name,))
         if isinstance(v, BaseModel):
-            upd[name] = _perturb(v)
+            upd[name] = _perturb(v, path + (name,))
+        elif dotted in ALT_VALUES:
+            upd[name] = ALT_VALUES[dotted]
         elif typing.get_origin(field.annotation) is typing.Literal:
             others = [a for a in typing.get_args(field.annotation) if a != v]
             upd[name] = others[0] if others else v
-        elif isinstance(v, bool):
-            upd[name] = not v
-        elif isinstance(v, int):
-            upd[name] = v + 1
-        elif isinstance(v, float):
-            upd[name] = v + 1.5
         elif isinstance(v, str):
             upd[name] = v or "/workspace/x.dat"
+        else:
+            upd[name] = _shift(v)
     return model.model_copy(update=upd)
 
 
@@ -81,10 +145,7 @@ def _flat_keys(d, prefix=""):
 
 def _max_config(mode: str) -> MrtkPostConfig:
     cfg = _perturb(MrtkPostConfig())
-    cfg = _set(cfg, ("positioning", "positioning_mode"), mode)
-    # String enums are not perturbed; turn on the options that gate keys.
-    cfg = _set(cfg, ("positioning", "robust"), "on")
-    return _set(cfg, ("positioning", "tdcp"), "on")
+    return _set(cfg, ("positioning", "positioning_mode"), mode)
 
 
 @pytest.mark.parametrize("mode", MODES)
@@ -95,10 +156,18 @@ def test_generated_toml_parses_and_uses_known_keys(mode):
         assert not unknown, f"keys not in the MRTKLIB schema: {sorted(unknown)}"
 
 
+def test_every_config_field_is_perturbed():
+    """The coverage test below is only as good as this: every leaf must get a
+    non-default value (add new string fields to ALT_VALUES)."""
+    base, pert = MrtkPostConfig(), _perturb(MrtkPostConfig())
+    unchanged = [".".join(p) for p in _leaves(base) if _get(pert, p) == _get(base, p)]
+    assert not unchanged, f"add a non-default value to ALT_VALUES for: {unchanged}"
+
+
 def test_every_config_field_reaches_the_toml():
     """Changing any field must change the output in at least one mode."""
     base = MrtkPostConfig()
-    fields = [p for p in _leaves(base) if _get(_max_config("kinematic"), p) != _get(base, p)]
+    fields = list(_leaves(base))
     unreached = {".".join(p) for p in fields}
     for mode in MODES:
         cfg = _max_config(mode)
