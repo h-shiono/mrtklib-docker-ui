@@ -235,9 +235,10 @@ export function ResultViewer({
         py={4}
         style={{ height: controlBarHeight, flexShrink: 0 }}
       >
-        <Group gap="xs">
+        <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
           <SegmentedControl
             size="xs"
+            style={{ flexShrink: 0 }}
             value={viewMode}
             onChange={(v) => setViewMode(v as ViewMode)}
             data={[
