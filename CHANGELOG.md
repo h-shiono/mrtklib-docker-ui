@@ -51,6 +51,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - `mrtk post` output is always drained, so a run without log callbacks
   cannot hang.
 - Real-Time: the console is no longer sent a guessed `admin` password.
+- Map (Real-Time and Result Viewer): the dark-mode basemap showed "API KEY
+  REQUIRED" tiles, because CARTO's `dark_all` now needs an API key. Dark
+  mode now uses OpenStreetMap tiles darkened with a CSS filter.
 - Healthcheck start period aligned to 10 s (Dockerfile and compose).
 
 ### Security

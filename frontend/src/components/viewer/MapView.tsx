@@ -13,15 +13,13 @@ interface MapViewProps {
   timeSystem?: string;
 }
 
-const TILE_URLS = {
-  light: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-};
-
-const TILE_ATTRIBUTIONS = {
-  light: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  dark: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-};
+// OpenStreetMap tiles in both themes. Dark mode darkens them with a CSS
+// filter on the tile layer (.mrtk-tiles-dark in index.css) instead of a
+// dark tile service: CARTO's dark_all now answers keyless requests with an
+// "API KEY REQUIRED" image, and this app ships without third-party keys.
+const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILE_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
 /** Sub-component that auto-fits map bounds when data changes */
 function AutoFitBounds({ data }: { data: PosEpoch[] }) {
@@ -92,8 +90,11 @@ export function MapView({ data, height, timeSystem = 'GPST' }: MapViewProps) {
       style={{ height, width: '100%' }}
     >
       <TileLayer
-        attribution={isDark ? TILE_ATTRIBUTIONS.dark : TILE_ATTRIBUTIONS.light}
-        url={isDark ? TILE_URLS.dark : TILE_URLS.light}
+        // className is fixed when Leaflet creates the layer; remount on theme change.
+        key={isDark ? 'dark' : 'light'}
+        attribution={TILE_ATTRIBUTION}
+        url={TILE_URL}
+        className={isDark ? 'mrtk-tiles-dark' : undefined}
       />
       <AutoFitBounds data={validData} />
       {displayData.map((epoch, i) => (
