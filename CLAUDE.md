@@ -10,7 +10,7 @@ monitoring from a browser without compiling anything.
 - **MRTKLIB version:** 0.7.11 (pinned in `.mrtklib-version`)
 - **Unified binary:** `mrtk` with subcommands (`post`, `run`, `relay`,
   `convert`, `ssr2obs`, `ssr2osr`, `bias`, `dump`, `cssr2rtcm3`)
-- **UI version:** v0.3.2-alpha (next: v0.4.0-alpha)
+- **UI version:** v0.3.3-alpha (next: v0.4.0-alpha)
 
 ## Tech Stack
 

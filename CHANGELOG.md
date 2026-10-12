@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.3.3-alpha] - 2026-10-12
+
 ### Upgrade notes
 - `uv.lock` is now tracked; Docker builds with `uv sync --frozen` and CI
   with `uv sync --locked`. After changing dependencies in
