@@ -2613,6 +2613,18 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
+
+                {/* [output] max_solution_std — 0 = no limit */}
+                <Group wrap="nowrap" align="center" gap="xs">
+                  <OptionLabel metaKey="output.max_solution_std" style={OPT_LABEL_STYLE} />
+                  <NumberInput size="xs" aria-label="Max solution std (m)" value={config.output.maxSolutionStd}
+                    onChange={(value: string | number) => handleConfigChange({
+                      ...config,
+                      output: { ...config.output, maxSolutionStd: typeof value === 'number' ? value : 0 },
+                    })}
+                    min={0} step={0.1} decimalScale={3} hideControls placeholder="0 = no limit"
+                    style={{ flex: 1, minWidth: 0 }} />
+                </Group>
               </Stack>
             </Stack>
           )}
