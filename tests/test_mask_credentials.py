@@ -24,8 +24,13 @@ from mrtklib_web_ui.services.mask_credentials import mask_log_line
         ("GSI_PASSWORD=hunter2", "GSI_PASSWORD=***"),
         # auth headers
         ("Authorization: Bearer eyJhbGci.x.y", "Authorization: Bearer ***"),
+        ("Authorization: Basic dXNlcjpwYXNz", "Authorization: Basic ***"),
+        ("sent Bearer abcdefghijklmnop0123", "sent Bearer ***"),
         # untouched
         ("/dev/ttyUSB0:115200", "/dev/ttyUSB0:115200"),
+        ("[INFO] Basic Strategy: single", "[INFO] Basic Strategy: single"),
+        ("bearer of bad news", "bearer of bad news"),
+        ('"max_tokens": 16', '"max_tokens": 16'),
         ("12:34:56.0 Q=1 ns=12", "12:34:56.0 Q=1 ns=12"),
         ("tcpcli://192.168.1.10:2101", "tcpcli://192.168.1.10:2101"),
         ("https://example.com:8080/path@x", "https://example.com:8080/path@x"),

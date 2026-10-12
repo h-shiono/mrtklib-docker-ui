@@ -38,5 +38,8 @@ export function maskLogLine(line: string): string {
         return `${key}${q}***${q}`;
       },
     )
-    .replace(/(\b(?:Bearer|Basic)\s+)[A-Za-z0-9._~+/=-]+/gi, (_, p) => `${p}***`);
+    .replace(
+      /(\bAuthorization:\s*(?:Bearer|Basic)\s+|\bBearer\s+(?=[A-Za-z0-9._~+/=-]{16,}))[A-Za-z0-9._~+/=-]+/gi,
+      (_, p) => `${p}***`,
+    );
 }

@@ -16,8 +16,13 @@ _ASSIGNED_SECRET = re.compile(
     r"""(\b\w*(?:password|passwd|token|api_key|apikey|secret)\w*\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,&]+)""",
     re.IGNORECASE,
 )
-# Authorization: Bearer <token> / Basic <base64>
-_AUTH_HEADER = re.compile(r"(\b(?:Bearer|Basic)\s+)[A-Za-z0-9._~+/=-]+", re.IGNORECASE)
+# "Authorization: Bearer|Basic <value>", or a bare "Bearer <long token>".
+# "Basic" alone is an ordinary word ("Basic Strategy"), so it needs the header.
+_AUTH_HEADER = re.compile(
+    r"(\bAuthorization:\s*(?:Bearer|Basic)\s+|\bBearer\s+(?=[A-Za-z0-9._~+/=-]{16,}))"
+    r"[A-Za-z0-9._~+/=-]+",
+    re.IGNORECASE,
+)
 
 
 def _mask_assigned(m: re.Match[str]) -> str:
