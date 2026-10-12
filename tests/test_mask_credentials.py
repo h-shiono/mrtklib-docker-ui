@@ -17,6 +17,11 @@ from mrtklib_web_ui.services.mask_credentials import mask_log_line
         # ... or '/'
         ("user:pa/ss@caster:2101/MOUNT", "user:***@caster:2101/MOUNT"),
         ("ntrip://user:pa/ss@caster:2101/MOUNT", "ntrip://user:***@caster:2101/MOUNT"),
+        # e-mail user names (rtk2go)
+        ("ntrip://me@example.com:pass@rtk2go.com:2101/M", "ntrip://me@example.com:***@rtk2go.com:2101/M"),
+        ('path = "me@example.com:pa/ss@rtk2go.com:2101/M"', 'path = "me@example.com:***@rtk2go.com:2101/M"'),
+        ("-in ntrip://a.b@c.jp:x@y@h:2101/M", "-in ntrip://a.b@c.jp:***@h:2101/M"),
+        ("me@example.com:pass@rtk2go.com:2101/M", "me@example.com:***@rtk2go.com:2101/M"),
         ('path = "u:a/b@c@caster:2101/M"', 'path = "u:***@caster:2101/M"'),
         # query-string secrets
         ("GET https://h/x?token=abc123&n=1", "GET https://h/x?token=***&n=1"),

@@ -1,7 +1,7 @@
 /**
  * Masks the password portion of a stream path string.
  * Handles NTRIP format: [user[:passwd]@]addr[:port][/mntpnt]
- * Passwords containing '@' are not supported (not used in NTRIP).
+ * The user may be an e-mail address; the password may contain '@' or '/'.
  *
  * Examples:
  *   "user:pass@rtk2go.com:2101/MOUNT" → "user:***@rtk2go.com:2101/MOUNT"
@@ -11,8 +11,10 @@
  */
 export function maskPath(path: string): string {
   if (!path) return path;
+  // Password runs to the last '@' ('@' / '/' allowed); the user may be an
+  // e-mail address (rtk2go). Same rules as maskLogLine.
   return path.replace(
-    /^([^:@/]+):([^@]+)@/,
+    /^([^:/\s]+):(?!\/\/)(.*)@/,
     (_, user) => `${user}:***@`
   );
 }
@@ -26,7 +28,7 @@ export function maskPath(path: string): string {
  */
 export function maskLogLine(line: string): string {
   return line
-    .replace(/(?:^|(?<=[\s"'=])|(?<=\/\/))([^:@/\s"']+):(?!\/\/)(\S*)@/g, (_, user) => `${user}:***@`)
+    .replace(/(?:^|(?<=[\s"'=])|(?<=\/\/))([^:/\s"']+):(?!\/\/)(\S*)@/g, (_, user) => `${user}:***@`)
     .replace(
       /([?&](?:password|passwd|pass|pwd|token|access_token|api_key|apikey|key|secret)=)[^&\s]+/gi,
       (_, key) => `${key}***`,

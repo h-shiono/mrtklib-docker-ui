@@ -6,8 +6,9 @@ import re
 # of the whitespace-free token, so one containing '@' or '/' is masked whole.
 # The user must start a token (line start, whitespace, quote, '=', or after
 # "scheme://"), and "scheme://" itself is skipped, so "ntrip://user:pass@" is
-# not read as user "ntrip".
-_USERINFO = re.compile(r"""(?:^|(?<=[\s"'=])|(?<=//))([^:@/\s"']+):(?!//)(\S*)@""")
+# not read as user "ntrip". The user may contain '@': NTRIP casters such as
+# rtk2go use an e-mail address as the user name.
+_USERINFO = re.compile(r"""(?:^|(?<=[\s"'=])|(?<=//))([^:/\s"']+):(?!//)(\S*)@""")
 # ?token=... / &api_key=... in URLs
 _QUERY_SECRET = re.compile(
     r"([?&](?:password|passwd|pass|pwd|token|access_token|api_key|apikey|key|secret)=)[^&\s]+",
