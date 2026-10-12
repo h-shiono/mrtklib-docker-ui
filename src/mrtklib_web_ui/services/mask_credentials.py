@@ -2,9 +2,43 @@
 
 import re
 
-_CRED_PATTERN = re.compile(r'([^:@/\s]+):([^@\s]+)@')
+# user:pass@ (NTRIP / stream paths, URLs). The password runs to the last '@'
+# of the whitespace-free token, so one containing '@' or '/' is masked whole.
+# The user must start a token (line start, whitespace, quote, '=', or after
+# "scheme://"), and "scheme://" itself is skipped, so "ntrip://user:pass@" is
+# not read as user "ntrip". The user may contain '@': NTRIP casters such as
+# rtk2go use an e-mail address as the user name.
+_USERINFO = re.compile(r"""(?:^|(?<=[\s"'=])|(?<=//))([^:/\s"']+):(?!//)(\S*)@""")
+# ?token=... / &api_key=... in URLs
+_QUERY_SECRET = re.compile(
+    r"([?&](?:password|passwd|pass|pwd|token|access_token|api_key|apikey|key|secret)=)[^&\s]+",
+    re.IGNORECASE,
+)
+# password = "...", api_key: '...' (TOML / config dumps); the key may carry a
+# prefix such as `user_password` or `GSI_PASSWORD`.
+_ASSIGNED_SECRET = re.compile(
+    r"""(\b\w*(?:password|passwd|token|api_key|apikey|secret)\w*\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,&]+)""",
+    re.IGNORECASE,
+)
+# "Authorization: Bearer|Basic <value>", or a bare "Bearer <long token>".
+# "Basic" alone is an ordinary word ("Basic Strategy"), so it needs the header.
+_AUTH_HEADER = re.compile(
+    r"(\bAuthorization:\s*(?:Bearer|Basic)\s+|\bBearer\s+(?=[A-Za-z0-9._~+/=-]{16,}))"
+    r"[A-Za-z0-9._~+/=-]+",
+    re.IGNORECASE,
+)
+
+
+def _mask_assigned(m: re.Match[str]) -> str:
+    value = m.group(2)
+    quote = value[0] if value[:1] in ("'", '"') else ""
+    return f"{m.group(1)}{quote}***{quote}"
 
 
 def mask_log_line(line: str) -> str:
-    """Mask user:pass@ patterns in log output."""
-    return _CRED_PATTERN.sub(lambda m: f'{m.group(1)}:***@', line)
+    """Mask credentials in a log line (user:pass@, secret query params,
+    secret-looking assignments and Authorization headers)."""
+    line = _USERINFO.sub(lambda m: f"{m.group(1)}:***@", line)
+    line = _QUERY_SECRET.sub(lambda m: f"{m.group(1)}***", line)
+    line = _ASSIGNED_SECRET.sub(_mask_assigned, line)
+    return _AUTH_HEADER.sub(lambda m: f"{m.group(1)}***", line)

@@ -71,12 +71,13 @@ ENV SETUPTOOLS_SCM_PRETEND_VERSION=${APP_VERSION}
 WORKDIR /app
 
 # Copy pyproject.toml, lock file, README, and source
-COPY pyproject.toml uv.lock* README.md ./
+COPY pyproject.toml uv.lock README.md ./
 COPY src/ ./src/
 
-# Install dependencies (frozen if lock exists)
+# Install exactly the locked dependency versions (no fallback: a stale or
+# missing uv.lock must fail the build, not silently resolve fresh versions)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev || uv sync --no-dev
+    uv sync --frozen --no-dev
 
 # ================================
 # Stage 4: Runtime
@@ -141,7 +142,7 @@ RUN mkdir -p /workspace
 EXPOSE 8000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" || exit 1
 
 # Run the application as PUID:PGID (see docker/entrypoint.sh)

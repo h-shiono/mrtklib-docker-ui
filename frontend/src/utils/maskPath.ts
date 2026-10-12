@@ -1,7 +1,7 @@
 /**
  * Masks the password portion of a stream path string.
  * Handles NTRIP format: [user[:passwd]@]addr[:port][/mntpnt]
- * Passwords containing '@' are not supported (not used in NTRIP).
+ * The user may be an e-mail address; the password may contain '@' or '/'.
  *
  * Examples:
  *   "user:pass@rtk2go.com:2101/MOUNT" → "user:***@rtk2go.com:2101/MOUNT"
@@ -11,19 +11,37 @@
  */
 export function maskPath(path: string): string {
   if (!path) return path;
+  // Password runs to the last '@' ('@' / '/' allowed); the user may be an
+  // e-mail address (rtk2go). Same rules as maskLogLine.
   return path.replace(
-    /^([^:@/]+):([^@]+)@/,
+    /^([^:/\s]+):(?!\/\/)(.*)@/,
     (_, user) => `${user}:***@`
   );
 }
 
 /**
- * Same mask applied to a full log line.
- * Masks any occurrence of user:pass@ pattern in the line.
+ * Mask credentials in a full log line. Mirrors the backend's
+ * services/mask_credentials.py (the backend masks before broadcasting; this
+ * is a second line of defence for lines composed in the browser):
+ * user:pass@ (password up to the last '@', may contain '/'), secret query parameters,
+ * secret-looking assignments, and Authorization Bearer/Basic values.
  */
 export function maskLogLine(line: string): string {
-  return line.replace(
-    /([^:@/\s]+):([^@\s]+)@/g,
-    (_, user) => `${user}:***@`
-  );
+  return line
+    .replace(/(?:^|(?<=[\s"'=])|(?<=\/\/))([^:/\s"']+):(?!\/\/)(\S*)@/g, (_, user) => `${user}:***@`)
+    .replace(
+      /([?&](?:password|passwd|pass|pwd|token|access_token|api_key|apikey|key|secret)=)[^&\s]+/gi,
+      (_, key) => `${key}***`,
+    )
+    .replace(
+      /(\b\w*(?:password|passwd|token|api_key|apikey|secret)\w*\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,&]+)/gi,
+      (_, key, value: string) => {
+        const q = value[0] === '"' || value[0] === "'" ? value[0] : '';
+        return `${key}${q}***${q}`;
+      },
+    )
+    .replace(
+      /(\bAuthorization:\s*(?:Bearer|Basic)\s+|\bBearer\s+(?=[A-Za-z0-9._~+/=-]{16,}))[A-Za-z0-9._~+/=-]+/gi,
+      (_, p) => `${p}***`,
+    );
 }
