@@ -68,8 +68,6 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm AS backend-builder
 ARG APP_VERSION=0.0.0
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=${APP_VERSION}
 
-ARG INSTALL_QC=1
-
 WORKDIR /app
 
 # Copy pyproject.toml, lock file, README, and source
@@ -78,8 +76,7 @@ COPY src/ ./src/
 
 # Install dependencies (frozen if lock exists)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    EXTRA=$([ "$INSTALL_QC" = "1" ] && echo "--extra qc" || true); \
-    uv sync --frozen --no-dev $EXTRA || uv sync --no-dev $EXTRA
+    uv sync --frozen --no-dev || uv sync --no-dev
 
 # ================================
 # Stage 4: Runtime
