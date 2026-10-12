@@ -279,13 +279,9 @@ uv sync
 uv run uvicorn mrtklib_web_ui.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The QC Preview option needs the optional `qc` extra (cssrlib):
-
-```bash
-uv sync --extra qc
-```
-
-Docker builds include it by default; set `INSTALL_QC=0` in `.env` to skip it.
+> **Note:** QC Preview is temporarily disabled (the button is greyed out and
+> `/api/obs-qc/analyze` returns 503) until it is integrated with MRTKLIB QC.
+> The previous cssrlib-based implementation and its `qc` extra were removed.
 
 Run the backend tests (pytest is in the `dev` dependency group):
 

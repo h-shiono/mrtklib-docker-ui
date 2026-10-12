@@ -7,8 +7,6 @@ services:
         APP_VERSION: ${APP_VERSION:-0.0.0}
         # Empty = the version pinned in .mrtklib-version
         MRTKLIB_BRANCH: ${MRTKLIB_BRANCH:-}
-        # QC Preview support through cssrlib. Set INSTALL_QC=0 in .env to disable it.
-        INSTALL_QC: ${INSTALL_QC:-1}
     ports:
       - "8080:8000"
     volumes:
