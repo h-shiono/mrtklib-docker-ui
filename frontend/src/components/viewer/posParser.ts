@@ -60,7 +60,24 @@ function detectFormat(lines: string[]): PosFormat {
   return 'llh';
 }
 
-/** Parse "YYYY/MM/DD HH:MM:SS.sss" or "WEEK TOW" time; returns null on failure. */
+/**
+ * Time system of a column .pos file, from MRTKLIB's column header line
+ * ("%  GPST          latitude(deg) ..."; also UTC / JST). Defaults to GPST.
+ */
+function detectTimeSystem(headerLines: string[]): string {
+  for (const line of headerLines) {
+    const m = line.match(/^%\s*(GPST|UTC|JST)\b/);
+    if (m) return m[1];
+  }
+  return 'GPST';
+}
+
+/**
+ * Parse "YYYY/MM/DD HH:MM:SS.sss" or "WEEK TOW" time; returns null on failure.
+ * Times are kept in the file's own time system (see detectTimeSystem), never
+ * shifted: MRTKLIB writes both formats in the configured system, so no leap
+ * second correction applies. The Date's UTC fields carry that system's clock.
+ */
 function parseColumnTime(parts: string[]): Date | null {
   if (parts[0].includes('/')) {
     const time = new Date(`${parts[0].replace(/\//g, '-')}T${parts[1]}Z`);
@@ -70,8 +87,7 @@ function parseColumnTime(parts: string[]): Date | null {
   const tow = parseFloat(parts[1]);
   if (isNaN(week) || isNaN(tow)) return null;
   const GPS_EPOCH_MS = Date.UTC(1980, 0, 6);
-  // Approximate: assume current leap seconds (18 s GPS→UTC offset).
-  const time = new Date(GPS_EPOCH_MS + (week * 604800 + tow - 18) * 1000);
+  const time = new Date(GPS_EPOCH_MS + (week * 604800 + tow) * 1000);
   return isNaN(time.getTime()) ? null : time;
 }
 
@@ -302,5 +318,7 @@ export function parsePosFile(content: string, fileName?: string): PosFileData {
     epochs,
     headerRefPos: parseHeaderRefPos(headerLines),
     notice,
+    // NMEA (GGA/RMC/ZDA) times are UTC by definition.
+    timeSystem: fmt === 'nmea' ? 'UTC' : detectTimeSystem(headerLines),
   };
 }

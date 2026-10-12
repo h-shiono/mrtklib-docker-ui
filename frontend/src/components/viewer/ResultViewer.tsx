@@ -68,6 +68,7 @@ interface LoadResult {
   headerRefPos: ReferencePosition | null;
   error: string | null;
   notice: string | null;
+  timeSystem: string;
 }
 
 export function ResultViewer({
@@ -86,6 +87,7 @@ export function ResultViewer({
   const headerRefPos = current?.headerRefPos ?? null;
   const error = current?.error ?? null;
   const notice = current?.notice ?? null;
+  const timeSystem = current?.timeSystem ?? 'GPST';
   const [viewMode, setViewMode] = useState<ViewMode>('2d');
   const [refMode, setRefMode] = useState<ReferenceMode>('mean');
   const [manualLat, setManualLat] = useState<number>(0);
@@ -141,6 +143,7 @@ export function ResultViewer({
               : null,
             parsed.notice,
           ].filter(Boolean).join(' · ') || null,
+          timeSystem: parsed.timeSystem,
         });
       })
       .catch((err) => {
@@ -151,6 +154,7 @@ export function ResultViewer({
           headerRefPos: null,
           error: err instanceof Error ? err.message : 'Failed to load file',
           notice: null,
+          timeSystem: 'GPST',
         });
       });
 
@@ -425,7 +429,7 @@ export function ResultViewer({
           </Stack>
         )}
         {viewMode === 'map' && (
-          <MapView data={epochs} height={vizHeight} />
+          <MapView data={epochs} height={vizHeight} timeSystem={timeSystem} />
         )}
       </div>
 

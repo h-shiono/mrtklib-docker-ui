@@ -32,6 +32,8 @@ export interface PosFileData {
   headerRefPos: ReferencePosition | null;
   /** Caveat about the parsed data to show the user (e.g. NMEA date assumed). */
   notice?: string;
+  /** Time system the epoch times are in: "GPST", "UTC" or "JST". */
+  timeSystem: string;
 }
 
 /** A geodetic reference position (WGS84) */
