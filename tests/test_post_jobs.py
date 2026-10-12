@@ -36,21 +36,29 @@ def test_run_without_callbacks_drains_pipes(tmp_path):
     assert result.returncode == 0
 
 
-def test_finished_jobs_are_pruned_but_running_kept(monkeypatch):
+def test_finished_jobs_pruned_by_finish_order(monkeypatch):
     async def scenario():
         jobs: dict[str, asyncio.Task] = {}
         monkeypatch.setattr(mrtk_post, "_active_jobs", jobs)
+        monkeypatch.setattr(mrtk_post, "_finished_seq", {})
         monkeypatch.setattr(mrtk_post, "MAX_FINISHED_JOBS", 2)
-        never = asyncio.Event()
-        running = asyncio.create_task(never.wait())
-        jobs["run"] = running
-        for i in range(5):
-            t = asyncio.create_task(asyncio.sleep(0))
-            await t
-            jobs[f"done{i}"] = t
+
+        gates = {name: asyncio.Event() for name in ("long", "a", "b", "c", "run")}
+        for name, gate in gates.items():  # started in this order
+            mrtk_post._track_job(name, asyncio.create_task(gate.wait()))
+
+        # Finish out of start order: a, b, c, then the long-running job.
+        for name in ("a", "b", "c", "long"):
+            gates[name].set()
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+
         mrtk_post._prune_finished_jobs()
-        keys = list(jobs)
-        running.cancel()
+        keys = set(jobs)
+        gates["run"].set()
+        await asyncio.sleep(0)
         return keys
 
-    assert asyncio.run(scenario()) == ["run", "done3", "done4"]
+    # Keeps the 2 most recently *finished* (c, long) and the running job;
+    # "long" started first but finished last, so it must survive.
+    assert asyncio.run(scenario()) == {"c", "long", "run"}

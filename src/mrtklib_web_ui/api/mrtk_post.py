@@ -1,6 +1,7 @@
 """API endpoints for mrtk_post post-processing."""
 
 import asyncio
+import itertools
 import uuid
 
 from fastapi import APIRouter, HTTPException
@@ -29,14 +30,26 @@ router = APIRouter()
 # Store for active mrtk_post jobs
 _active_jobs: dict[str, asyncio.Task] = {}
 # Finished jobs are kept so /status can return their result, but only the
-# most recent ones; running jobs are never dropped.
+# most recently *finished* ones; running jobs are never dropped.
 MAX_FINISHED_JOBS = 20
+# job_id -> finish sequence number, set when the job's task completes.
+_finished_seq: dict[str, int] = {}
+_finish_counter = itertools.count()
+
+
+def _track_job(job_id: str, task: asyncio.Task) -> None:
+    _active_jobs[job_id] = task
+    task.add_done_callback(lambda _t: _finished_seq.setdefault(job_id, next(_finish_counter)))
 
 
 def _prune_finished_jobs() -> None:
-    finished = [jid for jid, t in _active_jobs.items() if t.done()]
+    finished = sorted(
+        (jid for jid, t in _active_jobs.items() if t.done()),
+        key=lambda jid: _finished_seq.get(jid, -1),
+    )
     for jid in finished[: max(0, len(finished) - MAX_FINISHED_JOBS)]:
         del _active_jobs[jid]
+        _finished_seq.pop(jid, None)
 
 
 class MrtkPostExecuteRequest(BaseModel):
@@ -246,7 +259,7 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
     # Start job in background
     task = asyncio.create_task(_run_mrtk_post_job(job_id, job))
     _prune_finished_jobs()
-    _active_jobs[job_id] = task
+    _track_job(job_id, task)
 
     return MrtkPostJobResponse(
         job_id=job_id,

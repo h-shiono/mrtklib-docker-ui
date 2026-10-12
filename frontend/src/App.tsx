@@ -648,6 +648,17 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/mrtk-post/status/${jobId}`);
+        if (res.status === 404) {
+          // The server no longer knows this job (backend restarted, or its
+          // result was pruned): stop waiting instead of polling forever.
+          setProcessStatus('idle');
+          setIsLoading(false);
+          setLogLines((prev) => [
+            ...prev,
+            '[WARN] Job status is no longer available on the server (restarted or expired); check the output file.',
+          ]);
+          return;
+        }
         if (!res.ok) return;
         const data = await res.json();
         if (data.status === 'completed' || data.status === 'failed') {
