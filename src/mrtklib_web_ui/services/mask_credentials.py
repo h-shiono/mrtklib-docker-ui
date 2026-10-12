@@ -3,8 +3,11 @@
 import re
 
 # user:pass@ (NTRIP / stream paths, URLs). The password runs to the last '@'
-# of the whitespace-free token, so one containing '@' is masked whole.
-_USERINFO = re.compile(r"([^:@/\s]+):([^/\s]*)@")
+# of the whitespace-free token, so one containing '@' or '/' is masked whole.
+# The user must start a token (line start, whitespace, quote, '=', or after
+# "scheme://"), and "scheme://" itself is skipped, so "ntrip://user:pass@" is
+# not read as user "ntrip".
+_USERINFO = re.compile(r"""(?:^|(?<=[\s"'=])|(?<=//))([^:@/\s"']+):(?!//)(\S*)@""")
 # ?token=... / &api_key=... in URLs
 _QUERY_SECRET = re.compile(
     r"([?&](?:password|passwd|pass|pwd|token|access_token|api_key|apikey|key|secret)=)[^&\s]+",

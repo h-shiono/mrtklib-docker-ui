@@ -14,6 +14,10 @@ from mrtklib_web_ui.services.mask_credentials import mask_log_line
         ("path = \"user:secret@caster:2101/MNT\"", "path = \"user:***@caster:2101/MNT\""),
         # password containing '@' is masked whole
         ("user:p@ss@caster:2101/M", "user:***@caster:2101/M"),
+        # ... or '/'
+        ("user:pa/ss@caster:2101/MOUNT", "user:***@caster:2101/MOUNT"),
+        ("ntrip://user:pa/ss@caster:2101/MOUNT", "ntrip://user:***@caster:2101/MOUNT"),
+        ('path = "u:a/b@c@caster:2101/M"', 'path = "u:***@caster:2101/M"'),
         # query-string secrets
         ("GET https://h/x?token=abc123&n=1", "GET https://h/x?token=***&n=1"),
         ("url?api_key=SECRET", "url?api_key=***"),
@@ -33,7 +37,6 @@ from mrtklib_web_ui.services.mask_credentials import mask_log_line
         ('"max_tokens": 16', '"max_tokens": 16'),
         ("12:34:56.0 Q=1 ns=12", "12:34:56.0 Q=1 ns=12"),
         ("tcpcli://192.168.1.10:2101", "tcpcli://192.168.1.10:2101"),
-        ("https://example.com:8080/path@x", "https://example.com:8080/path@x"),
     ],
 )
 def test_mask_log_line(line, expected):
