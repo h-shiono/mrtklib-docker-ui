@@ -732,22 +732,21 @@ class MrtkRunService:
                     asyncio.open_connection("127.0.0.1", self._console_port),
                     timeout=3.0,
                 )
-                # Read welcome/password prompt, then authenticate
+                # Read the welcome banner. The console is started with
+                # `-w ""` and the generated config has no [console] passwd,
+                # so rtkrcv never asks for a password; do not guess one.
                 try:
                     welcome = await asyncio.wait_for(
                         self._telnet_reader.read(4096), timeout=2.0
                     )
                     logger.info(f"Console welcome: {welcome[:200]!r}")
-
-                    # Send password (rtkrcv default or empty)
                     if b"password" in welcome.lower():
-                        self._telnet_writer.write(b"admin\r\n")
-                        await self._telnet_writer.drain()
-                        # Read response after password
-                        auth_resp = await asyncio.wait_for(
-                            self._telnet_reader.read(4096), timeout=2.0
-                        )
-                        logger.info(f"Console auth: {auth_resp[:200]!r}")
+                        logger.warning("mrtk run console asked for a password")
+                        if log_callback:
+                            await log_callback(
+                                "[WARN] Console asks for a password (is [console] passwd "
+                                "set?); status polling will not work"
+                            )
 
                     if log_callback:
                         await log_callback(f"[INFO] Console connected (port {self._console_port})")
@@ -874,14 +873,9 @@ class MrtkRunService:
 
         text = output.decode("utf-8", errors="replace")
 
-        # Handle unexpected password prompt (re-authenticate)
+        # A password prompt means the console was not opened (see start());
+        # there is no command output to return.
         if "password" in text.lower() and "invalid" in text.lower():
-            self._telnet_writer.write(b"admin\r\n")
-            await self._telnet_writer.drain()
-            try:
-                await asyncio.wait_for(self._telnet_reader.read(4096), timeout=2.0)
-            except asyncio.TimeoutError:
-                pass
             return ""
 
         return text
