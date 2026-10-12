@@ -61,8 +61,8 @@ GNSS positioning capabilities. No compilation required — just
 - Running relays are restored after a page reload and can still be stopped
 
 ### CLAS Pipeline (`mrtk relay` + `mrtk cssr2rtcm3`)
-- One-form Wizard for the SBC + receiver + CLAS workflow added in
-  MRTKLIB v0.6.5
+- One-form Wizard for the SBC + receiver + CLAS workflow (supported
+  by MRTKLIB since v0.6.5; the image bundles the pinned version)
 - Pipes Septentrio SBF (with QZSS L6 CLAS) → cssr2rtcm3 → RTCM3 →
   back to the receiver, which runs VRS-RTK on its own engine
 - Live throughput meter, position scatter (parsed from SBF
