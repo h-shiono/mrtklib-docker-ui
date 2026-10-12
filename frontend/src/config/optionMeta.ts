@@ -46,8 +46,10 @@ const OPTION_META_DEF = {
   'positioning.correction': {
     label: 'Correction',
     description:
-      'SSR/PPP correction provider. PPP: igs, igs-rts, qzs-madoca, gal-has, ' +
-      'bds-b2b. PPP-RTK / VRS-RTK: qzs-clas (CLAS). RTK/relative modes: none.',
+      'SSR/PPP correction provider. PPP: igs, igs-rts, qzs-madoca, gal-has ' +
+      '(bds-b2b is reserved). igs-rts and gal-has need Satellite Ephemeris = ' +
+      'brdc+ssrapc or brdc+ssrcom. PPP-RTK / VRS-RTK: qzs-clas (CLAS). ' +
+      'RTK/relative modes: none.',
     docsAnchor: '#positioning',
   },
   'positioning.frequency': {

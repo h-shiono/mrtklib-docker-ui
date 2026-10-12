@@ -142,7 +142,9 @@ async def mrtklib_version() -> dict[str, str | list[str]]:
     mrtk_available = Path(mrtk_path).exists()
 
     # Known mrtk subcommands
-    known_subcommands = ["post", "run", "relay", "convert", "ssr2obs", "ssr2osr", "bias", "dump", "cssr2rtcm3"]
+    known_subcommands = [
+        "post", "run", "relay", "convert", "ssr2obs", "ssr2osr", "bias", "dump", "cssr2rtcm3", "l6extract",
+    ]
     subcommands = known_subcommands if mrtk_available else []
     version, git = await _read_mrtk_version(mrtk_path) if mrtk_available else ("", "")
 
