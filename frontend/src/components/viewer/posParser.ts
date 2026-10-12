@@ -143,8 +143,8 @@ function nmeaToDeg(field: string, hemi: string): number {
 
 type YMD = { y: number; mo: number; d: number };
 
-function addDay(date: YMD): YMD {
-  const t = new Date(Date.UTC(date.y, date.mo - 1, date.d + 1));
+function addDay(date: YMD, n = 1): YMD {
+  const t = new Date(Date.UTC(date.y, date.mo - 1, date.d + n));
   return { y: t.getUTCFullYear(), mo: t.getUTCMonth() + 1, d: t.getUTCDate() };
 }
 
@@ -176,11 +176,20 @@ function dateFromFileName(fileName: string | undefined): YMD | null {
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
+/** Seconds of day from an NMEA hhmmss[.ss] field, or NaN. */
+function nmeaTod(field: string | undefined): number {
+  const s = field || '';
+  if (s.length < 6) return NaN;
+  return parseInt(s.slice(0, 2), 10) * 3600 + parseInt(s.slice(2, 4), 10) * 60 + parseFloat(s.slice(4));
+}
+
 /**
  * Parse NMEA-0183 output. GGA carries position, height, satellites and fix
  * quality but only a time of day, so the date comes from RMC / ZDA sentences
  * (MRTKLIB emits an RMC per epoch). GGAs before the first dated sentence take
- * that first date. Logs with GGA only fall back to a date in the file name,
+ * its date, or the day before when their time of day is more than 12 h after
+ * it (the log started before UTC midnight). Logs with GGA only fall back to a
+ * date in the file name,
  * else 1970-01-01, and say so via `notice`. Without a dated sentence, a time
  * of day going back by more than 12 h is taken as a UTC midnight rollover.
  */
@@ -189,12 +198,18 @@ function parseNmea(lines: string[], fileName?: string): { epochs: PosEpoch[]; no
   let notice: string | undefined;
 
   let date: YMD | null = null;
+  let firstTod = NaN; // time of day of the first dated sentence
   for (const raw of lines) {
     const t = raw.trim();
     if (!t.startsWith('$')) continue;
-    date = nmeaDate(t.substring(3, 6), t.split('*')[0].split(','));
-    if (date) break;
+    const f = t.split('*')[0].split(',');
+    date = nmeaDate(t.substring(3, 6), f);
+    if (date) {
+      firstTod = nmeaTod(f[1]);
+      break;
+    }
   }
+  const firstDate = date;
   if (!date) {
     date = dateFromFileName(fileName);
     notice = date
@@ -204,6 +219,7 @@ function parseNmea(lines: string[], fileName?: string): { epochs: PosEpoch[]; no
   }
 
   let prevTod: number | null = null;
+  let seenDated = false;
   for (const raw of lines) {
     const t = raw.trim();
     if (!t.startsWith('$')) continue;
@@ -215,6 +231,7 @@ function parseNmea(lines: string[], fileName?: string): { epochs: PosEpoch[]; no
       if (d) {
         date = d;
         prevTod = null;
+        seenDated = true;
       }
       continue;
     }
@@ -231,7 +248,12 @@ function parseNmea(lines: string[], fileName?: string): { epochs: PosEpoch[]; no
     if (isNaN(hh) || isNaN(mi) || isNaN(ss)) continue;
 
     const tod = hh * 3600 + mi * 60 + ss;
-    if (prevTod !== null && tod < prevTod - 43200) date = addDay(date);
+    if (!seenDated && firstDate && !isNaN(firstTod)) {
+      // Before the first dated sentence: anchor to it, not to a rollover guess.
+      date = tod > firstTod + 43200 ? addDay(firstDate, -1) : firstDate;
+    } else if (prevTod !== null && tod < prevTod - 43200) {
+      date = addDay(date);
+    }
     prevTod = tod;
 
     const time = new Date(
