@@ -8,6 +8,14 @@ from mrtklib_web_ui.services.obs_qc_service import ObsQcResponse, analyze_obs
 
 router = APIRouter()
 
+# Temporarily disabled until QC moves to MRTKLIB's own QC tooling: the cssrlib
+# analysis is too slow for real files and, run on the event loop, it froze the
+# whole server (RT/relay WebSockets included). The implementation is kept.
+QC_ENABLED = False
+QC_DISABLED_DETAIL = (
+    "QC Preview is temporarily disabled until it is integrated with MRTKLIB QC."
+)
+
 
 class ObsQcRequest(BaseModel):
     """Request to analyze a RINEX observation file."""
@@ -25,6 +33,8 @@ async def analyze_observation(request: ObsQcRequest) -> ObsQcResponse:
     Parses the OBS file to extract satellite visibility segments and SNR data.
     Optionally computes azimuth/elevation if a NAV file is provided.
     """
+    if not QC_ENABLED:
+        raise HTTPException(status_code=503, detail=QC_DISABLED_DETAIL)
     obs_resolved = resolve_path(request.obs_file)
     if not is_allowed_path(obs_resolved):
         raise HTTPException(status_code=403, detail=f"Access denied: {request.obs_file}")

@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any --
+   TODO(#40): the form onChange handlers use `(value: any)` (112 places).
+   Typing them means deciding null/empty-input behaviour per field, so it is
+   tracked as its own task; remove this directive once that lands. */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import {
   Box,
@@ -10,6 +14,7 @@ import {
   TextInput,
   Checkbox,
   Button,
+  Tooltip,
   ActionIcon,
   Drawer,
   ScrollArea,
@@ -798,9 +803,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </ActionIcon>
                 </Group>
               </div>
-              <Button variant="light" size="xs" leftSection={<IconChartBar size={14} />} onClick={execution.onQcPreview} disabled={!execution.roverFileValid}>
-                QC Preview
-              </Button>
+              {/* Temporarily disabled until QC moves to MRTKLIB QC (backend returns
+                  503). data-disabled, not disabled, so the tooltip still shows. */}
+              <Tooltip label="Temporarily disabled — QC Preview will return with MRTKLIB QC integration">
+                <Button variant="light" size="xs" leftSection={<IconChartBar size={14} />} data-disabled onClick={(e) => e.preventDefault()}>
+                  QC Preview
+                </Button>
+              </Tooltip>
             </Stack>
           )}
 

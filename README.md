@@ -279,6 +279,9 @@ uv sync
 uv run uvicorn mrtklib_web_ui.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+> **Note:** QC Preview is temporarily disabled (the button is greyed out and
+> `/api/obs-qc/analyze` returns 503) until it is integrated with MRTKLIB QC.
+
 The QC Preview option needs the optional `qc` extra (cssrlib):
 
 ```bash
