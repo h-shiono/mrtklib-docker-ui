@@ -334,6 +334,14 @@ const LABEL_W = 130;
 const LABEL_STYLE = { width: LABEL_W, flexShrink: 0, fontSize: '11px' } as const;
 const OPT_LABEL_STYLE = { width: LABEL_W, flexShrink: 0 } as const;
 
+// [ambiguity_resolution].systems bits (MRTKLIB SYS_*); GLONASS has no PPP-AR.
+const AR_SYSTEM_BITS = [
+  { label: 'GPS', bit: 0x01 },
+  { label: 'Galileo', bit: 0x08 },
+  { label: 'QZSS', bit: 0x10 },
+  { label: 'BeiDou', bit: 0x20 },
+] as const;
+
 // ─── Correction provider ([positioning] correction) ─────────────────────────
 const CORRECTION_OPTIONS: { value: CorrectionProvider; label: string }[] = [
   { value: 'none', label: 'None' },
@@ -1565,6 +1573,30 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       onChange={(value: any) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, qzsAr: value } })}
                       data={[{ value: 'off', label: 'OFF' }, { value: 'on', label: 'ON' }]}
                       disabled={modeDisabled('ar.qzs_ar')} style={{ flex: 1, minWidth: 0 }} />
+                  </Group>
+                </Group>
+                {/* PPP-AR constellations ([ambiguity_resolution].systems bitmask) */}
+                <Group wrap="nowrap" align="center" gap="xs">
+                  <OptionLabel metaKey="ar.systems" style={OPT_LABEL_STYLE} />
+                  <Group wrap="nowrap" align="center" gap="sm" style={{ flex: 1, minWidth: 0 }}>
+                    {AR_SYSTEM_BITS.map(({ label, bit }) => (
+                      <Checkbox
+                        key={bit}
+                        size="xs"
+                        label={label}
+                        checked={(config.ambiguityResolution.systems & bit) !== 0}
+                        onChange={(e) => handleConfigChange({
+                          ...config,
+                          ambiguityResolution: {
+                            ...config.ambiguityResolution,
+                            systems: e.currentTarget.checked
+                              ? config.ambiguityResolution.systems | bit
+                              : config.ambiguityResolution.systems & ~bit,
+                          },
+                        })}
+                        disabled={modeDisabled('ar.systems')}
+                      />
+                    ))}
                   </Group>
                 </Group>
               </Stack>
