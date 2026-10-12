@@ -28,6 +28,15 @@ router = APIRouter()
 
 # Store for active mrtk_post jobs
 _active_jobs: dict[str, asyncio.Task] = {}
+# Finished jobs are kept so /status can return their result, but only the
+# most recent ones; running jobs are never dropped.
+MAX_FINISHED_JOBS = 20
+
+
+def _prune_finished_jobs() -> None:
+    finished = [jid for jid, t in _active_jobs.items() if t.done()]
+    for jid in finished[: max(0, len(finished) - MAX_FINISHED_JOBS)]:
+        del _active_jobs[jid]
 
 
 class MrtkPostExecuteRequest(BaseModel):
@@ -236,6 +245,7 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
 
     # Start job in background
     task = asyncio.create_task(_run_mrtk_post_job(job_id, job))
+    _prune_finished_jobs()
     _active_jobs[job_id] = task
 
     return MrtkPostJobResponse(
