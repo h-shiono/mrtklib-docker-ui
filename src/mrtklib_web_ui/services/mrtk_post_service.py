@@ -1045,11 +1045,12 @@ class MrtkPostService:
                 if buf.strip() and log_cb:
                     await log_cb(buf.decode(errors="replace").strip())
 
-            if log_callback:
-                await asyncio.gather(
-                    read_stdout(process.stdout, log_callback),
-                    read_stderr_with_progress(process.stderr, log_callback, progress_callback),
-                )
+            # Always drain both pipes, callbacks or not: an unread PIPE fills
+            # up and blocks mrtk, so process.wait() would never return.
+            await asyncio.gather(
+                read_stdout(process.stdout, log_callback),
+                read_stderr_with_progress(process.stderr, log_callback, progress_callback),
+            )
 
             await process.wait()
 

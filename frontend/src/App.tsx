@@ -599,6 +599,10 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
     setError(null);
     setLogLines([]);
     setProgress(null);
+    // Forget the previous job first: until the new id arrives, the status
+    // poll must not run against the old one (its 404 would end this run).
+    jobIdRef.current = null;
+    setJobId(null);
     setProcessStatus('running');
 
     try {
@@ -644,12 +648,28 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
   // This catches completion even if WebSocket messages are missed.
   useEffect(() => {
     if (processStatus !== 'running' || !jobId) return;
+    // Responses that arrive after this effect was cleaned up (job changed or
+    // finished) belong to an old poll and must not touch the current run.
+    let cancelled = false;
 
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/mrtk-post/status/${jobId}`);
+        if (cancelled) return;
+        if (res.status === 404) {
+          // The server no longer knows this job (backend restarted, or its
+          // result was pruned): stop waiting instead of polling forever.
+          setProcessStatus('idle');
+          setIsLoading(false);
+          setLogLines((prev) => [
+            ...prev,
+            '[WARN] Job status is no longer available on the server (restarted or expired); check the output file.',
+          ]);
+          return;
+        }
         if (!res.ok) return;
         const data = await res.json();
+        if (cancelled) return;
         if (data.status === 'completed' || data.status === 'failed') {
           const statusMap: Record<string, ProcessStatus> = {
             completed: 'success',
@@ -668,7 +688,10 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
       }
     }, 2000);
 
-    return () => clearInterval(interval);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [processStatus, jobId]);
 
   const handleStop = () => {

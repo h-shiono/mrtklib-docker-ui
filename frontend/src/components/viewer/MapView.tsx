@@ -9,6 +9,8 @@ import { Q_COLORS, Q_LABELS } from './types';
 interface MapViewProps {
   data: PosEpoch[];
   height: number;
+  /** Time system of the epoch times, shown in the tooltip. */
+  timeSystem?: string;
 }
 
 const TILE_URLS = {
@@ -64,7 +66,7 @@ function downsample(data: PosEpoch[], maxPoints: number): PosEpoch[] {
   return result;
 }
 
-export function MapView({ data, height }: MapViewProps) {
+export function MapView({ data, height, timeSystem = 'GPST' }: MapViewProps) {
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -108,7 +110,7 @@ export function MapView({ data, height }: MapViewProps) {
         >
           <Tooltip>
             <div style={{ fontSize: '11px', lineHeight: 1.4 }}>
-              <div><b>{epoch.time.toISOString().replace('T', ' ').replace('Z', '')} GPST</b></div>
+              <div><b>{epoch.time.toISOString().replace('T', ' ').replace('Z', '')} {timeSystem}</b></div>
               <div>Q={epoch.Q} ({Q_LABELS[epoch.Q] || 'Unknown'})</div>
               <div>Lat: {epoch.lat.toFixed(8)}°</div>
               <div>Lon: {epoch.lon.toFixed(8)}°</div>

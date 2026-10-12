@@ -137,6 +137,25 @@ const OPTION_META_DEF = {
     docsAnchor: '#ambiguity-resolution',
     modes: modes(MODE_SETS.PPP_RTK, MODE_SETS.VRS),
   },
+  'ar.systems': {
+    label: 'PPP-AR Systems',
+    description:
+      'Constellations that take part in PPP integer ambiguity resolution ' +
+      '([ambiguity_resolution].systems bitmask). GLONASS is float-only. ' +
+      'A system only fixes if the OSB product has phase biases for the ' +
+      'processed signals.',
+    docsAnchor: '#ambiguity-resolution',
+    modes: modes(MODE_SETS.PPP),
+  },
+
+  // ── [output] ─────────────────────────────────────────────────
+  'output.max_solution_std': {
+    label: 'Max Sol Std (m)',
+    description:
+      'Suppress output solutions whose standard deviation exceeds this ' +
+      'value (m). 0 = no limit.',
+    docsAnchor: '#output',
+  },
 
   // ── [ambiguity_resolution.thresholds] ────────────────────────
   'ar.thresholds.ratio': {
