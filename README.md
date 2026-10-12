@@ -31,6 +31,9 @@ GNSS positioning capabilities. No compilation required — just
 - Result visualization: 2D E/N scatter, interactive basemap (Leaflet),
   and position / quality charts — reads **LLH, XYZ-ECEF, and NMEA-0183**
   solution outputs (auto-detected)
+- Compressed inputs (`.gz`, `.Z`, single-file `.zip`, `.tar`) and
+  Hatanaka-compressed RINEX (`.crx`, `.??d`, e.g. `.crx.gz`) are
+  decompressed by `mrtk` (the image bundles `crx2rnx` / `rnx2crx`)
 
 ### Real-Time Positioning (`mrtk run`)
 - Live position display (Lat / Lon / Height / AR Ratio /
@@ -465,6 +468,15 @@ MIT License. See [LICENSE](LICENSE).
 MRTKLIB is distributed under the BSD 2-Clause License.
 This project provides a web interface only and does not modify
 MRTKLIB source code.
+
+The Docker image includes `crx2rnx` / `rnx2crx` built from the
+RNXCMP software (Copyright (c) 2007 Geospatial Information Authority
+of Japan), unmodified, under its license
+(`/usr/share/doc/rnxcmp/LICENSE.txt` in the image;
+[source](https://terras.gsi.go.jp/ja/crx2rnx.html)). Reference:
+Hatanaka, Y. (2008), A Compression Format and Tools for GNSS
+Observation Data, Bulletin of the Geospatial Information Authority of
+Japan, 55, 21-30 (<https://www.gsi.go.jp/ENGLISH/Bulletin55.html>).
 
 ---
 
