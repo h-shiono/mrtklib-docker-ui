@@ -145,7 +145,6 @@ export function ChartView({
   const isDark = colorScheme === 'dark';
 
   // Refs to avoid stale closures in uPlot hooks
-  const programmaticRef = useRef(false);
   const onXRangeChangeRef = useRef(onXRangeChange);
 
   // Prepare uPlot data arrays
@@ -185,11 +184,7 @@ export function ChartView({
 
   const applyRanges = (u: uPlot) => {
     const { xRange: xr, yRange: yr } = rangesRef.current;
-    if (xr) {
-      programmaticRef.current = true;
-      u.setScale('x', { min: xr[0], max: xr[1] });
-      programmaticRef.current = false;
-    }
+    if (xr) u.setScale('x', { min: xr[0], max: xr[1] });
     if (yr) u.setScale('y', { min: yr[0], max: yr[1] });
   };
 
@@ -225,21 +220,20 @@ export function ChartView({
       hooks: {
         setScale: [
           (u: uPlot, key: string) => {
-            if (key === 'x' && !programmaticRef.current && onXRangeChangeRef.current) {
-              const min = u.scales.x.min;
-              const max = u.scales.x.max;
-              if (min != null && max != null) {
-                // Check if it's a full-range reset (double-click)
-                const xData = u.data[0];
-                const fullMin = xData[0];
-                const fullMax = xData[xData.length - 1];
-                if (min === fullMin && max === fullMax) {
-                  onXRangeChangeRef.current(null);
-                } else {
-                  onXRangeChangeRef.current([min, max]);
-                }
-              }
-            }
+            // uPlot fires this hook from a deferred commit (a microtask), also
+            // for our own setScale()/setData() calls, so a "programmatic" flag
+            // set around those calls cannot tell them apart. Instead, report
+            // only ranges that differ from the current shared range: that is
+            // a user zoom or a double-click reset.
+            if (key !== 'x' || !onXRangeChangeRef.current) return;
+            const min = u.scales.x.min;
+            const max = u.scales.x.max;
+            if (min == null || max == null) return;
+            const xData = u.data[0];
+            const isFull = xData.length > 0 && min === xData[0] && max === xData[xData.length - 1];
+            const cur = rangesRef.current.xRange;
+            if (cur ? min === cur[0] && max === cur[1] : isFull) return;
+            onXRangeChangeRef.current(isFull ? null : [min, max]);
           },
         ],
       },
@@ -316,7 +310,6 @@ export function ChartView({
   // Apply shared X-range changes imperatively (from other charts' zoom)
   useEffect(() => {
     if (!uplotRef.current) return;
-    programmaticRef.current = true;
     if (xRange) {
       uplotRef.current.setScale('x', { min: xRange[0], max: xRange[1] });
     } else {
@@ -326,7 +319,6 @@ export function ChartView({
         uplotRef.current.setScale('x', { min: xData[0], max: xData[xData.length - 1] });
       }
     }
-    programmaticRef.current = false;
   }, [xRange]);
 
   // Apply Y-range changes imperatively
