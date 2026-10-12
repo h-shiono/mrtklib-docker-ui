@@ -60,15 +60,32 @@ interface YRangeSettings {
 
 const DEFAULT_Y_RANGE: YRangeSettings = { auto: true, min: 0, max: 0 };
 
+const NO_EPOCHS: PosEpoch[] = [];
+
+interface LoadResult {
+  key: string;
+  epochs: PosEpoch[];
+  headerRefPos: ReferencePosition | null;
+  error: string | null;
+  notice: string | null;
+}
+
 export function ResultViewer({
   filePath,
   maxHeight,
   refreshKey = 0,
 }: ResultViewerProps) {
-  const [epochs, setEpochs] = useState<PosEpoch[]>([]);
-  const [headerRefPos, setHeaderRefPos] = useState<ReferencePosition | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // The last load result, tagged with the file/refresh it belongs to. Values
+  // are derived during render (no synchronous setState in the load effect):
+  // a result for another key means "loading".
+  const loadKey = filePath ? `${filePath}\0${refreshKey}` : '';
+  const [loaded, setLoaded] = useState<LoadResult | null>(null);
+  const current = filePath && loaded?.key === loadKey ? loaded : null;
+  const loading = !!filePath && !current;
+  const epochs = current?.epochs ?? NO_EPOCHS;
+  const headerRefPos = current?.headerRefPos ?? null;
+  const error = current?.error ?? null;
+  const notice = current?.notice ?? null;
   const [viewMode, setViewMode] = useState<ViewMode>('2d');
   const [refMode, setRefMode] = useState<ReferenceMode>('mean');
   const [manualLat, setManualLat] = useState<number>(0);
@@ -80,15 +97,19 @@ export function ResultViewer({
   const [refPopoverOpened, setRefPopoverOpened] = useState(false);
 
   // Shared X-axis range for ENU charts (null = auto/full range)
-  const [xRange, setXRange] = useState<[number, number] | null>(null);
+  // Tagged with the epochs it was set for, so new data resets it to auto.
+  const [xRangeFor, setXRangeFor] = useState<{ epochs: PosEpoch[]; range: [number, number] } | null>(null);
+  const xRange = xRangeFor?.epochs === epochs ? xRangeFor.range : null;
+  const setXRange = useCallback(
+    (range: [number, number] | null) => setXRangeFor(range ? { epochs, range } : null),
+    [epochs],
+  );
 
   // Unified Y-axis range for ENU charts (ns is always auto)
   const [enuYRange, setEnuYRange] = useState<YRangeSettings>({ ...DEFAULT_Y_RANGE });
   const [yAxisPopoverOpened, setYAxisPopoverOpened] = useState(false);
 
-  const handleXRangeChange = useCallback((range: [number, number] | null) => {
-    setXRange(range);
-  }, []);
+  const handleXRangeChange = setXRange;
 
   // Convert Y-range settings to ChartView prop format
   const getYRange = useCallback(
@@ -101,46 +122,37 @@ export function ResultViewer({
 
   // Load .pos file
   useEffect(() => {
-    if (!filePath) {
-      setEpochs([]);
-      setHeaderRefPos(null);
-      setError(null);
-      return;
-    }
-
+    if (!filePath) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    const key = `${filePath}\0${refreshKey}`;
 
     readFile(filePath, 50000)
       .then((res) => {
         if (cancelled) return;
-        const parsed = parsePosFile(res.content);
-        setEpochs(parsed.epochs);
-        setHeaderRefPos(parsed.headerRefPos);
-        if (parsed.epochs.length === 0) {
-          setError('No position data found in file');
-        }
+        const parsed = parsePosFile(res.content, filePath);
+        setLoaded({
+          key,
+          epochs: parsed.epochs,
+          headerRefPos: parsed.headerRefPos,
+          error: parsed.epochs.length === 0 ? 'No position data found in file' : null,
+          notice: parsed.notice ?? null,
+        });
       })
       .catch((err) => {
         if (cancelled) return;
-        setEpochs([]);
-        setHeaderRefPos(null);
-        setError(err instanceof Error ? err.message : 'Failed to load file');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        setLoaded({
+          key,
+          epochs: NO_EPOCHS,
+          headerRefPos: null,
+          error: err instanceof Error ? err.message : 'Failed to load file',
+          notice: null,
+        });
       });
 
     return () => {
       cancelled = true;
     };
   }, [filePath, refreshKey]);
-
-  // Reset X range when data changes
-  useEffect(() => {
-    setXRange(null);
-  }, [epochs]);
 
   // Compute reference position based on selected mode
   const referencePos = useMemo((): ReferencePosition | null => {
@@ -234,6 +246,11 @@ export function ResultViewer({
               { label: 'Map', value: 'map' },
             ]}
           />
+          {notice && (
+            <Text size="xs" c="dimmed" truncate title={notice} style={{ minWidth: 0 }}>
+              {notice}
+            </Text>
+          )}
         </Group>
 
         <Group gap="xs">
