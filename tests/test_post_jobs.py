@@ -45,7 +45,7 @@ def test_finished_jobs_pruned_by_finish_order(monkeypatch):
 
         gates = {name: asyncio.Event() for name in ("long", "a", "b", "c", "run")}
         for name, gate in gates.items():  # started in this order
-            mrtk_post._track_job(name, asyncio.create_task(gate.wait()))
+            mrtk_post._start_job(name, gate.wait())
 
         # Finish out of start order: a, b, c, then the long-running job.
         for name in ("a", "b", "c", "long"):
@@ -64,22 +64,37 @@ def test_finished_jobs_pruned_by_finish_order(monkeypatch):
     assert asyncio.run(scenario()) == {"c", "long", "run"}
 
 
-def test_just_finished_job_without_seq_is_kept(monkeypatch):
+def test_finish_order_recorded_before_task_is_done(monkeypatch):
+    async def scenario():
+        monkeypatch.setattr(mrtk_post, "_active_jobs", {})
+        monkeypatch.setattr(mrtk_post, "_finished_seq", {})
+        task = mrtk_post._start_job("j", asyncio.sleep(0))
+        await task
+        # Numbered as soon as the task is done: no callback window.
+        return "j" in mrtk_post._finished_seq
+
+    assert asyncio.run(scenario())
+
+
+def test_job_cancelled_before_running_is_pruned_safely(monkeypatch):
     async def scenario():
         jobs: dict[str, asyncio.Task] = {}
         monkeypatch.setattr(mrtk_post, "_active_jobs", jobs)
         monkeypatch.setattr(mrtk_post, "_finished_seq", {})
         monkeypatch.setattr(mrtk_post, "MAX_FINISHED_JOBS", 1)
-        for name in ("old1", "old2"):
-            t = asyncio.create_task(asyncio.sleep(0))
-            mrtk_post._track_job(name, t)
+        coro = asyncio.sleep(10)
+        t = mrtk_post._start_job("cancelled", coro)
+        t.cancel()  # before it ever runs: its `finally` never executes
+        try:
             await t
-            await asyncio.sleep(0)
-        # Done, but its done callback has not numbered it yet.
-        fresh = asyncio.create_task(asyncio.sleep(0))
-        await fresh
-        jobs["fresh"] = fresh
+        except asyncio.CancelledError:
+            pass
+        coro.close()  # never started; avoid a "never awaited" warning
+        done = mrtk_post._start_job("done", asyncio.sleep(0))
+        await done
         mrtk_post._prune_finished_jobs()
         return set(jobs)
 
-    assert asyncio.run(scenario()) == {"fresh"}
+    # Both finished; the unnumbered one is numbered at prune time as most
+    # recent, and pruning does not fail on a missing key.
+    assert len(asyncio.run(scenario())) == 1

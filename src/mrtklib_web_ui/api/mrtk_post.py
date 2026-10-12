@@ -32,21 +32,31 @@ _active_jobs: dict[str, asyncio.Task] = {}
 # Finished jobs are kept so /status can return their result, but only the
 # most recently *finished* ones; running jobs are never dropped.
 MAX_FINISHED_JOBS = 20
-# job_id -> finish sequence number, set when the job's task completes.
+# job_id -> finish sequence number. Set by the job itself as its last step,
+# so it exists before the task counts as done (a done callback would run a
+# loop iteration later and leave a window where the job looks unnumbered).
 _finished_seq: dict[str, int] = {}
 _finish_counter = itertools.count()
 
 
-def _track_job(job_id: str, task: asyncio.Task) -> None:
+def _start_job(job_id: str, coro) -> asyncio.Task:
+    """Run a job as a task, recording its finish order when it ends."""
+
+    async def run():
+        try:
+            return await coro
+        finally:
+            _finished_seq[job_id] = next(_finish_counter)
+
+    task = asyncio.create_task(run())
     _active_jobs[job_id] = task
-    task.add_done_callback(lambda _t: _finished_seq.setdefault(job_id, next(_finish_counter)))
+    return task
 
 
 def _prune_finished_jobs() -> None:
     finished = [jid for jid, t in _active_jobs.items() if t.done()]
-    # A task's done callback runs one loop iteration after it finishes; a job
-    # that is done but not yet numbered has just finished, so number it now
-    # (most recent) rather than treating it as the oldest.
+    # A task cancelled before it ever ran never reached its `finally`; number
+    # such a job now so the sort below has a key for every job.
     for jid in finished:
         _finished_seq.setdefault(jid, next(_finish_counter))
     finished.sort(key=lambda jid: _finished_seq[jid])
@@ -260,9 +270,8 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
     )
 
     # Start job in background
-    task = asyncio.create_task(_run_mrtk_post_job(job_id, job))
     _prune_finished_jobs()
-    _track_job(job_id, task)
+    _start_job(job_id, _run_mrtk_post_job(job_id, job))
 
     return MrtkPostJobResponse(
         job_id=job_id,
