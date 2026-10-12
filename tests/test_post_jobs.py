@@ -62,3 +62,24 @@ def test_finished_jobs_pruned_by_finish_order(monkeypatch):
     # Keeps the 2 most recently *finished* (c, long) and the running job;
     # "long" started first but finished last, so it must survive.
     assert asyncio.run(scenario()) == {"c", "long", "run"}
+
+
+def test_just_finished_job_without_seq_is_kept(monkeypatch):
+    async def scenario():
+        jobs: dict[str, asyncio.Task] = {}
+        monkeypatch.setattr(mrtk_post, "_active_jobs", jobs)
+        monkeypatch.setattr(mrtk_post, "_finished_seq", {})
+        monkeypatch.setattr(mrtk_post, "MAX_FINISHED_JOBS", 1)
+        for name in ("old1", "old2"):
+            t = asyncio.create_task(asyncio.sleep(0))
+            mrtk_post._track_job(name, t)
+            await t
+            await asyncio.sleep(0)
+        # Done, but its done callback has not numbered it yet.
+        fresh = asyncio.create_task(asyncio.sleep(0))
+        await fresh
+        jobs["fresh"] = fresh
+        mrtk_post._prune_finished_jobs()
+        return set(jobs)
+
+    assert asyncio.run(scenario()) == {"fresh"}

@@ -43,10 +43,13 @@ def _track_job(job_id: str, task: asyncio.Task) -> None:
 
 
 def _prune_finished_jobs() -> None:
-    finished = sorted(
-        (jid for jid, t in _active_jobs.items() if t.done()),
-        key=lambda jid: _finished_seq.get(jid, -1),
-    )
+    finished = [jid for jid, t in _active_jobs.items() if t.done()]
+    # A task's done callback runs one loop iteration after it finishes; a job
+    # that is done but not yet numbered has just finished, so number it now
+    # (most recent) rather than treating it as the oldest.
+    for jid in finished:
+        _finished_seq.setdefault(jid, next(_finish_counter))
+    finished.sort(key=lambda jid: _finished_seq[jid])
     for jid in finished[: max(0, len(finished) - MAX_FINISHED_JOBS)]:
         del _active_jobs[jid]
         _finished_seq.pop(jid, None)
