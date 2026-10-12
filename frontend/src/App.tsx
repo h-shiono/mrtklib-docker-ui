@@ -366,6 +366,8 @@ function PostProcessingRightPanel({
             outputFile={outputFile ? outputFile + '.trace' : ''}
             refreshKey={refreshKey}
             maxHeight={CONTENT_HEIGHT}
+            fromEnd
+            noun="trace file"
           />
         </Tabs.Panel>
       </Tabs>
@@ -392,17 +394,26 @@ function PostProcessingRightPanel({
   );
 }
 
-/** Displays the solution output file content in a scrollable monospace block */
+// Lines fetched for the Solution / Trace views.
+const VIEW_MAX_LINES = 5000;
+
+/** Displays a text output file (solution or trace) in a scrollable monospace
+ *  block. `fromEnd` shows the last lines instead of the first. */
 function SolutionView({
   outputFile,
   refreshKey,
   maxHeight,
+  fromEnd = false,
+  noun = 'solution file',
 }: {
   outputFile: string;
   refreshKey: number;
   maxHeight: number;
+  fromEnd?: boolean;
+  noun?: string;
 }) {
-  const [loadedContent, setContent] = useState<string | null>(null);
+  const [loaded, setContent] = useState<{ content: string; returned: number; total: number } | null>(null);
+  const loadedContent = loaded?.content ?? null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -428,13 +439,17 @@ function SolutionView({
     if (!outputFile) return;
     let cancelled = false;
 
-    fetch(`/api/files/read?path=${encodeURIComponent(outputFile)}&max_lines=5000`)
+    const params = new URLSearchParams({ path: outputFile, max_lines: String(VIEW_MAX_LINES) });
+    if (fromEnd) params.set('from_end', 'true');
+    fetch(`/api/files/read?${params}`)
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to load: ${res.status}`);
         return res.json();
       })
       .then((data) => {
-        if (!cancelled) setContent(data.content || '');
+        if (!cancelled) {
+          setContent({ content: data.content || '', returned: data.returned_lines ?? 0, total: data.total_lines ?? 0 });
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load file');
@@ -444,7 +459,7 @@ function SolutionView({
       });
 
     return () => { cancelled = true; };
-  }, [outputFile, refreshKey]);
+  }, [outputFile, refreshKey, fromEnd]);
 
   // Auto-scroll to bottom on content change
   useEffect(() => {
@@ -458,7 +473,7 @@ function SolutionView({
   if (loading) {
     return (
       <Stack align="center" justify="center" h={maxHeight} gap="xs" style={{ backgroundColor: consoleBg }}>
-        <Text size="xs" c="dimmed" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>Loading solution file...</Text>
+        <Text size="xs" c="dimmed" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>Loading {noun}...</Text>
       </Stack>
     );
   }
@@ -474,29 +489,56 @@ function SolutionView({
   if (!content) {
     return (
       <Stack align="center" justify="center" h={maxHeight} gap="xs" style={{ backgroundColor: consoleBg }}>
-        <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>No solution file to display</Text>
+        <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>No {noun} to display</Text>
       </Stack>
     );
   }
 
+  // Only part of a long file is shown: say which part, and offer the whole file.
+  const partial = loaded && loaded.returned < loaded.total;
+  const NOTE_H = 24;
+
   return (
-    <ScrollArea
-      h={maxHeight}
-      viewportRef={viewportRef}
-      styles={{ viewport: { backgroundColor: consoleBg, padding: '8px 12px' } }}
-    >
-      <Text
-        c="gray.4"
-        style={{
-          fontFamily: "'IBM Plex Mono', monospace",
-          whiteSpace: 'pre',
-          fontSize: '11px',
-          lineHeight: 1.5,
-        }}
+    <>
+      {partial && (
+        <Group gap={6} wrap="nowrap" px={12} h={NOTE_H} style={{ backgroundColor: consoleBg }}>
+          <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }} truncate>
+            Showing the {fromEnd ? 'last' : 'first'} {loaded.returned.toLocaleString()} of{' '}
+            {loaded.total.toLocaleString()} lines
+          </Text>
+          {outputFile.startsWith('/workspace/') && (
+            <Button
+              variant="light"
+              leftSection={<IconDownload size={12} />}
+              size="compact-xs"
+              component="a"
+              href={`/api/files/download?path=${encodeURIComponent(outputFile)}`}
+              download
+              style={{ flexShrink: 0 }}
+            >
+              Download
+            </Button>
+          )}
+        </Group>
+      )}
+      <ScrollArea
+        h={partial ? maxHeight - NOTE_H : maxHeight}
+        viewportRef={viewportRef}
+        styles={{ viewport: { backgroundColor: consoleBg, padding: '8px 12px' } }}
       >
-        {content}
-      </Text>
-    </ScrollArea>
+        <Text
+          c="gray.4"
+          style={{
+            fontFamily: "'IBM Plex Mono', monospace",
+            whiteSpace: 'pre',
+            fontSize: '11px',
+            lineHeight: 1.5,
+          }}
+        >
+          {content}
+        </Text>
+      </ScrollArea>
+    </>
   );
 }
 

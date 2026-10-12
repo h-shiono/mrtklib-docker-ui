@@ -1,6 +1,7 @@
 """File browser API for /workspace and /data directories."""
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Any, Literal
 
@@ -199,6 +200,19 @@ READ_MAX_BYTES = 16 * 1024 * 1024
 _COUNT_CHUNK = 1024 * 1024
 
 
+def _count_lines(f: Any) -> int:
+    """Count the lines of an open binary file, scanning it in chunks."""
+    f.seek(0)
+    total = 0
+    last = b"\n"
+    while chunk := f.read(_COUNT_CHUNK):
+        total += chunk.count(b"\n")
+        last = chunk[-1:]
+    if last != b"\n":
+        total += 1  # final line without a trailing newline
+    return total
+
+
 def _read_head(path: Path, max_lines: int, max_bytes: int) -> tuple[list[str], int, bool]:
     """Read up to max_lines lines / max_bytes bytes, then count all lines.
 
@@ -219,20 +233,58 @@ def _read_head(path: Path, max_lines: int, max_bytes: int) -> tuple[list[str], i
             used += len(raw)
             lines.append(raw.decode("utf-8", errors="replace").rstrip("\r\n"))
 
-        f.seek(0)
-        total = 0
-        last = b"\n"
-        while chunk := f.read(_COUNT_CHUNK):
-            total += chunk.count(b"\n")
-            last = chunk[-1:]
-        if last != b"\n":
-            total += 1  # final line without a trailing newline
+        total = _count_lines(f)
+    return lines, total, hit_limit
+
+
+def _byte_at(f: Any, offset: int) -> bytes:
+    f.seek(offset)
+    return f.read(1)
+
+
+def _read_tail(path: Path, max_lines: int, max_bytes: int) -> tuple[list[str], int, bool]:
+    """Read the last max_lines lines (at most max_bytes bytes), then count all lines.
+
+    Same return shape as _read_head. The file is read backwards in chunks
+    until enough lines are buffered, so the cost is bounded by what is
+    returned, not by the file size (apart from the line count).
+    """
+    with path.open("rb") as f:
+        end = f.seek(0, os.SEEK_END)
+        pos = end
+        buf = b""
+        # One extra newline: the line before the first returned one must be
+        # terminated, or that first line could be partial.
+        while pos > 0 and buf.count(b"\n") <= max_lines and len(buf) <= max_bytes:
+            step = min(_COUNT_CHUNK, pos)
+            pos -= step
+            f.seek(pos)
+            buf = f.read(step) + buf
+
+        hit_limit = len(buf) > max_bytes
+        if hit_limit:
+            buf = buf[-max_bytes:]
+        start = end - len(buf)  # file offset of buf[0]
+        # buf[0] starts a line only at the file start or right after a newline.
+        first_partial = start > 0 and _byte_at(f, start - 1) != b"\n"
+        if buf.endswith(b"\n"):
+            buf = buf[:-1]  # the file's trailing newline ends the last line
+        parts = buf.split(b"\n") if end else []
+        if first_partial:
+            parts = parts[1:]
+        selected = parts[-max_lines:] if max_lines > 0 else []
+        lines = [p.decode("utf-8", errors="replace").rstrip("\r") for p in selected]
+
+        total = _count_lines(f)
     return lines, total, hit_limit
 
 
 @router.get("/read", response_model=FileReadResponse)
-async def read_file(path: str, max_lines: int = 5000) -> FileReadResponse:
-    """Read text contents of a file in workspace or data."""
+async def read_file(path: str, max_lines: int = 5000, from_end: bool = False) -> FileReadResponse:
+    """Read text contents of a file in workspace or data.
+
+    With from_end, return the last max_lines lines instead of the first.
+    """
     target_path = _resolve_path(path)
 
     if not _is_allowed_path(target_path) or has_hidden_component(target_path):
@@ -248,7 +300,7 @@ async def read_file(path: str, max_lines: int = 5000) -> FileReadResponse:
     # Off the event loop: a multi-GB file must not stall every other request
     # (RT/relay WebSockets included) while it is scanned.
     selected, total_lines, hit_limit = await asyncio.to_thread(
-        _read_head, target_path, max(max_lines, 0), READ_MAX_BYTES
+        _read_tail if from_end else _read_head, target_path, max(max_lines, 0), READ_MAX_BYTES
     )
 
     return FileReadResponse(
