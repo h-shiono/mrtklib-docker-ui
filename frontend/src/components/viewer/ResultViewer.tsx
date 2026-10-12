@@ -135,7 +135,12 @@ export function ResultViewer({
           epochs: parsed.epochs,
           headerRefPos: parsed.headerRefPos,
           error: parsed.epochs.length === 0 ? 'No position data found in file' : null,
-          notice: parsed.notice ?? null,
+          notice: [
+            res.truncated
+              ? `Showing the first ${res.returned_lines.toLocaleString()} of ${res.total_lines.toLocaleString()} lines`
+              : null,
+            parsed.notice,
+          ].filter(Boolean).join(' · ') || null,
         });
       })
       .catch((err) => {
