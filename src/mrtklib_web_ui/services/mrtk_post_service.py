@@ -659,6 +659,8 @@ class MrtkPostService:
         lines.append(f"glonass_ar = {_ar_flag(ar.glonass_ar)}")
         lines.append(f"bds_ar     = {_ar_flag(ar.bds_ar)}")
         lines.append(f"qzs_ar     = {_ar_flag(ar.qzs_ar)}")
+        # PPP-AR constellation bitmask (pos2-arsys; MRTKLIB default SYS_GPS=1)
+        lines.append(f"systems    = {ar.systems}")
         lines.append("")
 
         # ── [ambiguity_resolution.thresholds] ─────────────────────────────
