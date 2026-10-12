@@ -47,6 +47,9 @@ def _start_job(job_id: str, coro) -> asyncio.Task:
             return await coro
         finally:
             _finished_seq[job_id] = next(_finish_counter)
+            # Prune as each job ends, not only when the next one starts, so
+            # the limit also holds after the last job of a batch.
+            _prune_finished_jobs()
 
     task = asyncio.create_task(run())
     _active_jobs[job_id] = task
@@ -54,7 +57,9 @@ def _start_job(job_id: str, coro) -> asyncio.Task:
 
 
 def _prune_finished_jobs() -> None:
-    finished = [jid for jid, t in _active_jobs.items() if t.done()]
+    # Finished = numbered (the job ran its `finally`, possibly the caller
+    # itself, which is not done() yet) or done (cancelled before it ran).
+    finished = [jid for jid, t in _active_jobs.items() if jid in _finished_seq or t.done()]
     # A task cancelled before it ever ran never reached its `finally`; number
     # such a job now so the sort below has a key for every job.
     for jid in finished:
