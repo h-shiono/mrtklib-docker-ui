@@ -98,3 +98,18 @@ def test_job_cancelled_before_running_is_pruned_safely(monkeypatch):
     # Both finished; the unnumbered one is numbered at prune time as most
     # recent, and pruning does not fail on a missing key.
     assert len(asyncio.run(scenario())) == 1
+
+
+def test_limit_holds_after_the_last_job_of_a_batch(monkeypatch):
+    async def scenario():
+        jobs: dict[str, asyncio.Task] = {}
+        monkeypatch.setattr(mrtk_post, "_active_jobs", jobs)
+        monkeypatch.setattr(mrtk_post, "_finished_seq", {})
+        monkeypatch.setattr(mrtk_post, "MAX_FINISHED_JOBS", 3)
+        gate = asyncio.Event()
+        tasks = [mrtk_post._start_job(f"j{i}", gate.wait()) for i in range(10)]
+        gate.set()  # all finish; no further job is started
+        await asyncio.gather(*tasks)
+        return len(jobs)
+
+    assert asyncio.run(scenario()) == 3

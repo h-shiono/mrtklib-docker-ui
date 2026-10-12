@@ -6,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.0-alpha] - 2026-10-12
+
 ### Upgrade notes
+- Upgrading from 0.3.1 or earlier: also read the 0.3.2-alpha upgrade notes
+  below (non-root container with `PUID:PGID`, `.netrc` location, rtkrcv
+  working directory).
+- QC Preview is paused (see Changed); the button is greyed out.
+- Week/TOW `.pos` files display 18 s later than before (see Changed).
 - `uv.lock` is now tracked; Docker builds with `uv sync --frozen` and CI
   with `uv sync --locked`. After changing dependencies in
   `pyproject.toml`, run `uv lock` and commit `uv.lock`.
@@ -49,6 +56,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - `mrtk post` output is always drained, so a run without log callbacks
   cannot hang.
 - Real-Time: the console is no longer sent a guessed `admin` password.
+- Map (Real-Time and Result Viewer): the dark-mode basemap showed "API KEY
+  REQUIRED" tiles, because CARTO's `dark_all` now needs an API key. Dark
+  mode now uses OpenStreetMap tiles darkened with a CSS filter.
 - Healthcheck start period aligned to 10 s (Dockerfile and compose).
 
 ### Security

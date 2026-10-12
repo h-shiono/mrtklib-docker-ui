@@ -23,3 +23,9 @@ body {
 code, pre, kbd, .mantine-Code-root {
   font-family: 'IBM Plex Mono', monospace !important;
 }
+
+/* Dark basemap: invert OpenStreetMap tiles (see MapView.tsx). Applied to the
+   tile layer only, so markers keep their quality colours. */
+.mrtk-tiles-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+}
