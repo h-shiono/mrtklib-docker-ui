@@ -17,9 +17,9 @@ services:
       # Optional: mount host .netrc for data download credentials
       # - ${NETRC_FILE:-/dev/null}:/home/mrtk/.netrc:ro
       # CLAS Pipeline (Stream Server tab → CLAS Pipeline) needs serial
-      # passthrough. Uncomment the lines below and set the device paths
-      # in .env (CLAS_INPUT_DEVICE, CLAS_OUTPUT_DEVICE) — defaults to
-      # ttyUSB0 (SBF in) and ttyUSB1 (RTCM3 out).
+      # passthrough of one bidirectional port (SBF/L6 out of the receiver,
+      # RTCM3 back in). Uncomment the lines below and set the device path
+      # in .env (CLAS_INPUT_DEVICE) — defaults to ttyUSB0.
       # - /dev/serial:/dev/serial:ro
     environment:
       - PYTHONUNBUFFERED=1
@@ -32,7 +32,6 @@ services:
       - GSI_PASSWORD=${GSI_PASSWORD:-}
     # devices:
     #   - "${CLAS_INPUT_DEVICE:-/dev/ttyUSB0}:${CLAS_INPUT_DEVICE:-/dev/ttyUSB0}"
-    #   - "${CLAS_OUTPUT_DEVICE:-/dev/ttyUSB1}:${CLAS_OUTPUT_DEVICE:-/dev/ttyUSB1}"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]

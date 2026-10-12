@@ -211,10 +211,12 @@ services:
       - /dev/serial:/dev/serial:ro
 ```
 
-The CLAS Pipeline tab needs **two** serial devices (one for SBF
-input, one for RTCM3 output). Set `CLAS_INPUT_DEVICE` and
-`CLAS_OUTPUT_DEVICE` in `.env`, then uncomment the matching
-`devices:` block in `docker-compose.yml`.
+The CLAS Pipeline tab uses **one** bidirectional serial device: the
+receiver streams SBF (with L6 frames) out of the port and accepts the
+generated RTCM3 back on the same port. Configure the receiver port to
+do both (output SBF/L6, input RTCM3). Set `CLAS_INPUT_DEVICE` in
+`.env` to that port, then uncomment the matching `devices:` line in
+`docker-compose.yml`.
 
 #### macOS host
 

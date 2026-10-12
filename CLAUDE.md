@@ -4,13 +4,14 @@
 
 Web UI for [MRTKLIB](https://github.com/h-shiono/MRTKLIB) CLI tools,
 running in a Docker container. Users access GNSS post-processing,
-real-time positioning, stream relay, RINEX conversion, and receiver
-monitoring from a browser without compiling anything.
+real-time positioning, stream relay (incl. the CLAS pipeline), RINEX
+conversion, and data tools from a browser without compiling anything.
 
 - **MRTKLIB version:** 0.7.11 (pinned in `.mrtklib-version`)
 - **Unified binary:** `mrtk` with subcommands (`post`, `run`, `relay`,
-  `convert`, `ssr2obs`, `ssr2osr`, `bias`, `dump`, `cssr2rtcm3`)
-- **UI version:** v0.4.0-alpha (next: v0.5.0-alpha)
+  `convert`, `ssr2obs`, `ssr2osr`, `bias`, `dump`, `cssr2rtcm3`,
+  `l6extract`)
+- **UI version:** v0.4.0-alpha (next: v0.5.0 — drops the alpha suffix)
 
 ## Tech Stack
 
@@ -24,7 +25,9 @@ monitoring from a browser without compiling anything.
 ### Frontend
 - React 19 + TypeScript (strict mode), Vite
 - **Mantine v8** — UI library (no v6 patterns, no `sx` prop)
-- Chart.js — scatter, bar charts
+- Charts: uPlot (PP Result Viewer time series, obs QC SNR),
+  Recharts (RT position scatter / time series), Chart.js (RT sky plot /
+  SNR bars); Leaflet + react-leaflet for maps
 - IBM Plex Sans + IBM Plex Mono (Google Fonts)
 - No external state manager — React `useState` / `useRef`
 
@@ -42,19 +45,25 @@ mrtklib-docker-ui/
 │   └── lessons.md     # Accumulated patterns (read before coding)
 ├── src/mrtklib_web_ui/
 │   ├── main.py        # FastAPI entry point
-│   ├── api/           # Routers: post, run, relay, convert,
-│   │                  #   monitor, downloader, presets, files
+│   ├── paths.py       # ALLOWED_ROOTS / path checks
+│   ├── api/           # Routers: mrtk_post, mrtk_run, mrtk_relay,
+│   │                  #   clas_pipeline, convert, downloader, presets,
+│   │                  #   files, config, ai, obs_qc
 │   └── services/      # Business logic per feature
+├── tests/             # pytest (backend)
 ├── frontend/src/
+│   ├── App.tsx        # Shell, header mode switch, PP panel
 │   ├── components/
-│   │   ├── common/    # OptionLabel, shared helpers
-│   │   ├── tools/     # Time Converter, Data Downloader
-│   │   ├── viewer/    # Result Viewer, Chart, Map
+│   │   ├── common/    # OptionLabel, MaskedPathInput
+│   │   ├── tools/     # Time Converter, Data Downloader, AI Settings
+│   │   ├── viewer/    # PP Result Viewer (Chart, 2D plot, Map)
 │   │   ├── obsViewer/ # Observation QC charts
 │   │   └── ...        # Feature components (flat)
+│   ├── config/        # optionMeta.ts, sectionSearchIndex.ts
+│   ├── hooks/         # useFollowScroll, useWebSocket, ...
+│   ├── types/         # MrtkPostConfig etc.
 │   ├── theme.ts       # Mantine theme + cssVariablesResolver
-│   └── utils/
-│       └── gnssTime.ts# GPS time conversion logic
+│   └── utils/         # gnssTime, configToBackend, tomlImport, ...
 ├── docker/Dockerfile
 ├── docker-compose.yml
 └── .env.example
@@ -63,11 +72,15 @@ mrtklib-docker-ui/
 ## Architecture Rules
 
 ### Navigation
-Six top-level tabs: Post Processing | Real-Time | Stream Server |
-Conversion | Tools | Monitor
+The header has a mode switch for the two primary modes,
+**Real-time | Post-processing**, and a "More" menu for
+**Stream Server** (Multi-Stream Relay, CLAS Pipeline) | **Conversion** |
+**Tools** (Time Converter, Data Downloader, AI Settings).
 
-Each tab except Tools/Monitor uses a sidebar (160px fixed) +
-form panel layout, identical to VS Code Settings.
+Real-time and Post-processing use `ConsoleFrame`: a collapsible
+Config column (left) and a Workspace column (right: Chart / Solution /
+Console / Trace sub-tabs). The config panels use a section rail + form
+layout like VS Code Settings. Tools uses `ToolsSidebar` + panel.
 
 ### Form layout convention
 All config panels use **label-left / input-right** (130px label width):
@@ -176,7 +189,7 @@ docker compose up --build
    asked. UI restructuring tasks touch navigation/layout only.
 
 3. **WebSocket pattern:** All streaming follows the existing
-   post/run WebSocket implementation. New features (convert, monitor)
+   post/run WebSocket implementation. New features (convert, tools)
    must replicate this pattern exactly.
 
 4. **`minWidth: 0` in flex containers.** Always add this to flex
