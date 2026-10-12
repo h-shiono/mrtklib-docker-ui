@@ -252,6 +252,7 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
     slipDetection: {
       ...d.slipDetection,
       threshold: get(slip, 'threshold', d.slipDetection.threshold),
+      doppler: get(slip, 'doppler', d.slipDetection.doppler),
     },
     kalmanFilter: {
       iterations: get(kf, 'iterations', d.kalmanFilter.iterations),
@@ -264,6 +265,7 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
         phaseElevation: get(kfMe, 'phase_elevation', d.kalmanFilter.measurementError.phaseElevation),
         phaseBaseline: get(kfMe, 'phase_baseline', d.kalmanFilter.measurementError.phaseBaseline),
         doppler: get(kfMe, 'doppler', d.kalmanFilter.measurementError.doppler),
+        uraRatio: get(kfMe, 'ura_ratio', d.kalmanFilter.measurementError.uraRatio),
         snrMax: get(kfMe, 'snr_max', d.kalmanFilter.measurementError.snrMax),
         snrError: get(kfMe, 'snr_error', d.kalmanFilter.measurementError.snrError),
         ionosphere: get(kfMe, 'ionosphere', d.kalmanFilter.measurementError.ionosphere),
@@ -371,6 +373,7 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
       nmeaIntervalRmcGga: get(out, 'nmea_interval_1', d.output.nmeaIntervalRmcGga),
       nmeaIntervalGsaGsv: get(out, 'nmea_interval_2', d.output.nmeaIntervalGsaGsv),
       outputSolutionStatus: get(out, 'solution_status', d.output.outputSolutionStatus),
+      maxSolutionStd: get(out, 'max_solution_std', d.output.maxSolutionStd),
       debugTrace: get(out, 'debug_trace', d.output.debugTrace),
     },
     files: {

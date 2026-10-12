@@ -1,5 +1,6 @@
 """File browser API for /workspace and /data directories."""
 
+import asyncio
 from pathlib import Path
 from typing import Any, Literal
 
@@ -192,6 +193,43 @@ class FileReadResponse(BaseModel):
     file_size: int
 
 
+# Upper bound on the text returned by /read, whatever max_lines asks for, so a
+# huge file (or one with no newlines) cannot be pulled into memory whole.
+READ_MAX_BYTES = 16 * 1024 * 1024
+_COUNT_CHUNK = 1024 * 1024
+
+
+def _read_head(path: Path, max_lines: int, max_bytes: int) -> tuple[list[str], int, bool]:
+    """Read up to max_lines lines / max_bytes bytes, then count all lines.
+
+    Returns (lines, total_lines, hit_byte_limit). Memory stays bounded by
+    max_bytes; the line count scans the file in chunks without keeping it.
+    """
+    lines: list[str] = []
+    used = 0
+    hit_limit = False
+    with path.open("rb") as f:
+        while len(lines) < max_lines:
+            raw = f.readline(max_bytes - used + 1)
+            if not raw:
+                break
+            if used + len(raw) > max_bytes:
+                hit_limit = True
+                break
+            used += len(raw)
+            lines.append(raw.decode("utf-8", errors="replace").rstrip("\r\n"))
+
+        f.seek(0)
+        total = 0
+        last = b"\n"
+        while chunk := f.read(_COUNT_CHUNK):
+            total += chunk.count(b"\n")
+            last = chunk[-1:]
+        if last != b"\n":
+            total += 1  # final line without a trailing newline
+    return lines, total, hit_limit
+
+
 @router.get("/read", response_model=FileReadResponse)
 async def read_file(path: str, max_lines: int = 5000) -> FileReadResponse:
     """Read text contents of a file in workspace or data."""
@@ -207,16 +245,18 @@ async def read_file(path: str, max_lines: int = 5000) -> FileReadResponse:
         raise HTTPException(status_code=400, detail="Path is not a file")
 
     file_size = target_path.stat().st_size
-    lines = target_path.read_text(errors="replace").splitlines()
-    total_lines = len(lines)
-    selected = lines[:max_lines]
+    # Off the event loop: a multi-GB file must not stall every other request
+    # (RT/relay WebSockets included) while it is scanned.
+    selected, total_lines, hit_limit = await asyncio.to_thread(
+        _read_head, target_path, max(max_lines, 0), READ_MAX_BYTES
+    )
 
     return FileReadResponse(
         path=str(target_path),
         content="\n".join(selected),
         total_lines=total_lines,
         returned_lines=len(selected),
-        truncated=max_lines < total_lines,
+        truncated=hit_limit or len(selected) < total_lines,
         file_size=file_size,
     )
 

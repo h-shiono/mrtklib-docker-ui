@@ -6,6 +6,67 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.0-alpha] - 2026-10-12
+
+### Upgrade notes
+- Upgrading from 0.3.1 or earlier: also read the 0.3.2-alpha upgrade notes
+  below (non-root container with `PUID:PGID`, `.netrc` location, rtkrcv
+  working directory).
+- QC Preview is paused (see Changed); the button is greyed out.
+- Week/TOW `.pos` files display 18 s later than before (see Changed).
+- `uv.lock` is now tracked; Docker builds with `uv sync --frozen` and CI
+  with `uv sync --locked`. After changing dependencies in
+  `pyproject.toml`, run `uv lock` and commit `uv.lock`.
+- The `INSTALL_QC` build argument and the `qc` extra are gone (see
+  Removed). An existing `INSTALL_QC` in `.env` is ignored.
+
+### Added
+- Post Processing: **PPP-AR Systems** control
+  (`[ambiguity_resolution].systems`: GPS / Galileo / QZSS / BeiDou) and
+  **Max Sol Std** control (`[output].max_solution_std`).
+- Result Viewer: notice when the chart shows only the head of a file,
+  or when an NMEA log carries no date.
+
+### Changed
+- QC Preview is disabled (greyed out; `/api/obs-qc/analyze` returns
+  503) until it is rebuilt on MRTKLIB QC.
+- Result Viewer: solution times stay in the file's time system (GPST /
+  UTC / JST from the header; UTC for NMEA) and the map tooltip shows
+  it. Week/TOW files are no longer shifted by a fixed 18 s, so they
+  display 18 s later than before (now matching calendar output).
+- Result Viewer: ENU charts resize and take new data in place; the
+  shared zoom survives resizes and reference changes.
+- Post Processing: only the 20 most recently finished jobs are kept for
+  `/status`; the status poll stops with a warning on 404.
+
+### Removed
+- cssrlib / numba / numpy and python-socketio dependencies (~375 MB of
+  QC stack in the image).
+
+### Fixed
+- TOML import keeps `max_solution_std`, `ura_ratio` and
+  `slip_detection.doppler` (they were reset on import).
+- `[ambiguity_resolution].systems` is written to the generated TOML
+  (Post Processing and Real-Time); it was dropped, so MRTKLIB always
+  used its default (GPS only) for PPP-AR.
+- File previews read at most 16 MB, off the event loop (large files no
+  longer stall the server or exhaust memory).
+- NMEA logs without RMC (GGA only, or GGA before the first RMC) show
+  positions; dates come from RMC / ZDA, the file name, or 1970-01-01.
+- `mrtk post` output is always drained, so a run without log callbacks
+  cannot hang.
+- Real-Time: the console is no longer sent a guessed `admin` password.
+- Map (Real-Time and Result Viewer): the dark-mode basemap showed "API KEY
+  REQUIRED" tiles, because CARTO's `dark_all` now needs an API key. Dark
+  mode now uses OpenStreetMap tiles darkened with a CSS filter.
+- Healthcheck start period aligned to 10 s (Dockerfile and compose).
+
+### Security
+- Log masking also covers passwords containing `@` or `/`, e-mail user
+  names (rtk2go), secret query parameters, secret-looking assignments
+  and `Authorization` headers; the stream path input mask follows the
+  same rules.
+
 ## [0.3.2-alpha] - 2026-10-11
 
 ### Upgrade notes
@@ -134,41 +195,106 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   rejected); an empty raw-log path is rejected. An empty output path
   still writes solutions to stdout (console).
 
-## [0.1.0] - 2026-03-09
+## [0.3.0-alpha] - 2026-07-15
 
-Initial public release.
+### Changed
+- MRTKLIB pinned to v0.7.6 (unified `mrtk` binary). Full TOML schema
+  migration (types, backend `generate_conf_file`, `configToBackend`,
+  `tomlImport`, preview) with lossless round-trip.
+- Positioning settings restructured into the v0.7.6 sections; dead
+  v0.6.5 fields removed.
+- CLAS pipeline uses a single bidirectional serial port.
+- Real-Time: the former scatter view is named **2D**.
+- Unified dark terminal look across all consoles; collapsible
+  Config | Workspace console frame.
+- RINEX Converter: `DateTimePicker` for time fields; multi-column field
+  layout.
 
 ### Added
+- New v0.7.6 controls (robust estimation, TDCP, SNR, PPP clock jump,
+  CLAS resilience, …), GPS AR toggle, legacy `.conf` → TOML converter.
+- Real-Time: real-basemap **Map** view (Leaflet) for the live track.
+- Result Viewer: 2D / Map for XYZ-ECEF and NMEA-0183 outputs, not only
+  LLH.
+- Bundled read-only QZSS CLAS / MADOCA real-time presets.
 
-#### Post-Processing (rnx2rtkp)
-- 7-tabbed configuration UI (Setting 1, Setting 2, Output, Stats, Positions, Files, Misc)
-- Conditional enable/disable logic mirroring the Windows RTKLIB GUI
-- SNR Mask modal editor (3x9 matrix for L1/L2/L5 frequencies)
-- File browser for `/workspace` directory
-- Configuration export as `.conf` file
-- Time range configuration (start/end time)
-- Result viewer with map view, 2D plot, and time-series charts (ENU/XYZ)
-- Cursor synchronization across charts
-- Result file download
-- Real-time progress tracking and log streaming via WebSocket
+### Fixed
+- Post Processing: compressed inputs on the read-only `/data` mount are
+  staged into a writable temp dir before running `mrtk`.
+- Real-Time: the Stop button stays while the process is alive.
+- Conversion: no duplicated output after clear + re-convert.
 
-#### Stream Server (str2str)
-- Input/output stream configuration (TCP client/server, UDP, serial, NTRIP, file)
-- LED-like status indicators for connection and data traffic
-- Real-time console output via WebSocket
-- Process start/stop management
-- File naming helper with swap interval and timetag options
+### Security
+- Preset ids are validated to prevent path traversal.
 
-#### Observation Data Viewer
-- RINEX observation file parsing and analysis
-- Satellite visibility chart with time-series visualization
-- Signal strength (SNR) color-coded display
-- Multi-signal selection and comparison
+## [0.2.1-alpha] - 2026-05-10
 
-#### Infrastructure
-- Single-container Docker deployment
-- Multi-stage Dockerfile (RTKLIB 2.4.3 b34 compiled from source)
-- Host workspace bind-mount (`/workspace`)
-- FastAPI backend with WebSocket support
-- React + TypeScript + Mantine v7 frontend
-- Auto-save configuration to browser localStorage with versioned keys
+### Fixed
+- Subprocess log reader no longer stops on lines longer than 64 KiB
+  (seen with cssr2rtcm3's dump blocks): chunk-based reader, lines
+  capped at 8 KiB with a `…[truncated]` marker.
+
+## [0.2.0-alpha] - 2026-05-10
+
+### Added
+- Stream Server → **CLAS Pipeline** sub-tab: `mrtk relay` +
+  `mrtk cssr2rtcm3` orchestration for SBF receivers + CLAS, with serial
+  `/dev/serial/by-id` enumeration, watchdog teardown, live SBF
+  PVTGeodetic position view and throughput meter.
+- Bundled per-receiver cssr2rtcm3 configs; Septentrio mosaic-G5 /
+  mosaic-CLAS preset; receiver-request issue template.
+- Optional raw SBF recording; stream URL input (`tcpcli://`,
+  `ntripcli://`) for bench testing.
+- Issue / PR templates and label sync; Docker Hub description sync.
+
+### Changed
+- MRTKLIB pinned to v0.6.5.
+
+### Fixed
+- `crypto.randomUUID` polyfill so the UI works over plain HTTP (LAN,
+  Tailscale).
+
+## [0.1.3-alpha] - 2026-03-30
+
+### Fixed
+- Input file paths resolve from `/data` and `/opt/mrtklib/corrections`;
+  shared path helpers and output path validation for Obs QC and
+  Conversion.
+
+## [0.1.2-alpha] - 2026-03-30
+
+### Added
+- Config Assistant: natural language → TOML generation.
+
+### Fixed
+- Defensive API response parsing.
+
+## [0.1.1-alpha] - 2026-03-30
+
+### Changed
+- Documentation, accessibility and TOML handling improvements.
+
+## [0.1.0-alpha] - 2026-03-28
+
+Initial public release, built on MRTKLIB (v0.6.x).
+
+Note: the `v0.1.0-alpha` git tag and GitHub pre-release (2026-04-20)
+point to a later commit than 0.1.1–0.1.3 that adds Docker image
+publishing (GHCR / Docker Hub), the `.mrtklib-version` pin (v0.6.4) and
+build-time MRTKLIB branch selection.
+
+### Added
+- Post Processing (`mrtk post`): sidebar covering all MRTKLIB options,
+  TOML import / export with lossless round-trip, server-side presets,
+  all positioning modes (Single … PPP-AR, CLAS PPP-RTK, MADOCA, VRS-RTK).
+- Real-Time (`mrtk run`): live position, fix-quality badges, position
+  scatter, time series, sky plot + SNR chart, solution / trace output.
+- Stream Relay (`mrtk relay`): up to 4 streams with per-stream control
+  and console.
+- RINEX Conversion (`mrtk convert`): convbin formats, option groups,
+  command preview, RINEX preview.
+- Receiver Monitor (NMEA / UBX / SBF) and Tools (GNSS Time Converter,
+  Data Downloader).
+- Single-container Docker deployment with `/workspace` (rw) and `/data`
+  (ro) volumes; FastAPI + WebSocket backend; React 19 + TypeScript +
+  Mantine v8 frontend.

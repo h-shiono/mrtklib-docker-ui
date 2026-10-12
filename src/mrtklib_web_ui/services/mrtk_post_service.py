@@ -659,6 +659,8 @@ class MrtkPostService:
         lines.append(f"glonass_ar = {_ar_flag(ar.glonass_ar)}")
         lines.append(f"bds_ar     = {_ar_flag(ar.bds_ar)}")
         lines.append(f"qzs_ar     = {_ar_flag(ar.qzs_ar)}")
+        # PPP-AR constellation bitmask (pos2-arsys; MRTKLIB default SYS_GPS=1)
+        lines.append(f"systems    = {ar.systems}")
         lines.append("")
 
         # ── [ambiguity_resolution.thresholds] ─────────────────────────────
@@ -1045,11 +1047,12 @@ class MrtkPostService:
                 if buf.strip() and log_cb:
                     await log_cb(buf.decode(errors="replace").strip())
 
-            if log_callback:
-                await asyncio.gather(
-                    read_stdout(process.stdout, log_callback),
-                    read_stderr_with_progress(process.stderr, log_callback, progress_callback),
-                )
+            # Always drain both pipes, callbacks or not: an unread PIPE fills
+            # up and blocks mrtk, so process.wait() would never return.
+            await asyncio.gather(
+                read_stdout(process.stdout, log_callback),
+                read_stderr_with_progress(process.stderr, log_callback, progress_callback),
+            )
 
             await process.wait()
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { useElementSize } from '@mantine/hooks';
 import { useMantineColorScheme } from '@mantine/core';
 import uPlot from 'uplot';
@@ -34,8 +34,9 @@ const METRIC_SHORT: Record<ChartMetric, string> = {
   ns: 'ns',
 };
 
-/** uPlot plugin to draw Q-flag colored points */
-function qColorPlugin(qValues: number[]): uPlot.Plugin {
+/** uPlot plugin to draw Q-flag colored points. Reads Q values through a ref
+ *  so setData() with new data does not need a new plugin (or chart). */
+function qColorPlugin(qValuesRef: { current: number[] }): uPlot.Plugin {
   return {
     hooks: {
       drawSeries: (u: uPlot, seriesIdx: number) => {
@@ -50,7 +51,7 @@ function qColorPlugin(qValues: number[]): uPlot.Plugin {
           const y = u.valToPos(yData[i] as number, 'y', true);
           if (x < 0 || y < 0) continue;
 
-          const q = qValues[i] ?? 5;
+          const q = qValuesRef.current[i] ?? 5;
           ctx.fillStyle = Q_COLORS[q] || '#888';
           ctx.beginPath();
           ctx.arc(x, y, 2, 0, Math.PI * 2);
@@ -100,7 +101,7 @@ function tooltipPlugin(metricKey: ChartMetric, isDark: boolean): uPlot.Plugin {
           return;
         }
 
-        // Format time (UTC)
+        // Format time (the Date's UTC fields carry the file's own time system)
         const d = new Date(xVal * 1000);
         const hh = String(d.getUTCHours()).padStart(2, '0');
         const mm = String(d.getUTCMinutes()).padStart(2, '0');
@@ -144,9 +145,7 @@ export function ChartView({
   const isDark = colorScheme === 'dark';
 
   // Refs to avoid stale closures in uPlot hooks
-  const programmaticRef = useRef(false);
   const onXRangeChangeRef = useRef(onXRangeChange);
-  onXRangeChangeRef.current = onXRangeChange;
 
   // Prepare uPlot data arrays
   const plotData = useMemo(() => {
@@ -164,9 +163,37 @@ export function ChartView({
     return { xValues, yValues, qValues };
   }, [data, metric]);
 
-  // Create/destroy uPlot instance
+  // Latest props for the effects below, so a resize or new data updates the
+  // existing chart (setSize / setData) instead of rebuilding it.
+  const plotDataRef = useRef(plotData);
+  const qValuesRef = useRef<number[]>([]);
+  const sizeRef = useRef({ width, height });
+  const rangesRef = useRef({ xRange, yRange });
+  // Layout effects run before the effects below, so they always see these.
+  useLayoutEffect(() => {
+    onXRangeChangeRef.current = onXRangeChange;
+    plotDataRef.current = plotData;
+    qValuesRef.current = plotData?.qValues ?? [];
+    sizeRef.current = { width, height };
+    rangesRef.current = { xRange, yRange };
+  });
+  // The plotData currently shown by the chart instance.
+  const shownDataRef = useRef<typeof plotData>(null);
+
+  const ready = !!plotData && width >= 100;
+
+  const applyRanges = (u: uPlot) => {
+    const { xRange: xr, yRange: yr } = rangesRef.current;
+    if (xr) u.setScale('x', { min: xr[0], max: xr[1] });
+    if (yr) u.setScale('y', { min: yr[0], max: yr[1] });
+  };
+
+  // Create/destroy the uPlot instance. Only things baked into its options
+  // (theme, metric, cursor sync) rebuild it; size and data are updated below.
   useEffect(() => {
-    if (!chartRef.current || !plotData || width < 100) return;
+    const plotData = plotDataRef.current;
+    if (!chartRef.current || !plotData || !ready) return;
+    const { width, height } = sizeRef.current;
 
     const axisColor = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)';
     const textColor = isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.7)';
@@ -176,7 +203,7 @@ export function ChartView({
       width,
       height: height - 8,
       plugins: [
-        qColorPlugin(plotData.qValues),
+        qColorPlugin(qValuesRef),
         tooltipPlugin(metric, isDark),
       ],
       legend: { show: false },
@@ -193,21 +220,20 @@ export function ChartView({
       hooks: {
         setScale: [
           (u: uPlot, key: string) => {
-            if (key === 'x' && !programmaticRef.current && onXRangeChangeRef.current) {
-              const min = u.scales.x.min;
-              const max = u.scales.x.max;
-              if (min != null && max != null) {
-                // Check if it's a full-range reset (double-click)
-                const xData = u.data[0];
-                const fullMin = xData[0];
-                const fullMax = xData[xData.length - 1];
-                if (min === fullMin && max === fullMax) {
-                  onXRangeChangeRef.current(null);
-                } else {
-                  onXRangeChangeRef.current([min, max]);
-                }
-              }
-            }
+            // uPlot fires this hook from a deferred commit (a microtask), also
+            // for our own setScale()/setData() calls, so a "programmatic" flag
+            // set around those calls cannot tell them apart. Instead, report
+            // only ranges that differ from the current shared range: that is
+            // a user zoom or a double-click reset.
+            if (key !== 'x' || !onXRangeChangeRef.current) return;
+            const min = u.scales.x.min;
+            const max = u.scales.x.max;
+            if (min == null || max == null) return;
+            const xData = u.data[0];
+            const isFull = xData.length > 0 && min === xData[0] && max === xData[xData.length - 1];
+            const cur = rangesRef.current.xRange;
+            if (cur ? min === cur[0] && max === cur[1] : isFull) return;
+            onXRangeChangeRef.current(isFull ? null : [min, max]);
           },
         ],
       },
@@ -252,31 +278,38 @@ export function ChartView({
     }
 
     uplotRef.current = new uPlot(opts, uplotData, chartRef.current);
-
-    // Apply initial ranges after creation
-    if (xRange) {
-      programmaticRef.current = true;
-      uplotRef.current.setScale('x', { min: xRange[0], max: xRange[1] });
-      programmaticRef.current = false;
-    }
-    if (yRange) {
-      uplotRef.current.setScale('y', { min: yRange[0], max: yRange[1] });
-    }
+    shownDataRef.current = plotData;
+    applyRanges(uplotRef.current);
 
     return () => {
       if (uplotRef.current) {
         uplotRef.current.destroy();
         uplotRef.current = null;
       }
+      shownDataRef.current = null;
     };
-    // Do NOT include xRange/yRange — those are applied imperatively below
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plotData, width, height, isDark, metric, cursorSyncKey]);
+    // Size, data and ranges come from refs and are applied by the effects
+    // below, so they do not rebuild the chart.
+  }, [ready, isDark, metric, cursorSyncKey]);
+
+  // Resize in place
+  useEffect(() => {
+    uplotRef.current?.setSize({ width, height: height - 8 });
+  }, [width, height]);
+
+  // New data in place (resets scales to the data, then re-applies the
+  // shared x / y ranges)
+  useEffect(() => {
+    const u = uplotRef.current;
+    if (!u || !plotData || shownDataRef.current === plotData) return;
+    u.setData([Array.from(plotData.xValues), Array.from(plotData.yValues)]);
+    shownDataRef.current = plotData;
+    applyRanges(u);
+  }, [plotData]);
 
   // Apply shared X-range changes imperatively (from other charts' zoom)
   useEffect(() => {
     if (!uplotRef.current) return;
-    programmaticRef.current = true;
     if (xRange) {
       uplotRef.current.setScale('x', { min: xRange[0], max: xRange[1] });
     } else {
@@ -286,7 +319,6 @@ export function ChartView({
         uplotRef.current.setScale('x', { min: xData[0], max: xData[xData.length - 1] });
       }
     }
-    programmaticRef.current = false;
   }, [xRange]);
 
   // Apply Y-range changes imperatively

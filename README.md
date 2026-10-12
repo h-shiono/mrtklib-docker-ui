@@ -11,7 +11,7 @@ GNSS positioning capabilities. No compilation required — just
 ![React](https://img.shields.io/badge/react-19-blue.svg)
 ![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.11-green.svg)
 
-> **Status**: v0.3.2-alpha — core features are functional.
+> **Status**: v0.4.0-alpha — core features are functional.
 > Known limitations are listed in [Known Issues](#known-issues).
 
 ![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
@@ -61,8 +61,8 @@ GNSS positioning capabilities. No compilation required — just
 - Running relays are restored after a page reload and can still be stopped
 
 ### CLAS Pipeline (`mrtk relay` + `mrtk cssr2rtcm3`)
-- One-form Wizard for the SBC + receiver + CLAS workflow added in
-  MRTKLIB v0.6.5
+- One-form Wizard for the SBC + receiver + CLAS workflow (supported
+  by MRTKLIB since v0.6.5; the image bundles the pinned version)
 - Pipes Septentrio SBF (with QZSS L6 CLAS) → cssr2rtcm3 → RTCM3 →
   back to the receiver, which runs VRS-RTK on its own engine
 - Live throughput meter, position scatter (parsed from SBF
@@ -119,10 +119,10 @@ Images are published for both `linux/amd64` and `linux/arm64`
 1. **Pull the image**
    ```bash
    # Docker Hub
-   docker pull hatognss/mrtklib-docker-ui:0.3.2-alpha
+   docker pull hatognss/mrtklib-docker-ui:0.4.0-alpha
 
    # or GitHub Container Registry
-   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.3.2-alpha
+   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.0-alpha
    ```
 
 2. **Prepare host directories**
@@ -138,7 +138,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
      -e PUID="$(id -u)" -e PGID="$(id -g)" \
-     hatognss/mrtklib-docker-ui:0.3.2-alpha
+     hatognss/mrtklib-docker-ui:0.4.0-alpha
    ```
 
 4. **Open the UI** at <http://localhost:8080>
@@ -279,13 +279,9 @@ uv sync
 uv run uvicorn mrtklib_web_ui.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The QC Preview option needs the optional `qc` extra (cssrlib):
-
-```bash
-uv sync --extra qc
-```
-
-Docker builds include it by default; set `INSTALL_QC=0` in `.env` to skip it.
+> **Note:** QC Preview is temporarily disabled (the button is greyed out and
+> `/api/obs-qc/analyze` returns 503) until it is integrated with MRTKLIB QC.
+> The previous cssrlib-based implementation and its `qc` extra were removed.
 
 Run the backend tests (pytest is in the `dev` dependency group):
 
@@ -353,7 +349,8 @@ surface orphan state in its UI.
 | **v0.2.x-alpha** | Template presets, GNSS time converter, Monitor Sky+SNR, IGS/GSI downloader, GHCR/Docker Hub publish |
 | **v0.3.0-alpha** | MRTKLIB 0.7.6 config migration, console redesign, CLAS pipeline, RINEX Converter overhaul, unified dark consoles, XYZ-ECEF / NMEA-0183 result views, live basemap map |
 | **v0.3.1-alpha** | MRTKLIB 0.7.11, Real-Time raw input logging, restart-safe file outputs |
-| **v0.3.2-alpha** (current) | Security hardening, non-root container (`PUID:PGID`), Real-Time input stream status + live trace, reload-safe Real-Time / Stream Server sessions, PR CI |
+| **v0.3.2-alpha** | Security hardening, non-root container (`PUID:PGID`), Real-Time input stream status + live trace, reload-safe Real-Time / Stream Server sessions, PR CI |
+| **v0.4.0-alpha** (current) | Audit follow-ups (#39, #40): PPP-AR systems / max sol std controls, broader log masking, bounded file previews, NMEA and time-system fixes in the Result Viewer, slimmer image (QC Preview paused), reproducible builds (`uv.lock`) |
 
 ---
 

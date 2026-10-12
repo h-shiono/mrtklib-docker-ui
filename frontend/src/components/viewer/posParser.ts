@@ -60,7 +60,24 @@ function detectFormat(lines: string[]): PosFormat {
   return 'llh';
 }
 
-/** Parse "YYYY/MM/DD HH:MM:SS.sss" or "WEEK TOW" time; returns null on failure. */
+/**
+ * Time system of a column .pos file, from MRTKLIB's column header line
+ * ("%  GPST          latitude(deg) ..."; also UTC / JST). Defaults to GPST.
+ */
+function detectTimeSystem(headerLines: string[]): string {
+  for (const line of headerLines) {
+    const m = line.match(/^%\s*(GPST|UTC|JST)\b/);
+    if (m) return m[1];
+  }
+  return 'GPST';
+}
+
+/**
+ * Parse "YYYY/MM/DD HH:MM:SS.sss" or "WEEK TOW" time; returns null on failure.
+ * Times are kept in the file's own time system (see detectTimeSystem), never
+ * shifted: MRTKLIB writes both formats in the configured system, so no leap
+ * second correction applies. The Date's UTC fields carry that system's clock.
+ */
 function parseColumnTime(parts: string[]): Date | null {
   if (parts[0].includes('/')) {
     const time = new Date(`${parts[0].replace(/\//g, '-')}T${parts[1]}Z`);
@@ -70,8 +87,7 @@ function parseColumnTime(parts: string[]): Date | null {
   const tow = parseFloat(parts[1]);
   if (isNaN(week) || isNaN(tow)) return null;
   const GPS_EPOCH_MS = Date.UTC(1980, 0, 6);
-  // Approximate: assume current leap seconds (18 s GPS→UTC offset).
-  const time = new Date(GPS_EPOCH_MS + (week * 604800 + tow - 18) * 1000);
+  const time = new Date(GPS_EPOCH_MS + (week * 604800 + tow) * 1000);
   return isNaN(time.getTime()) ? null : time;
 }
 
@@ -141,28 +157,114 @@ function nmeaToDeg(field: string, hemi: string): number {
   return hemi === 'S' || hemi === 'W' ? -d : d;
 }
 
-/**
- * Parse NMEA-0183 output. MRTKLIB emits an RMC (carries the UTC date) followed
- * by a GGA (carries height, satellites and fix quality) per epoch, so we track
- * the latest RMC date and pair it with each GGA's time-of-day.
- */
-function parseNmea(lines: string[]): PosEpoch[] {
-  const epochs: PosEpoch[] = [];
-  let date: { y: number; mo: number; d: number } | null = null;
+type YMD = { y: number; mo: number; d: number };
 
-  for (const raw of lines) {
-    const t = raw.trim();
+function addDay(date: YMD, n = 1): YMD {
+  const t = new Date(Date.UTC(date.y, date.mo - 1, date.d + n));
+  return { y: t.getUTCFullYear(), mo: t.getUTCMonth() + 1, d: t.getUTCDate() };
+}
+
+/** Date carried by an RMC (ddmmyy in field 9) or ZDA (dd, mm, yyyy) sentence. */
+function nmeaDate(type: string, f: string[]): YMD | null {
+  if (type === 'RMC') {
+    const ddmmyy = f[9] || '';
+    if (ddmmyy.length < 6) return null;
+    const d = parseInt(ddmmyy.slice(0, 2), 10);
+    const mo = parseInt(ddmmyy.slice(2, 4), 10);
+    const yy = parseInt(ddmmyy.slice(4, 6), 10);
+    return isNaN(d) || isNaN(mo) || isNaN(yy) ? null : { y: 2000 + yy, mo, d };
+  }
+  if (type === 'ZDA') {
+    const d = parseInt(f[2], 10);
+    const mo = parseInt(f[3], 10);
+    const y = parseInt(f[4], 10);
+    return isNaN(d) || isNaN(mo) || isNaN(y) ? null : { y, mo, d };
+  }
+  return null;
+}
+
+/** YYYYMMDD / YYYY-MM-DD / YYYY_MM_DD in a file name, e.g. "rover_20260412.nmea". */
+function dateFromFileName(fileName: string | undefined): YMD | null {
+  const base = fileName?.split(/[\\/]/).pop() ?? '';
+  const m = base.match(/(20\d{2})[-_]?(0[1-9]|1[0-2])[-_]?(0[1-9]|[12]\d|3[01])/);
+  return m ? { y: +m[1], mo: +m[2], d: +m[3] } : null;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** Seconds of day from an NMEA hhmmss[.ss] field, or NaN. */
+function nmeaTod(field: string | undefined): number {
+  const s = field || '';
+  if (s.length < 6) return NaN;
+  return parseInt(s.slice(0, 2), 10) * 3600 + parseInt(s.slice(2, 4), 10) * 60 + parseFloat(s.slice(4));
+}
+
+/**
+ * Parse NMEA-0183 output. GGA carries position, height, satellites and fix
+ * quality but only a time of day, so the date comes from RMC / ZDA sentences
+ * (MRTKLIB emits an RMC per epoch). GGAs before the first dated sentence are
+ * dated by walking back from it and counting the UTC midnights crossed. Logs with GGA only fall back to a
+ * date in the file name,
+ * else 1970-01-01, and say so via `notice`. Without a dated sentence, a time
+ * of day going back by more than 12 h is taken as a UTC midnight rollover.
+ */
+function parseNmea(lines: string[], fileName?: string): { epochs: PosEpoch[]; notice?: string } {
+  const epochs: PosEpoch[] = [];
+  let notice: string | undefined;
+
+  let date: YMD | null = null;
+  let firstTod = NaN; // time of day of the first dated sentence
+  const preGga: { line: number; tod: number }[] = []; // GGAs before it
+  for (let li = 0; li < lines.length; li++) {
+    const t = lines[li].trim();
+    if (!t.startsWith('$')) continue;
+    const type = t.substring(3, 6);
+    const f = t.split('*')[0].split(',');
+    date = nmeaDate(type, f);
+    if (date) {
+      firstTod = nmeaTod(f[1]);
+      break;
+    }
+    if (type === 'GGA') preGga.push({ line: li, tod: nmeaTod(f[1]) });
+  }
+  const firstDate = date;
+  // Day offsets (relative to firstDate) of the GGAs before the first dated
+  // sentence: walk back from it and count every UTC midnight crossed, i.e.
+  // every step back to an earlier sentence whose time of day is > 12 h later.
+  const preDayOffset = new Map<number, number>();
+  if (firstDate && !isNaN(firstTod)) {
+    let offset = 0;
+    let nextTod = firstTod;
+    for (let k = preGga.length - 1; k >= 0; k--) {
+      const { line, tod } = preGga[k];
+      if (isNaN(tod)) continue;
+      if (tod - nextTod > 43200) offset -= 1;
+      preDayOffset.set(line, offset);
+      nextTod = tod;
+    }
+  }
+  if (!date) {
+    date = dateFromFileName(fileName);
+    notice = date
+      ? `No RMC/ZDA date in file; using ${date.y}-${pad2(date.mo)}-${pad2(date.d)} from the file name`
+      : 'No RMC/ZDA date in file; times are shown on 1970-01-01';
+    date ??= { y: 1970, mo: 1, d: 1 };
+  }
+
+  let prevTod: number | null = null;
+  let seenDated = false;
+  for (let li = 0; li < lines.length; li++) {
+    const t = lines[li].trim();
     if (!t.startsWith('$')) continue;
     const type = t.substring(3, 6);
     const f = t.split('*')[0].split(','); // drop checksum, split fields
 
-    if (type === 'RMC') {
-      const ddmmyy = f[9] || '';
-      if (ddmmyy.length >= 6) {
-        const d = parseInt(ddmmyy.slice(0, 2), 10);
-        const mo = parseInt(ddmmyy.slice(2, 4), 10);
-        const yy = parseInt(ddmmyy.slice(4, 6), 10);
-        if (!isNaN(d) && !isNaN(mo) && !isNaN(yy)) date = { y: 2000 + yy, mo, d };
+    if (type === 'RMC' || type === 'ZDA') {
+      const d = nmeaDate(type, f);
+      if (d) {
+        date = d;
+        prevTod = null;
+        seenDated = true;
       }
       continue;
     }
@@ -171,12 +273,22 @@ function parseNmea(lines: string[]): PosEpoch[] {
     const timeStr = f[1] || '';
     const lat = nmeaToDeg(f[2], f[3]);
     const lon = nmeaToDeg(f[4], f[5]);
-    if (isNaN(lat) || isNaN(lon) || timeStr.length < 6 || !date) continue;
+    if (isNaN(lat) || isNaN(lon) || timeStr.length < 6) continue;
 
     const hh = parseInt(timeStr.slice(0, 2), 10);
     const mi = parseInt(timeStr.slice(2, 4), 10);
     const ss = parseFloat(timeStr.slice(4));
     if (isNaN(hh) || isNaN(mi) || isNaN(ss)) continue;
+
+    const tod = hh * 3600 + mi * 60 + ss;
+    const preOffset = seenDated ? undefined : preDayOffset.get(li);
+    if (firstDate && preOffset !== undefined) {
+      // Before the first dated sentence: anchored to it (see preDayOffset).
+      date = addDay(firstDate, preOffset);
+    } else if (prevTod !== null && tod < prevTod - 43200) {
+      date = addDay(date);
+    }
+    prevTod = tod;
 
     const time = new Date(
       Date.UTC(date.y, date.mo - 1, date.d, hh, mi, Math.floor(ss), Math.round((ss % 1) * 1000)),
@@ -204,7 +316,7 @@ function parseNmea(lines: string[]): PosEpoch[] {
       ratio: 0,
     });
   }
-  return epochs;
+  return { epochs, notice };
 }
 
 /**
@@ -212,14 +324,19 @@ function parseNmea(lines: string[]): PosEpoch[] {
  * XYZ-ECEF and NMEA-0183 output formats — XYZ and NMEA epochs are converted
  * to lat/lon/height so the map and 2D views render for every format.
  */
-export function parsePosFile(content: string): PosFileData {
+export function parsePosFile(content: string, fileName?: string): PosFileData {
   const lines = content.split('\n');
   const headerLines = lines.filter((l) => l.startsWith('%'));
   const fmt = detectFormat(lines);
-  const epochs = fmt === 'nmea' ? parseNmea(lines) : parseColumns(lines, fmt);
+  const { epochs, notice } = fmt === 'nmea'
+    ? parseNmea(lines, fileName)
+    : { epochs: parseColumns(lines, fmt), notice: undefined };
 
   return {
     epochs,
     headerRefPos: parseHeaderRefPos(headerLines),
+    notice,
+    // NMEA (GGA/RMC/ZDA) times are UTC by definition.
+    timeSystem: fmt === 'nmea' ? 'UTC' : detectTimeSystem(headerLines),
   };
 }
