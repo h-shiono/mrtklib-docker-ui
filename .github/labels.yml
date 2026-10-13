@@ -125,6 +125,13 @@
   description: "Root cause lives in MRTKLIB; tracked upstream"
 
 # -----------------------------------------------------------------------------
+# Automation
+# -----------------------------------------------------------------------------
+- name: "skip-ai-review"
+  color: "ededed"
+  description: "Do not run the automatic Claude review on this PR"
+
+# -----------------------------------------------------------------------------
 # Community signals (GitHub defaults retained)
 # -----------------------------------------------------------------------------
 - name: "good first issue"
