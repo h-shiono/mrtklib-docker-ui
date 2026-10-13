@@ -40,7 +40,7 @@ import { PostProcessingConfiguration  } from './components';
 import { ResultViewer } from './components/viewer';
 import { ConsoleFrame } from './components/ConsoleFrame';
 import { RealTimeProcessing, type RtLiveStatus } from './components/RealTimeProcessing';
-import { QUALITY } from './components/RtMetricsRow';
+import { QUALITY } from './utils/rtQuality';
 import { ConversionPanel } from './components/ConversionPanel';
 import { StreamPathHelp } from './components/StreamPathHelp';
 import { ClasPipelinePanel } from './components/ClasPipelinePanel';
