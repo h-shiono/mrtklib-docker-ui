@@ -127,9 +127,9 @@
 # -----------------------------------------------------------------------------
 # Automation
 # -----------------------------------------------------------------------------
-- name: "skip-ai-review"
+- name: "ai-review"
   color: "ededed"
-  description: "Do not run the automatic Claude review on this PR"
+  description: "Request a Greptile review (release, backend/security, large PRs)"
 
 # -----------------------------------------------------------------------------
 # Community signals (GitHub defaults retained)
