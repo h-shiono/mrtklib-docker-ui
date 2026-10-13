@@ -144,7 +144,6 @@ def test_unopenable_file_does_not_hang(tmp_path, monkeypatch, break_side):
         dst = tmp_path / "out.rnx"
         if break_side == "input":
             src.mkdir()  # exists, cannot be opened as a file
-            script = "cat"
         else:
             src.write_bytes(PAYLOAD)
             real_open = open
@@ -155,9 +154,11 @@ def test_unopenable_file_does_not_hang(tmp_path, monkeypatch, break_side):
                 return real_open(path, mode, *a, **kw)
 
             monkeypatch.setattr(hatanaka, "open", failing_open, raising=False)
-            script = "cat"
+        # cat itself, not `sh -c cat`: dash forks cat instead of exec'ing it,
+        # so killing sh would leave cat holding the pipes (the real tools are
+        # exec'd directly).
         proc = await asyncio.create_subprocess_exec(
-            "sh", "-c", script,
+            "cat",
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
         convert._process = proc
