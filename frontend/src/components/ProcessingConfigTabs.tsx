@@ -348,7 +348,7 @@ const CORRECTION_OPTIONS: { value: CorrectionProvider; label: string }[] = [
   { value: 'igs', label: 'IGS (precise files)' },
   { value: 'igs-rts', label: 'IGS-RTS (RTCM-SSR)' },
   { value: 'qzs-madoca', label: 'MADOCA-PPP (QZSS L6E)' },
-  { value: 'gal-has', label: 'Galileo HAS (reserved)' },
+  { value: 'gal-has', label: 'Galileo HAS (E6B SSR)' },
   { value: 'bds-b2b', label: 'BeiDou PPP-B2b (reserved)' },
   { value: 'qzs-clas', label: 'CLAS (QZSS L6D)' },
 ];
