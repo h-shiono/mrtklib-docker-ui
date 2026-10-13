@@ -21,16 +21,26 @@ function findRanges(line: string, q: string): [number, number][] {
   return out;
 }
 
-function Highlighted({ line, q, current }: { line: string; q: string; current: boolean }) {
+/** One occurrence of the query: its line and start offset. */
+interface Match {
+  line: number;
+  start: number;
+}
+
+/** `line` with every occurrence of `q` marked; the one starting at
+ *  `currentStart` (if any) is the selected match. */
+function Highlighted({ line, q, currentStart }: { line: string; q: string; currentStart: number }) {
   const ranges = findRanges(line, q);
   if (ranges.length === 0) return <>{line || ' '}</>;
   const parts: ReactNode[] = [];
   let pos = 0;
   ranges.forEach(([s, e], k) => {
     if (s > pos) parts.push(line.slice(pos, s));
+    const current = s === currentStart;
     parts.push(
       <mark
         key={k}
+        data-current={current || undefined}
         style={{
           backgroundColor: current ? MARK_CURRENT_BG : MARK_BG,
           color: current ? 'var(--mantine-color-dark-9)' : 'inherit',
@@ -88,7 +98,7 @@ export function TraceLogView({
 }: TraceLogViewProps) {
   const [query, setQuery] = useState('');
   const [matchOnly, setMatchOnly] = useState(false);
-  // Selected match: an index into `matches`, valid only for the `lines` it
+  // Selected occurrence: an index into `matches`, valid only for the `lines` it
   // was chosen on. A live view that keeps following gets new lines every
   // poll, and the same index would then point at a different line.
   const [sel, setSel] = useState<{ lines: string[]; idx: number } | null>(null);
@@ -99,17 +109,25 @@ export function TraceLogView({
   const pinBottomRef = useRef(false);
 
   const q = query.toLowerCase();
+  // Every occurrence (a line may hold several), for the counter and stepping
   const matches = useMemo(() => {
-    if (!q) return [];
-    const out: number[] = [];
+    const out: Match[] = [];
+    if (!q) return out;
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].toLowerCase().includes(q)) out.push(i);
+      for (const [start] of findRanges(lines[i], q)) out.push({ line: i, start });
     }
     return out;
   }, [lines, q]);
+  // Lines holding at least one occurrence, for "Matching lines only"
+  const matchLines = useMemo(() => {
+    const out: number[] = [];
+    for (const m of matches) if (out[out.length - 1] !== m.line) out.push(m.line);
+    return out;
+  }, [matches]);
 
   const cur = sel && sel.lines === lines && sel.idx < matches.length ? sel.idx : -1;
-  const currentLine = cur >= 0 ? matches[cur] : -1;
+  const current = cur >= 0 ? matches[cur] : null;
+  const currentLine = current ? current.line : -1;
 
   const step = useCallback(
     (dir: 1 | -1) => {
@@ -120,17 +138,20 @@ export function TraceLogView({
     [cur, lines, matches.length],
   );
 
-  // Bring a newly selected match into view (centred), after it has rendered.
-  // Keyed on the selection object, so new lines do not re-centre it.
+  // Bring the selected match into view (centred) after it has rendered: on a
+  // new selection, and after the filter toggle reflows the lines. Not keyed on
+  // the lines, so new lines while following do not re-centre it.
   useEffect(() => {
     if (!sel) return;
     const vp = vpRef.current;
-    const el = vp?.querySelector<HTMLElement>('[data-current]');
+    const el = vp?.querySelector<HTMLElement>('mark[data-current]');
     if (!vp || !el) return;
     const vpRect = vp.getBoundingClientRect();
     const elRect = el.getBoundingClientRect();
     vp.scrollTop += elRect.top - vpRect.top - (vp.clientHeight - elRect.height) / 2;
-  }, [sel, vpRef]);
+    // Unwrapped lines (PP) can put the match off to the side
+    if (!wrap) vp.scrollLeft += elRect.left - vpRect.left - (vp.clientWidth - elRect.width) / 2;
+  }, [sel, matchOnly, wrap, vpRef]);
 
   const keepBottom = () => {
     const vp = vpRef.current;
@@ -170,14 +191,10 @@ export function TraceLogView({
       </Text>
     );
   } else {
-    const shown = matchOnly ? matches : null;
+    const shown = matchOnly ? matchLines : null;
     const render = (i: number) => (
-      <div
-        key={i}
-        data-current={i === currentLine || undefined}
-        style={i === currentLine ? { backgroundColor: LINE_CURRENT_BG } : undefined}
-      >
-        <Highlighted line={lines[i]} q={q} current={i === currentLine} />
+      <div key={i} style={i === currentLine ? { backgroundColor: LINE_CURRENT_BG } : undefined}>
+        <Highlighted line={lines[i]} q={q} currentStart={i === currentLine && current ? current.start : -1} />
       </div>
     );
     body = (
@@ -208,6 +225,8 @@ export function TraceLogView({
             }
           }}
           leftSection={<IconSearch size={12} />}
+          // Input sections ignore pointer events by default; the clear button needs them
+          rightSectionPointerEvents="all"
           rightSection={
             query ? (
               <ActionIcon
