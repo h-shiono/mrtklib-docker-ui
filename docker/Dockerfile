@@ -1,5 +1,6 @@
 # Multi-stage Dockerfile for MRTKLIB Web UI
 # Stage 1: Build MRTKLIB from source
+# Stage 1b: Build RNXCMP (crx2rnx / rnx2crx)
 # Stage 2: Build frontend
 # Stage 3: Build backend with uv
 # Stage 4: Runtime
@@ -44,6 +45,32 @@ RUN mkdir -p /mrtklib-corrections/clas /mrtklib-corrections/madoca && \
       clas_grid.def clas_grid.blq igu00p01.erp igs14_L5copy.atx isb.tbl l2csft.tbl && \
     tar xzf tests/data/madocalib/madocalib_testdata.tar.gz -C /mrtklib-corrections/madoca \
       igs20.atx
+
+# ================================
+# Stage 1b: Build RNXCMP (Hatanaka compression tools)
+# ================================
+# mrtk shells out to `crx2rnx` to read Hatanaka-compressed RINEX inputs
+# (.crx, .??d). Source vendored from https://terras.gsi.go.jp/ja/crx2rnx.html
+# (Geospatial Information Authority of Japan); see docs/LICENSE.txt in it.
+FROM debian:bookworm-slim AS rnxcmp-builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+ARG RNXCMP_VERSION=4.2.0
+ARG RNXCMP_SHA256=9a452d2908a27c5b3152cc424e048847221c065e97f6b1f1a585c7b0c34fbace
+COPY docker/vendor/RNXCMP_${RNXCMP_VERSION}_src.tar.gz ./
+RUN echo "${RNXCMP_SHA256}  RNXCMP_${RNXCMP_VERSION}_src.tar.gz" | sha256sum -c - && \
+    tar xzf RNXCMP_${RNXCMP_VERSION}_src.tar.gz && \
+    cd RNXCMP_${RNXCMP_VERSION}_src && \
+    mkdir -p /rnxcmp/bin /rnxcmp/doc && \
+    gcc -O2 source/crx2rnx.c -o /rnxcmp/bin/crx2rnx && \
+    gcc -O2 source/rnx2crx.c -o /rnxcmp/bin/rnx2crx && \
+    strip /rnxcmp/bin/* && \
+    cp docs/LICENSE.txt docs/README.txt docs/RNXCMP.txt /rnxcmp/doc/
 
 # ================================
 # Stage 2: Build Frontend
@@ -98,6 +125,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=mrtklib-builder /mrtklib-bin/mrtk /usr/local/bin/mrtk
 RUN chmod +x /usr/local/bin/mrtk
 
+# Hatanaka compression tools (crx2rnx is called by mrtk for .crx / .??d inputs)
+COPY --from=rnxcmp-builder /rnxcmp/bin/ /usr/local/bin/
+COPY --from=rnxcmp-builder /rnxcmp/doc/ /usr/share/doc/rnxcmp/
+
 # Copy MRTKLIB correction files (extracted in build stage)
 COPY --from=mrtklib-builder /mrtklib-corrections/ /opt/mrtklib/corrections/
 
@@ -119,8 +150,8 @@ COPY docker/bundled-presets/ /opt/mrtklib/presets/
 RUN chmod -R 444 /opt/mrtklib/presets/ && \
     find /opt/mrtklib/presets -type d -exec chmod 555 {} +
 
-# Verify mrtk is installed
-RUN mrtk --version
+# Verify mrtk and the RNXCMP tools are installed
+RUN mrtk --version && command -v crx2rnx rnx2crx
 
 # Copy virtual environment from backend builder
 COPY --from=backend-builder /app/.venv /app/.venv
