@@ -11,7 +11,7 @@ GNSS positioning capabilities. No compilation required — just
 ![React](https://img.shields.io/badge/react-19-blue.svg)
 ![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.11-green.svg)
 
-> **Status**: v0.4.0-alpha — core features are functional.
+> **Status**: v0.4.1-alpha — core features are functional.
 > Known limitations are listed in [Known Issues](#known-issues).
 
 ![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
@@ -31,6 +31,9 @@ GNSS positioning capabilities. No compilation required — just
 - Result visualization: 2D E/N scatter, interactive basemap (Leaflet),
   and position / quality charts — reads **LLH, XYZ-ECEF, and NMEA-0183**
   solution outputs (auto-detected)
+- Compressed inputs (`.gz`, `.Z`, single-file `.zip`, `.tar`) and
+  Hatanaka-compressed RINEX (`.crx`, `.??d`, e.g. `.crx.gz`) are
+  decompressed by `mrtk` (the image bundles `crx2rnx` / `rnx2crx`)
 
 ### Real-Time Positioning (`mrtk run`)
 - Live position display (Lat / Lon / Height / AR Ratio /
@@ -119,10 +122,10 @@ Images are published for both `linux/amd64` and `linux/arm64`
 1. **Pull the image**
    ```bash
    # Docker Hub
-   docker pull hatognss/mrtklib-docker-ui:0.4.0-alpha
+   docker pull hatognss/mrtklib-docker-ui:0.4.1-alpha
 
    # or GitHub Container Registry
-   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.0-alpha
+   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.1-alpha
    ```
 
 2. **Prepare host directories**
@@ -138,7 +141,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
      -e PUID="$(id -u)" -e PGID="$(id -g)" \
-     hatognss/mrtklib-docker-ui:0.4.0-alpha
+     hatognss/mrtklib-docker-ui:0.4.1-alpha
    ```
 
 4. **Open the UI** at <http://localhost:8080>
@@ -211,10 +214,12 @@ services:
       - /dev/serial:/dev/serial:ro
 ```
 
-The CLAS Pipeline tab needs **two** serial devices (one for SBF
-input, one for RTCM3 output). Set `CLAS_INPUT_DEVICE` and
-`CLAS_OUTPUT_DEVICE` in `.env`, then uncomment the matching
-`devices:` block in `docker-compose.yml`.
+The CLAS Pipeline tab uses **one** bidirectional serial device: the
+receiver streams SBF (with L6 frames) out of the port and accepts the
+generated RTCM3 back on the same port. Configure the receiver port to
+do both (output SBF/L6, input RTCM3). Set `CLAS_INPUT_DEVICE` in
+`.env` to that port, then uncomment the matching `devices:` line in
+`docker-compose.yml`.
 
 #### macOS host
 
@@ -350,7 +355,8 @@ surface orphan state in its UI.
 | **v0.3.0-alpha** | MRTKLIB 0.7.6 config migration, console redesign, CLAS pipeline, RINEX Converter overhaul, unified dark consoles, XYZ-ECEF / NMEA-0183 result views, live basemap map |
 | **v0.3.1-alpha** | MRTKLIB 0.7.11, Real-Time raw input logging, restart-safe file outputs |
 | **v0.3.2-alpha** | Security hardening, non-root container (`PUID:PGID`), Real-Time input stream status + live trace, reload-safe Real-Time / Stream Server sessions, PR CI |
-| **v0.4.0-alpha** (current) | Audit follow-ups (#39, #40): PPP-AR systems / max sol std controls, broader log masking, bounded file previews, NMEA and time-system fixes in the Result Viewer, slimmer image (QC Preview paused), reproducible builds (`uv.lock`) |
+| **v0.4.0-alpha** | Audit follow-ups (#39, #40): PPP-AR systems / max sol std controls, broader log masking, bounded file previews, NMEA and time-system fixes in the Result Viewer, slimmer image (QC Preview paused), reproducible builds (`uv.lock`) |
+| **v0.4.1-alpha** (current) | Bug fixes: Hatanaka (`crx2rnx`) inputs in the image, Real-Time log views hold while scrolled up, Post Processing Trace shows the file's end, Data Downloader (Earthdata login, non-blocking GSI, past default dates), Galileo HAS label, CLAS single-port docs |
 
 ---
 
@@ -465,6 +471,15 @@ MIT License. See [LICENSE](LICENSE).
 MRTKLIB is distributed under the BSD 2-Clause License.
 This project provides a web interface only and does not modify
 MRTKLIB source code.
+
+The Docker image includes `crx2rnx` / `rnx2crx` built from the
+RNXCMP software (Copyright (c) 2007 Geospatial Information Authority
+of Japan), unmodified, under its license
+(`/usr/share/doc/rnxcmp/LICENSE.txt` in the image;
+[source](https://terras.gsi.go.jp/ja/crx2rnx.html)). Reference:
+Hatanaka, Y. (2008), A Compression Format and Tools for GNSS
+Observation Data, Bulletin of the Geospatial Information Authority of
+Japan, 55, 21-30 (<https://www.gsi.go.jp/ENGLISH/Bulletin55.html>).
 
 ---
 

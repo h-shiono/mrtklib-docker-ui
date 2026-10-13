@@ -1,5 +1,7 @@
 """Data downloader API for GNSS data files."""
 
+import asyncio
+import ftplib
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -49,6 +51,52 @@ def _add_history(entry: dict[str, Any]) -> None:
         _download_history.pop()
 
 
+def _part_path(dest: Path) -> Path:
+    """Temp name a download is written to, renamed to dest on success.
+
+    Unique per transfer: two requests for the same file must not write
+    into (or rename / delete) each other's temp file.
+    """
+    return dest.with_name(f"{dest.name}.{uuid.uuid4().hex[:12]}.part")
+
+
+# Bytes collected before deciding whether a response is an HTML page: the
+# first network chunk can be as short as a few bytes.
+HTML_SNIFF_BYTES = 512
+
+
+def _looks_like_html(head: bytes, content_type: str) -> bool:
+    """True for an HTML page (e.g. an Earthdata login page) instead of data."""
+    if "text/html" in content_type.lower():
+        return True
+    start = head.lstrip()[:15].lower()
+    return start.startswith((b"<!doctype html", b"<html"))
+
+
+# NASA Earthdata Login. CDDIS redirects there to authenticate; httpx drops
+# credentials on a cross-origin redirect, so they are re-attached for this
+# host only (over https), never for any other redirect target.
+EARTHDATA_LOGIN_HOST = "urs.earthdata.nasa.gov"
+
+
+def _earthdata_auth_hook(auth: tuple[str, str]) -> Any:
+    header = httpx.BasicAuth(*auth)
+
+    async def hook(request: httpx.Request) -> None:
+        if request.url.scheme == "https" and request.url.host == EARTHDATA_LOGIN_HOST:
+            request.headers["Authorization"] = next(header.auth_flow(request)).headers["Authorization"]
+
+    return hook
+
+
+def _reject_html(head: bytes, content_type: str) -> None:
+    if _looks_like_html(head, content_type):
+        raise ValueError(
+            "Server returned an HTML page instead of the file "
+            "(login page or error page; check credentials)"
+        )
+
+
 async def _download_file(url: str, dest: Path, auth: tuple[str, str] | None = None) -> dict[str, Any]:
     """Download a single file. Returns history entry."""
     entry = {
@@ -70,17 +118,40 @@ async def _download_file(url: str, dest: Path, auth: tuple[str, str] | None = No
         return entry
 
     dest.parent.mkdir(parents=True, exist_ok=True)
+    # Stream to a .part file and rename on success, so a failed or partial
+    # transfer never leaves a file that the "already exists" check would skip.
+    part = _part_path(dest)
     try:
-        async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+        hooks = {"request": [_earthdata_auth_hook(auth)]} if auth else {}
+        async with httpx.AsyncClient(timeout=120.0, follow_redirects=True, event_hooks=hooks) as client:
             kwargs: dict[str, Any] = {}
             if auth:
                 kwargs["auth"] = auth
-            resp = await client.get(url, **kwargs)
-            resp.raise_for_status()
-            dest.write_bytes(resp.content)
+            async with client.stream("GET", url, **kwargs) as resp:
+                resp.raise_for_status()
+                content_type = resp.headers.get("content-type", "")
+                size = 0
+                head = b""  # prefix held back until it is known not to be HTML
+                sniffed = False
+                with part.open("wb") as f:
+                    async for chunk in resp.aiter_bytes():
+                        size += len(chunk)
+                        if sniffed:
+                            f.write(chunk)
+                            continue
+                        head += chunk
+                        if len(head) >= HTML_SNIFF_BYTES:
+                            _reject_html(head, content_type)
+                            f.write(head)
+                            sniffed = True
+                    if not sniffed:  # short body: decide on all of it
+                        _reject_html(head, content_type)
+                        f.write(head)
+            part.replace(dest)
             entry["status"] = "completed"
-            entry["size_bytes"] = len(resp.content)
+            entry["size_bytes"] = size
     except Exception as e:
+        part.unlink(missing_ok=True)
         entry["status"] = "failed"
         entry["error"] = str(e)
         logger.warning(f"Download failed {url}: {e}")
@@ -263,37 +334,51 @@ async def download_gsi_cors(body: GsiCorsRequest) -> dict[str, Any]:
     _add_history(entry)
 
     try:
-        import ftplib
-        dest.mkdir(parents=True, exist_ok=True)
-
-        ftp = ftplib.FTP("terras.gsi.go.jp")
-        ftp.login(cred[0], cred[1])
-        ftp.cwd(f"/data/GPS_1sec/{body.year}/{body.doy:03d}/{body.station}")
-
-        files = ftp.nlst()
-        downloaded = 0
-        for fname in files:
-            # Names come from the remote server; never let them leave dest
-            if "/" in fname or "\\" in fname or fname.startswith("."):
-                continue
-            local_path = dest / fname
-            if local_path.exists() and local_path.stat().st_size > 0:
-                continue
-            with open(local_path, "wb") as f:
-                ftp.retrbinary(f"RETR {fname}", f.write)
-            downloaded += 1
-
-        ftp.quit()
-        entry["status"] = "completed"
-        entry["size_bytes"] = sum(
-            f.stat().st_size for f in dest.iterdir() if f.is_file()
+        # ftplib blocks: run it in a worker thread so the event loop (RT and
+        # relay WebSockets included) keeps going during the transfer.
+        entry["size_bytes"] = await asyncio.to_thread(
+            _gsi_fetch_station_day, cred, body.year, body.doy, body.station, dest
         )
+        entry["status"] = "completed"
     except Exception as e:
         entry["status"] = "failed"
         entry["error"] = str(e)
         logger.warning(f"GSI CORS download failed: {e}")
 
     return entry
+
+
+GSI_FTP_HOST = "terras.gsi.go.jp"
+GSI_FTP_TIMEOUT = 60.0  # seconds per blocking socket operation
+
+
+def _gsi_fetch_station_day(cred: tuple[str, str], year: int, doy: int, station: str, dest: Path) -> int:
+    """Fetch one station-day directory from GSI FTP into dest (blocking).
+
+    Returns the total size of this station-day's files in dest (fetched now
+    or already present), not of everything else in the directory.
+    """
+    dest.mkdir(parents=True, exist_ok=True)
+    total = 0
+    with ftplib.FTP(GSI_FTP_HOST, timeout=GSI_FTP_TIMEOUT) as ftp:
+        ftp.login(cred[0], cred[1])
+        ftp.cwd(f"/data/GPS_1sec/{year}/{doy:03d}/{station}")
+        for fname in ftp.nlst():
+            # Names come from the remote server; never let them leave dest
+            if "/" in fname or "\\" in fname or fname.startswith("."):
+                continue
+            local_path = dest / fname
+            if not (local_path.exists() and local_path.stat().st_size > 0):
+                part = _part_path(local_path)
+                try:
+                    with part.open("wb") as f:
+                        ftp.retrbinary(f"RETR {fname}", f.write)
+                    part.replace(local_path)
+                except BaseException:
+                    part.unlink(missing_ok=True)
+                    raise
+            total += local_path.stat().st_size
+    return total
 
 
 def _doy_to_gps_week(year: int, doy: int) -> int:
