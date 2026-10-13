@@ -1,21 +1,14 @@
 import { Box, Group, Stack, Text } from '@mantine/core';
 import type { PositionUpdate } from '../types/mrtkRunConfig';
 import type { Satellite } from './SkySnrPanel';
+import { isUsed } from '../utils/rtSatellites';
+import { QUALITY } from '../utils/rtQuality';
 
 // ─── Real-time metrics row (console redesign Phase 4) ────────────────────────
 // Borderless at-a-glance metrics. Order: Time · Position(LLH) · Quality · Ratio
 // · Age · Satellites(per-system). All numerics in IBM Plex Mono.
 
 const MONO = "'IBM Plex Mono', monospace";
-
-export const QUALITY: Record<number, { label: string; color: string }> = {
-  1: { label: 'FIX',    color: 'var(--color-fix)' },
-  2: { label: 'FLOAT',  color: 'var(--color-float)' },
-  3: { label: 'SBAS',   color: '#a855f7' },
-  4: { label: 'DGPS',   color: '#6b7280' },
-  5: { label: 'SINGLE', color: 'var(--color-single)' },
-  6: { label: 'PPP',    color: 'var(--color-live)' },
-};
 
 // Constellation order + letter + color (matches the project's SYS_COLOR / Sky+SNR).
 const SYS_ORDER = ['GPS', 'GLONASS', 'Galileo', 'QZSS', 'BeiDou', 'SBAS', 'NavIC'];
@@ -70,7 +63,7 @@ export function RtMetricsRow({
   for (const s of satellites) {
     const c = (counts[s.system] ??= { used: 0, total: 0 });
     c.total += 1;
-    if (s.valid) c.used += 1;
+    if (isUsed(s)) c.used += 1;
   }
   const sysList = SYS_ORDER.filter((s) => counts[s]);
   const totalUsed = Object.values(counts).reduce((n, c) => n + c.used, 0);

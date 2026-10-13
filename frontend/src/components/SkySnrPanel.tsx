@@ -4,6 +4,7 @@ import {
   Stack,
   Text,
 } from '@mantine/core';
+import { isUsed } from '../utils/rtSatellites';
 import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
@@ -13,7 +14,11 @@ export interface Satellite {
   system: string;
   azimuth: number;
   elevation: number;
+  /** Valid in the single point (SPP) solution (rtkrcv C1 column). */
   valid: boolean;
+  /** Counted in the solution's ns: valid on L1 in the RTK / PPP filter, or
+   *  the SPP flag when no filter is running (backend, #120). */
+  used?: boolean;
   fix: string;
   snr: number;
 }
@@ -40,9 +45,6 @@ const FREQ_SYSTEMS: Record<string, string[]> = {
   L5:  ['GPS', 'QZSS', 'Galileo', 'BeiDou'],
 };
 
-function isUsed(sat: Satellite): boolean {
-  return sat.valid && sat.fix !== 'NONE';
-}
 
 function prnNumber(prn: string): string {
   return prn.replace(/^[A-Z]/, '');
@@ -51,7 +53,7 @@ function prnNumber(prn: string): string {
 /** Native SVG tooltip text for a sky plot marker. */
 function satTooltip(sat: Satellite): string {
   const state = isUsed(sat)
-    ? `Used (${sat.fix})`
+    ? sat.fix !== 'NONE' ? `Used (${sat.fix})` : 'Used'
     : sat.valid
       ? 'Valid, not used'
       : 'Not valid';

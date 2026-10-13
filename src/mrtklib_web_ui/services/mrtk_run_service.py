@@ -67,14 +67,32 @@ _SAT_SYSTEM_MAP = {
 
 
 def parse_satellite_output(text: str) -> list[dict[str, Any]]:
-    """Parse mrtk run `satellite` command output into per-satellite data."""
+    """Parse mrtk run `satellite` command output into per-satellite data.
+
+    Columns (rtkrcv prsatellite, nf frequencies, 2 by default):
+    SAT C1 Az El L1..Lnf Fix1..Fixnf P1Res.. L1Res.. Sl.. Lock.. Rj..
+
+    - C1 (`valid`): rtk.ssat.vs, valid in the single point (SPP) solution.
+    - L1 (`vsat[0]`): valid in the RTK / PPP / VRS / PPP-RTK filter on L1.
+      MRTKLIB counts the solution's ns as these satellites.
+
+    `used` matches the solution's ns (#120): L1 while the filter has any
+    valid satellite, else C1 (single mode, or the filter fell back to SPP,
+    where ns is the SPP count).
+    """
     text = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', text)
     text = re.sub(r'[\xff\xfb\xfc\xfd\xfe][\x00-\xff]', '', text)
     satellites: list[dict[str, Any]] = []
+    nf = 2  # rtkrcv's default; the header says how many L columns follow El
 
     for line in text.split('\n'):
         line = line.strip()
-        if not line or line.startswith('SAT') or line.startswith('password'):
+        if line.startswith('SAT'):
+            n = sum(1 for t in line.split() if re.fullmatch(r'L\d', t))
+            if n > 0:
+                nf = n
+            continue
+        if not line or line.startswith('password'):
             continue
         parts = line.split()
         if len(parts) < 4:
@@ -90,10 +108,10 @@ def parse_satellite_output(text: str) -> list[dict[str, Any]]:
         except (ValueError, IndexError):
             continue
 
-        # Extract fix status from the Fix columns (after L1/L2 OK/- columns)
-        # Format: PRN VS Az El [L1 L2 ...] [Fix1 Fix2 ...] [residuals...]
+        vsat_l1 = len(parts) > 4 and parts[4] == "OK"
+        # Ambiguity state from the Fix columns (after the nf L columns)
         fix = "NONE"
-        for p in parts[4:]:
+        for p in parts[4 + nf:4 + 2 * nf]:
             if p in ("FIX", "FLOAT", "HOLD"):
                 fix = p
                 break
@@ -105,10 +123,14 @@ def parse_satellite_output(text: str) -> list[dict[str, Any]]:
             "azimuth": az,
             "elevation": el,
             "valid": valid,
+            "vsat_l1": vsat_l1,
             "fix": fix,
             "snr": 0.0,  # Will be filled from observ command
         })
 
+    filter_active = any(s["vsat_l1"] for s in satellites)
+    for s in satellites:
+        s["used"] = s.pop("vsat_l1") if filter_active else s["valid"]
     return satellites
 
 
