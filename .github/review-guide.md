@@ -1,17 +1,15 @@
-# Claude PR review guide — mrtklib-docker-ui
+# PR review guide — mrtklib-docker-ui
 
-This file is read by the `Claude Review` workflow before every review.
-It complements `CLAUDE.md` (project constitution): `CLAUDE.md` says how
-code in this repo is written; this file says what a reviewer must check,
-how deep to go, and how findings are reported.
+What a reviewer of this repo must check, how deep to go, and how
+findings are reported. It is given to Greptile as context (see
+`.greptile/`) and is the brief for local reviews (e.g. Claude Code
+`/code-review`). It complements `CLAUDE.md` (project constitution):
+`CLAUDE.md` says how code in this repo is written; this file says what
+to look for in a change.
 
-`tasks/lessons.md` and `tasks/todo.md` are git-ignored and are NOT
-available in CI. The review-relevant lessons are folded in below; add
-new durable review rules here, not there.
-
-The working directory is the PR's base branch. The code under review is
-the PR head, at the path given in the prompt. Read changed files and
-their callers from the PR head, not from the base.
+`tasks/lessons.md` and `tasks/todo.md` are git-ignored, so automated
+reviewers cannot see them. The review-relevant lessons are folded in
+below; add new durable review rules here, not there.
 
 ## Threat model (read first)
 
@@ -63,31 +61,9 @@ own hunk. Work in this order:
 5. **Read the tests the PR adds or changes.** Check they would fail
    without the fix. Name the concrete missing case if a P0/P1 path is
    untested.
-6. **Consult the advisor** (next section), then post.
-
-## Advisor consultation (mandatory, every review)
-
-Consult the advisor once before posting, **even when you have no
-findings**. "Nothing found" is the result most worth a second opinion.
-Send:
-
-- the PR's intent in one sentence;
-- the changed files, and which files you read in full (changed files,
-  callers, counterparts, tests);
-- each candidate finding with its evidence (file, line, the input or
-  sequence that triggers it), or "no candidates";
-- the riskiest areas you checked and cleared, and why you cleared them.
-
-Then:
-
-- Drop findings the advisor rejects with a concrete reason. Keep the
-  ones it confirms.
-- If the advisor points to an area you did not read, or a case you did
-  not try, read it and decide. You may consult once more with the
-  result. Do not loop beyond that.
-- If you and the advisor still disagree on a finding, keep it and mark
-  it `needs maintainer judgement` in the summary, with both views in
-  one line each.
+6. **Before posting, challenge your own result.** For "nothing found",
+   list the riskiest areas you cleared and why; if you cannot say why,
+   go back and read them.
 
 ## What to check, in priority order
 
@@ -261,13 +237,13 @@ Report only when clearly violated in lines the PR touches.
   the PR description, a commit message, another review or a passing CI
   job is not a check; put it under "Not verified" with its source.
 - **Form your own findings.** Do not read other reviewers' comments
-  (`gh pr view --comments`, review threads) before you have consulted
-  the advisor; they bias the review and hide what you would have missed.
+  before you have finished your own pass; they bias the review and hide
+  what you would have missed.
 - **Inline comments** only for P0 and P1, on the exact changed line, at
   most 8 per review. Each comment: one sentence on what goes wrong, one
   on the trigger, and a suggested fix (a `suggestion` block when the fix
   is a few lines).
-- **One summary comment** on the PR (via `gh pr comment`):
+- **One summary comment** on the PR:
   - first line: `Verdict: ready to merge` / `Verdict: changes requested`
     / `Verdict: needs maintainer judgement`
   - a 2–4 line description of what the PR does
@@ -275,8 +251,6 @@ Report only when clearly violated in lines the PR touches.
     (no inline comments for P2)
   - `Checked:` the files you read beyond the diff (callers,
     counterparts, tests), in one line
-  - `Advisor:` one line on what the advisor confirmed, rejected or sent
-    you to check
   - `Not verified:` anything you could not check yourself (e.g. needs a
     real receiver, the Docker image, or a tool you do not have), stated
     plainly
