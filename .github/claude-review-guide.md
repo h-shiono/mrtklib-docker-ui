@@ -46,6 +46,13 @@ own hunk. Work in this order:
      builds (`streamArgs.ts`, `ConversionPanel.tsx`, `api/*`);
    - backend masking (`mask_credentials.py`) ↔ frontend masking
      (`utils/maskPath.ts`, `MaskedPathInput`);
+   - any rule the frontend re-implements ↔ the backend rule it mirrors.
+     A frontend check that decides whether to show, enable or send
+     something (path prefix, allowed root, file extension, "is
+     configured") must accept exactly what the backend accepts. For
+     paths, compare with `paths.resolve_path()`: relative paths resolve
+     under `/workspace`, so a UI check like
+     `path.startsWith('/workspace/')` wrongly rejects `output.pos`;
    - code ↔ docs (`README.md`, `CLAUDE.md`, `.env.example`,
      `docker-compose.yml`) when the PR changes behaviour they describe.
 4. **Attack each change.** For every changed function, try the inputs
@@ -248,6 +255,14 @@ Report only when clearly violated in lines the PR touches.
 - **Verify before posting.** Every finding names the file and line, the
   concrete input or sequence that triggers it, and what goes wrong. Drop
   anything you cannot tie to a trigger after reading the code.
+- **Only claim checks you actually ran.** `Checked:` lists what you
+  read or computed yourself in this run (a file you opened, a hash you
+  computed with `sha256sum`, a search you ran). Something you took from
+  the PR description, a commit message, another review or a passing CI
+  job is not a check; put it under "Not verified" with its source.
+- **Form your own findings.** Do not read other reviewers' comments
+  (`gh pr view --comments`, review threads) before you have consulted
+  the advisor; they bias the review and hide what you would have missed.
 - **Inline comments** only for P0 and P1, on the exact changed line, at
   most 8 per review. Each comment: one sentence on what goes wrong, one
   on the trigger, and a suggested fix (a `suggestion` block when the fix
@@ -262,7 +277,8 @@ Report only when clearly violated in lines the PR touches.
     counterparts, tests), in one line
   - `Advisor:` one line on what the advisor confirmed, rejected or sent
     you to check
-  - anything you could not verify (e.g. needs a real receiver or the
-    Docker image), stated plainly
+  - `Not verified:` anything you could not check yourself (e.g. needs a
+    real receiver, the Docker image, or a tool you do not have), stated
+    plainly
 - Write in English, plainly. No emoji, no headings beyond what the
   summary needs.
