@@ -314,6 +314,9 @@ export function ConversionPanel() {
   const [logLines, setLogLines] = useState<string[]>([]);
   const consoleRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  // Incremented by every start and by Stop. A start that waited for the
+  // WebSocket checks it, so Stop during that wait cancels the start.
+  const startSeqRef = useRef(0);
 
   // Right panel tab state
   const [rightTab, setRightTab] = useState<RightPanelTab>('console');
@@ -472,6 +475,16 @@ export function ConversionPanel() {
     };
 
     wsRef.current = ws;
+    // Resolve once the socket is open (2 s fallback), so the start request
+    // cannot finish before we listen: a small Hatanaka file can complete in
+    // well under a second, and its status would be lost.
+    return new Promise<void>((resolve) => {
+      if (ws.readyState === WebSocket.OPEN) { resolve(); return; }
+      const done = () => { ws.removeEventListener('open', done); ws.removeEventListener('error', done); resolve(); };
+      ws.addEventListener('open', done);
+      ws.addEventListener('error', done);
+      setTimeout(done, 2000);
+    });
   }, [fetchPreviews]);
 
   // Cleanup WebSocket on unmount
@@ -610,7 +623,9 @@ export function ConversionPanel() {
     setOutputFiles({});
     parsedOutputRef.current = {};
     setRightTab('console');
-    connectWs();
+    const seq = ++startSeqRef.current;
+    await connectWs();
+    if (seq !== startSeqRef.current) return; // Stop was pressed meanwhile
 
     try {
       const response = await fetch('/api/convert/start', {
@@ -672,7 +687,9 @@ export function ConversionPanel() {
     setOutputFiles({});
     parsedOutputRef.current = {};
     setRightTab('console');
-    connectWs();
+    const seq = ++startSeqRef.current;
+    await connectWs();
+    if (seq !== startSeqRef.current) return; // Stop was pressed meanwhile
 
     try {
       const response = await fetch('/api/convert/hatanaka/start', {
@@ -701,6 +718,7 @@ export function ConversionPanel() {
   }, [hk, hkOutput, connectWs]);
 
   const handleStop = useCallback(async () => {
+    startSeqRef.current++; // cancels a start still waiting for the socket
     try {
       await fetch('/api/convert/stop', { method: 'POST' });
       setStatus('idle');

@@ -72,6 +72,9 @@ interface TraceLogViewProps {
   overlay?: ReactNode;
   /** Extra note at the right of the toolbar. */
   note?: ReactNode;
+  /** Called when a match is selected; a live view holds here (useFollowScroll
+   *  `hold`), so new lines cannot replace the lines the selection is on. */
+  onMatchSelect?: () => void;
 }
 
 /**
@@ -83,8 +86,9 @@ interface TraceLogViewProps {
  * live views (RT trace) re-render on every poll and per-line nodes are only
  * worth their cost while searching.
  *
- * Jumping to a match scrolls the viewport, so a useFollowScroll view holds
- * still (its snapshot is what is searched) until the user resumes.
+ * Selecting a match calls `onMatchSelect`; a useFollowScroll view passes
+ * its `hold`, so it holds still (its snapshot is what is searched) until the
+ * user resumes, even when the match is near the bottom.
  */
 export function TraceLogView({
   lines,
@@ -95,6 +99,7 @@ export function TraceLogView({
   onScrollPositionChange,
   overlay,
   note,
+  onMatchSelect,
 }: TraceLogViewProps) {
   const [query, setQuery] = useState('');
   const [matchOnly, setMatchOnly] = useState(false);
@@ -134,8 +139,9 @@ export function TraceLogView({
       if (matches.length === 0) return;
       const next = cur === -1 ? (dir === 1 ? 0 : matches.length - 1) : (cur + dir + matches.length) % matches.length;
       setSel({ lines, idx: next });
+      onMatchSelect?.();
     },
-    [cur, lines, matches.length],
+    [cur, lines, matches.length, onMatchSelect],
   );
 
   // Bring the selected match into view (centred) after it has rendered: on a

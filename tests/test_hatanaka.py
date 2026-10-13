@@ -170,3 +170,91 @@ def test_unopenable_file_does_not_hang(tmp_path, monkeypatch, break_side):
     expected = "[ERROR] IsADirectoryError" if break_side == "input" else "[ERROR] OSError"
     assert any(m.get("message", "").startswith(expected) for m in sent)
     assert not list(tmp_path.glob("*.part"))
+
+
+# ── Release review (#129): saving, overwrite, busy slot, stop ───────────────
+
+async def _run_script(tmp_path, monkeypatch, script, *, overwrite):
+    sent: list[dict] = []
+
+    async def fake_broadcast(msg):
+        sent.append(msg)
+
+    monkeypatch.setattr(convert, "_broadcast", fake_broadcast)
+    src = tmp_path / "in.crx"
+    src.write_bytes(PAYLOAD)
+    dst = tmp_path / "out.rnx"
+    proc = await asyncio.create_subprocess_exec(
+        "sh", "-c", script.replace("DST", str(dst)),
+        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    convert._process = proc
+    await asyncio.wait_for(
+        convert._run_hatanaka(proc, src, dst, gzip_out=False, decompress=True, overwrite=overwrite), 10)
+    return dst, sent, [m["status"] for m in sent if m["type"] == "status"]
+
+
+def test_save_failure_reports_failed(tmp_path, monkeypatch):
+    # The destination turns into a non-empty directory during the run
+    dst, sent, statuses = asyncio.run(_run_script(
+        tmp_path, monkeypatch, "mkdir -p DST/x; cat", overwrite=True))
+    assert statuses == ["failed"]
+    assert any(m.get("message", "").startswith("[ERROR] Could not save") for m in sent)
+    assert not list(tmp_path.glob("*.part"))
+    assert convert._process is None
+
+
+def test_overwrite_off_keeps_a_file_created_during_the_run(tmp_path, monkeypatch):
+    dst, sent, statuses = asyncio.run(_run_script(
+        tmp_path, monkeypatch, "echo mine > DST; cat", overwrite=False))
+    assert statuses == ["failed"]
+    assert dst.read_text() == "mine\n"
+    assert any("created during the conversion" in m.get("message", "") for m in sent)
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_overwrite_on_replaces_it(tmp_path, monkeypatch):
+    dst, sent, statuses = asyncio.run(_run_script(
+        tmp_path, monkeypatch, "echo mine > DST; cat", overwrite=True))
+    assert statuses == ["completed"]
+    assert dst.read_bytes() == PAYLOAD
+
+
+def test_slot_busy_until_the_job_finishes(monkeypatch):
+    async def go():
+        monkeypatch.setattr(convert, "_process", None)
+        gate = asyncio.Event()
+        job = asyncio.create_task(gate.wait())
+        monkeypatch.setattr(convert, "_job", job)
+        busy_while_saving = convert._busy()  # child gone, task still running
+        gate.set()
+        await job
+        return busy_while_saving, convert._busy()
+
+    assert asyncio.run(go()) == (True, False)
+
+
+def test_stopped_run_reports_nothing_itself(tmp_path, monkeypatch):
+    async def go():
+        sent: list[dict] = []
+
+        async def fake_broadcast(msg):
+            sent.append(msg)
+
+        monkeypatch.setattr(convert, "_broadcast", fake_broadcast)
+        src = tmp_path / "in.crx"
+        src.write_bytes(PAYLOAD)
+        dst = tmp_path / "out.rnx"
+        proc = await asyncio.create_subprocess_exec(
+            "cat", stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        convert._process = proc
+        monkeypatch.setattr(convert, "_stopped", proc)
+        proc.terminate()
+        await asyncio.wait_for(convert._run_hatanaka(proc, src, dst, gzip_out=False, decompress=True), 10)
+        return dst, sent
+
+    dst, sent = asyncio.run(go())
+    assert not [m for m in sent if m["type"] == "status"]
+    assert not dst.exists()
+    assert not list(tmp_path.glob("*.part"))

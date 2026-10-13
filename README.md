@@ -11,7 +11,7 @@ GNSS positioning capabilities. No compilation required — just
 ![React](https://img.shields.io/badge/react-19-blue.svg)
 ![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.11-green.svg)
 
-> **Status**: v0.4.1-alpha — core features are functional.
+> **Status**: v0.4.2-alpha — core features are functional.
 > Known limitations are listed in [Known Issues](#known-issues).
 
 ![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
@@ -34,6 +34,8 @@ GNSS positioning capabilities. No compilation required — just
 - Compressed inputs (`.gz`, `.Z`, single-file `.zip`, `.tar`) and
   Hatanaka-compressed RINEX (`.crx`, `.??d`, e.g. `.crx.gz`) are
   decompressed by `mrtk` (the image bundles `crx2rnx` / `rnx2crx`)
+- Trace view with search: highlight, step through matches, show
+  matching lines only
 
 ### Real-Time Positioning (`mrtk run`)
 - Live position display (Lat / Lon / Height / AR Ratio /
@@ -44,9 +46,9 @@ GNSS positioning capabilities. No compilation required — just
   side by side
 - Time series chart
 - Sky plot + SNR bar chart (per-constellation color coding,
-  used/unused satellite highlighting)
+  used/unused satellite highlighting, satellite details on hover)
 - Solution and debug-trace streaming (trace files in
-  `/workspace/rtlog/rtkrcv/`)
+  `/workspace/rtlog/rtkrcv/`), with search in the Trace view
 - Input stream status footer for Rover / Base / Correction
   (receiving, connecting, stalled, no decode, error with a readable
   cause such as an unknown NTRIP mountpoint)
@@ -73,13 +75,16 @@ GNSS positioning capabilities. No compilation required — just
 - Currently ships with a mosaic-G5 preset; request more receivers
   via the GitHub Issue template
 
-### RINEX Conversion (`mrtk convert`)
+### RINEX Conversion (`mrtk convert`, `rnx2crx` / `crx2rnx`)
 - Supports all convbin formats: u-blox, Septentrio SBF,
   NovAtel, BINEX, Trimble RT17, RTCM2/3, RINEX re-processing
 - Collapsible option groups (Time Range, Signal Options,
   RINEX Header, Debug)
 - Live command preview before execution
 - RINEX file preview after conversion (header + first 5–10 epochs)
+- **Hatanaka (CRX)**: compress RINEX → CRX or decompress CRX → RINEX,
+  with optional gzip; inputs from `/data` or `/workspace`, output to
+  `/workspace`
 
 ### Receiver Monitor (NMEA / UBX / SBF)
 - Direct connection to GNSS receiver without invoking `mrtk run`
@@ -122,10 +127,10 @@ Images are published for both `linux/amd64` and `linux/arm64`
 1. **Pull the image**
    ```bash
    # Docker Hub
-   docker pull hatognss/mrtklib-docker-ui:0.4.1-alpha
+   docker pull hatognss/mrtklib-docker-ui:0.4.2-alpha
 
    # or GitHub Container Registry
-   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.1-alpha
+   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.2-alpha
    ```
 
 2. **Prepare host directories**
@@ -141,7 +146,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
      -e PUID="$(id -u)" -e PGID="$(id -g)" \
-     hatognss/mrtklib-docker-ui:0.4.1-alpha
+     hatognss/mrtklib-docker-ui:0.4.2-alpha
    ```
 
 4. **Open the UI** at <http://localhost:8080>
@@ -356,7 +361,8 @@ surface orphan state in its UI.
 | **v0.3.1-alpha** | MRTKLIB 0.7.11, Real-Time raw input logging, restart-safe file outputs |
 | **v0.3.2-alpha** | Security hardening, non-root container (`PUID:PGID`), Real-Time input stream status + live trace, reload-safe Real-Time / Stream Server sessions, PR CI |
 | **v0.4.0-alpha** | Audit follow-ups (#39, #40): PPP-AR systems / max sol std controls, broader log masking, bounded file previews, NMEA and time-system fixes in the Result Viewer, slimmer image (QC Preview paused), reproducible builds (`uv.lock`) |
-| **v0.4.1-alpha** (current) | Bug fixes: Hatanaka (`crx2rnx`) inputs in the image, Real-Time log views hold while scrolled up, Post Processing Trace shows the file's end, Data Downloader (Earthdata login, non-blocking GSI, past default dates), Galileo HAS label, CLAS single-port docs |
+| **v0.4.1-alpha** | Bug fixes: Hatanaka (`crx2rnx`) inputs in the image, Real-Time log views hold while scrolled up, Post Processing Trace shows the file's end, Data Downloader (Earthdata login, non-blocking GSI, past default dates), Galileo HAS label, CLAS single-port docs |
+| **v0.4.2-alpha** (current) | Small improvements: Trace search (Real-Time / Post Processing), Hatanaka compress / decompress in Conversion, readable ENU chart axes, sky plot hover details and larger markers, Real-Time satellite count matches the solution |
 
 ---
 
