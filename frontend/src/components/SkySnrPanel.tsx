@@ -137,10 +137,10 @@ function SkyPlot({ satellites }: { satellites: Satellite[] }) {
               dominantBaseline="central"
               fontSize={SAT_FONT}
               fontFamily="'IBM Plex Mono', monospace"
-              fill="white"
-              fillOpacity={used ? 1 : 0.75}
               fontWeight={600}
-              style={{ pointerEvents: 'none' }}
+              // White on a solid marker; an unused marker is a faint tint, so
+              // its label takes the theme's text colour (dark in light theme)
+              style={{ pointerEvents: 'none', fill: used ? 'white' : 'var(--mantine-color-text)' }}
             >
               {prnNumber(sat.prn)}
             </text>
