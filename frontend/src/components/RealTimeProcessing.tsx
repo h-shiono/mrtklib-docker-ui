@@ -965,6 +965,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                   height={traceFile ? 278 : 300}
                   wrap
                   {...traceScroll.scrollProps}
+                  onMatchSelect={traceScroll.hold}
                   overlay={traceScroll.held && <JumpToLatest onClick={traceScroll.resume} />}
                   placeholder={
                     traceFile

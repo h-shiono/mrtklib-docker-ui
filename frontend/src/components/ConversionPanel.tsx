@@ -472,6 +472,16 @@ export function ConversionPanel() {
     };
 
     wsRef.current = ws;
+    // Resolve once the socket is open (2 s fallback), so the start request
+    // cannot finish before we listen: a small Hatanaka file can complete in
+    // well under a second, and its status would be lost.
+    return new Promise<void>((resolve) => {
+      if (ws.readyState === WebSocket.OPEN) { resolve(); return; }
+      const done = () => { ws.removeEventListener('open', done); ws.removeEventListener('error', done); resolve(); };
+      ws.addEventListener('open', done);
+      ws.addEventListener('error', done);
+      setTimeout(done, 2000);
+    });
   }, [fetchPreviews]);
 
   // Cleanup WebSocket on unmount
@@ -610,7 +620,7 @@ export function ConversionPanel() {
     setOutputFiles({});
     parsedOutputRef.current = {};
     setRightTab('console');
-    connectWs();
+    await connectWs();
 
     try {
       const response = await fetch('/api/convert/start', {
@@ -672,7 +682,7 @@ export function ConversionPanel() {
     setOutputFiles({});
     parsedOutputRef.current = {};
     setRightTab('console');
-    connectWs();
+    await connectWs();
 
     try {
       const response = await fetch('/api/convert/hatanaka/start', {

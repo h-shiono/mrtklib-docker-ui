@@ -28,6 +28,19 @@ router = APIRouter()
 # Connected WebSocket clients
 _ws_clients: set[WebSocket] = set()
 _process: Optional[asyncio.subprocess.Process] = None
+# Background task of the current conversion (stream readers, saving the
+# result). The slot stays busy until it finishes, not just until the child
+# exits, or a new run could start while the previous one is still saving.
+_job: Optional[asyncio.Task[None]] = None
+# The process /stop terminated, so its task reports "stopped", not "failed".
+_stopped: Optional[asyncio.subprocess.Process] = None
+# Check-to-spawn must not interleave across /start and /hatanaka/start: both
+# await before assigning _process, so two requests could otherwise both run.
+_start_lock = asyncio.Lock()
+
+
+def _busy() -> bool:
+    return (_process is not None and _process.returncode is None) or (_job is not None and not _job.done())
 
 
 async def _broadcast(msg: dict[str, Any]) -> None:
@@ -227,8 +240,13 @@ async def _read_stream(stream: asyncio.StreamReader, prefix: str = "") -> None:
 @router.post("/start")
 async def start_convert(request: ConvertRequest) -> ConvertResponse:
     """Start mrtk convert process."""
-    global _process
-    if _process and _process.returncode is None:
+    async with _start_lock:
+        return await _start_convert_locked(request)
+
+
+async def _start_convert_locked(request: ConvertRequest) -> ConvertResponse:
+    global _process, _job
+    if _busy():
         return ConvertResponse(status="error", message="Conversion already running")
 
     if err := _validate_convert_paths(request):
@@ -258,15 +276,18 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
             )
             await proc.wait()
             rc = proc.returncode
-            if rc == 0:
+            if _stopped is proc:
+                pass  # /stop reports it
+            elif rc == 0:
                 await _broadcast({"type": "status", "status": "completed"})
                 await _broadcast({"type": "log", "message": "[INFO] Conversion completed successfully"})
             else:
                 await _broadcast({"type": "status", "status": "failed"})
                 await _broadcast({"type": "log", "message": f"[ERROR] Conversion failed with exit code {rc}"})
-            _process = None
+            if _process is proc:
+                _process = None
 
-        asyncio.create_task(run_and_wait())
+        _job = asyncio.create_task(run_and_wait())
 
         return ConvertResponse(status="ok", message="Conversion started", command=cmd_str)
 
@@ -321,6 +342,7 @@ async def _run_hatanaka(
     *,
     gzip_out: bool,
     decompress: bool,
+    overwrite: bool = False,
 ) -> None:
     global _process
     # Visible name (like the downloader's), so a file left by a crash can be
@@ -338,10 +360,15 @@ async def _run_hatanaka(
                 proc.kill()
             await _broadcast({"type": "log", "message": f"[ERROR] {type(err).__name__}: {err}"})
         rc = await proc.wait()
-        if _process is not proc or (rc < 0 and err is None):
-            return  # stopped by /stop (a signal), which reports it
+        if _stopped is proc:
+            return  # /stop reports it
         if err is None and rc in (0, hatanaka.EXIT_WARNING):
-            await asyncio.to_thread(os.replace, part, dst)
+            try:
+                await asyncio.to_thread(_save_output, part, dst, overwrite)
+            except OSError as e:
+                await _broadcast({"type": "log", "message": f"[ERROR] Could not save {dst}: {e}"})
+                await _broadcast({"type": "status", "status": "failed"})
+                return
             if rc == hatanaka.EXIT_WARNING:
                 await _broadcast({"type": "log", "message": "[WARN] Finished with warnings (see the messages above)"})
             await _broadcast({"type": "log", "message": f"[INFO] Wrote {dst}"})
@@ -352,16 +379,47 @@ async def _run_hatanaka(
             await _broadcast({"type": "log", "message": f"[ERROR] {'Decompression' if decompress else 'Compression'} failed (exit code {rc})"})
             await _broadcast({"type": "status", "status": "failed"})
     finally:
-        await asyncio.to_thread(part.unlink, missing_ok=True)
+        try:
+            await asyncio.to_thread(part.unlink, missing_ok=True)
+        except OSError:
+            logger.warning("Could not remove %s", part)
         if _process is proc:
             _process = None
+
+
+def _save_output(part: Path, dst: Path, overwrite: bool) -> None:
+    """Move the finished temp file to `dst`.
+
+    Without overwrite the move must not replace a file that appeared during
+    the run (the start-time check is not enough): a hard link fails if `dst`
+    exists, atomically. Where links are unsupported, fall back to a checked
+    rename.
+    """
+    if overwrite:
+        os.replace(part, dst)
+        return
+    try:
+        os.link(part, dst)
+    except FileExistsError:
+        raise FileExistsError(f"{dst} was created during the conversion; enable Overwrite to replace it") from None
+    except OSError:
+        if dst.exists():
+            raise FileExistsError(f"{dst} was created during the conversion; enable Overwrite to replace it") from None
+        os.replace(part, dst)
+        return
+    os.unlink(part)
 
 
 @router.post("/hatanaka/start")
 async def start_hatanaka(request: HatanakaRequest) -> ConvertResponse:
     """Run rnx2crx / crx2rnx on one file; logs and status go to /ws."""
-    global _process
-    if _process and _process.returncode is None:
+    async with _start_lock:
+        return await _start_hatanaka_locked(request)
+
+
+async def _start_hatanaka_locked(request: HatanakaRequest) -> ConvertResponse:
+    global _process, _job
+    if _busy():
         return ConvertResponse(status="error", message="Conversion already running")
     if err := _validate_hatanaka_paths(request):
         return ConvertResponse(status="error", message=err)
@@ -389,10 +447,11 @@ async def start_hatanaka(request: HatanakaRequest) -> ConvertResponse:
         logger.exception("Failed to start %s", args[0])
         return ConvertResponse(status="error", message=str(e))
 
-    asyncio.create_task(_run_hatanaka(
+    _job = asyncio.create_task(_run_hatanaka(
         _process, src, dst,
         gzip_out=request.gzip_output,
         decompress=request.direction == "decompress",
+        overwrite=request.overwrite,
     ))
     return ConvertResponse(status="ok", message="Conversion started", command=cmd_str)
 
@@ -400,9 +459,10 @@ async def start_hatanaka(request: HatanakaRequest) -> ConvertResponse:
 @router.post("/stop")
 async def stop_convert() -> ConvertResponse:
     """Stop running conversion."""
-    global _process
+    global _process, _stopped
     if not _process or _process.returncode is not None:
         return ConvertResponse(status="error", message="No conversion running")
+    _stopped = _process
     try:
         _process.terminate()
         await asyncio.wait_for(_process.wait(), timeout=5.0)
@@ -416,8 +476,7 @@ async def stop_convert() -> ConvertResponse:
 @router.get("/status")
 async def convert_status() -> dict[str, Any]:
     """Get conversion status."""
-    running = _process is not None and _process.returncode is None
-    return {"running": running}
+    return {"running": _busy()}
 
 
 @router.websocket("/ws")
