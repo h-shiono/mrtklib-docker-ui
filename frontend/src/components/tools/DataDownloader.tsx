@@ -54,12 +54,20 @@ interface DownloadHistoryEntry {
 
 const API_BASE = '/api/downloader';
 
-function currentDoy(): number {
+/** UTC year and day of year, `daysAgo` days before today (UTC). Archives are
+ *  organised by GPS/UTC day, and a product for today does not exist yet. */
+function utcYearDoy(daysAgo: number): { year: number; doy: number } {
   const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  const diff = now.getTime() - start.getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
+  const day = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - daysAgo * 86_400_000;
+  const year = new Date(day).getUTCFullYear();
+  return { year, doy: Math.round((day - Date.UTC(year, 0, 1)) / 86_400_000) + 1 };
 }
+
+// Default dates: L6 archives and GSI CORS lag by about a day; IGS final
+// orbits/clocks by about two weeks.
+const L6_DEFAULT_DAYS_AGO = 1;
+const GSI_DEFAULT_DAYS_AGO = 1;
+const IGS_DEFAULT_DAYS_AGO = 14;
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -140,8 +148,8 @@ export function DataDownloader() {
 
   // QZSS state
   const [qzssType, setQzssType] = useState<string>('CLAS');
-  const [qzssYear, setQzssYear] = useState<number>(new Date().getFullYear());
-  const [qzssDoy, setQzssDoy] = useState<number>(currentDoy());
+  const [qzssYear, setQzssYear] = useState<number>(() => utcYearDoy(L6_DEFAULT_DAYS_AGO).year);
+  const [qzssDoy, setQzssDoy] = useState<number>(() => utcYearDoy(L6_DEFAULT_DAYS_AGO).doy);
   const [qzssSession, setQzssSession] = useState<string>('a');
   const [qzssPrn, setQzssPrn] = useState<string>('Q01');
   const [qzssDestDir, setQzssDestDir] = useState<string>(
@@ -152,16 +160,16 @@ export function DataDownloader() {
   // IGS state
   const [igsProductType, setIgsProductType] = useState<string>('brdc');
   const [igsAc, setIgsAc] = useState<string>('IGS');
-  const [igsYear, setIgsYear] = useState<number>(new Date().getFullYear());
-  const [igsDoy, setIgsDoy] = useState<number>(currentDoy());
+  const [igsYear, setIgsYear] = useState<number>(() => utcYearDoy(IGS_DEFAULT_DAYS_AGO).year);
+  const [igsDoy, setIgsDoy] = useState<number>(() => utcYearDoy(IGS_DEFAULT_DAYS_AGO).doy);
   const [igsDestDir, setIgsDestDir] = useState('/workspace/downloads/igs');
   const [igsLoading, setIgsLoading] = useState(false);
   const [atxLoading, setAtxLoading] = useState(false);
 
   // GSI state
   const [gsiStation, setGsiStation] = useState('');
-  const [gsiYear, setGsiYear] = useState<number>(new Date().getFullYear());
-  const [gsiDoy, setGsiDoy] = useState<number>(currentDoy());
+  const [gsiYear, setGsiYear] = useState<number>(() => utcYearDoy(GSI_DEFAULT_DAYS_AGO).year);
+  const [gsiDoy, setGsiDoy] = useState<number>(() => utcYearDoy(GSI_DEFAULT_DAYS_AGO).doy);
   const [gsiDestDir, setGsiDestDir] = useState('/workspace/downloads/gsi');
   const [gsiLoading, setGsiLoading] = useState(false);
 
