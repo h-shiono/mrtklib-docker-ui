@@ -4,6 +4,7 @@ import {
   Stack,
   Text,
 } from '@mantine/core';
+import { isUsed } from '../utils/rtSatellites';
 import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
@@ -13,7 +14,11 @@ export interface Satellite {
   system: string;
   azimuth: number;
   elevation: number;
+  /** Valid in the single point (SPP) solution (rtkrcv C1 column). */
   valid: boolean;
+  /** Counted in the solution's ns: valid on L1 in the RTK / PPP filter, or
+   *  the SPP flag when no filter is running (backend, #120). */
+  used?: boolean;
   fix: string;
   snr: number;
 }
@@ -40,12 +45,25 @@ const FREQ_SYSTEMS: Record<string, string[]> = {
   L5:  ['GPS', 'QZSS', 'Galileo', 'BeiDou'],
 };
 
-function isUsed(sat: Satellite): boolean {
-  return sat.valid && sat.fix !== 'NONE';
-}
 
 function prnNumber(prn: string): string {
   return prn.replace(/^[A-Z]/, '');
+}
+
+/** Native SVG tooltip text for a sky plot marker. */
+function satTooltip(sat: Satellite): string {
+  const state = isUsed(sat)
+    ? sat.fix !== 'NONE' ? `Used (${sat.fix})` : 'Used'
+    : sat.valid
+      ? 'Valid, not used'
+      : 'Not valid';
+  const snr = sat.snr > 0 ? `${sat.snr.toFixed(1)} dBHz` : 'n/a';
+  return [
+    `${sat.prn} · ${sat.system}`,
+    `Az ${sat.azimuth.toFixed(1)}°  El ${sat.elevation.toFixed(1)}°`,
+    `SNR ${snr}`,
+    state,
+  ].join('\n');
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -57,11 +75,19 @@ function hexToRgba(hex: string, alpha: number): string {
 
 // ── Sky Plot (SVG) ──────────────────────────────────────────────────────────
 
+// Marker radius and PRN font size in viewBox units (#127). The plot scales
+// with the panel, up to SKY_MAX_PX.
+const SAT_R = 11;
+const SAT_FONT = 10;
+const SKY_MAX_PX = 440;
+
 function SkyPlot({ satellites }: { satellites: Satellite[] }) {
   const size = 320;
   const cx = size / 2;
   const cy = size / 2;
-  const R = 140;
+  const R = 138;
+  // Used satellites on top, so they are not hidden by unused ones
+  const ordered = [...satellites].sort((a, b) => Number(isUsed(a)) - Number(isUsed(b)));
 
   const elToR = (el: number) => R * (1 - el / 90);
   const toXY = (az: number, el: number) => {
@@ -71,43 +97,52 @@ function SkyPlot({ satellites }: { satellites: Satellite[] }) {
   };
 
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', maxWidth: size, aspectRatio: '1' }}>
+    <svg
+      viewBox={`0 0 ${size} ${size}`}
+      // Fit the panel's width and height (viewBox keeps it square)
+      style={{ width: '100%', height: '100%', maxWidth: SKY_MAX_PX, maxHeight: SKY_MAX_PX }}
+    >
       <circle cx={cx} cy={cy} r={R} fill="none" stroke="var(--mantine-color-dimmed)" strokeWidth={0.5} opacity={0.3} />
       <circle cx={cx} cy={cy} r={elToR(30)} fill="none" stroke="var(--mantine-color-dimmed)" strokeWidth={0.3} opacity={0.2} />
       <circle cx={cx} cy={cy} r={elToR(60)} fill="none" stroke="var(--mantine-color-dimmed)" strokeWidth={0.3} opacity={0.2} />
       <circle cx={cx} cy={cy} r={2} fill="var(--mantine-color-dimmed)" opacity={0.3} />
       <line x1={cx} y1={cy - R} x2={cx} y2={cy + R} stroke="var(--mantine-color-dimmed)" strokeWidth={0.3} opacity={0.15} />
       <line x1={cx - R} y1={cy} x2={cx + R} y2={cy} stroke="var(--mantine-color-dimmed)" strokeWidth={0.3} opacity={0.15} />
-      <text x={cx} y={cy - R - 4} textAnchor="middle" fontSize={9} fill="var(--mantine-color-dimmed)">N</text>
-      <text x={cx + R + 6} y={cy + 3} textAnchor="start" fontSize={9} fill="var(--mantine-color-dimmed)">E</text>
-      <text x={cx} y={cy + R + 12} textAnchor="middle" fontSize={9} fill="var(--mantine-color-dimmed)">S</text>
-      <text x={cx - R - 6} y={cy + 3} textAnchor="end" fontSize={9} fill="var(--mantine-color-dimmed)">W</text>
-      <text x={cx + 3} y={cy - elToR(30) - 1} fontSize={7} fill="var(--mantine-color-dimmed)" opacity={0.5}>30</text>
-      <text x={cx + 3} y={cy - elToR(60) - 1} fontSize={7} fill="var(--mantine-color-dimmed)" opacity={0.5}>60</text>
+      <text x={cx} y={cy - R - 4} textAnchor="middle" fontSize={11} fill="var(--mantine-color-dimmed)">N</text>
+      <text x={cx + R + 6} y={cy + 3} textAnchor="start" fontSize={11} fill="var(--mantine-color-dimmed)">E</text>
+      <text x={cx} y={cy + R + 12} textAnchor="middle" fontSize={11} fill="var(--mantine-color-dimmed)">S</text>
+      <text x={cx - R - 6} y={cy + 3} textAnchor="end" fontSize={11} fill="var(--mantine-color-dimmed)">W</text>
+      <text x={cx + 3} y={cy - elToR(30) - 1} fontSize={9} fill="var(--mantine-color-dimmed)" opacity={0.5}>30</text>
+      <text x={cx + 3} y={cy - elToR(60) - 1} fontSize={9} fill="var(--mantine-color-dimmed)" opacity={0.5}>60</text>
 
-      {satellites.map((sat) => {
+      {ordered.map((sat) => {
         const { x, y } = toXY(sat.azimuth, sat.elevation);
         const used = isUsed(sat);
         const color = SYS_COLOR[sat.system] || SYS_COLOR.Unknown;
         return (
           <g key={sat.prn}>
+            <title>{satTooltip(sat)}</title>
             <circle
               cx={x}
               cy={y}
-              r={7}
+              r={SAT_R}
               fill={color}
-              opacity={used ? 1.0 : 0.25}
-              stroke={used ? 'white' : 'none'}
-              strokeWidth={used ? 1 : 0}
+              fillOpacity={used ? 1.0 : 0.3}
+              stroke={used ? 'white' : color}
+              strokeWidth={used ? 1.2 : 0.8}
+              strokeOpacity={used ? 1 : 0.7}
             />
             <text
               x={x}
-              y={y + 2.5}
+              y={y}
               textAnchor="middle"
-              fontSize={7}
-              fill="white"
-              fontWeight={500}
-              style={{ pointerEvents: 'none' }}
+              dominantBaseline="central"
+              fontSize={SAT_FONT}
+              fontFamily="'IBM Plex Mono', monospace"
+              fontWeight={600}
+              // White on a solid marker; an unused marker is a faint tint, so
+              // its label takes the theme's text colour (dark in light theme)
+              style={{ pointerEvents: 'none', fill: used ? 'white' : 'var(--mantine-color-text)' }}
             >
               {prnNumber(sat.prn)}
             </text>

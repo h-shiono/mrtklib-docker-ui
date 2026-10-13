@@ -3,8 +3,10 @@
 import asyncio
 import json
 import logging
+import os
+import secrets
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
@@ -17,6 +19,7 @@ from mrtklib_web_ui.paths import (
     is_within,
     resolve_path,
 )
+from mrtklib_web_ui.services import hatanaka
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,19 @@ router = APIRouter()
 # Connected WebSocket clients
 _ws_clients: set[WebSocket] = set()
 _process: Optional[asyncio.subprocess.Process] = None
+# Background task of the current conversion (stream readers, saving the
+# result). The slot stays busy until it finishes, not just until the child
+# exits, or a new run could start while the previous one is still saving.
+_job: Optional[asyncio.Task[None]] = None
+# The process /stop terminated, so its task reports "stopped", not "failed".
+_stopped: Optional[asyncio.subprocess.Process] = None
+# Check-to-spawn must not interleave across /start and /hatanaka/start: both
+# await before assigning _process, so two requests could otherwise both run.
+_start_lock = asyncio.Lock()
+
+
+def _busy() -> bool:
+    return (_process is not None and _process.returncode is None) or (_job is not None and not _job.done())
 
 
 async def _broadcast(msg: dict[str, Any]) -> None:
@@ -177,11 +193,60 @@ class ConvertResponse(BaseModel):
     command: str = ""
 
 
+async def _read_stream(stream: asyncio.StreamReader, prefix: str = "") -> None:
+    """Broadcast a process stream line by line (\r or \n); throttle progress lines."""
+    import time as _time
+    buf = b""
+    last_progress_time = 0.0
+    while True:
+        chunk = await stream.read(4096)
+        if not chunk:
+            break
+        buf += chunk
+        # Split on \r or \n
+        while b"\r" in buf or b"\n" in buf:
+            r_pos = buf.find(b"\r")
+            n_pos = buf.find(b"\n")
+            if r_pos == -1:
+                pos = n_pos
+            elif n_pos == -1:
+                pos = r_pos
+            else:
+                pos = min(r_pos, n_pos)
+            line = buf[:pos].decode("utf-8", errors="replace").strip()
+            # Skip \r\n combo
+            if pos + 1 < len(buf) and buf[pos:pos + 2] == b"\r\n":
+                buf = buf[pos + 2:]
+            else:
+                buf = buf[pos + 1:]
+            if not line:
+                continue
+            # Throttle CR-delimited progress lines (max 1/sec)
+            is_progress = line.startswith("scanning:") or (": O=" in line) or (": E=" in line) or (": S=" in line)
+            if is_progress:
+                now = _time.monotonic()
+                if now - last_progress_time >= 1.0:
+                    last_progress_time = now
+                    await _broadcast({"type": "progress", "message": f"{prefix}{line}"})
+            else:
+                await _broadcast({"type": "log", "message": f"{prefix}{line}"})
+    # Flush remaining
+    if buf.strip():
+        text = buf.decode("utf-8", errors="replace").strip()
+        if text:
+            await _broadcast({"type": "log", "message": f"{prefix}{text}"})
+
+
 @router.post("/start")
 async def start_convert(request: ConvertRequest) -> ConvertResponse:
     """Start mrtk convert process."""
-    global _process
-    if _process and _process.returncode is None:
+    async with _start_lock:
+        return await _start_convert_locked(request)
+
+
+async def _start_convert_locked(request: ConvertRequest) -> ConvertResponse:
+    global _process, _job
+    if _busy():
         return ConvertResponse(status="error", message="Conversion already running")
 
     if err := _validate_convert_paths(request):
@@ -198,48 +263,6 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
             stderr=asyncio.subprocess.PIPE,
         )
 
-        async def read_stream(stream, prefix=""):
-            import time as _time
-            buf = b""
-            last_progress_time = 0.0
-            while True:
-                chunk = await stream.read(4096)
-                if not chunk:
-                    break
-                buf += chunk
-                # Split on \r or \n
-                while b"\r" in buf or b"\n" in buf:
-                    r_pos = buf.find(b"\r")
-                    n_pos = buf.find(b"\n")
-                    if r_pos == -1:
-                        pos = n_pos
-                    elif n_pos == -1:
-                        pos = r_pos
-                    else:
-                        pos = min(r_pos, n_pos)
-                    line = buf[:pos].decode("utf-8", errors="replace").strip()
-                    # Skip \r\n combo
-                    if pos + 1 < len(buf) and buf[pos:pos + 2] == b"\r\n":
-                        buf = buf[pos + 2:]
-                    else:
-                        buf = buf[pos + 1:]
-                    if not line:
-                        continue
-                    # Throttle CR-delimited progress lines (max 1/sec)
-                    is_progress = line.startswith("scanning:") or (": O=" in line) or (": E=" in line) or (": S=" in line)
-                    if is_progress:
-                        now = _time.monotonic()
-                        if now - last_progress_time >= 1.0:
-                            last_progress_time = now
-                            await _broadcast({"type": "progress", "message": f"{prefix}{line}"})
-                    else:
-                        await _broadcast({"type": "log", "message": f"{prefix}{line}"})
-            # Flush remaining
-            if buf.strip():
-                text = buf.decode("utf-8", errors="replace").strip()
-                if text:
-                    await _broadcast({"type": "log", "message": f"{prefix}{text}"})
-
         # Run stream readers and wait for process in background
         async def run_and_wait():
             global _process
@@ -248,20 +271,23 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
                 return
             # Read stdout/stderr concurrently, then wait for exit
             await asyncio.gather(
-                read_stream(proc.stdout, ""),
-                read_stream(proc.stderr, "[STDERR] "),
+                _read_stream(proc.stdout, ""),
+                _read_stream(proc.stderr, "[STDERR] "),
             )
             await proc.wait()
             rc = proc.returncode
-            if rc == 0:
+            if _stopped is proc:
+                pass  # /stop reports it
+            elif rc == 0:
                 await _broadcast({"type": "status", "status": "completed"})
                 await _broadcast({"type": "log", "message": "[INFO] Conversion completed successfully"})
             else:
                 await _broadcast({"type": "status", "status": "failed"})
                 await _broadcast({"type": "log", "message": f"[ERROR] Conversion failed with exit code {rc}"})
-            _process = None
+            if _process is proc:
+                _process = None
 
-        asyncio.create_task(run_and_wait())
+        _job = asyncio.create_task(run_and_wait())
 
         return ConvertResponse(status="ok", message="Conversion started", command=cmd_str)
 
@@ -270,12 +296,173 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
         return ConvertResponse(status="error", message=str(e))
 
 
+# ── Hatanaka compression (rnx2crx / crx2rnx, #81) ──────────────────────────
+
+
+class HatanakaRequest(BaseModel):
+    input_file: str
+    output_file: str
+    direction: Literal["compress", "decompress"]
+    gzip_output: bool = False
+    skip_strange: bool = False
+    # rnx2crx -e: restart the differencing every N epochs (compress only)
+    reset_epochs: int | None = Field(default=None, ge=1, le=1_000_000)
+    overwrite: bool = False
+
+
+def _validate_hatanaka_paths(req: HatanakaRequest) -> str | None:
+    """Resolve the request's paths in place; return an error message if not allowed.
+
+    The tools run as filters, so the output can go anywhere in /workspace
+    whatever the input's location.
+    """
+    inp = resolve_path(req.input_file)
+    if not (is_within(inp, WORKSPACE_ROOT) or is_within(inp, DATA_ROOT)) or has_hidden_component(inp):
+        return f"Input file must be within /workspace or /data: {req.input_file}"
+    out = resolve_path(req.output_file)
+    if not is_within(out, WORKSPACE_ROOT) or has_hidden_component(out):
+        return f"Output file must be within /workspace: {req.output_file}"
+    if out == inp:
+        return "Output file must differ from the input file"
+    req.input_file, req.output_file = str(inp), str(out)
+    return None
+
+
+def _hatanaka_command_str(args: list[str], src: Path, dst: Path, gzip_in: bool, gzip_out: bool) -> str:
+    tool = " ".join([Path(args[0]).name, *args[1:]])
+    cmd = f"{tool} < {src} > {dst}"
+    notes = [n for n, on in (("gunzip input", gzip_in), ("gzip output", gzip_out)) if on]
+    return cmd + (f"  ({', '.join(notes)})" if notes else "")
+
+
+async def _run_hatanaka(
+    proc: asyncio.subprocess.Process,
+    src: Path,
+    dst: Path,
+    *,
+    gzip_out: bool,
+    decompress: bool,
+    overwrite: bool = False,
+) -> None:
+    global _process
+    # Visible name (like the downloader's), so a file left by a crash can be
+    # found and deleted in the File Browser; startup cleanup is #124.
+    part = dst.with_name(f"{dst.name}.{secrets.token_hex(4)}.part")
+    try:
+        err = await hatanaka.pump(
+            proc, src, part,
+            gzip_in=hatanaka.is_gzip_name(src),
+            gzip_out=gzip_out,
+            read_stderr=lambda s: _read_stream(s, "[STDERR] "),
+        )
+        if err is not None:
+            if proc.returncode is None:
+                proc.kill()
+            await _broadcast({"type": "log", "message": f"[ERROR] {type(err).__name__}: {err}"})
+        rc = await proc.wait()
+        if _stopped is proc:
+            return  # /stop reports it
+        if err is None and rc in (0, hatanaka.EXIT_WARNING):
+            try:
+                await asyncio.to_thread(_save_output, part, dst, overwrite)
+            except OSError as e:
+                await _broadcast({"type": "log", "message": f"[ERROR] Could not save {dst}: {e}"})
+                await _broadcast({"type": "status", "status": "failed"})
+                return
+            if rc == hatanaka.EXIT_WARNING:
+                await _broadcast({"type": "log", "message": "[WARN] Finished with warnings (see the messages above)"})
+            await _broadcast({"type": "log", "message": f"[INFO] Wrote {dst}"})
+            if decompress and not gzip_out:
+                await _broadcast({"type": "output_files", "obs": str(dst)})
+            await _broadcast({"type": "status", "status": "completed"})
+        else:
+            await _broadcast({"type": "log", "message": f"[ERROR] {'Decompression' if decompress else 'Compression'} failed (exit code {rc})"})
+            await _broadcast({"type": "status", "status": "failed"})
+    finally:
+        try:
+            await asyncio.to_thread(part.unlink, missing_ok=True)
+        except OSError:
+            logger.warning("Could not remove %s", part)
+        if _process is proc:
+            _process = None
+
+
+def _save_output(part: Path, dst: Path, overwrite: bool) -> None:
+    """Move the finished temp file to `dst`.
+
+    Without overwrite the move must not replace a file that appeared during
+    the run (the start-time check is not enough): a hard link fails if `dst`
+    exists, atomically. Where links are unsupported, fall back to a checked
+    rename.
+    """
+    if overwrite:
+        os.replace(part, dst)
+        return
+    try:
+        os.link(part, dst)
+    except FileExistsError:
+        raise FileExistsError(f"{dst} was created during the conversion; enable Overwrite to replace it") from None
+    except OSError:
+        if dst.exists():
+            raise FileExistsError(f"{dst} was created during the conversion; enable Overwrite to replace it") from None
+        os.replace(part, dst)
+        return
+    os.unlink(part)
+
+
+@router.post("/hatanaka/start")
+async def start_hatanaka(request: HatanakaRequest) -> ConvertResponse:
+    """Run rnx2crx / crx2rnx on one file; logs and status go to /ws."""
+    async with _start_lock:
+        return await _start_hatanaka_locked(request)
+
+
+async def _start_hatanaka_locked(request: HatanakaRequest) -> ConvertResponse:
+    global _process, _job
+    if _busy():
+        return ConvertResponse(status="error", message="Conversion already running")
+    if err := _validate_hatanaka_paths(request):
+        return ConvertResponse(status="error", message=err)
+
+    src, dst = Path(request.input_file), Path(request.output_file)
+    if not src.is_file():
+        return ConvertResponse(status="error", message=f"Input file not found: {src}")
+    if dst.is_dir():
+        return ConvertResponse(status="error", message=f"Output path is a directory: {dst}")
+    if dst.exists() and not request.overwrite:
+        return ConvertResponse(status="error", message=f"Output file exists (enable Overwrite to replace it): {dst}")
+
+    args = hatanaka.build_args(request.direction, request.skip_strange, request.reset_epochs)
+    cmd_str = _hatanaka_command_str(args, src, dst, hatanaka.is_gzip_name(src), request.gzip_output)
+    await _broadcast({"type": "log", "message": f"[CMD] {cmd_str}"})
+    try:
+        await asyncio.to_thread(dst.parent.mkdir, parents=True, exist_ok=True)
+        _process = await asyncio.create_subprocess_exec(
+            *args,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except Exception as e:
+        logger.exception("Failed to start %s", args[0])
+        return ConvertResponse(status="error", message=str(e))
+
+    _job = asyncio.create_task(_run_hatanaka(
+        _process, src, dst,
+        gzip_out=request.gzip_output,
+        decompress=request.direction == "decompress",
+        overwrite=request.overwrite,
+    ))
+    return ConvertResponse(status="ok", message="Conversion started", command=cmd_str)
+
+
 @router.post("/stop")
 async def stop_convert() -> ConvertResponse:
     """Stop running conversion."""
-    global _process
+    global _process, _stopped
     if not _process or _process.returncode is not None:
         return ConvertResponse(status="error", message="No conversion running")
+    _stopped = _process
     try:
         _process.terminate()
         await asyncio.wait_for(_process.wait(), timeout=5.0)
@@ -289,8 +476,7 @@ async def stop_convert() -> ConvertResponse:
 @router.get("/status")
 async def convert_status() -> dict[str, Any]:
     """Get conversion status."""
-    running = _process is not None and _process.returncode is None
-    return {"running": running}
+    return {"running": _busy()}
 
 
 @router.websocket("/ws")

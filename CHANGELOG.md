@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.2-alpha] - 2026-10-13
+
+No action is needed to upgrade from 0.4.1-alpha.
+
+### Added
+- Trace search in Real-Time and Post Processing: highlight matches,
+  step through every occurrence (Enter / Shift+Enter), and show only
+  the matching lines. Search covers the loaded lines (#79).
+- Conversion → **Hatanaka (CRX)**: compress RINEX → CRX or decompress
+  CRX → RINEX with `rnx2crx` / `crx2rnx`. Options: gzip output, `-s`,
+  `-e N`, overwrite. Inputs come from /workspace or /data, outputs go to
+  /workspace; `.gz` inputs are decompressed on the fly (#81).
+- Real-Time sky plot: hovering a satellite shows PRN, system,
+  azimuth / elevation, SNR and whether it is used (#77).
+
+### Changed
+- Post Processing ENU charts: panels separated by bands and rules,
+  axis lines and labels (E / N / U / ns), time labels on the bottom
+  chart only, zoom-aware time ticks (seconds, dates at day changes, laid
+  out in UTC), fixed decimals on the value axis, IBM Plex Mono, mean / σ
+  of the visible data per panel, and a "Symmetric about 0" option for
+  the auto Y range (#78).
+- Real-Time sky plot: larger satellite markers and PRN labels; the plot
+  grows with the panel (up to 440 px) (#127).
+
+### Fixed
+- Real-Time: the satellites counted as "used" (metrics row and sky
+  plot) now match the solution's satellite count shown in the chart. It
+  is the L1 count while the RTK / PPP filter produced the solution and
+  the single-point count otherwise (#120).
+- Conversion: two quick starts can no longer launch two conversions,
+  and stopping a RINEX Converter run no longer ends with "failed".
+
 ## [0.4.1-alpha] - 2026-10-13
 
 No action is needed to upgrade from 0.4.0-alpha.

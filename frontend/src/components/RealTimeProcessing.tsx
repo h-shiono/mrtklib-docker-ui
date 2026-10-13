@@ -62,6 +62,7 @@ import { MapView, type PosEpoch } from './viewer';
 import { maskLogLine } from '../utils/maskPath';
 import { useFollowScroll } from '../hooks/useFollowScroll';
 import { JumpToLatest } from './common/JumpToLatest';
+import { TraceLogView } from './common/TraceLogView';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -959,30 +960,23 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                     )}
                   </Group>
                 )}
-                <Box pos="relative">
-                  <ScrollArea
-                    h={traceFile ? 278 : 300}
-                    {...traceScroll.scrollProps}
-                    styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-                  >
-                    <Text
-                      c={traceLines.length > 0 ? 'gray.4' : 'dimmed'}
-                      fs={traceLines.length > 0 ? undefined : 'italic'}
-                      style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5, wordBreak: 'break-all' }}
-                    >
-                      {traceScroll.shown.length > 0
-                        ? traceScroll.shown.join('\n')
-                        : traceFile
-                          ? 'Waiting for trace output...'
-                          : config.output.debugTrace === 'off'
-                            ? 'Trace output is disabled. Set Debug Trace level > 0 in the Output section.'
-                            : isRunning
-                              ? 'Waiting for the trace file...'
-                              : 'Trace output will appear here while running.'}
-                    </Text>
-                  </ScrollArea>
-                  {traceScroll.held && <JumpToLatest onClick={traceScroll.resume} />}
-                </Box>
+                <TraceLogView
+                  lines={traceScroll.shown}
+                  height={traceFile ? 278 : 300}
+                  wrap
+                  {...traceScroll.scrollProps}
+                  onMatchSelect={traceScroll.hold}
+                  overlay={traceScroll.held && <JumpToLatest onClick={traceScroll.resume} />}
+                  placeholder={
+                    traceFile
+                      ? 'Waiting for trace output...'
+                      : config.output.debugTrace === 'off'
+                        ? 'Trace output is disabled. Set Debug Trace level > 0 in the Output section.'
+                        : isRunning
+                          ? 'Waiting for the trace file...'
+                          : 'Trace output will appear here while running.'
+                  }
+                />
               </Tabs.Panel>
             </Tabs>
 

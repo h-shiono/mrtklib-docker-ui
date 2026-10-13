@@ -20,6 +20,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
  *   const s = useFollowScroll(active, lines);
  *   <ScrollArea {...s.scrollProps}>{render(s.shown)}</ScrollArea>
  *   {s.held && <JumpToLatest onClick={s.resume} />}
+ *
+ * `hold()` holds without a scroll (e.g. when a search match is selected).
  */
 export function useFollowScroll<T>(active: boolean, content: T) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -49,11 +51,15 @@ export function useFollowScroll<T>(active: boolean, content: T) {
   }, []);
 
   const resume = useCallback(() => setHeld(null), []);
+  // Hold explicitly (e.g. a search match was selected), whatever the scroll
+  // position: near the bottom the scroll alone would keep following.
+  const hold = useCallback(() => setHeld((prev) => prev ?? { value: contentRef.current }), []);
 
   return {
     scrollProps: { viewportRef, onScrollPositionChange },
     shown: held ? held.value : content,
     held: held !== null,
     resume,
+    hold,
   };
 }

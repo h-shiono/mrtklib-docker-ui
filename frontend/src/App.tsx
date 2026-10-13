@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   AppShell,
   Box,
@@ -40,7 +40,7 @@ import { PostProcessingConfiguration  } from './components';
 import { ResultViewer } from './components/viewer';
 import { ConsoleFrame } from './components/ConsoleFrame';
 import { RealTimeProcessing, type RtLiveStatus } from './components/RealTimeProcessing';
-import { QUALITY } from './components/RtMetricsRow';
+import { QUALITY } from './utils/rtQuality';
 import { ConversionPanel } from './components/ConversionPanel';
 import { StreamPathHelp } from './components/StreamPathHelp';
 import { ClasPipelinePanel } from './components/ClasPipelinePanel';
@@ -50,6 +50,7 @@ import { randomUUID } from './utils/uuid';
 import { GnssTimeConverter } from './components/tools/GnssTimeConverter';
 import { DataDownloader } from './components/tools/DataDownloader';
 import { ToolsSidebar } from './components/tools/ToolsSidebar';
+import { TraceLogView } from './components/common/TraceLogView';
 import { AiSettingsPanel } from './components/tools/AiSettingsPanel';
 import { configToBackend } from './utils/configToBackend';
 import { ObsViewerModal } from './components/obsViewer';
@@ -368,6 +369,7 @@ function PostProcessingRightPanel({
             maxHeight={CONTENT_HEIGHT}
             fromEnd
             noun="trace file"
+            searchable
           />
         </Tabs.Panel>
       </Tabs>
@@ -398,19 +400,22 @@ function PostProcessingRightPanel({
 const VIEW_MAX_LINES = 5000;
 
 /** Displays a text output file (solution or trace) in a scrollable monospace
- *  block. `fromEnd` shows the last lines instead of the first. */
+ *  block. `fromEnd` shows the last lines instead of the first; `searchable`
+ *  adds a search / filter toolbar over the loaded lines. */
 function SolutionView({
   outputFile,
   refreshKey,
   maxHeight,
   fromEnd = false,
   noun = 'solution file',
+  searchable = false,
 }: {
   outputFile: string;
   refreshKey: number;
   maxHeight: number;
   fromEnd?: boolean;
   noun?: string;
+  searchable?: boolean;
 }) {
   // `path` is the server-resolved path (a relative entry resolves under /workspace).
   const [loaded, setContent] = useState<{ path: string; content: string; returned: number; total: number } | null>(null);
@@ -419,6 +424,8 @@ function SolutionView({
   const [error, setError] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const content = outputFile ? loadedContent : null;
+  // Split once per load, so the search toolbar does not rescan on every render.
+  const lines = useMemo(() => (content ? content.replace(/\n$/, '').split('\n') : []), [content]);
 
   // Enter the loading state while rendering, not from the fetch effect
   const loadKey = `${refreshKey}:${outputFile}`;
@@ -510,7 +517,7 @@ function SolutionView({
         <Group gap={6} wrap="nowrap" px={12} h={NOTE_H} style={{ backgroundColor: consoleBg }}>
           <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }} truncate>
             Showing the {fromEnd ? 'last' : 'first'} {loaded.returned.toLocaleString()} of{' '}
-            {loaded.total.toLocaleString()} lines
+            {loaded.total.toLocaleString()} lines{searchable ? ' (search covers these only)' : ''}
           </Text>
           {loaded.path.startsWith('/workspace/') && (
             <Button
@@ -527,23 +534,31 @@ function SolutionView({
           )}
         </Group>
       )}
-      <ScrollArea
-        h={partial ? maxHeight - NOTE_H : maxHeight}
-        viewportRef={viewportRef}
-        styles={{ viewport: { backgroundColor: consoleBg, padding: '8px 12px' } }}
-      >
-        <Text
-          c="gray.4"
-          style={{
-            fontFamily: "'IBM Plex Mono', monospace",
-            whiteSpace: 'pre',
-            fontSize: '11px',
-            lineHeight: 1.5,
-          }}
+      {searchable ? (
+        <TraceLogView
+          lines={lines}
+          height={partial ? maxHeight - NOTE_H : maxHeight}
+          viewportRef={viewportRef}
+        />
+      ) : (
+        <ScrollArea
+          h={partial ? maxHeight - NOTE_H : maxHeight}
+          viewportRef={viewportRef}
+          styles={{ viewport: { backgroundColor: consoleBg, padding: '8px 12px' } }}
         >
-          {content}
-        </Text>
-      </ScrollArea>
+          <Text
+            c="gray.4"
+            style={{
+              fontFamily: "'IBM Plex Mono', monospace",
+              whiteSpace: 'pre',
+              fontSize: '11px',
+              lineHeight: 1.5,
+            }}
+          >
+            {content}
+          </Text>
+        </ScrollArea>
+      )}
     </>
   );
 }
