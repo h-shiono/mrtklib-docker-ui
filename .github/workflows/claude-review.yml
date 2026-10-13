@@ -36,8 +36,11 @@ on:
 
 permissions: {}
 
+# Only review triggers share the per-PR group. Every other comment (including
+# the review's own summary comment) gets a unique group, so it cannot cancel
+# a review in progress before its buffered inline comments are posted.
 concurrency:
-  group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}${{ github.event_name == 'issue_comment' && github.event.comment.body != '/claude-review' && github.event.comment.body != '/claude-review deep' && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
