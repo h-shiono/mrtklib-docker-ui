@@ -204,3 +204,7 @@ docker compose up --build
 
 7. **Read `tasks/todo.md` before starting any task.**
    Check for in-progress items or dependencies.
+
+8. **Reviewing a PR:** read `.greptile/rules.md` as well. It holds
+   the threat model, MRTKLIB / library behaviour and severity rules that
+   Greptile reviews with.
