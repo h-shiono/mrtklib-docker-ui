@@ -48,6 +48,22 @@ function prnNumber(prn: string): string {
   return prn.replace(/^[A-Z]/, '');
 }
 
+/** Native SVG tooltip text for a sky plot marker. */
+function satTooltip(sat: Satellite): string {
+  const state = isUsed(sat)
+    ? `Used (${sat.fix})`
+    : sat.valid
+      ? 'Valid, not used'
+      : 'Not valid';
+  const snr = sat.snr > 0 ? `${sat.snr.toFixed(1)} dBHz` : 'n/a';
+  return [
+    `${sat.prn} · ${sat.system}`,
+    `Az ${sat.azimuth.toFixed(1)}°  El ${sat.elevation.toFixed(1)}°`,
+    `SNR ${snr}`,
+    state,
+  ].join('\n');
+}
+
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -91,6 +107,7 @@ function SkyPlot({ satellites }: { satellites: Satellite[] }) {
         const color = SYS_COLOR[sat.system] || SYS_COLOR.Unknown;
         return (
           <g key={sat.prn}>
+            <title>{satTooltip(sat)}</title>
             <circle
               cx={x}
               cy={y}
