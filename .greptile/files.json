@@ -1,10 +1,6 @@
 {
   "files": [
     {
-      "path": ".github/review-guide.md",
-      "description": "Review guide: threat model, review procedure, P0/P1/P2 checklist drawn from bugs this repo has fixed, and what not to comment on"
-    },
-    {
       "path": "CLAUDE.md",
       "description": "Project constitution: architecture rules, path security roots, form and styling conventions, key constraints"
     }
