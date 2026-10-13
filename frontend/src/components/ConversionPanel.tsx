@@ -34,15 +34,43 @@ import {
   IconRefresh,
   IconFileCode,
   IconCalendar,
+  IconFileZip,
 } from '@tabler/icons-react';
 import { FileBrowserModal } from './FileBrowserModal';
 import { ComboLabel } from './common/OptionLabel';
+import { hatanakaOutputPath, type HatanakaDirection } from '../utils/hatanakaNames';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type ConvertStatus = 'idle' | 'converting' | 'done' | 'failed';
 type RightPanelTab = 'console' | 'preview';
 type PreviewFileType = 'obs' | 'nav';
+type ConvertTool = 'convbin' | 'hatanaka';
+
+// Hatanaka compression: rnx2crx / crx2rnx run as filters by the backend (#81)
+interface HatanakaFormState {
+  direction: HatanakaDirection;
+  inputFile: string;
+  /** Empty = the default derived from the input */
+  outputFile: string;
+  gzipOutput: boolean;
+  skipStrange: boolean;
+  /** rnx2crx -e (compress only); '' = off */
+  resetEpochs: number | '';
+  overwrite: boolean;
+}
+
+const DEFAULT_HATANAKA: HatanakaFormState = {
+  direction: 'decompress',
+  inputFile: '',
+  outputFile: '',
+  gzipOutput: false,
+  skipStrange: false,
+  resetEpochs: '',
+  overwrite: false,
+};
+
+type FileBrowserTarget = keyof ConvertFormState | 'hk:inputFile' | 'hk:outputFile';
 
 interface RinexPreview {
   filename: string;
@@ -278,7 +306,10 @@ function setXyz(s: string, idx: number, val: string): string {
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function ConversionPanel() {
+  const [tool, setTool] = useState<ConvertTool>('convbin');
   const [form, setForm] = useState<ConvertFormState>(DEFAULT_FORM);
+  const [hk, setHk] = useState<HatanakaFormState>(DEFAULT_HATANAKA);
+  const hkOutput = hk.outputFile.trim() || hatanakaOutputPath(hk.inputFile, hk.direction, hk.gzipOutput);
   const [status, setStatus] = useState<ConvertStatus>('idle');
   const [logLines, setLogLines] = useState<string[]>([]);
   const consoleRef = useRef<HTMLDivElement>(null);
@@ -307,11 +338,11 @@ export function ConversionPanel() {
 
   // File browser state
   const [fbOpened, setFbOpened] = useState(false);
-  const [fbTarget, setFbTarget] = useState<keyof ConvertFormState | null>(null);
+  const [fbTarget, setFbTarget] = useState<FileBrowserTarget | null>(null);
   const [fbDefaultRoot, setFbDefaultRoot] = useState<'workspace' | 'data'>('data');
   const [fbSelectDir, setFbSelectDir] = useState(false);
 
-  const openFileBrowser = useCallback((target: keyof ConvertFormState, root: 'workspace' | 'data' = 'data', selectDir = false) => {
+  const openFileBrowser = useCallback((target: FileBrowserTarget, root: 'workspace' | 'data' = 'data', selectDir = false) => {
     setFbTarget(target);
     setFbDefaultRoot(root);
     setFbSelectDir(selectDir);
@@ -319,7 +350,10 @@ export function ConversionPanel() {
   }, []);
 
   const handleFileSelect = useCallback((path: string) => {
-    if (fbTarget) {
+    if (fbTarget === 'hk:inputFile' || fbTarget === 'hk:outputFile') {
+      const key = fbTarget === 'hk:inputFile' ? 'inputFile' : 'outputFile';
+      setHk(prev => ({ ...prev, [key]: path }));
+    } else if (fbTarget) {
       setForm(prev => ({ ...prev, [fbTarget]: path }));
     }
     setFbOpened(false);
@@ -449,6 +483,18 @@ export function ConversionPanel() {
 
   // Build command preview
   const commandPreview = useMemo(() => {
+    if (tool === 'hatanaka') {
+      // Mirrors the backend's [CMD] line
+      const args = [hk.direction === 'compress' ? 'rnx2crx' : 'crx2rnx'];
+      if (hk.skipStrange) args.push('-s');
+      if (hk.direction === 'compress' && hk.resetEpochs !== '') args.push('-e', String(hk.resetEpochs));
+      const notes = [
+        /\.gz$/i.test(hk.inputFile.trim()) && 'gunzip input',
+        hk.gzipOutput && 'gzip output',
+      ].filter(Boolean);
+      return `${args.join(' ')} < ${hk.inputFile.trim() || '<input>'} > ${hkOutput || '<output>'}`
+        + (notes.length ? `  (${notes.join(', ')})` : '');
+    }
     const args: string[] = ['mrtk', 'convert'];
 
     if (form.receiverFormat) {
@@ -542,7 +588,7 @@ export function ConversionPanel() {
     }
 
     return args.join(' ');
-  }, [form]);
+  }, [form, tool, hk, hkOutput]);
 
   // Derive output file paths: prefer parsed paths from log, then form state
   const deriveOutputFiles = useCallback((): { obs?: string; nav?: string } => {
@@ -618,6 +664,42 @@ export function ConversionPanel() {
     }
   }, [form, connectWs]);
 
+  const handleHatanaka = useCallback(async () => {
+    if (!hk.inputFile.trim() || !hkOutput) return;
+    setStatus('converting');
+    setLogLines([]);
+    setPreviews({});
+    setOutputFiles({});
+    parsedOutputRef.current = {};
+    setRightTab('console');
+    connectWs();
+
+    try {
+      const response = await fetch('/api/convert/hatanaka/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          direction: hk.direction,
+          input_file: hk.inputFile.trim(),
+          output_file: hkOutput,
+          gzip_output: hk.gzipOutput,
+          skip_strange: hk.skipStrange,
+          reset_epochs: hk.direction === 'compress' && hk.resetEpochs !== '' ? hk.resetEpochs : null,
+          overwrite: hk.overwrite,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.status === 'error') {
+        const detail = typeof data.detail === 'string' ? data.detail : data.message || 'Request failed';
+        setLogLines(prev => [...prev, `Error: ${detail}`]);
+        setStatus('failed');
+      }
+    } catch (err) {
+      setLogLines(prev => [...prev, `Error: ${err instanceof Error ? err.message : 'Unknown error'}`]);
+      setStatus('failed');
+    }
+  }, [hk, hkOutput, connectWs]);
+
   const handleStop = useCallback(async () => {
     try {
       await fetch('/api/convert/stop', { method: 'POST' });
@@ -637,12 +719,13 @@ export function ConversionPanel() {
 
   // When conversion completes, try to fetch previews for output files
   useEffect(() => {
-    if (status === 'done' && !outputFiles.obs && !outputFiles.nav) {
+    // Hatanaka: the backend sends output_files for a plain RINEX output
+    if (tool === 'convbin' && status === 'done' && !outputFiles.obs && !outputFiles.nav) {
       const files = deriveOutputFiles();
       setOutputFiles(files);
       fetchPreviews(files);
     }
-  }, [status, outputFiles, deriveOutputFiles, fetchPreviews]);
+  }, [tool, status, outputFiles, deriveOutputFiles, fetchPreviews]);
 
   // Download the currently previewed file
   const handleDownloadPreview = useCallback(() => {
@@ -677,8 +760,14 @@ export function ConversionPanel() {
             <SidebarItem
               label="RINEX Converter"
               icon={<IconRefresh size={14} />}
-              active={true}
-              onClick={() => {}}
+              active={tool === 'convbin'}
+              onClick={() => status !== 'converting' && setTool('convbin')}
+            />
+            <SidebarItem
+              label="Hatanaka (CRX)"
+              icon={<IconFileZip size={14} />}
+              active={tool === 'hatanaka'}
+              onClick={() => status !== 'converting' && setTool('hatanaka')}
             />
           </SidebarGroup>
         </Stack>
@@ -694,8 +783,8 @@ export function ConversionPanel() {
           style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
         >
           <Group gap="xs">
-            <Title order={5}>RINEX Converter</Title>
-            <Text size="xs" c="dimmed">convbin</Text>
+            <Title order={5}>{tool === 'hatanaka' ? 'Hatanaka Compression' : 'RINEX Converter'}</Title>
+            <Text size="xs" c="dimmed">{tool === 'hatanaka' ? 'rnx2crx / crx2rnx' : 'convbin'}</Text>
           </Group>
           <Group gap="xs">
             <Badge size="sm" color={statusColor} variant="light">{statusLabel}</Badge>
@@ -713,8 +802,8 @@ export function ConversionPanel() {
               <Button
                 size="compact-xs"
                 leftSection={<IconPlayerPlay size={14} />}
-                onClick={handleConvert}
-                disabled={!form.rawFile}
+                onClick={tool === 'hatanaka' ? handleHatanaka : handleConvert}
+                disabled={tool === 'hatanaka' ? !hk.inputFile.trim() || !hkOutput : !form.rawFile}
               >
                 Convert
               </Button>
@@ -726,7 +815,95 @@ export function ConversionPanel() {
         <Box style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           {/* Form (55%) */}
           <ScrollArea style={{ width: '55%', flexShrink: 0 }}>
-            <Stack gap={10} p="md">
+            {tool === 'hatanaka' && (
+              <Stack gap={10} p="md">
+                <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.06em' }}>Operation</Text>
+                <FieldRow label="Direction">
+                  <SegmentedControl
+                    size="xs"
+                    fullWidth
+                    value={hk.direction}
+                    onChange={v => setHk(prev => ({ ...prev, direction: v as HatanakaDirection }))}
+                    data={[
+                      { value: 'decompress', label: 'Decompress (CRX → RINEX)' },
+                      { value: 'compress', label: 'Compress (RINEX → CRX)' },
+                    ]}
+                  />
+                </FieldRow>
+
+                <Text size="xs" fw={700} tt="uppercase" c="dimmed" mt={6} style={{ letterSpacing: '0.06em' }}>Files</Text>
+                <FieldRow label="Input File">
+                  <Group wrap="nowrap" gap={4}>
+                    <TextInput
+                      size="xs"
+                      value={hk.inputFile}
+                      onChange={e => setHk(prev => ({ ...prev, inputFile: e.currentTarget.value }))}
+                      placeholder={hk.direction === 'compress' ? '/data/site0010.24o' : '/data/site0010.24d.gz'}
+                      style={{ flex: 1 }}
+                      styles={{ input: { fontFamily: "'IBM Plex Mono', monospace" } }}
+                    />
+                    <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('hk:inputFile', 'data')}>
+                      <IconFolder size={16} />
+                    </ActionIcon>
+                  </Group>
+                </FieldRow>
+                <FieldRow label="Output File">
+                  <Group wrap="nowrap" gap={4}>
+                    <TextInput
+                      size="xs"
+                      value={hk.outputFile}
+                      onChange={e => setHk(prev => ({ ...prev, outputFile: e.currentTarget.value }))}
+                      placeholder={hatanakaOutputPath(hk.inputFile, hk.direction, hk.gzipOutput) || '/workspace/...'}
+                      style={{ flex: 1 }}
+                      styles={{ input: { fontFamily: "'IBM Plex Mono', monospace" } }}
+                    />
+                    <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('hk:outputFile', 'workspace')}>
+                      <IconFolder size={16} />
+                    </ActionIcon>
+                  </Group>
+                </FieldRow>
+                <Text size="xs" c="dimmed" style={{ fontSize: '10px', paddingLeft: 136 }}>
+                  Leave empty for the default name. Output goes under /workspace; a .gz input is decompressed on the fly.
+                </Text>
+
+                <Text size="xs" fw={700} tt="uppercase" c="dimmed" mt={6} style={{ letterSpacing: '0.06em' }}>Options</Text>
+                <Switch
+                  size="xs"
+                  label="gzip output (.gz)"
+                  styles={{ label: { fontSize: '10px' } }}
+                  checked={hk.gzipOutput}
+                  onChange={e => setHk(prev => ({ ...prev, gzipOutput: e.currentTarget.checked }))}
+                />
+                <Switch
+                  size="xs"
+                  label="Skip strange epochs (-s)"
+                  styles={{ label: { fontSize: '10px' } }}
+                  checked={hk.skipStrange}
+                  onChange={e => setHk(prev => ({ ...prev, skipStrange: e.currentTarget.checked }))}
+                />
+                <Switch
+                  size="xs"
+                  label="Overwrite an existing output file"
+                  styles={{ label: { fontSize: '10px' } }}
+                  checked={hk.overwrite}
+                  onChange={e => setHk(prev => ({ ...prev, overwrite: e.currentTarget.checked }))}
+                />
+                {hk.direction === 'compress' && (
+                  <FieldRow label="Reset Every (epochs)">
+                    <NumberInput
+                      size="xs"
+                      min={1}
+                      allowDecimal={false}
+                      allowNegative={false}
+                      placeholder="off (-e)"
+                      value={hk.resetEpochs}
+                      onChange={v => setHk(prev => ({ ...prev, resetEpochs: typeof v === 'number' ? v : '' }))}
+                    />
+                  </FieldRow>
+                )}
+              </Stack>
+            )}
+            <Stack gap={10} p="md" style={tool === 'convbin' ? undefined : { display: 'none' }}>
               {/* Input Section */}
               <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.06em' }}>Input</Text>
               <FieldRow label="Raw File">
