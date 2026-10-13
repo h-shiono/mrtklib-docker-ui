@@ -92,18 +92,34 @@ function formatTimeTicks(_u: uPlot, splits: number[], _axisIdx: number, _space: 
     const d = new Date(v * 1000);
     let s = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
     if (incr < 60) s += `:${pad2(d.getUTCSeconds())}`;
-    const day = d.getUTCDate();
-    if (i === 0 || day !== prevDay) s += `\n${pad2(d.getUTCMonth() + 1)}-${pad2(day)}`;
+    // Whole UTC days since the epoch: a day-of-month alone repeats across
+    // months (Jan 1 vs Feb 1)
+    const day = Math.floor(v / 86400);
+    if (i === 0 || day !== prevDay) s += `\n${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
     prevDay = day;
     return s;
   });
 }
 
+/** Decimals that show every multiple of `incr` exactly (0.25 -> 2, 0.5 -> 1,
+ *  2.5 -> 1, 10 -> 0). */
+function tickDecimals(incr: number): number {
+  if (!(incr > 0) || !Number.isFinite(incr)) return 0;
+  let dec = Math.max(0, -Math.floor(Math.log10(incr) + 1e-9));
+  while (dec < 8 && Math.abs(Math.round(incr * 10 ** dec) - incr * 10 ** dec) > 1e-6) dec++;
+  return dec;
+}
+
 /** Value tick labels with the same number of decimals, from the tick step. */
 function valueTicks(metric: ChartMetric) {
   return (_u: uPlot, splits: number[], _axisIdx: number, _space: number, incr: number): string[] => {
-    const dec = metric === 'ns' ? 0 : Math.min(4, Math.max(0, Math.ceil(-Math.log10(incr) - 1e-9)));
-    return splits.map((v) => (v == null ? '' : (v === 0 ? 0 : v).toFixed(dec)));
+    const dec = metric === 'ns' ? 0 : tickDecimals(incr);
+    return splits.map((v) => {
+      if (v == null) return '';
+      const s = v.toFixed(dec);
+      // A split a rounding error below 0 would read "-0.00"
+      return Number(s) === 0 ? (0).toFixed(dec) : s;
+    });
   };
 }
 
@@ -461,18 +477,25 @@ export function ChartView({
     if (yRange) {
       uplotRef.current.setScale('y', { min: yRange[0], max: yRange[1] });
     } else {
-      // Reset to auto: compute from visible data
-      const yData = uplotRef.current.data[1];
-      if (yData && yData.length > 0) {
-        let min = Infinity,
-          max = -Infinity;
-        for (const v of yData) {
-          if (v != null) {
-            if (v < min) min = v as number;
-            if (v > max) max = v as number;
-          }
-        }
-        if (ySymmetric && metric !== 'ns') {
+      // Reset to auto: compute from the data in the visible x range
+      const u = uplotRef.current;
+      const xData = u.data[0];
+      const yData = u.data[1];
+      const xMin = u.scales.x.min ?? -Infinity;
+      const xMax = u.scales.x.max ?? Infinity;
+      let min = Infinity,
+        max = -Infinity;
+      for (let i = 0; i < yData.length; i++) {
+        const v = yData[i];
+        if (v == null || xData[i] < xMin || xData[i] > xMax) continue;
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      if (min <= max) {
+        if (metric === 'ns') {
+          // Same as the ns scale's range function
+          uplotRef.current.setScale('y', { min: 0, max: Math.ceil(max + 1) });
+        } else if (ySymmetric) {
           const m = Math.max(Math.abs(min), Math.abs(max)) * 1.05 || 1;
           uplotRef.current.setScale('y', { min: -m, max: m });
         } else {
