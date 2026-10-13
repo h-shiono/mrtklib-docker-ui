@@ -3,8 +3,10 @@
 import asyncio
 import json
 import logging
+import os
+import secrets
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
@@ -17,6 +19,7 @@ from mrtklib_web_ui.paths import (
     is_within,
     resolve_path,
 )
+from mrtklib_web_ui.services import hatanaka
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +180,50 @@ class ConvertResponse(BaseModel):
     command: str = ""
 
 
+async def _read_stream(stream: asyncio.StreamReader, prefix: str = "") -> None:
+    """Broadcast a process stream line by line (\r or \n); throttle progress lines."""
+    import time as _time
+    buf = b""
+    last_progress_time = 0.0
+    while True:
+        chunk = await stream.read(4096)
+        if not chunk:
+            break
+        buf += chunk
+        # Split on \r or \n
+        while b"\r" in buf or b"\n" in buf:
+            r_pos = buf.find(b"\r")
+            n_pos = buf.find(b"\n")
+            if r_pos == -1:
+                pos = n_pos
+            elif n_pos == -1:
+                pos = r_pos
+            else:
+                pos = min(r_pos, n_pos)
+            line = buf[:pos].decode("utf-8", errors="replace").strip()
+            # Skip \r\n combo
+            if pos + 1 < len(buf) and buf[pos:pos + 2] == b"\r\n":
+                buf = buf[pos + 2:]
+            else:
+                buf = buf[pos + 1:]
+            if not line:
+                continue
+            # Throttle CR-delimited progress lines (max 1/sec)
+            is_progress = line.startswith("scanning:") or (": O=" in line) or (": E=" in line) or (": S=" in line)
+            if is_progress:
+                now = _time.monotonic()
+                if now - last_progress_time >= 1.0:
+                    last_progress_time = now
+                    await _broadcast({"type": "progress", "message": f"{prefix}{line}"})
+            else:
+                await _broadcast({"type": "log", "message": f"{prefix}{line}"})
+    # Flush remaining
+    if buf.strip():
+        text = buf.decode("utf-8", errors="replace").strip()
+        if text:
+            await _broadcast({"type": "log", "message": f"{prefix}{text}"})
+
+
 @router.post("/start")
 async def start_convert(request: ConvertRequest) -> ConvertResponse:
     """Start mrtk convert process."""
@@ -198,48 +245,6 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
             stderr=asyncio.subprocess.PIPE,
         )
 
-        async def read_stream(stream, prefix=""):
-            import time as _time
-            buf = b""
-            last_progress_time = 0.0
-            while True:
-                chunk = await stream.read(4096)
-                if not chunk:
-                    break
-                buf += chunk
-                # Split on \r or \n
-                while b"\r" in buf or b"\n" in buf:
-                    r_pos = buf.find(b"\r")
-                    n_pos = buf.find(b"\n")
-                    if r_pos == -1:
-                        pos = n_pos
-                    elif n_pos == -1:
-                        pos = r_pos
-                    else:
-                        pos = min(r_pos, n_pos)
-                    line = buf[:pos].decode("utf-8", errors="replace").strip()
-                    # Skip \r\n combo
-                    if pos + 1 < len(buf) and buf[pos:pos + 2] == b"\r\n":
-                        buf = buf[pos + 2:]
-                    else:
-                        buf = buf[pos + 1:]
-                    if not line:
-                        continue
-                    # Throttle CR-delimited progress lines (max 1/sec)
-                    is_progress = line.startswith("scanning:") or (": O=" in line) or (": E=" in line) or (": S=" in line)
-                    if is_progress:
-                        now = _time.monotonic()
-                        if now - last_progress_time >= 1.0:
-                            last_progress_time = now
-                            await _broadcast({"type": "progress", "message": f"{prefix}{line}"})
-                    else:
-                        await _broadcast({"type": "log", "message": f"{prefix}{line}"})
-            # Flush remaining
-            if buf.strip():
-                text = buf.decode("utf-8", errors="replace").strip()
-                if text:
-                    await _broadcast({"type": "log", "message": f"{prefix}{text}"})
-
         # Run stream readers and wait for process in background
         async def run_and_wait():
             global _process
@@ -248,8 +253,8 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
                 return
             # Read stdout/stderr concurrently, then wait for exit
             await asyncio.gather(
-                read_stream(proc.stdout, ""),
-                read_stream(proc.stderr, "[STDERR] "),
+                _read_stream(proc.stdout, ""),
+                _read_stream(proc.stderr, "[STDERR] "),
             )
             await proc.wait()
             rc = proc.returncode
@@ -268,6 +273,128 @@ async def start_convert(request: ConvertRequest) -> ConvertResponse:
     except Exception as e:
         logger.exception("Failed to start conversion")
         return ConvertResponse(status="error", message=str(e))
+
+
+# ── Hatanaka compression (rnx2crx / crx2rnx, #81) ──────────────────────────
+
+
+class HatanakaRequest(BaseModel):
+    input_file: str
+    output_file: str
+    direction: Literal["compress", "decompress"]
+    gzip_output: bool = False
+    skip_strange: bool = False
+    # rnx2crx -e: restart the differencing every N epochs (compress only)
+    reset_epochs: int | None = Field(default=None, ge=1, le=1_000_000)
+    overwrite: bool = False
+
+
+def _validate_hatanaka_paths(req: HatanakaRequest) -> str | None:
+    """Resolve the request's paths in place; return an error message if not allowed.
+
+    The tools run as filters, so the output can go anywhere in /workspace
+    whatever the input's location.
+    """
+    inp = resolve_path(req.input_file)
+    if not (is_within(inp, WORKSPACE_ROOT) or is_within(inp, DATA_ROOT)) or has_hidden_component(inp):
+        return f"Input file must be within /workspace or /data: {req.input_file}"
+    out = resolve_path(req.output_file)
+    if not is_within(out, WORKSPACE_ROOT) or has_hidden_component(out):
+        return f"Output file must be within /workspace: {req.output_file}"
+    if out == inp:
+        return "Output file must differ from the input file"
+    req.input_file, req.output_file = str(inp), str(out)
+    return None
+
+
+def _hatanaka_command_str(args: list[str], src: Path, dst: Path, gzip_in: bool, gzip_out: bool) -> str:
+    tool = " ".join([Path(args[0]).name, *args[1:]])
+    cmd = f"{tool} < {src} > {dst}"
+    notes = [n for n, on in (("gunzip input", gzip_in), ("gzip output", gzip_out)) if on]
+    return cmd + (f"  ({', '.join(notes)})" if notes else "")
+
+
+async def _run_hatanaka(
+    proc: asyncio.subprocess.Process,
+    src: Path,
+    dst: Path,
+    *,
+    gzip_out: bool,
+    decompress: bool,
+) -> None:
+    global _process
+    # Visible name (like the downloader's), so a file left by a crash can be
+    # found and deleted in the File Browser; startup cleanup is #124.
+    part = dst.with_name(f"{dst.name}.{secrets.token_hex(4)}.part")
+    try:
+        err = await hatanaka.pump(
+            proc, src, part,
+            gzip_in=hatanaka.is_gzip_name(src),
+            gzip_out=gzip_out,
+            read_stderr=lambda s: _read_stream(s, "[STDERR] "),
+        )
+        if err is not None:
+            if proc.returncode is None:
+                proc.kill()
+            await _broadcast({"type": "log", "message": f"[ERROR] {type(err).__name__}: {err}"})
+        rc = await proc.wait()
+        if _process is not proc or (rc < 0 and err is None):
+            return  # stopped by /stop (a signal), which reports it
+        if err is None and rc in (0, hatanaka.EXIT_WARNING):
+            await asyncio.to_thread(os.replace, part, dst)
+            if rc == hatanaka.EXIT_WARNING:
+                await _broadcast({"type": "log", "message": "[WARN] Finished with warnings (see the messages above)"})
+            await _broadcast({"type": "log", "message": f"[INFO] Wrote {dst}"})
+            if decompress and not gzip_out:
+                await _broadcast({"type": "output_files", "obs": str(dst)})
+            await _broadcast({"type": "status", "status": "completed"})
+        else:
+            await _broadcast({"type": "log", "message": f"[ERROR] {'Decompression' if decompress else 'Compression'} failed (exit code {rc})"})
+            await _broadcast({"type": "status", "status": "failed"})
+    finally:
+        await asyncio.to_thread(part.unlink, missing_ok=True)
+        if _process is proc:
+            _process = None
+
+
+@router.post("/hatanaka/start")
+async def start_hatanaka(request: HatanakaRequest) -> ConvertResponse:
+    """Run rnx2crx / crx2rnx on one file; logs and status go to /ws."""
+    global _process
+    if _process and _process.returncode is None:
+        return ConvertResponse(status="error", message="Conversion already running")
+    if err := _validate_hatanaka_paths(request):
+        return ConvertResponse(status="error", message=err)
+
+    src, dst = Path(request.input_file), Path(request.output_file)
+    if not src.is_file():
+        return ConvertResponse(status="error", message=f"Input file not found: {src}")
+    if dst.is_dir():
+        return ConvertResponse(status="error", message=f"Output path is a directory: {dst}")
+    if dst.exists() and not request.overwrite:
+        return ConvertResponse(status="error", message=f"Output file exists (enable Overwrite to replace it): {dst}")
+
+    args = hatanaka.build_args(request.direction, request.skip_strange, request.reset_epochs)
+    cmd_str = _hatanaka_command_str(args, src, dst, hatanaka.is_gzip_name(src), request.gzip_output)
+    await _broadcast({"type": "log", "message": f"[CMD] {cmd_str}"})
+    try:
+        await asyncio.to_thread(dst.parent.mkdir, parents=True, exist_ok=True)
+        _process = await asyncio.create_subprocess_exec(
+            *args,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except Exception as e:
+        logger.exception("Failed to start %s", args[0])
+        return ConvertResponse(status="error", message=str(e))
+
+    asyncio.create_task(_run_hatanaka(
+        _process, src, dst,
+        gzip_out=request.gzip_output,
+        decompress=request.direction == "decompress",
+    ))
+    return ConvertResponse(status="ok", message="Conversion started", command=cmd_str)
 
 
 @router.post("/stop")
