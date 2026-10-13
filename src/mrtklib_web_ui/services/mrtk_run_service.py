@@ -66,7 +66,14 @@ _SAT_SYSTEM_MAP = {
 }
 
 
-def parse_satellite_output(text: str) -> list[dict[str, Any]]:
+# Solution qualities (SOL_QUALITY_MAP values) computed by the RTK / PPP /
+# VRS / PPP-RTK filter, whose ns counts the satellites valid on L1. The others
+# (single, SBAS, none) come from pntpos, whose ns counts C1.
+_FILTER_QUALITIES = {SOL_QUALITY_MAP["fix"], SOL_QUALITY_MAP["float"],
+                     SOL_QUALITY_MAP["DGPS"], SOL_QUALITY_MAP["PPP"]}
+
+
+def parse_satellite_output(text: str, solution_quality: int | None = None) -> list[dict[str, Any]]:
     """Parse mrtk run `satellite` command output into per-satellite data.
 
     Columns (rtkrcv prsatellite, nf frequencies, 2 by default):
@@ -76,9 +83,12 @@ def parse_satellite_output(text: str) -> list[dict[str, Any]]:
     - L1 (`vsat[0]`): valid in the RTK / PPP / VRS / PPP-RTK filter on L1.
       MRTKLIB counts the solution's ns as these satellites.
 
-    `used` matches the solution's ns (#120): L1 while the filter has any
-    valid satellite, else C1 (single mode, or the filter fell back to SPP,
-    where ns is the SPP count).
+    `used` matches the solution's ns (#120): the L1 column when the current
+    solution came from the filter, else C1. `solution_quality` is the
+    `status` quality polled just before. It decides, because the L1 flags
+    are not cleared when an epoch stops before the filter (no base data, age
+    of differential too large): they still show the previous epoch while ns
+    is the SPP count. Without it, any L1 flag is taken to mean the filter ran.
     """
     text = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', text)
     text = re.sub(r'[\xff\xfb\xfc\xfd\xfe][\x00-\xff]', '', text)
@@ -128,7 +138,10 @@ def parse_satellite_output(text: str) -> list[dict[str, Any]]:
             "snr": 0.0,  # Will be filled from observ command
         })
 
-    filter_active = any(s["vsat_l1"] for s in satellites)
+    if solution_quality is None:
+        filter_active = any(s["vsat_l1"] for s in satellites)
+    else:
+        filter_active = solution_quality in _FILTER_QUALITIES
     for s in satellites:
         s["used"] = s.pop("vsat_l1") if filter_active else s["valid"]
     return satellites
@@ -922,7 +935,7 @@ class MrtkRunService:
             # Poll satellite data
             try:
                 sat_text = await self._send_command("satellite")
-                satellites = parse_satellite_output(sat_text)
+                satellites = parse_satellite_output(sat_text, result.get("quality"))
                 if satellites:
                     # Get SNR from observ command
                     try:

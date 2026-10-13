@@ -1,6 +1,8 @@
 """rtkrcv `satellite` parsing: `used` matches the solution's ns (#120)."""
 
-from mrtklib_web_ui.services.mrtk_run_service import parse_satellite_output
+import pytest
+
+from mrtklib_web_ui.services.mrtk_run_service import SOL_QUALITY_MAP, parse_satellite_output
 
 HEADER = "\x1b[1mSAT C1    Az   El L1 L2  Fix1  Fix2  P1Res  P2Res   L1Res   L2Res  Sl1  Sl2  Lock1  Lock2 Rj1 Rj2\x1b[0m"
 
@@ -47,3 +49,25 @@ def test_three_frequency_columns():
     assert c20["fix"] == "FIX"
     assert c21["used"] is True
     assert c21["fix"] == "FLOAT"
+
+
+RTK_ROWS = "\n".join([
+    HEADER,
+    _row("G01", "OK", "OK", "OK", "FIX", "FIX"),
+    _row("G02", "OK", "OK", "-", "FLOAT"),
+    _row("E11", "OK", "-", "-"),
+])
+
+
+@pytest.mark.parametrize("sol", ["fix", "float", "DGPS", "PPP"])
+def test_filter_solution_counts_l1(sol):
+    sats = parse_satellite_output(RTK_ROWS, SOL_QUALITY_MAP[sol])
+    assert [s["prn"] for s in sats if s["used"]] == ["G01", "G02"]
+
+
+@pytest.mark.parametrize("sol", ["single", "SBAS", "-"])
+def test_stale_l1_flags_ignored_without_a_filter_solution(sol):
+    # e.g. RTK with the base stream lost: rtkpos returns before relpos, so
+    # the L1 flags are the previous epoch's while ns is the SPP count (C1)
+    sats = parse_satellite_output(RTK_ROWS, SOL_QUALITY_MAP[sol])
+    assert [s["prn"] for s in sats if s["used"]] == ["G01", "G02", "E11"]
