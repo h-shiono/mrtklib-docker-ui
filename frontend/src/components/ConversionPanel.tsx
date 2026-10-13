@@ -314,6 +314,9 @@ export function ConversionPanel() {
   const [logLines, setLogLines] = useState<string[]>([]);
   const consoleRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  // Incremented by every start and by Stop. A start that waited for the
+  // WebSocket checks it, so Stop during that wait cancels the start.
+  const startSeqRef = useRef(0);
 
   // Right panel tab state
   const [rightTab, setRightTab] = useState<RightPanelTab>('console');
@@ -620,7 +623,9 @@ export function ConversionPanel() {
     setOutputFiles({});
     parsedOutputRef.current = {};
     setRightTab('console');
+    const seq = ++startSeqRef.current;
     await connectWs();
+    if (seq !== startSeqRef.current) return; // Stop was pressed meanwhile
 
     try {
       const response = await fetch('/api/convert/start', {
@@ -682,7 +687,9 @@ export function ConversionPanel() {
     setOutputFiles({});
     parsedOutputRef.current = {};
     setRightTab('console');
+    const seq = ++startSeqRef.current;
     await connectWs();
+    if (seq !== startSeqRef.current) return; // Stop was pressed meanwhile
 
     try {
       const response = await fetch('/api/convert/hatanaka/start', {
@@ -711,6 +718,7 @@ export function ConversionPanel() {
   }, [hk, hkOutput, connectWs]);
 
   const handleStop = useCallback(async () => {
+    startSeqRef.current++; // cancels a start still waiting for the socket
     try {
       await fetch('/api/convert/stop', { method: 'POST' });
       setStatus('idle');
