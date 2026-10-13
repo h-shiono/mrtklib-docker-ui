@@ -412,7 +412,8 @@ function SolutionView({
   fromEnd?: boolean;
   noun?: string;
 }) {
-  const [loaded, setContent] = useState<{ content: string; returned: number; total: number } | null>(null);
+  // `path` is the server-resolved path (a relative entry resolves under /workspace).
+  const [loaded, setContent] = useState<{ path: string; content: string; returned: number; total: number } | null>(null);
   const loadedContent = loaded?.content ?? null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -448,7 +449,12 @@ function SolutionView({
       })
       .then((data) => {
         if (!cancelled) {
-          setContent({ content: data.content || '', returned: data.returned_lines ?? 0, total: data.total_lines ?? 0 });
+          setContent({
+            path: data.path || outputFile,
+            content: data.content || '',
+            returned: data.returned_lines ?? 0,
+            total: data.total_lines ?? 0,
+          });
         }
       })
       .catch((err) => {
@@ -506,13 +512,13 @@ function SolutionView({
             Showing the {fromEnd ? 'last' : 'first'} {loaded.returned.toLocaleString()} of{' '}
             {loaded.total.toLocaleString()} lines
           </Text>
-          {outputFile.startsWith('/workspace/') && (
+          {loaded.path.startsWith('/workspace/') && (
             <Button
               variant="light"
               leftSection={<IconDownload size={12} />}
               size="compact-xs"
               component="a"
-              href={`/api/files/download?path=${encodeURIComponent(outputFile)}`}
+              href={`/api/files/download?path=${encodeURIComponent(loaded.path)}`}
               download
               style={{ flexShrink: 0 }}
             >

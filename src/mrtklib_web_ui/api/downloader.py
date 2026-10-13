@@ -52,8 +52,17 @@ def _add_history(entry: dict[str, Any]) -> None:
 
 
 def _part_path(dest: Path) -> Path:
-    """Temp name a download is written to, renamed to dest on success."""
-    return dest.with_name(dest.name + ".part")
+    """Temp name a download is written to, renamed to dest on success.
+
+    Unique per transfer: two requests for the same file must not write
+    into (or rename / delete) each other's temp file.
+    """
+    return dest.with_name(f"{dest.name}.{uuid.uuid4().hex[:12]}.part")
+
+
+# Bytes collected before deciding whether a response is an HTML page: the
+# first network chunk can be as short as a few bytes.
+HTML_SNIFF_BYTES = 512
 
 
 def _looks_like_html(head: bytes, content_type: str) -> bool:
@@ -78,6 +87,14 @@ def _earthdata_auth_hook(auth: tuple[str, str]) -> Any:
             request.headers["Authorization"] = next(header.auth_flow(request)).headers["Authorization"]
 
     return hook
+
+
+def _reject_html(head: bytes, content_type: str) -> None:
+    if _looks_like_html(head, content_type):
+        raise ValueError(
+            "Server returned an HTML page instead of the file "
+            "(login page or error page; check credentials)"
+        )
 
 
 async def _download_file(url: str, dest: Path, auth: tuple[str, str] | None = None) -> dict[str, Any]:
@@ -112,16 +129,24 @@ async def _download_file(url: str, dest: Path, auth: tuple[str, str] | None = No
                 kwargs["auth"] = auth
             async with client.stream("GET", url, **kwargs) as resp:
                 resp.raise_for_status()
+                content_type = resp.headers.get("content-type", "")
                 size = 0
+                head = b""  # prefix held back until it is known not to be HTML
+                sniffed = False
                 with part.open("wb") as f:
                     async for chunk in resp.aiter_bytes():
-                        if size == 0 and _looks_like_html(chunk, resp.headers.get("content-type", "")):
-                            raise ValueError(
-                                "Server returned an HTML page instead of the file "
-                                "(login page or error page; check credentials)"
-                            )
-                        f.write(chunk)
                         size += len(chunk)
+                        if sniffed:
+                            f.write(chunk)
+                            continue
+                        head += chunk
+                        if len(head) >= HTML_SNIFF_BYTES:
+                            _reject_html(head, content_type)
+                            f.write(head)
+                            sniffed = True
+                    if not sniffed:  # short body: decide on all of it
+                        _reject_html(head, content_type)
+                        f.write(head)
             part.replace(dest)
             entry["status"] = "completed"
             entry["size_bytes"] = size

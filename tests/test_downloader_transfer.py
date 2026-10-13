@@ -34,7 +34,7 @@ def test_binary_download_completes(serve, tmp_path):
     entry = _get("https://example.test/a.gz", dest)
     assert entry["status"] == "completed" and entry["size_bytes"] == len(body)
     assert dest.read_bytes() == body
-    assert not (tmp_path / "a.gz.part").exists()
+    assert not list(tmp_path.glob("*.part"))
 
 
 @pytest.mark.parametrize("content, ctype", [
@@ -47,7 +47,46 @@ def test_html_page_is_rejected(serve, tmp_path, content, ctype):
     dest = tmp_path / "b.gz"
     entry = _get("https://example.test/b.gz", dest)
     assert entry["status"] == "failed" and "HTML" in entry["error"]
-    assert not dest.exists() and not (tmp_path / "b.gz.part").exists()
+    assert not dest.exists() and not list(tmp_path.glob("*.part"))
+
+
+async def _chunks(*parts):
+    for part in parts:
+        await asyncio.sleep(0)
+        yield part
+
+
+@pytest.mark.parametrize("parts", [
+    (b"<ht", b"ml><body>Earthdata Login</body></html>"),  # split opening tag
+    (b"  ", b"<!DOC", b"TYPE html>", b"x" * 2000),        # long page, tiny first chunks
+])
+def test_html_split_across_chunks_is_rejected(serve, tmp_path, parts):
+    serve(lambda req: httpx.Response(200, content=_chunks(*parts)))
+    entry = _get("https://example.test/s.gz", tmp_path / "s.gz")
+    assert entry["status"] == "failed" and "HTML" in entry["error"]
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_chunked_binary_is_written_whole(serve, tmp_path):
+    parts = [b"\x1f\x8b", b"a" * 100, b"b" * 1000, b"c" * 7]
+    serve(lambda req: httpx.Response(200, content=_chunks(*parts)))
+    entry = _get("https://example.test/k.gz", tmp_path / "k.gz")
+    assert entry["status"] == "completed" and entry["size_bytes"] == sum(map(len, parts))
+    assert (tmp_path / "k.gz").read_bytes() == b"".join(parts)
+
+
+def test_concurrent_downloads_of_one_file_do_not_clash(serve, tmp_path):
+    body = [b"\x1f\x8b"] + [bytes([65 + i]) * 1000 for i in range(20)]
+    serve(lambda req: httpx.Response(200, content=_chunks(*body)))
+    dest = tmp_path / "same.gz"
+
+    async def both():
+        return await asyncio.gather(*(downloader._download_file("https://example.test/same.gz", dest) for _ in range(2)))
+
+    entries = asyncio.run(both())
+    assert [e["status"] for e in entries] == ["completed", "completed"]
+    assert dest.read_bytes() == b"".join(body)
+    assert not list(tmp_path.glob("*.part"))
 
 
 def test_http_error_leaves_nothing(serve, tmp_path):
@@ -113,8 +152,7 @@ def test_gsi_failed_transfer_leaves_no_partial(monkeypatch, tmp_path):
     monkeypatch.setattr(FakeFTP, "fail_on", "0001a.26o")
     with pytest.raises(OSError):
         downloader._gsi_fetch_station_day(("u", "p"), 2026, 284, "0001", tmp_path)
-    assert not (tmp_path / "0001a.26o").exists()
-    assert not (tmp_path / "0001a.26o.part").exists()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_earthdata_redirect_keeps_credentials_for_urs_only(serve, tmp_path):
