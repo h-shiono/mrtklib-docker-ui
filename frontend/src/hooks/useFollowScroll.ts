@@ -1,31 +1,59 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /**
- * Keep a Mantine ScrollArea pinned to its bottom as content is appended.
+ * Keep a Mantine ScrollArea pinned to its bottom as content is appended,
+ * and hold the view still while the user has scrolled up to read.
  *
  * Scrolls instantly, not smoothly: with lines arriving every poll a smooth
  * scroll is interrupted by the next update and never reaches the bottom.
- * Following pauses while the user has scrolled up to read and resumes once
- * they scroll back to the bottom. Pass `active` = false while the panel is
- * hidden (display: none cannot be scrolled); it scrolls again on activation.
  *
- * Spread the result onto the ScrollArea:
- *   <ScrollArea {...useFollowScroll(active, lines)}>
+ * Holding: live buffers are trimmed from the top (`slice(-N)`), so once
+ * full every update shifts the text under a fixed scrollTop. While the
+ * user is scrolled up, `shown` is therefore a snapshot of the content taken
+ * when they left the bottom; it is released (back to live content) when
+ * they scroll to the bottom again, call `resume()`, or the content is
+ * cleared (an empty array: a new run).
+ *
+ * Pass `active` = false while the panel is hidden (display: none cannot be
+ * scrolled); it scrolls again on activation.
+ *
+ *   const s = useFollowScroll(active, lines);
+ *   <ScrollArea {...s.scrollProps}>{render(s.shown)}</ScrollArea>
+ *   {s.held && <JumpToLatest onClick={s.resume} />}
  */
-export function useFollowScroll(active: boolean, content: unknown) {
+export function useFollowScroll<T>(active: boolean, content: T) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const followRef = useRef(true);
+  // Snapshot shown while the user is scrolled up; null = following.
+  const [held, setHeld] = useState<{ value: T } | null>(null);
+  const contentRef = useRef(content);
+  useLayoutEffect(() => {
+    contentRef.current = content;
+  });
+
+  // Cleared content (a new run) releases the hold, or the old run's snapshot
+  // would hide the new one.
+  if (held && Array.isArray(content) && content.length === 0) setHeld(null);
 
   useEffect(() => {
     const vp = viewportRef.current;
-    if (!active || !vp || !followRef.current) return;
+    if (!active || !vp || held) return;
     vp.scrollTop = vp.scrollHeight;
-  }, [active, content]);
+  }, [active, content, held]);
 
   const onScrollPositionChange = useCallback(() => {
     const vp = viewportRef.current;
-    if (vp) followRef.current = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 24;
+    if (!vp) return;
+    const atBottom = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 24;
+    // Same object while nothing changes, so scrolling does not re-render.
+    setHeld((prev) => (atBottom ? null : prev ?? { value: contentRef.current }));
   }, []);
 
-  return { viewportRef, onScrollPositionChange };
+  const resume = useCallback(() => setHeld(null), []);
+
+  return {
+    scrollProps: { viewportRef, onScrollPositionChange },
+    shown: held ? held.value : content,
+    held: held !== null,
+    resume,
+  };
 }

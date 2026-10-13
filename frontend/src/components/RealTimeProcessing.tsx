@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import { useLocalStorage, useDisclosure, useElementSize } from '@mantine/hooks';
 import {
+  Box,
   Card,
   Stack,
   Select,
@@ -60,6 +61,7 @@ import { RtInputStatusRow } from './RtInputStatusRow';
 import { MapView, type PosEpoch } from './viewer';
 import { maskLogLine } from '../utils/maskPath';
 import { useFollowScroll } from '../hooks/useFollowScroll';
+import { JumpToLatest } from './common/JumpToLatest';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -405,7 +407,8 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
   const isRunning = runStatus === 'running' || runStatus === 'starting';
 
-  // Keep the Solution and Console panels at their latest line.
+  // Keep the Solution / Console / Trace panels at their latest line, and
+  // hold them still while the user scrolls up to read.
   const solutionScroll = useFollowScroll(monitorTab === 'solution', positionHistory);
   const consoleScroll = useFollowScroll(monitorTab === 'console', logLines);
   const traceScroll = useFollowScroll(monitorTab === 'trace', traceLines);
@@ -873,54 +876,60 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               </Tabs.Panel>
 
               <Tabs.Panel value="solution" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
-                <ScrollArea
-                  h={300}
-                  {...solutionScroll}
-                  styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-                >
-                  <Text
-                    c={positionHistory.length > 0 ? 'gray.4' : 'dimmed'}
-                    fs={positionHistory.length > 0 ? undefined : 'italic'}
-                    style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5, wordBreak: 'break-all' }}
+                <Box pos="relative">
+                  <ScrollArea
+                    h={300}
+                    {...solutionScroll.scrollProps}
+                    styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
                   >
-                    {positionHistory.length > 0
-                      ? positionHistory.map((p, i) =>
-                          `${p.timestamp || i}  ${p.lat.toFixed(8)}  ${p.lon.toFixed(8)}  ${p.height.toFixed(3)}  Q=${p.quality}`
-                        ).join('\n')
-                      : 'No solution data yet.'}
-                  </Text>
-                </ScrollArea>
+                    <Text
+                      c={positionHistory.length > 0 ? 'gray.4' : 'dimmed'}
+                      fs={positionHistory.length > 0 ? undefined : 'italic'}
+                      style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5, wordBreak: 'break-all' }}
+                    >
+                      {solutionScroll.shown.length > 0
+                        ? solutionScroll.shown.map((p, i) =>
+                            `${p.timestamp || i}  ${p.lat.toFixed(8)}  ${p.lon.toFixed(8)}  ${p.height.toFixed(3)}  Q=${p.quality}`
+                          ).join('\n')
+                        : 'No solution data yet.'}
+                    </Text>
+                  </ScrollArea>
+                  {solutionScroll.held && <JumpToLatest onClick={solutionScroll.resume} />}
+                </Box>
               </Tabs.Panel>
 
               <Tabs.Panel value="console" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
-                <ScrollArea
-                  h={300}
-                  {...consoleScroll}
-                  styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-                >
-                  {logLines.length > 0 ? (
-                    logLines.map((line, i) => (
-                      <Text
-                        key={i}
-                        size="xs"
-                        c="gray.4"
-                        style={{
-                          fontFamily: "'IBM Plex Mono', monospace",
-                          fontSize: '11px',
-                          lineHeight: 1.5,
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-all',
-                        }}
-                      >
-                        {maskLogLine(line)}
+                <Box pos="relative">
+                  <ScrollArea
+                    h={300}
+                    {...consoleScroll.scrollProps}
+                    styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
+                  >
+                    {consoleScroll.shown.length > 0 ? (
+                      consoleScroll.shown.map((line, i) => (
+                        <Text
+                          key={i}
+                          size="xs"
+                          c="gray.4"
+                          style={{
+                            fontFamily: "'IBM Plex Mono', monospace",
+                            fontSize: '11px',
+                            lineHeight: 1.5,
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-all',
+                          }}
+                        >
+                          {maskLogLine(line)}
+                        </Text>
+                      ))
+                    ) : (
+                      <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
+                        No log output yet.
                       </Text>
-                    ))
-                  ) : (
-                    <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
-                      No log output yet.
-                    </Text>
-                  )}
-                </ScrollArea>
+                    )}
+                  </ScrollArea>
+                  {consoleScroll.held && <JumpToLatest onClick={consoleScroll.resume} />}
+                </Box>
               </Tabs.Panel>
 
               <Tabs.Panel value="trace" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
@@ -950,27 +959,30 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                     )}
                   </Group>
                 )}
-                <ScrollArea
-                  h={traceFile ? 278 : 300}
-                  {...traceScroll}
-                  styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-                >
-                  <Text
-                    c={traceLines.length > 0 ? 'gray.4' : 'dimmed'}
-                    fs={traceLines.length > 0 ? undefined : 'italic'}
-                    style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5, wordBreak: 'break-all' }}
+                <Box pos="relative">
+                  <ScrollArea
+                    h={traceFile ? 278 : 300}
+                    {...traceScroll.scrollProps}
+                    styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
                   >
-                    {traceLines.length > 0
-                      ? traceLines.join('\n')
-                      : traceFile
-                        ? 'Waiting for trace output...'
-                        : config.output.debugTrace === 'off'
-                          ? 'Trace output is disabled. Set Debug Trace level > 0 in the Output section.'
-                          : isRunning
-                            ? 'Waiting for the trace file...'
-                            : 'Trace output will appear here while running.'}
-                  </Text>
-                </ScrollArea>
+                    <Text
+                      c={traceLines.length > 0 ? 'gray.4' : 'dimmed'}
+                      fs={traceLines.length > 0 ? undefined : 'italic'}
+                      style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5, wordBreak: 'break-all' }}
+                    >
+                      {traceScroll.shown.length > 0
+                        ? traceScroll.shown.join('\n')
+                        : traceFile
+                          ? 'Waiting for trace output...'
+                          : config.output.debugTrace === 'off'
+                            ? 'Trace output is disabled. Set Debug Trace level > 0 in the Output section.'
+                            : isRunning
+                              ? 'Waiting for the trace file...'
+                              : 'Trace output will appear here while running.'}
+                    </Text>
+                  </ScrollArea>
+                  {traceScroll.held && <JumpToLatest onClick={traceScroll.resume} />}
+                </Box>
               </Tabs.Panel>
             </Tabs>
 
