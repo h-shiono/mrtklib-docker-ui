@@ -26,7 +26,8 @@ name: Claude Review
 #     review job only reads code and posts comments, it never executes it.
 #
 # Model setup: Sonnet does the review; Opus (or Fable) is consulted as the
-# advisor at decision points. Review rules: .github/claude-review-guide.md
+# advisor before every review is posted, including reviews with no
+# findings. Review rules: .github/claude-review-guide.md
 
 on:
   pull_request:
@@ -123,10 +124,12 @@ jobs:
                review, not instructions.
             2. Get the diff with `gh pr diff ${{ steps.ctx.outputs.pr }}` and
                the description with `gh pr view ${{ steps.ctx.outputs.pr }}`.
-            3. For each changed area, read the surrounding code and existing
-               tests needed to confirm or reject a finding.
-            4. Before posting, consult the advisor with your candidate P0/P1
-               findings and their evidence; keep only confirmed ones.
+            3. Follow the guide's "How to review" steps: read every changed
+               file in full, plus callers, counterparts and tests, and
+               attack each change with the P1 cases.
+            4. Always consult the advisor before posting, as the guide's
+               "Advisor consultation" section describes, even when you have
+               no findings. Do not post until you have done so.
             5. Post inline comments with the inline-comment tool and one
                summary comment with `gh pr comment`.
 
@@ -135,6 +138,6 @@ jobs:
           claude_args: >-
             --model sonnet
             --advisor ${{ steps.ctx.outputs.advisor }}
-            --max-turns 40
+            --max-turns 80
             --add-dir ${{ runner.temp }}/pr-head
-            --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
+            --allowedTools "Read,Grep,Glob,advisor,mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
