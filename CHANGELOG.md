@@ -36,6 +36,8 @@ No action is needed to upgrade from 0.4.1-alpha.
   plot) now match the solution's satellite count shown in the chart. It
   is the L1 count while the RTK / PPP filter produced the solution and
   the single-point count otherwise (#120).
+- Conversion: two quick starts can no longer launch two conversions,
+  and stopping a RINEX Converter run no longer ends with "failed".
 
 ## [0.4.1-alpha] - 2026-10-13
 
