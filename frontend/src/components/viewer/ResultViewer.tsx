@@ -23,7 +23,7 @@ import {
   xyzToLlh,
 } from './enuUtils';
 import { MapView } from './MapView';
-import { ChartView } from './ChartView';
+import { ChartView, X_AXIS_LABELLED, X_AXIS_TICKS_ONLY } from './ChartView';
 import { Plot2DView } from './Plot2DView';
 import type {
   PosEpoch,
@@ -54,11 +54,13 @@ type ViewMode = '2d' | 'enu' | 'map';
 
 interface YRangeSettings {
   auto: boolean;
+  /** Auto range symmetric about 0 */
+  symmetric: boolean;
   min: number;
   max: number;
 }
 
-const DEFAULT_Y_RANGE: YRangeSettings = { auto: true, min: 0, max: 0 };
+const DEFAULT_Y_RANGE: YRangeSettings = { auto: true, symmetric: false, min: 0, max: 0 };
 
 const NO_EPOCHS: PosEpoch[] = [];
 
@@ -311,6 +313,17 @@ export function ResultViewer({
                       styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
                     />
                   </Group>
+                  {enuYRange.auto && (
+                    <Switch
+                      size="xs"
+                      label="Symmetric about 0"
+                      checked={enuYRange.symmetric}
+                      onChange={(e) =>
+                        setEnuYRange((prev) => ({ ...prev, symmetric: e.currentTarget.checked }))
+                      }
+                      styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
+                    />
+                  )}
                   {!enuYRange.auto && (
                     <Group gap={4}>
                       <NumberInput
@@ -414,18 +427,38 @@ export function ResultViewer({
         )}
         {viewMode === 'enu' && (
           <Stack gap={0}>
-            {METRICS.map((metric) => (
-              <ChartView
-                key={metric}
-                data={enuData}
-                height={Math.floor(vizHeight / 4)}
-                metric={metric}
-                xRange={xRange}
-                yRange={getYRange(metric)}
-                onXRangeChange={handleXRangeChange}
-                cursorSyncKey="enu-sync"
-              />
-            ))}
+            {METRICS.map((metric, i) => {
+              // Time labels on the bottom chart only; the plot areas share
+              // the rest of the height equally.
+              const last = i === METRICS.length - 1;
+              const plotH = Math.floor(
+                (vizHeight - (METRICS.length - 1) * X_AXIS_TICKS_ONLY - X_AXIS_LABELLED) / METRICS.length,
+              );
+              return (
+                <div
+                  key={metric}
+                  style={{
+                    // Alternate bands and a rule mark where each chart starts
+                    backgroundColor: i % 2 === 1
+                      ? 'light-dark(rgba(0,0,0,0.025), rgba(255,255,255,0.025))'
+                      : undefined,
+                    borderTop: i > 0 ? '1px solid var(--mantine-color-default-border)' : undefined,
+                  }}
+                >
+                  <ChartView
+                    data={enuData}
+                    height={plotH + (last ? X_AXIS_LABELLED : X_AXIS_TICKS_ONLY) - (i > 0 ? 1 : 0)}
+                    metric={metric}
+                    xRange={xRange}
+                    yRange={getYRange(metric)}
+                    ySymmetric={enuYRange.auto && enuYRange.symmetric}
+                    onXRangeChange={handleXRangeChange}
+                    cursorSyncKey="enu-sync"
+                    showXLabels={last}
+                  />
+                </div>
+              );
+            })}
           </Stack>
         )}
         {viewMode === 'map' && (
