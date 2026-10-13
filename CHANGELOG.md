@@ -6,6 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.1-alpha] - 2026-10-13
+
+No action is needed to upgrade from 0.4.0-alpha.
+
+### Added
+- Docker image: `crx2rnx` / `rnx2crx` (RNXCMP 4.2.0, Geospatial
+  Information Authority of Japan), so Hatanaka-compressed RINEX inputs
+  (`.crx`, `.??d`, `.crx.gz`) work in Post Processing. License and
+  citation in README → License (#71).
+- `/api/mrtklib/version` lists the `l6extract` subcommand (#75).
+- `/api/files/read?from_end=true` returns the last lines of a file (#73).
+
+### Changed
+- Correction provider "Galileo HAS (reserved)" is now "Galileo HAS (E6B
+  SSR)": MRTKLIB 0.7.11 implements it. Its help text notes that
+  igs-rts / gal-has need `satellite_ephemeris = brdc+ssrapc | brdc+ssrcom`
+  (#75).
+- Data Downloader: default dates are in the past (UTC): today−1 for QZSS
+  L6 and GSI CORS, today−14 for IGS products (#74).
+- CLAS Pipeline docs (README, `.env.example`, `docker-compose.yml`)
+  describe the single bidirectional serial port it uses: SBF/L6 out of
+  the receiver and RTCM3 back in on the same port. `CLAS_INPUT_DEVICE` is
+  the only variable; `CLAS_OUTPUT_DEVICE` is gone (#37).
+
+### Fixed
+- Real-Time Trace / Console / Solution: the view no longer moves while
+  you scroll up to read; a "Jump to latest" button returns to the live
+  end (#72).
+- Post Processing Trace shows the end of the trace file instead of its
+  first 5000 lines, with a "last N of M lines" note and a Download link
+  for long files (#73).
+- Data Downloader (#74):
+  - IGS products (CDDIS) could never download: Earthdata credentials
+    were dropped on the redirect to `urs.earthdata.nasa.gov`, which then
+    returned its login page. Credentials are now sent to that host.
+  - An HTML page is no longer saved as a data file (`.gz`).
+  - GSI CORS downloads no longer freeze the server (Real-Time and Stream
+    Server sessions included) while they run, and report only the
+    station-day's size.
+  - Downloads stream to disk and a failed transfer leaves no partial file.
+
 ## [0.4.0-alpha] - 2026-10-12
 
 ### Upgrade notes
