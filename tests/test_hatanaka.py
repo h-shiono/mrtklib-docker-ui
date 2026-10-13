@@ -87,7 +87,7 @@ def test_success_streams_through(tmp_path, monkeypatch, src_gz, gzip_out):
     assert statuses == ["completed"]
     # Only plain RINEX output is offered to the preview
     assert any(m["type"] == "output_files" for m in sent) is (not gzip_out)
-    assert not list(tmp_path.glob(".*.part"))
+    assert not list(tmp_path.glob("*.part"))
     assert convert._process is None
 
 
@@ -103,7 +103,7 @@ def test_error_exit_leaves_no_output(tmp_path, monkeypatch):
     dst, sent, statuses = asyncio.run(_run(tmp_path, "head -c 10; exit 1", src_gz=False, gzip_out=False, monkeypatch=monkeypatch))
     assert statuses == ["failed"]
     assert not dst.exists()
-    assert not list(tmp_path.glob(".*.part"))
+    assert not list(tmp_path.glob("*.part"))
 
 
 def test_corrupt_gzip_input_fails(tmp_path, monkeypatch):
@@ -128,3 +128,44 @@ def test_corrupt_gzip_input_fails(tmp_path, monkeypatch):
     assert [m["status"] for m in sent if m["type"] == "status"] == ["failed"]
     assert any("BadGzipFile" in m.get("message", "") for m in sent)
     assert not dst.exists()
+
+
+@pytest.mark.parametrize("break_side", ["input", "output"])
+def test_unopenable_file_does_not_hang(tmp_path, monkeypatch, break_side):
+    """A tool waiting on stdin, or blocked on a full stdout, must not hang the run."""
+    async def go():
+        sent: list[dict] = []
+
+        async def fake_broadcast(msg):
+            sent.append(msg)
+
+        monkeypatch.setattr(convert, "_broadcast", fake_broadcast)
+        src = tmp_path / "in.crx"
+        dst = tmp_path / "out.rnx"
+        if break_side == "input":
+            src.mkdir()  # exists, cannot be opened as a file
+            script = "cat"
+        else:
+            src.write_bytes(PAYLOAD)
+            real_open = open
+
+            def failing_open(path, mode="r", *a, **kw):
+                if "w" in mode:
+                    raise OSError(28, "No space left on device")
+                return real_open(path, mode, *a, **kw)
+
+            monkeypatch.setattr(hatanaka, "open", failing_open, raising=False)
+            script = "cat"
+        proc = await asyncio.create_subprocess_exec(
+            "sh", "-c", script,
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        convert._process = proc
+        await asyncio.wait_for(convert._run_hatanaka(proc, src, dst, gzip_out=False, decompress=True), 10)
+        return sent
+
+    sent = asyncio.run(go())
+    assert [m["status"] for m in sent if m["type"] == "status"] == ["failed"]
+    expected = "[ERROR] IsADirectoryError" if break_side == "input" else "[ERROR] OSError"
+    assert any(m.get("message", "").startswith(expected) for m in sent)
+    assert not list(tmp_path.glob("*.part"))

@@ -6,7 +6,8 @@ export type HatanakaDirection = 'compress' | 'decompress';
  * Swaps the RINEX / Compact RINEX extension (`.24o` <-> `.24d`,
  * `.rnx` <-> `.crx`; anything else becomes `.crx` / `.rnx`), drops an input
  * `.gz` and adds one when `gzip` is set. Inputs under /workspace keep their
- * directory; others (read-only /data) go to /workspace.
+ * directory, as do relative ones (the backend resolves them under
+ * /workspace); others (read-only /data, ...) go to /workspace.
  */
 export function hatanakaOutputPath(input: string, direction: HatanakaDirection, gzip: boolean): string {
   const path = input.trim();
@@ -25,6 +26,8 @@ export function hatanakaOutputPath(input: string, direction: HatanakaDirection, 
     outExt = /^\d\d[dD]$/.test(ext) ? ext.slice(0, 2) + (upper ? 'O' : 'o') : upper ? 'RNX' : 'rnx';
   }
 
-  const dir = path.startsWith('/workspace/') ? path.slice(0, slash) : '/workspace';
+  let dir = '/workspace';
+  if (path.startsWith('/workspace/')) dir = path.slice(0, slash);
+  else if (!path.startsWith('/') && slash > 0) dir = `/workspace/${path.slice(0, slash).replace(/^\.\/+/, '')}`;
   return `${dir}/${stem}.${outExt}${gzip ? '.gz' : ''}`;
 }

@@ -62,31 +62,38 @@ async def pump(
     stdin, stdout = proc.stdin, proc.stdout
 
     async def feed() -> None:
-        f = await asyncio.to_thread(gzip.open if gzip_in else open, src, "rb")
+        f = None
         try:
+            f = await asyncio.to_thread(gzip.open if gzip_in else open, src, "rb")
             while chunk := await asyncio.to_thread(f.read, _CHUNK):
                 stdin.write(chunk)
                 await stdin.drain()
         except (BrokenPipeError, ConnectionResetError):
             pass  # the tool exited early; its exit code says why
         finally:
-            await asyncio.to_thread(f.close)
+            # Always close stdin, also when the input cannot be opened or
+            # read, or the tool waits for more input forever.
             if not stdin.is_closing():
                 stdin.close()
+            if f is not None:
+                await asyncio.to_thread(f.close)
 
     async def drain() -> None:
-        f = await asyncio.to_thread(gzip.open if gzip_out else open, dst, "wb")
+        f = None
         try:
+            f = await asyncio.to_thread(gzip.open if gzip_out else open, dst, "wb")
             while chunk := await stdout.read(_CHUNK):
                 await asyncio.to_thread(f.write, chunk)
         except BaseException:
-            # e.g. disk full: stop the tool, or it blocks on a full stdout
-            # pipe and feed() blocks on its stdin.
+            # The output cannot be opened or written (e.g. disk full): stop
+            # the tool, or it blocks on a full stdout pipe and feed() blocks
+            # on its stdin.
             if proc.returncode is None:
                 proc.kill()
             raise
         finally:
-            await asyncio.to_thread(f.close)
+            if f is not None:
+                await asyncio.to_thread(f.close)
 
     results = await asyncio.gather(feed(), drain(), read_stderr(proc.stderr), return_exceptions=True)
     return next((r for r in results if isinstance(r, BaseException)), None)

@@ -323,7 +323,9 @@ async def _run_hatanaka(
     decompress: bool,
 ) -> None:
     global _process
-    part = dst.with_name(f".{dst.name}.{secrets.token_hex(4)}.part")
+    # Visible name (like the downloader's), so a file left by a crash can be
+    # found and deleted in the File Browser; startup cleanup is #124.
+    part = dst.with_name(f"{dst.name}.{secrets.token_hex(4)}.part")
     try:
         err = await hatanaka.pump(
             proc, src, part,
