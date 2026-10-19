@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.3-alpha] - 2026-10-19
+
+No action is needed to upgrade from 0.4.2-alpha.
+
+### Fixed
+- Post Processing / Real-Time config: clearing a number field no longer
+  writes 0 to the config. A field left empty or partial goes back to the
+  value it had before editing when it loses focus. Clicking the
+  selected option of a dropdown again no longer clears the option (#63).
+
 ## [0.4.2-alpha] - 2026-10-13
 
 No action is needed to upgrade from 0.4.1-alpha.
