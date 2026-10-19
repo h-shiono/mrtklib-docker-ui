@@ -1,13 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any --
-   TODO(#63): the form onChange handlers use `(value: any)` (112 places).
-   Typing them means deciding null/empty-input behaviour per field, so it is
-   tracked as its own task; remove this directive once that lands. */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import {
   Box,
   Stack,
-  Select,
-  NumberInput,
   Text,
   Switch,
   Group,
@@ -45,24 +39,8 @@ import { DateTimePicker } from '@mantine/dates';
 import dayjs from 'dayjs';
 import type {
   MrtkPostConfig,
-  PositioningMode,
   CorrectionProvider,
-  Frequency,
-  FilterType,
-  IonosphereCorrection,
-  TroposphereCorrection,
-  EphemerisOption,
-  TidalCorrection,
-  ARMode,
-  SolutionFormat,
-  TimeFormat,
-  LatLonFormat,
-  HeightType,
-  GeoidModel,
-  StaticSolutionMode,
-  DebugTraceLevel,
   SnrMaskConfig,
-  PositionType,
   StationPosition,
 } from '../types/mrtkPostConfig';
 import { validCorrections } from '../types/mrtkPostConfig';
@@ -70,6 +48,8 @@ import { SnrMaskModal } from './SnrMaskModal';
 import { SignalSelectModal } from './SignalSelectModal';
 import { FileBrowserModal } from './FileBrowserModal';
 import { OptionLabel, ComboLabel } from './common/OptionLabel';
+import { ConfigNumberInput } from './common/ConfigNumberInput';
+import { ConfigSelect } from './common/ConfigSelect';
 import { useModeDependentDisable } from '../hooks/useModeDependentDisable';
 import { DOCS_BASE as OPTION_DOCS_BASE } from '../config/optionMeta';
 import { SECTION_SEARCH_TEXT } from '../config/sectionSearchIndex';
@@ -104,10 +84,10 @@ function StationPositionInput({
     <Stack gap={6}>
       <Group wrap="nowrap" align="center" gap="xs">
         <Text size="xs" c="dimmed" style={L}>Position Type</Text>
-        <Select
+        <ConfigSelect
           size="xs"
           value={value.mode}
-          onChange={(val: any) => onChange({ ...value, mode: val as PositionType })}
+          onChange={(val) => onChange({ ...value, mode: val })}
           data={[
             { value: 'llh', label: 'Lat/Lon/Height' },
             { value: 'xyz', label: 'XYZ-ECEF' },
@@ -122,14 +102,14 @@ function StationPositionInput({
         <ComboLabel label={value.mode === 'xyz' ? 'X / Y / Z (m)' : 'Lat / Lon / Hgt'} style={L}
           fields={[{ name: coordLabels[0] }, { name: coordLabels[1] }, { name: coordLabels[2] }]} />
         <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-          <NumberInput size="xs" title={coordLabels[0]} aria-label={coordLabels[0]} value={value.values[0]}
-            onChange={(val: any) => onChange({ ...value, values: [Number(val), value.values[1], value.values[2]] })}
+          <ConfigNumberInput size="xs" title={coordLabels[0]} aria-label={coordLabels[0]} value={value.values[0]}
+            onChange={(val) => onChange({ ...value, values: [val, value.values[1], value.values[2]] })}
             decimalScale={9} hideControls disabled={coordsDisabled || !isManualInput} style={{ flex: 1, minWidth: 0 }} />
-          <NumberInput size="xs" title={coordLabels[1]} aria-label={coordLabels[1]} value={value.values[1]}
-            onChange={(val: any) => onChange({ ...value, values: [value.values[0], Number(val), value.values[2]] })}
+          <ConfigNumberInput size="xs" title={coordLabels[1]} aria-label={coordLabels[1]} value={value.values[1]}
+            onChange={(val) => onChange({ ...value, values: [value.values[0], val, value.values[2]] })}
             decimalScale={9} hideControls disabled={coordsDisabled || !isManualInput} style={{ flex: 1, minWidth: 0 }} />
-          <NumberInput size="xs" title={coordLabels[2]} aria-label={coordLabels[2]} value={value.values[2]}
-            onChange={(val: any) => onChange({ ...value, values: [value.values[0], value.values[1], Number(val)] })}
+          <ConfigNumberInput size="xs" title={coordLabels[2]} aria-label={coordLabels[2]} value={value.values[2]}
+            onChange={(val) => onChange({ ...value, values: [value.values[0], value.values[1], val] })}
             decimalScale={4} hideControls disabled={coordsDisabled || !isManualInput} style={{ flex: 1, minWidth: 0 }} />
         </Group>
       </Group>
@@ -138,7 +118,7 @@ function StationPositionInput({
         <Checkbox
           size="xs"
           checked={value.antennaTypeEnabled}
-          onChange={(e: any) => onChange({ ...value, antennaTypeEnabled: e.currentTarget.checked })}
+          onChange={(e) => onChange({ ...value, antennaTypeEnabled: e.currentTarget.checked })}
           disabled={antennaDisabled}
         />
       </Group>
@@ -148,7 +128,7 @@ function StationPositionInput({
           <TextInput
             size="xs"
             value={value.antennaType}
-            onChange={(e: any) => onChange({ ...value, antennaType: e.currentTarget.value })}
+            onChange={(e) => onChange({ ...value, antennaType: e.currentTarget.value })}
             placeholder="e.g., AOAD/M_T"
             disabled={antennaDisabled}
             style={{ flex: 1 }}
@@ -159,14 +139,14 @@ function StationPositionInput({
         <ComboLabel label="Delta E/N/U (m)" style={L}
           fields={[{ name: 'Delta-E (m)' }, { name: 'Delta-N (m)' }, { name: 'Delta-U (m)' }]} />
         <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-          <NumberInput size="xs" title="Delta-E (m)" aria-label="Delta-E" value={value.antennaDelta[0]}
-            onChange={(val: any) => onChange({ ...value, antennaDelta: [Number(val), value.antennaDelta[1], value.antennaDelta[2]] })}
+          <ConfigNumberInput size="xs" title="Delta-E (m)" aria-label="Delta-E" value={value.antennaDelta[0]}
+            onChange={(val) => onChange({ ...value, antennaDelta: [val, value.antennaDelta[1], value.antennaDelta[2]] })}
             decimalScale={4} hideControls disabled={antennaDisabled} style={{ flex: 1, minWidth: 0 }} />
-          <NumberInput size="xs" title="Delta-N (m)" aria-label="Delta-N" value={value.antennaDelta[1]}
-            onChange={(val: any) => onChange({ ...value, antennaDelta: [value.antennaDelta[0], Number(val), value.antennaDelta[2]] })}
+          <ConfigNumberInput size="xs" title="Delta-N (m)" aria-label="Delta-N" value={value.antennaDelta[1]}
+            onChange={(val) => onChange({ ...value, antennaDelta: [value.antennaDelta[0], val, value.antennaDelta[2]] })}
             decimalScale={4} hideControls disabled={antennaDisabled} style={{ flex: 1, minWidth: 0 }} />
-          <NumberInput size="xs" title="Delta-U (m)" aria-label="Delta-U" value={value.antennaDelta[2]}
-            onChange={(val: any) => onChange({ ...value, antennaDelta: [value.antennaDelta[0], value.antennaDelta[1], Number(val)] })}
+          <ConfigNumberInput size="xs" title="Delta-U (m)" aria-label="Delta-U" value={value.antennaDelta[2]}
+            onChange={(val) => onChange({ ...value, antennaDelta: [value.antennaDelta[0], value.antennaDelta[1], val] })}
             decimalScale={4} hideControls disabled={antennaDisabled} style={{ flex: 1, minWidth: 0 }} />
         </Group>
       </Group>
@@ -200,7 +180,7 @@ function FileInputRow({
         <TextInput
           size="xs"
           value={value}
-          onChange={(e: any) => onChange(e.currentTarget.value)}
+          onChange={(e) => onChange(e.currentTarget.value)}
           placeholder={placeholder || 'Path to file'}
           styles={{
             label: { fontSize: '10px' },
@@ -691,10 +671,10 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Text size="xs" c="dimmed" style={{ fontSize: '10px', paddingLeft: 130 }}>Input in GPS Time (GPST = UTC + 18 s)</Text>
               <Group wrap="nowrap" align="center" gap="xs">
                 <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: '11px' }}>Interval (0=all)</Text>
-                <NumberInput
+                <ConfigNumberInput
                   size="xs"
                   value={config.time.interval}
-                  onChange={(v) => handleConfigChange({ ...config, time: { ...config.time, interval: Number(v) || 0 } })}
+                  onChange={(v) => handleConfigChange({ ...config, time: { ...config.time, interval: v } })}
                   min={0}
                   step={1}
                   decimalScale={2}
@@ -829,11 +809,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="positioning.mode" style={OPT_LABEL_STYLE} />
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.positioning.positioningMode}
                     onChange={(value) => {
-                      const newMode = value as PositioningMode;
+                      const newMode = value;
                       // Keep correction valid for the new mode (MRTKLIB rejects invalid combos)
                       const valid = validCorrections(newMode);
                       const correction = valid.includes(config.positioning.correction)
@@ -866,13 +846,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="positioning.correction" style={OPT_LABEL_STYLE} />
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.positioning.correction}
                     onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        positioning: { ...config.positioning, correction: value as CorrectionProvider },
+                        positioning: { ...config.positioning, correction: value },
                       })
                     }
                     data={CORRECTION_OPTIONS.filter((o) => validCorr.includes(o.value))}
@@ -882,13 +862,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="positioning.solution_type" style={OPT_LABEL_STYLE} />
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.positioning.filterType}
                     onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        positioning: { ...config.positioning, filterType: value as FilterType },
+                        positioning: { ...config.positioning, filterType: value },
                       })
                     }
                     data={[
@@ -904,13 +884,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Freq. / Signals</Text>
                   <Group wrap="nowrap" align="center" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <Select
+                    <ConfigSelect
                       size="xs"
                       value={config.positioning.frequency}
-                      onChange={(value: any) =>
+                      onChange={(value) =>
                         handleConfigChange({
                           ...config,
-                          positioning: { ...config.positioning, frequency: value as Frequency },
+                          positioning: { ...config.positioning, frequency: value },
                         })
                       }
                       data={[
@@ -964,7 +944,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <Switch
                     size="xs"
                     checked={config.positioning.receiverDynamics === 'on'}
-                    onChange={(e: any) =>
+                    onChange={(e) =>
                       handleConfigChange({
                         ...config,
                         positioning: {
@@ -983,7 +963,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="positioning.elevation_mask" style={OPT_LABEL_STYLE} />
-                  <NumberInput
+                  <ConfigNumberInput
                     size="xs"
                     value={config.positioning.elevationMask}
                     onChange={(value) =>
@@ -991,7 +971,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         ...config,
                         positioning: {
                           ...config.positioning,
-                          elevationMask: Number(value),
+                          elevationMask: value,
                         },
                       })
                     }
@@ -1016,7 +996,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="atmosphere.ionosphere" style={OPT_LABEL_STYLE} />
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.positioning.atmosphere.ionosphere}
                     onChange={(value) =>
@@ -1024,7 +1004,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         ...config,
                         positioning: {
                           ...config.positioning,
-                          atmosphere: { ...config.positioning.atmosphere, ionosphere: value as IonosphereCorrection },
+                          atmosphere: { ...config.positioning.atmosphere, ionosphere: value },
                         },
                       })
                     }
@@ -1043,7 +1023,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="atmosphere.troposphere" style={OPT_LABEL_STYLE} />
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.positioning.atmosphere.troposphere}
                     onChange={(value) =>
@@ -1051,7 +1031,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         ...config,
                         positioning: {
                           ...config.positioning,
-                          atmosphere: { ...config.positioning.atmosphere, troposphere: value as TroposphereCorrection },
+                          atmosphere: { ...config.positioning.atmosphere, troposphere: value },
                         },
                       })
                     }
@@ -1068,7 +1048,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="positioning.satellite_ephemeris" style={OPT_LABEL_STYLE} />
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.positioning.ephemerisOption}
                     onChange={(value) =>
@@ -1076,7 +1056,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         ...config,
                         positioning: {
                           ...config.positioning,
-                          ephemerisOption: value as EphemerisOption,
+                          ephemerisOption: value,
                         },
                       })
                     }
@@ -1093,15 +1073,15 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Earth Tides</Text>
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.positioning.corrections.tidalCorrection}
-                    onChange={(value: any) =>
+                    onChange={(value) =>
                       handleConfigChange({
                         ...config,
                         positioning: {
                           ...config.positioning,
-                          corrections: { ...config.positioning.corrections, tidalCorrection: value as TidalCorrection },
+                          corrections: { ...config.positioning.corrections, tidalCorrection: value },
                         },
                       })
                     }
@@ -1120,7 +1100,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     size="xs"
                     label="Sat PCV"
                     checked={config.positioning.corrections.satelliteAntenna}
-                    onChange={(e: any) =>
+                    onChange={(e) =>
                       handleConfigChange({
                         ...config,
                         positioning: {
@@ -1136,7 +1116,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     size="xs"
                     label="Rec PCV"
                     checked={config.positioning.corrections.receiverAntenna}
-                    onChange={(e: any) =>
+                    onChange={(e) =>
                       handleConfigChange({
                         ...config,
                         positioning: {
@@ -1152,7 +1132,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     size="xs"
                     label="Phase Windup"
                     checked={config.positioning.corrections.phaseWindup !== 'off'}
-                    onChange={(e: any) =>
+                    onChange={(e) =>
                       handleConfigChange({
                         ...config,
                         positioning: {
@@ -1168,7 +1148,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     size="xs"
                     label="Reject Eclipse"
                     checked={config.positioning.corrections.excludeEclipse}
-                    onChange={(e: any) =>
+                    onChange={(e) =>
                       handleConfigChange({
                         ...config,
                         positioning: {
@@ -1184,7 +1164,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     size="xs"
                     label="RAIM FDE"
                     checked={config.positioning.corrections.raimFde}
-                    onChange={(e: any) =>
+                    onChange={(e) =>
                       handleConfigChange({
                         ...config,
                         positioning: {
@@ -1203,8 +1183,8 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Iono Compensation</Text>
-                  <Select size="xs" value={config.positioning.corrections.ionoCompensation}
-                    onChange={(value: any) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, ionoCompensation: value } } })}
+                  <ConfigSelect size="xs" value={config.positioning.corrections.ionoCompensation}
+                    onChange={(value) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, ionoCompensation: value } } })}
                     data={[{ value: 'off', label: 'OFF' }, { value: 'ssr', label: 'SSR' }, { value: 'meas', label: 'Measured' }]}
                     style={{ flex: 1 }} />
                 </Group>
@@ -1212,32 +1192,32 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <ComboLabel label="GPS / QZS Freq" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'GPS' }, { name: 'QZS' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <Select size="xs" title="GPS frequency" aria-label="GPS frequency" value={config.positioning.corrections.gpsFrequency}
-                      onChange={(value: any) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, gpsFrequency: value } } })}
+                    <ConfigSelect size="xs" title="GPS frequency" aria-label="GPS frequency" value={config.positioning.corrections.gpsFrequency}
+                      onChange={(value) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, gpsFrequency: value } } })}
                       data={['l1', 'l1+l2', 'l1+l5', 'l1+l2+l5', 'l1+l5(l2)']} style={{ flex: 1, minWidth: 0 }} />
-                    <Select size="xs" title="QZS frequency" aria-label="QZS frequency" value={config.positioning.corrections.qzsFrequency}
-                      onChange={(value: any) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, qzsFrequency: value } } })}
+                    <ConfigSelect size="xs" title="QZS frequency" aria-label="QZS frequency" value={config.positioning.corrections.qzsFrequency}
+                      onChange={(value) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, qzsFrequency: value } } })}
                       data={['l1', 'l1+l2', 'l1+l5', 'l1+l2+l5', 'l1+l5(l2)']} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>SNR Fixed (dB-Hz)</Text>
-                  <NumberInput size="xs" value={config.positioning.corrections.snrFixed}
-                    onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, snrFixed: Number(v) || 0 } } })}
+                  <ConfigNumberInput size="xs" value={config.positioning.corrections.snrFixed}
+                    onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, snrFixed: v } } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
                 <Group justify="space-between" gap="md" mt={6}>
                   <Switch size="xs" label="Partial AR" checked={config.positioning.corrections.partialAr}
-                    onChange={(e: any) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, partialAr: e.currentTarget.checked } } })}
+                    onChange={(e) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, partialAr: e.currentTarget.checked } } })}
                     styles={{ label: { fontSize: '10px' } }} />
                   <Switch size="xs" label="Shapiro" checked={config.positioning.corrections.shapiroDelay} disabled={!isPPP}
-                    onChange={(e: any) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, shapiroDelay: e.currentTarget.checked } } })}
+                    onChange={(e) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, shapiroDelay: e.currentTarget.checked } } })}
                     styles={{ label: { fontSize: '10px' } }} />
                   <Switch size="xs" label="Excl QZS Ref" checked={config.positioning.corrections.excludeQzsRef}
-                    onChange={(e: any) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, excludeQzsRef: e.currentTarget.checked } } })}
+                    onChange={(e) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, excludeQzsRef: e.currentTarget.checked } } })}
                     styles={{ label: { fontSize: '10px' } }} />
                   <Switch size="xs" label="No Phase Bias Adj" checked={config.positioning.corrections.noPhaseBiasAdj}
-                    onChange={(e: any) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, noPhaseBiasAdj: e.currentTarget.checked } } })}
+                    onChange={(e) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, noPhaseBiasAdj: e.currentTarget.checked } } })}
                     styles={{ label: { fontSize: '10px' } }} />
                 </Group>
               </Stack>
@@ -1382,7 +1362,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   label="Excluded Satellites"
                   placeholder="e.g., G04 G05 R09"
                   value={config.positioning.excludedSatellites}
-                  onChange={(e: any) =>
+                  onChange={(e) =>
                     handleConfigChange({
                       ...config,
                       positioning: {
@@ -1405,9 +1385,9 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Grid Radius (m)</Text>
-                  <NumberInput size="xs"
+                  <ConfigNumberInput size="xs"
                     value={config.positioning.clas.gridSelectionRadius}
-                    onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, gridSelectionRadius: Number(v) || 0 } } })}
+                    onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, gridSelectionRadius: v } } })}
                     min={0} hideControls disabled={!isClasMode} style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
@@ -1419,15 +1399,15 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Enhanced SPP Seed</Text>
-                  <Select size="xs" value={config.positioning.clas.enhancedSppSeed}
-                    onChange={(value: any) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, enhancedSppSeed: value } } })}
+                  <ConfigSelect size="xs" value={config.positioning.clas.enhancedSppSeed}
+                    onChange={(value) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, enhancedSppSeed: value } } })}
                     data={[{ value: 'off', label: 'OFF' }, { value: 'cn0+tdcp', label: 'C/N0 + TDCP' }, { value: 'cn0+tdcp+robust', label: 'C/N0 + TDCP + Robust' }]}
                     disabled={!isClasMode} style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="ar.thresholds.alpha" style={OPT_LABEL_STYLE} />
-                  <Select size="xs" value={config.ambiguityResolution.thresholds.alpha}
-                    onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, alpha: value}}})}
+                  <ConfigSelect size="xs" value={config.ambiguityResolution.thresholds.alpha}
+                    onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, alpha: value}}})}
                     data={['0.1%', '0.5%', '1%', '5%', '10%', '20%']}
                     disabled={modeDisabled('ar.thresholds.alpha')} style={{flex:1}} />
                 </Group>
@@ -1437,20 +1417,20 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Phase Shift</Text>
-                  <Select size="xs" value={config.receiver.phaseShift} disabled={!isClasMode}
-                    onChange={(value: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, phaseShift: value } })}
+                  <ConfigSelect size="xs" value={config.receiver.phaseShift} disabled={!isClasMode}
+                    onChange={(value) => handleConfigChange({ ...config, receiver: { ...config.receiver, phaseShift: value } })}
                     data={[{ value: 'off', label: 'OFF' }, { value: 'table', label: 'Table' }]}
                     style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs" style={{ minHeight: 30 }}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>ISB</Text>
                   <Switch size="xs" checked={config.receiver.isb} disabled={!isClasMode}
-                    onChange={(e: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, isb: e.currentTarget.checked } })} />
+                    onChange={(e) => handleConfigChange({ ...config, receiver: { ...config.receiver, isb: e.currentTarget.checked } })} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Reference Type</Text>
                   <TextInput size="xs" value={config.receiver.referenceType} disabled={!isClasMode}
-                    onChange={(e: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, referenceType: e.currentTarget.value } })}
+                    onChange={(e) => handleConfigChange({ ...config, receiver: { ...config.receiver, referenceType: e.currentTarget.value } })}
                     placeholder="CLAS" style={{ flex: 1 }} />
                 </Group>
               </Stack>
@@ -1459,26 +1439,26 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Max Obs Loss (%)</Text>
-                  <NumberInput size="xs" value={config.server.maxObsLoss ?? 90} disabled={!isClasMode}
-                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, maxObsLoss: Number(v) || 0 } })}
+                  <ConfigNumberInput size="xs" value={config.server.maxObsLoss ?? 90} disabled={!isClasMode}
+                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, maxObsLoss: v } })}
                     min={0} max={100} decimalScale={1} hideControls style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Float Count</Text>
-                  <NumberInput size="xs" value={config.server.floatCount ?? 15} disabled={!isClasMode}
-                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, floatCount: Number(v) || 0 } })}
+                  <ConfigNumberInput size="xs" value={config.server.floatCount ?? 15} disabled={!isClasMode}
+                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, floatCount: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>L6 Merge</Text>
-                  <NumberInput size="xs" value={config.positioning.clas.l6Merge} disabled={!isClasMode}
-                    onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, l6Merge: Number(v) || 0 } } })}
+                  <ConfigNumberInput size="xs" value={config.positioning.clas.l6Merge} disabled={!isClasMode}
+                    onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, l6Merge: v } } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Reset Interval</Text>
-                  <NumberInput size="xs" value={config.positioning.clas.resetInterval} disabled={!isClasMode}
-                    onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, resetInterval: Number(v) || 0 } } })}
+                  <ConfigNumberInput size="xs" value={config.positioning.clas.resetInterval} disabled={!isClasMode}
+                    onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, resetInterval: v } } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
               </Stack>
@@ -1495,11 +1475,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <ComboLabel label="Iono Forget / Gain" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'Forget', metaKey: 'adaptive.iono_forgetting' }, { name: 'Gain' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Iono forgetting factor" aria-label="Iono forgetting factor" value={config.adaptiveFilter.ionoForgetting}
-                      onChange={(v) => handleConfigChange({...config, adaptiveFilter: {...config.adaptiveFilter, ionoForgetting: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="Iono forgetting factor" aria-label="Iono forgetting factor" value={config.adaptiveFilter.ionoForgetting}
+                      onChange={(v) => handleConfigChange({...config, adaptiveFilter: {...config.adaptiveFilter, ionoForgetting: v}})}
                       disabled={!isAdaptiveMode} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Iono gain" aria-label="Iono gain" value={config.adaptiveFilter.ionoGain}
-                      onChange={(v) => handleConfigChange({...config, adaptiveFilter: {...config.adaptiveFilter, ionoGain: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="Iono gain" aria-label="Iono gain" value={config.adaptiveFilter.ionoGain}
+                      onChange={(v) => handleConfigChange({...config, adaptiveFilter: {...config.adaptiveFilter, ionoGain: v}})}
                       disabled={!isAdaptiveMode} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -1507,11 +1487,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <ComboLabel label="PVA Forget / Gain" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'Forget', metaKey: 'adaptive.pva_forgetting' }, { name: 'Gain' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="PVA forgetting factor" aria-label="PVA forgetting factor" value={config.adaptiveFilter.pvaForgetting}
-                      onChange={(v) => handleConfigChange({...config, adaptiveFilter: {...config.adaptiveFilter, pvaForgetting: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="PVA forgetting factor" aria-label="PVA forgetting factor" value={config.adaptiveFilter.pvaForgetting}
+                      onChange={(v) => handleConfigChange({...config, adaptiveFilter: {...config.adaptiveFilter, pvaForgetting: v}})}
                       disabled={!isAdaptiveMode} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="PVA gain" aria-label="PVA gain" value={config.adaptiveFilter.pvaGain}
-                      onChange={(v) => handleConfigChange({...config, adaptiveFilter: {...config.adaptiveFilter, pvaGain: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="PVA gain" aria-label="PVA gain" value={config.adaptiveFilter.pvaGain}
+                      onChange={(v) => handleConfigChange({...config, adaptiveFilter: {...config.adaptiveFilter, pvaGain: v}})}
                       disabled={!isAdaptiveMode} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -1527,13 +1507,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="ar.mode" style={OPT_LABEL_STYLE} />
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.ambiguityResolution.mode}
-                    onChange={(value: any) =>
+                    onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        ambiguityResolution: { ...config.ambiguityResolution, mode: value as ARMode },
+                        ambiguityResolution: { ...config.ambiguityResolution, mode: value },
                       })
                     }
                     data={[
@@ -1557,20 +1537,20 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'QZSS', metaKey: 'ar.qzs_ar' },
                     ]} />
                   <Group wrap="nowrap" align="center" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <Select size="xs" title="GPS AR" aria-label="GPS AR" value={config.ambiguityResolution.gpsAr ? 'on' : 'off'}
-                      onChange={(value: any) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, gpsAr: value === 'on' } })}
+                    <ConfigSelect size="xs" title="GPS AR" aria-label="GPS AR" value={config.ambiguityResolution.gpsAr ? 'on' : 'off'}
+                      onChange={(value) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, gpsAr: value === 'on' } })}
                       data={[{ value: 'off', label: 'OFF' }, { value: 'on', label: 'ON' }]}
                       disabled={modeDisabled('ar.gps_ar')} style={{ flex: 1, minWidth: 0 }} />
-                    <Select size="xs" title="GLONASS AR" aria-label="GLONASS AR" value={config.ambiguityResolution.glonassAr}
-                      onChange={(value: any) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, glonassAr: value } })}
+                    <ConfigSelect size="xs" title="GLONASS AR" aria-label="GLONASS AR" value={config.ambiguityResolution.glonassAr}
+                      onChange={(value) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, glonassAr: value } })}
                       data={[{ value: 'off', label: 'OFF' }, { value: 'on', label: 'ON' }, { value: 'autocal', label: 'AutoCal' }]}
                       disabled={modeDisabled('ar.glonass_ar')} style={{ flex: 1, minWidth: 0 }} />
-                    <Select size="xs" title="BeiDou AR" aria-label="BeiDou AR" value={config.ambiguityResolution.bdsAr}
-                      onChange={(value: any) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, bdsAr: value } })}
+                    <ConfigSelect size="xs" title="BeiDou AR" aria-label="BeiDou AR" value={config.ambiguityResolution.bdsAr}
+                      onChange={(value) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, bdsAr: value } })}
                       data={[{ value: 'off', label: 'OFF' }, { value: 'on', label: 'ON' }]}
                       disabled={modeDisabled('ar.bds_ar')} style={{ flex: 1, minWidth: 0 }} />
-                    <Select size="xs" title="QZSS AR" aria-label="QZSS AR" value={config.ambiguityResolution.qzsAr}
-                      onChange={(value: any) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, qzsAr: value } })}
+                    <ConfigSelect size="xs" title="QZSS AR" aria-label="QZSS AR" value={config.ambiguityResolution.qzsAr}
+                      onChange={(value) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, qzsAr: value } })}
                       data={[{ value: 'off', label: 'OFF' }, { value: 'on', label: 'ON' }]}
                       disabled={modeDisabled('ar.qzs_ar')} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
@@ -1606,13 +1586,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="ar.thresholds.ratio" style={OPT_LABEL_STYLE} />
-                  <NumberInput
+                  <ConfigNumberInput
                     size="xs"
                     value={config.ambiguityResolution.thresholds.ratio}
-                    onChange={(value: any) =>
+                    onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        ambiguityResolution: { ...config.ambiguityResolution, thresholds: { ...config.ambiguityResolution.thresholds, ratio: Number(value) } },
+                        ambiguityResolution: { ...config.ambiguityResolution, thresholds: { ...config.ambiguityResolution.thresholds, ratio: value } },
                       })
                     }
                     min={1}
@@ -1632,14 +1612,14 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Hold', metaKey: 'ar.thresholds.hold_elevation' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Elev. Mask AR/Hold (°) AR" aria-label="AR Elevation Mask"
+                    <ConfigNumberInput size="xs" title="Elev. Mask AR/Hold (°) AR" aria-label="AR Elevation Mask"
                       value={config.ambiguityResolution.thresholds.elevationMask}
-                      onChange={(value: any) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, thresholds: { ...config.ambiguityResolution.thresholds, elevationMask: Number(value) } } })}
+                      onChange={(value) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, thresholds: { ...config.ambiguityResolution.thresholds, elevationMask: value } } })}
                       min={0} max={90} hideControls disabled={modeDisabled('ar.thresholds.elevation_mask')}
                       style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Elev. Mask AR/Hold (°) Hold" aria-label="Hold Elevation Mask"
+                    <ConfigNumberInput size="xs" title="Elev. Mask AR/Hold (°) Hold" aria-label="Hold Elevation Mask"
                       value={config.ambiguityResolution.thresholds.holdElevation}
-                      onChange={(value: any) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, thresholds: { ...config.ambiguityResolution.thresholds, holdElevation: Number(value) } } })}
+                      onChange={(value) => handleConfigChange({ ...config, ambiguityResolution: { ...config.ambiguityResolution, thresholds: { ...config.ambiguityResolution.thresholds, holdElevation: value } } })}
                       min={0} max={90} hideControls disabled={modeDisabled('ar.thresholds.hold_elevation')}
                       style={{ flex: 1, minWidth: 0 }} />
                   </Group>
@@ -1653,16 +1633,16 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Ratio 6', metaKey: 'ar.thresholds.ratio6' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Ratio 1" aria-label="Ratio 1" value={config.ambiguityResolution.thresholds.ratio1}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, ratio1: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Ratio 1" aria-label="Ratio 1" value={config.ambiguityResolution.thresholds.ratio1}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, ratio1: value}}})}
                       decimalScale={4} hideControls disabled={modeDisabled('ar.thresholds.ratio1')}
                       style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Ratio 5" aria-label="Ratio 5" value={config.ambiguityResolution.thresholds.ratio5}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, ratio5: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Ratio 5" aria-label="Ratio 5" value={config.ambiguityResolution.thresholds.ratio5}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, ratio5: value}}})}
                       decimalScale={4} hideControls disabled={modeDisabled('ar.thresholds.ratio5')}
                       style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Ratio 6" aria-label="Ratio 6" value={config.ambiguityResolution.thresholds.ratio6}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, ratio6: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Ratio 6" aria-label="Ratio 6" value={config.ambiguityResolution.thresholds.ratio6}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, ratio6: value}}})}
                       decimalScale={4} hideControls disabled={modeDisabled('ar.thresholds.ratio6')}
                       style={{ flex: 1, minWidth: 0 }} />
                   </Group>
@@ -1672,12 +1652,12 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <ComboLabel label="Max PDOP AR/Hold" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'AR' }, { name: 'Hold' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Max PDOP AR (0: no limit)" aria-label="Max PDOP AR" value={config.ambiguityResolution.thresholds.maxPdopAr}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, maxPdopAr: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Max PDOP AR (0: no limit)" aria-label="Max PDOP AR" value={config.ambiguityResolution.thresholds.maxPdopAr}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, maxPdopAr: value}}})}
                       min={0} decimalScale={1} hideControls disabled={modeDisabled('ar.mode')}
                       style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Max PDOP Hold (0: no limit)" aria-label="Max PDOP Hold" value={config.ambiguityResolution.thresholds.maxPdopHold}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, maxPdopHold: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Max PDOP Hold (0: no limit)" aria-label="Max PDOP Hold" value={config.ambiguityResolution.thresholds.maxPdopHold}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, maxPdopHold: value}}})}
                       min={0} decimalScale={1} hideControls disabled={modeDisabled('ar.mode')}
                       style={{ flex: 1, minWidth: 0 }} />
                   </Group>
@@ -1685,8 +1665,8 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 {/* Reference DOP (v0.7.6) */}
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Reference DOP</Text>
-                  <Select size="xs" value={config.ambiguityResolution.thresholds.referenceDop}
-                    onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, referenceDop: value}}})}
+                  <ConfigSelect size="xs" value={config.ambiguityResolution.thresholds.referenceDop}
+                    onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, referenceDop: value}}})}
                     data={[{ value: 'zd', label: 'Zero-Diff' }, { value: 'sd', label: 'Single-Diff' }]}
                     disabled={modeDisabled('ar.mode')} style={{ flex: 1 }} />
                 </Group>
@@ -1703,12 +1683,12 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Min Fix Epochs', metaKey: 'ar.counters.min_fix' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Lock Cnt / Fix Ep Lock Count" aria-label="Lock Count" value={config.ambiguityResolution.counters.lockCount}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, counters: {...config.ambiguityResolution.counters, lockCount: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Lock Cnt / Fix Ep Lock Count" aria-label="Lock Count" value={config.ambiguityResolution.counters.lockCount}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, counters: {...config.ambiguityResolution.counters, lockCount: value}}})}
                       min={0} hideControls disabled={modeDisabled('ar.counters.lock_count')}
                       style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Lock Cnt / Fix Ep Min Fix Epochs" aria-label="Min Fix Epochs" value={config.ambiguityResolution.counters.minFix}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, counters: {...config.ambiguityResolution.counters, minFix: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Lock Cnt / Fix Ep Min Fix Epochs" aria-label="Min Fix Epochs" value={config.ambiguityResolution.counters.minFix}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, counters: {...config.ambiguityResolution.counters, minFix: value}}})}
                       min={0} hideControls disabled={modeDisabled('ar.counters.min_fix')}
                       style={{ flex: 1, minWidth: 0 }} />
                   </Group>
@@ -1721,12 +1701,12 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Outage Reset', metaKey: 'ar.counters.out_count' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Max Iter / Out Cnt Max Iterations" aria-label="Max LAMBDA Iterations" value={config.ambiguityResolution.counters.maxIterations}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, counters: {...config.ambiguityResolution.counters, maxIterations: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Max Iter / Out Cnt Max Iterations" aria-label="Max LAMBDA Iterations" value={config.ambiguityResolution.counters.maxIterations}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, counters: {...config.ambiguityResolution.counters, maxIterations: value}}})}
                       min={1} max={10} hideControls disabled={modeDisabled('ar.counters.max_iterations')}
                       style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Max Iter / Out Cnt Outage Reset" aria-label="Outage Reset Count" value={config.ambiguityResolution.counters.outCount}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, counters: {...config.ambiguityResolution.counters, outCount: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Max Iter / Out Cnt Outage Reset" aria-label="Outage Reset Count" value={config.ambiguityResolution.counters.outCount}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, counters: {...config.ambiguityResolution.counters, outCount: value}}})}
                       min={0} step={1} hideControls disabled={modeDisabled('ar.counters.out_count')}
                       style={{ flex: 1, minWidth: 0 }} />
                   </Group>
@@ -1738,13 +1718,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="slip.threshold" style={OPT_LABEL_STYLE} />
-                  <NumberInput
+                  <ConfigNumberInput
                     size="xs"
                     value={config.slipDetection.threshold}
-                    onChange={(value: any) =>
+                    onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        slipDetection: { ...config.slipDetection, threshold: Number(value) },
+                        slipDetection: { ...config.slipDetection, threshold: value },
                       })
                     }
                     min={0}
@@ -1767,12 +1747,12 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Max Excluded Sats', metaKey: 'ar.partial_ar.max_excluded_sats' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Min Amb / Max Excl Min Ambiguities" aria-label="Min Ambiguities" value={config.ambiguityResolution.partialAr.minAmbiguities}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, partialAr: {...config.ambiguityResolution.partialAr, minAmbiguities: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Min Amb / Max Excl Min Ambiguities" aria-label="Min Ambiguities" value={config.ambiguityResolution.partialAr.minAmbiguities}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, partialAr: {...config.ambiguityResolution.partialAr, minAmbiguities: value}}})}
                       disabled={modeDisabled('ar.partial_ar.min_ambiguities')} decimalScale={4} hideControls
                       style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Min Amb / Max Excl Max Excluded Sats" aria-label="Max Excluded Sats" value={config.ambiguityResolution.partialAr.maxExcludedSats}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, partialAr: {...config.ambiguityResolution.partialAr, maxExcludedSats: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Min Amb / Max Excl Max Excluded Sats" aria-label="Max Excluded Sats" value={config.ambiguityResolution.partialAr.maxExcludedSats}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, partialAr: {...config.ambiguityResolution.partialAr, maxExcludedSats: value}}})}
                       disabled={modeDisabled('ar.partial_ar.max_excluded_sats')} decimalScale={4} hideControls
                       style={{ flex: 1, minWidth: 0 }} />
                   </Group>
@@ -1786,16 +1766,16 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Hold', metaKey: 'ar.partial_ar.min_hold_sats' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Min Pairs Fix" aria-label="Min Fix Pairs" value={config.ambiguityResolution.partialAr.minFixSats}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, partialAr: {...config.ambiguityResolution.partialAr, minFixSats: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Min Pairs Fix" aria-label="Min Fix Pairs" value={config.ambiguityResolution.partialAr.minFixSats}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, partialAr: {...config.ambiguityResolution.partialAr, minFixSats: value}}})}
                       disabled={modeDisabled('ar.partial_ar.min_fix_sats')} decimalScale={4} hideControls
                       style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Min Pairs Drop" aria-label="Min Drop Pairs" value={config.ambiguityResolution.partialAr.minDropSats}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, partialAr: {...config.ambiguityResolution.partialAr, minDropSats: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Min Pairs Drop" aria-label="Min Drop Pairs" value={config.ambiguityResolution.partialAr.minDropSats}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, partialAr: {...config.ambiguityResolution.partialAr, minDropSats: value}}})}
                       disabled={modeDisabled('ar.partial_ar.min_drop_sats')} decimalScale={4} hideControls
                       style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Min Pairs Hold" aria-label="Min Hold Pairs" value={config.ambiguityResolution.partialAr.minHoldSats}
-                      onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, partialAr: {...config.ambiguityResolution.partialAr, minHoldSats: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Min Pairs Hold" aria-label="Min Hold Pairs" value={config.ambiguityResolution.partialAr.minHoldSats}
+                      onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, partialAr: {...config.ambiguityResolution.partialAr, minHoldSats: value}}})}
                       disabled={modeDisabled('ar.partial_ar.min_hold_sats')} decimalScale={4} hideControls
                       style={{ flex: 1, minWidth: 0 }} />
                   </Group>
@@ -1813,8 +1793,8 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Variance</Text>
-                  <NumberInput size="xs" value={config.ambiguityResolution.hold.variance}
-                    onChange={(value: any) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, hold: {...config.ambiguityResolution.hold, variance: Number(value)}}})}
+                  <ConfigNumberInput size="xs" value={config.ambiguityResolution.hold.variance}
+                    onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, hold: {...config.ambiguityResolution.hold, variance: value}}})}
                     decimalScale={4} hideControls style={{ flex: 1 }} />
                 </Group>
               </Stack>
@@ -1828,8 +1808,8 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Iterations</Text>
-                  <NumberInput size="xs" value={config.kalmanFilter.iterations}
-                    onChange={(value: any) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, iterations: Number(value)}})}
+                  <ConfigNumberInput size="xs" value={config.kalmanFilter.iterations}
+                    onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, iterations: value}})}
                     min={1} max={10} hideControls style={{ flex: 1 }} />
                 </Group>
               </Stack>
@@ -1846,14 +1826,14 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'L5' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Code/Phase Ratio L1" aria-label="Code/Phase Ratio L1" value={config.kalmanFilter.measurementError.codePhaseRatioL1}
-                      onChange={(value: any) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, codePhaseRatioL1: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Code/Phase Ratio L1" aria-label="Code/Phase Ratio L1" value={config.kalmanFilter.measurementError.codePhaseRatioL1}
+                      onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, codePhaseRatioL1: value}}})}
                       min={0} step={1} decimalScale={1} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Code/Phase Ratio L2" aria-label="Code/Phase Ratio L2" value={config.kalmanFilter.measurementError.codePhaseRatioL2}
-                      onChange={(value: any) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, codePhaseRatioL2: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Code/Phase Ratio L2" aria-label="Code/Phase Ratio L2" value={config.kalmanFilter.measurementError.codePhaseRatioL2}
+                      onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, codePhaseRatioL2: value}}})}
                       min={0} step={1} decimalScale={1} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Code/Phase Ratio L5" aria-label="Code/Phase Ratio L5" value={config.kalmanFilter.measurementError.codePhaseRatioL5}
-                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, codePhaseRatioL5: Number(v)}}})}
+                    <ConfigNumberInput size="xs" title="Code/Phase Ratio L5" aria-label="Code/Phase Ratio L5" value={config.kalmanFilter.measurementError.codePhaseRatioL5}
+                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, codePhaseRatioL5: v}}})}
                       min={0} decimalScale={1} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -1867,15 +1847,15 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Baseline', metaKey: 'kf.meas.phase_baseline' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Phase Error Base" aria-label="Phase Error Base" value={config.kalmanFilter.measurementError.phase}
-                      onChange={(value: any) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, phase: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Phase Error Base" aria-label="Phase Error Base" value={config.kalmanFilter.measurementError.phase}
+                      onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, phase: value}}})}
                       min={0} step={0.001} decimalScale={3} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Phase Error Elevation" aria-label="Phase Error Elevation" value={config.kalmanFilter.measurementError.phaseElevation}
-                      onChange={(value: any) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, phaseElevation: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Phase Error Elevation" aria-label="Phase Error Elevation" value={config.kalmanFilter.measurementError.phaseElevation}
+                      onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, phaseElevation: value}}})}
                       min={0} step={0.001} decimalScale={3} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Phase Error Baseline" aria-label="Phase Error Baseline" value={config.kalmanFilter.measurementError.phaseBaseline}
+                    <ConfigNumberInput size="xs" title="Phase Error Baseline" aria-label="Phase Error Baseline" value={config.kalmanFilter.measurementError.phaseBaseline}
                       disabled={modeDisabled('kf.meas.phase_baseline')}
-                      onChange={(value: any) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, phaseBaseline: Number(value)}}})}
+                      onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, phaseBaseline: value}}})}
                       min={0} step={0.001} decimalScale={3} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -1888,12 +1868,12 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'URA Ratio', metaKey: 'kf.meas.ura_ratio' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Doppler / URA Doppler" aria-label="Doppler (Hz)" value={config.kalmanFilter.measurementError.doppler}
-                      onChange={(value: any) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, doppler: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Doppler / URA Doppler" aria-label="Doppler (Hz)" value={config.kalmanFilter.measurementError.doppler}
+                      onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, doppler: value}}})}
                       min={0} step={0.1} decimalScale={1} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Doppler / URA URA Ratio" aria-label="URA Ratio" value={config.kalmanFilter.measurementError.uraRatio}
+                    <ConfigNumberInput size="xs" title="Doppler / URA URA Ratio" aria-label="URA Ratio" value={config.kalmanFilter.measurementError.uraRatio}
                       disabled={modeDisabled('kf.meas.ura_ratio')}
-                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, uraRatio: Number(v)}}})}
+                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, uraRatio: v}}})}
                       min={0} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -1902,11 +1882,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <ComboLabel label="SNR Max / Error" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'SNR Max' }, { name: 'SNR Error' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="SNR Max (dB-Hz)" aria-label="SNR Max" value={config.kalmanFilter.measurementError.snrMax}
-                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, snrMax: Number(v)}}})}
+                    <ConfigNumberInput size="xs" title="SNR Max (dB-Hz)" aria-label="SNR Max" value={config.kalmanFilter.measurementError.snrMax}
+                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, snrMax: v}}})}
                       min={0} decimalScale={1} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="SNR Error" aria-label="SNR Error" value={config.kalmanFilter.measurementError.snrError}
-                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, snrError: Number(v)}}})}
+                    <ConfigNumberInput size="xs" title="SNR Error" aria-label="SNR Error" value={config.kalmanFilter.measurementError.snrError}
+                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, snrError: v}}})}
                       min={0} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -1915,11 +1895,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <ComboLabel label="Iono / Tropo Error (m)" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'Iono' }, { name: 'Tropo' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Ionosphere error (m)" aria-label="Ionosphere error" value={config.kalmanFilter.measurementError.ionosphere}
-                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, ionosphere: Number(v)}}})}
+                    <ConfigNumberInput size="xs" title="Ionosphere error (m)" aria-label="Ionosphere error" value={config.kalmanFilter.measurementError.ionosphere}
+                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, ionosphere: v}}})}
                       min={0} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Troposphere error (m)" aria-label="Troposphere error" value={config.kalmanFilter.measurementError.troposphere}
-                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, troposphere: Number(v)}}})}
+                    <ConfigNumberInput size="xs" title="Troposphere error (m)" aria-label="Troposphere error" value={config.kalmanFilter.measurementError.troposphere}
+                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, measurementError: {...config.kalmanFilter.measurementError, troposphere: v}}})}
                       min={0} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -1936,12 +1916,12 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Vertical', metaKey: 'kf.pn.accel_v' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Accel Noise H/V Horizontal" aria-label="Accel Noise Horizontal" value={config.kalmanFilter.processNoise.accelH}
-                      onChange={(value: any) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, accelH: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Accel Noise H/V Horizontal" aria-label="Accel Noise Horizontal" value={config.kalmanFilter.processNoise.accelH}
+                      onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, accelH: value}}})}
                       min={0} step={0.1} decimalScale={1} hideControls
                       style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Accel Noise H/V Vertical" aria-label="Accel Noise Vertical" value={config.kalmanFilter.processNoise.accelV}
-                      onChange={(value: any) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, accelV: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="Accel Noise H/V Vertical" aria-label="Accel Noise Vertical" value={config.kalmanFilter.processNoise.accelV}
+                      onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, accelV: value}}})}
                       min={0} step={0.01} decimalScale={2} hideControls
                       style={{ flex: 1, minWidth: 0 }} />
                   </Group>
@@ -1956,14 +1936,14 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'ZTD' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="PB / Iono / ZTD Phase Bias" aria-label="Phase Bias (cycle)" value={config.kalmanFilter.processNoise.bias}
-                      onChange={(value: any) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, bias: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="PB / Iono / ZTD Phase Bias" aria-label="Phase Bias (cycle)" value={config.kalmanFilter.processNoise.bias}
+                      onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, bias: value}}})}
                       min={0} step={0.0001} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="PB / Iono / ZTD Iono" aria-label="Iono (m/10km)" value={config.kalmanFilter.processNoise.ionosphere}
-                      onChange={(value: any) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, ionosphere: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="PB / Iono / ZTD Iono" aria-label="Iono (m/10km)" value={config.kalmanFilter.processNoise.ionosphere}
+                      onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, ionosphere: value}}})}
                       min={0} step={0.001} decimalScale={3} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="PB / Iono / ZTD ZTD" aria-label="ZTD (m)" value={config.kalmanFilter.processNoise.troposphere}
-                      onChange={(value: any) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, troposphere: Number(value)}}})}
+                    <ConfigNumberInput size="xs" title="PB / Iono / ZTD ZTD" aria-label="ZTD (m)" value={config.kalmanFilter.processNoise.troposphere}
+                      onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, troposphere: value}}})}
                       min={0} step={0.0001} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -1994,9 +1974,9 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="kf.pn.iono_max" style={OPT_LABEL_STYLE} />
-                  <NumberInput size="xs" value={config.kalmanFilter.processNoise.ionoMax}
+                  <ConfigNumberInput size="xs" value={config.kalmanFilter.processNoise.ionoMax}
                     disabled={modeDisabled('kf.pn.iono_max')}
-                    onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, ionoMax: Number(v)}}})}
+                    onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, ionoMax: v}}})}
                     decimalScale={4} hideControls style={{flex:1}} />
                 </Group>
                 {/* Position H / V */}
@@ -2007,31 +1987,31 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Vertical' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Position H/V Horizontal" aria-label="Position H" value={config.kalmanFilter.processNoise.positionH}
-                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, positionH: Number(v)}}})}
+                    <ConfigNumberInput size="xs" title="Position H/V Horizontal" aria-label="Position H" value={config.kalmanFilter.processNoise.positionH}
+                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, positionH: v}}})}
                       decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Position H/V Vertical" aria-label="Position V" value={config.kalmanFilter.processNoise.positionV}
-                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, positionV: Number(v)}}})}
+                    <ConfigNumberInput size="xs" title="Position H/V Vertical" aria-label="Position V" value={config.kalmanFilter.processNoise.positionV}
+                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, positionV: v}}})}
                       decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="kf.pn.position" style={OPT_LABEL_STYLE} />
-                  <NumberInput size="xs" value={config.kalmanFilter.processNoise.position}
-                    onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, position: Number(v)}}})}
+                  <ConfigNumberInput size="xs" value={config.kalmanFilter.processNoise.position}
+                    onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, position: v}}})}
                     decimalScale={4} hideControls style={{flex:1}} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="kf.pn.ifb" style={OPT_LABEL_STYLE} />
-                  <NumberInput size="xs" value={config.kalmanFilter.processNoise.ifb}
+                  <ConfigNumberInput size="xs" value={config.kalmanFilter.processNoise.ifb}
                     disabled={modeDisabled('kf.pn.ifb')}
-                    onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, ifb: Number(v)}}})}
+                    onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, ifb: v}}})}
                     decimalScale={4} hideControls style={{flex:1}} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Iono Time Const</Text>
-                  <NumberInput size="xs" value={config.kalmanFilter.processNoise.ionoTimeConst}
-                    onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, ionoTimeConst: Number(v)}}})}
+                  <ConfigNumberInput size="xs" value={config.kalmanFilter.processNoise.ionoTimeConst}
+                    onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, ionoTimeConst: v}}})}
                     decimalScale={4} hideControls style={{flex:1}} />
                 </Group>
               </Stack>
@@ -2048,14 +2028,14 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Trop' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Bias / Iono / Trop Bias" aria-label="Initial Std Bias" value={config.kalmanFilter.initialStd.bias}
-                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, initialStd: {...config.kalmanFilter.initialStd, bias: Number(v)}}})}
+                    <ConfigNumberInput size="xs" title="Bias / Iono / Trop Bias" aria-label="Initial Std Bias" value={config.kalmanFilter.initialStd.bias}
+                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, initialStd: {...config.kalmanFilter.initialStd, bias: v}}})}
                       decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Bias / Iono / Trop Iono" aria-label="Initial Std Ionosphere" value={config.kalmanFilter.initialStd.ionosphere}
-                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, initialStd: {...config.kalmanFilter.initialStd, ionosphere: Number(v)}}})}
+                    <ConfigNumberInput size="xs" title="Bias / Iono / Trop Iono" aria-label="Initial Std Ionosphere" value={config.kalmanFilter.initialStd.ionosphere}
+                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, initialStd: {...config.kalmanFilter.initialStd, ionosphere: v}}})}
                       decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Bias / Iono / Trop Trop" aria-label="Initial Std Troposphere" value={config.kalmanFilter.initialStd.troposphere}
-                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, initialStd: {...config.kalmanFilter.initialStd, troposphere: Number(v)}}})}
+                    <ConfigNumberInput size="xs" title="Bias / Iono / Trop Trop" aria-label="Initial Std Troposphere" value={config.kalmanFilter.initialStd.troposphere}
+                      onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, initialStd: {...config.kalmanFilter.initialStd, troposphere: v}}})}
                       decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -2072,11 +2052,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'L1/L2 Residual', metaKey: 'rejection.l1_l2_residual' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Innovation Threshold" aria-label="Innovation Threshold" value={config.rejection.innovation}
-                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, innovation: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="Innovation Threshold" aria-label="Innovation Threshold" value={config.rejection.innovation}
+                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, innovation: v}})}
                       disabled={modeDisabled('rejection.innovation')} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="L1/L2 Residual" aria-label="L1/L2 Residual" value={config.rejection.l1L2Residual}
-                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, l1L2Residual: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="L1/L2 Residual" aria-label="L1/L2 Residual" value={config.rejection.l1L2Residual}
+                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, l1L2Residual: v}})}
                       disabled={modeDisabled('rejection.l1_l2_residual')} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -2088,11 +2068,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Non-Dispersive Residual', metaKey: 'rejection.non_dispersive' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Dispersive Residual" aria-label="Dispersive Residual" value={config.rejection.dispersive}
-                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, dispersive: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="Dispersive Residual" aria-label="Dispersive Residual" value={config.rejection.dispersive}
+                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, dispersive: v}})}
                       disabled={modeDisabled('rejection.dispersive')} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Non-Dispersive Residual" aria-label="Non-Dispersive Residual" value={config.rejection.nonDispersive}
-                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, nonDispersive: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="Non-Dispersive Residual" aria-label="Non-Dispersive Residual" value={config.rejection.nonDispersive}
+                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, nonDispersive: v}})}
                       disabled={modeDisabled('rejection.non_dispersive')} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -2104,11 +2084,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Fix Chi-Square' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Hold Chi-Square" aria-label="Hold Chi-Square" value={config.rejection.holdChiSquare}
-                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, holdChiSquare: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="Hold Chi-Square" aria-label="Hold Chi-Square" value={config.rejection.holdChiSquare}
+                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, holdChiSquare: v}})}
                       decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Fix Chi-Square" aria-label="Fix Chi-Square" value={config.rejection.fixChiSquare}
-                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, fixChiSquare: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="Fix Chi-Square" aria-label="Fix Chi-Square" value={config.rejection.fixChiSquare}
+                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, fixChiSquare: v}})}
                       decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -2121,14 +2101,14 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { name: 'Pos Error Count' },
                     ]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Max GDOP" aria-label="Max GDOP" value={config.rejection.gdop}
-                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, gdop: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="Max GDOP" aria-label="Max GDOP" value={config.rejection.gdop}
+                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, gdop: v}})}
                       decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Pseudorange Diff" aria-label="Pseudorange Diff" value={config.rejection.pseudorangeDiff}
-                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, pseudorangeDiff: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="Pseudorange Diff" aria-label="Pseudorange Diff" value={config.rejection.pseudorangeDiff}
+                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, pseudorangeDiff: v}})}
                       decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Pos Error Count" aria-label="Pos Error Count" value={config.rejection.positionErrorCount}
-                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, positionErrorCount: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="Pos Error Count" aria-label="Pos Error Count" value={config.rejection.positionErrorCount}
+                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, positionErrorCount: v}})}
                       decimalScale={0} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -2137,11 +2117,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <ComboLabel label="SPP Res / Min Sats" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'SPP Residual' }, { name: 'SPP Min Sats' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="SPP Residual reject threshold" aria-label="SPP Residual" value={config.rejection.sppResidual}
-                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, sppResidual: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="SPP Residual reject threshold" aria-label="SPP Residual" value={config.rejection.sppResidual}
+                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, sppResidual: v}})}
                       min={0} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="SPP Min Sats" aria-label="SPP Min Sats" value={config.rejection.sppMinSats}
-                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, sppMinSats: Number(v)}})}
+                    <ConfigNumberInput size="xs" title="SPP Min Sats" aria-label="SPP Min Sats" value={config.rejection.sppMinSats}
+                      onChange={(v) => handleConfigChange({...config, rejection: {...config.rejection, sppMinSats: v}})}
                       min={0} decimalScale={0} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -2157,21 +2137,21 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 <Group wrap="nowrap" align="center" gap="xs" style={{ minHeight: 30 }}>
                   <OptionLabel metaKey="positioning.spp.ignore_chi_error" style={OPT_LABEL_STYLE} />
                   <Switch size="xs" checked={config.receiver.ignoreChiError}
-                    onChange={(e: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, ignoreChiError: e.currentTarget.checked } })} />
+                    onChange={(e) => handleConfigChange({ ...config, receiver: { ...config.receiver, ignoreChiError: e.currentTarget.checked } })} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <ComboLabel label="Robust / K0 / K1" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'Robust' }, { name: 'K0' }, { name: 'K1' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <Select size="xs" title="Robust (off/igg3)" aria-label="Robust" value={config.positioning.robust ?? 'off'}
-                      onChange={(value: any) => handleConfigChange({ ...config, positioning: { ...config.positioning, robust: value } })}
+                    <ConfigSelect size="xs" title="Robust (off/igg3)" aria-label="Robust" value={config.positioning.robust ?? 'off'}
+                      onChange={(value) => handleConfigChange({ ...config, positioning: { ...config.positioning, robust: value } })}
                       data={[{ value: 'off', label: 'OFF' }, { value: 'igg3', label: 'IGG-III' }]}
                       style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Robust K0" aria-label="Robust K0" value={config.positioning.robustK0 ?? 1.5}
-                      onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, robustK0: Number(v) || 0 } })}
+                    <ConfigNumberInput size="xs" title="Robust K0" aria-label="Robust K0" value={config.positioning.robustK0 ?? 1.5}
+                      onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, robustK0: v } })}
                       disabled={(config.positioning.robust ?? 'off') === 'off'} decimalScale={2} hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Robust K1" aria-label="Robust K1" value={config.positioning.robustK1 ?? 4.0}
-                      onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, robustK1: Number(v) || 0 } })}
+                    <ConfigNumberInput size="xs" title="Robust K1" aria-label="Robust K1" value={config.positioning.robustK1 ?? 4.0}
+                      onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, robustK1: v } })}
                       disabled={(config.positioning.robust ?? 'off') === 'off'} decimalScale={2} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -2179,12 +2159,12 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <ComboLabel label="TDCP / Jump (m)" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'TDCP' }, { name: 'Jump' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <Select size="xs" title="TDCP (off/on)" aria-label="TDCP" value={config.positioning.tdcp ?? 'off'}
-                      onChange={(value: any) => handleConfigChange({ ...config, positioning: { ...config.positioning, tdcp: value } })}
+                    <ConfigSelect size="xs" title="TDCP (off/on)" aria-label="TDCP" value={config.positioning.tdcp ?? 'off'}
+                      onChange={(value) => handleConfigChange({ ...config, positioning: { ...config.positioning, tdcp: value } })}
                       data={[{ value: 'off', label: 'OFF' }, { value: 'on', label: 'ON' }]}
                       style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="TDCP Jump (m)" aria-label="TDCP Jump" value={config.positioning.tdcpJump ?? 5.0}
-                      onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, tdcpJump: Number(v) || 0 } })}
+                    <ConfigNumberInput size="xs" title="TDCP Jump (m)" aria-label="TDCP Jump" value={config.positioning.tdcpJump ?? 5.0}
+                      onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, tdcpJump: v } })}
                       disabled={(config.positioning.tdcp ?? 'off') === 'off'} decimalScale={1} hideControls style={{ flex: 1, minWidth: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }} />
                   </Group>
@@ -2195,26 +2175,26 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Max Age (s)</Text>
-                  <NumberInput size="xs" value={config.receiver.maxAge}
-                    onChange={(value: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, maxAge: Number(value) } })}
+                  <ConfigNumberInput size="xs" value={config.receiver.maxAge}
+                    onChange={(value) => handleConfigChange({ ...config, receiver: { ...config.receiver, maxAge: value } })}
                     min={0} decimalScale={1} hideControls disabled={!isRelativeMode} style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <ComboLabel label="Baseline Len / Sigma (m)" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'Length' }, { name: 'Sigma' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="Baseline Length (m)" aria-label="Baseline Length" value={config.receiver.baselineLength}
-                      onChange={(value: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, baselineLength: Number(value) } })}
+                    <ConfigNumberInput size="xs" title="Baseline Length (m)" aria-label="Baseline Length" value={config.receiver.baselineLength}
+                      onChange={(value) => handleConfigChange({ ...config, receiver: { ...config.receiver, baselineLength: value } })}
                       min={0} decimalScale={1} hideControls disabled={!isRelativeMode} style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Baseline Sigma (m)" aria-label="Baseline Sigma" value={config.receiver.baselineSigma}
-                      onChange={(value: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, baselineSigma: Number(value) } })}
+                    <ConfigNumberInput size="xs" title="Baseline Sigma (m)" aria-label="Baseline Sigma" value={config.receiver.baselineSigma}
+                      onChange={(value) => handleConfigChange({ ...config, receiver: { ...config.receiver, baselineSigma: value } })}
                       min={0} decimalScale={4} hideControls disabled={!isRelativeMode} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs" style={{ minHeight: 30 }}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Time Interpolation</Text>
                   <Switch size="xs" checked={config.server.timeInterpolation ?? false} disabled={!isRelativeMode}
-                    onChange={(e: any) => handleConfigChange({ ...config, server: { ...config.server, timeInterpolation: e.currentTarget.checked } })} />
+                    onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, timeInterpolation: e.currentTarget.checked } })} />
                 </Group>
               </Stack>
 
@@ -2224,14 +2204,14 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <ComboLabel label="GPS / QZS / GAL" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'GPS' }, { name: 'QZSS' }, { name: 'Galileo' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <Select size="xs" title="GPS signals" aria-label="GPS signals" value={config.signalSelection.gps} disabled={useSignals}
-                      onChange={(value: any) => handleConfigChange({ ...config, signalSelection: { ...config.signalSelection, gps: value } })}
+                    <ConfigSelect size="xs" title="GPS signals" aria-label="GPS signals" value={config.signalSelection.gps} disabled={useSignals}
+                      onChange={(value) => handleConfigChange({ ...config, signalSelection: { ...config.signalSelection, gps: value } })}
                       data={['L1/L2', 'L1/L5', 'L1/L2/L5']} style={{ flex: 1, minWidth: 0 }} />
-                    <Select size="xs" title="QZSS signals" aria-label="QZSS signals" value={config.signalSelection.qzs} disabled={useSignals}
-                      onChange={(value: any) => handleConfigChange({ ...config, signalSelection: { ...config.signalSelection, qzs: value } })}
+                    <ConfigSelect size="xs" title="QZSS signals" aria-label="QZSS signals" value={config.signalSelection.qzs} disabled={useSignals}
+                      onChange={(value) => handleConfigChange({ ...config, signalSelection: { ...config.signalSelection, qzs: value } })}
                       data={['L1/L5', 'L1/L2', 'L1/L5/L2']} style={{ flex: 1, minWidth: 0 }} />
-                    <Select size="xs" title="Galileo signals" aria-label="Galileo signals" value={config.signalSelection.galileo} disabled={useSignals}
-                      onChange={(value: any) => handleConfigChange({ ...config, signalSelection: { ...config.signalSelection, galileo: value } })}
+                    <ConfigSelect size="xs" title="Galileo signals" aria-label="Galileo signals" value={config.signalSelection.galileo} disabled={useSignals}
+                      onChange={(value) => handleConfigChange({ ...config, signalSelection: { ...config.signalSelection, galileo: value } })}
                       data={['E1/E5a', 'E1/E5b', 'E1/E6', 'E1/E5a/E5b/E6', 'E1/E5a/E6/E5b']} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -2239,11 +2219,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <ComboLabel label="BDS-2 / BDS-3" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'BDS-2' }, { name: 'BDS-3' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <Select size="xs" title="BeiDou-2 signals" aria-label="BDS-2 signals" value={config.signalSelection.bds2} disabled={useSignals}
-                      onChange={(value: any) => handleConfigChange({ ...config, signalSelection: { ...config.signalSelection, bds2: value } })}
+                    <ConfigSelect size="xs" title="BeiDou-2 signals" aria-label="BDS-2 signals" value={config.signalSelection.bds2} disabled={useSignals}
+                      onChange={(value) => handleConfigChange({ ...config, signalSelection: { ...config.signalSelection, bds2: value } })}
                       data={['B1I/B3I', 'B1I/B2I', 'B1I/B3I/B2I']} style={{ flex: 1, minWidth: 0 }} />
-                    <Select size="xs" title="BeiDou-3 signals" aria-label="BDS-3 signals" value={config.signalSelection.bds3} disabled={useSignals}
-                      onChange={(value: any) => handleConfigChange({ ...config, signalSelection: { ...config.signalSelection, bds3: value } })}
+                    <ConfigSelect size="xs" title="BeiDou-3 signals" aria-label="BDS-3 signals" value={config.signalSelection.bds3} disabled={useSignals}
+                      onChange={(value) => handleConfigChange({ ...config, signalSelection: { ...config.signalSelection, bds3: value } })}
                       data={['B1I/B3I', 'B1I/B2a', 'B1I/B3I/B2a']} style={{ flex: 1, minWidth: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }} />
                   </Group>
@@ -2260,32 +2240,32 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <ComboLabel label="Sat Clock / Phase / Uncorr Bias" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'Clock' }, { name: 'Phase' }, { name: 'Uncorr' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="PPP Sat Clock Bias" aria-label="PPP Sat Clock Bias" value={config.receiver.pppSatClockBias} disabled={!isPPP}
-                      onChange={(value: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, pppSatClockBias: Number(value) || 0 } })}
+                    <ConfigNumberInput size="xs" title="PPP Sat Clock Bias" aria-label="PPP Sat Clock Bias" value={config.receiver.pppSatClockBias} disabled={!isPPP}
+                      onChange={(value) => handleConfigChange({ ...config, receiver: { ...config.receiver, pppSatClockBias: value } })}
                       hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="PPP Sat Phase Bias" aria-label="PPP Sat Phase Bias" value={config.receiver.pppSatPhaseBias} disabled={!isPPP}
-                      onChange={(value: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, pppSatPhaseBias: Number(value) || 0 } })}
+                    <ConfigNumberInput size="xs" title="PPP Sat Phase Bias" aria-label="PPP Sat Phase Bias" value={config.receiver.pppSatPhaseBias} disabled={!isPPP}
+                      onChange={(value) => handleConfigChange({ ...config, receiver: { ...config.receiver, pppSatPhaseBias: value } })}
                       hideControls style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="Uncorrected Bias" aria-label="Uncorrected Bias" value={config.receiver.uncorrBias} disabled={!isPPP}
-                      onChange={(value: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, uncorrBias: Number(value) || 0 } })}
+                    <ConfigNumberInput size="xs" title="Uncorrected Bias" aria-label="Uncorrected Bias" value={config.receiver.uncorrBias} disabled={!isPPP}
+                      onChange={(value) => handleConfigChange({ ...config, receiver: { ...config.receiver, uncorrBias: value } })}
                       hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs" style={{ minHeight: 30 }}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Clock Jump</Text>
                   <Switch size="xs" checked={config.receiver.clockJump} disabled={!isPPP}
-                    onChange={(e: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, clockJump: e.currentTarget.checked } })} />
+                    onChange={(e) => handleConfigChange({ ...config, receiver: { ...config.receiver, clockJump: e.currentTarget.checked } })} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Max Bias dt</Text>
-                  <NumberInput size="xs" value={config.receiver.maxBiasDt} disabled={!isPPP}
-                    onChange={(value: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, maxBiasDt: Number(value) || 0 } })}
+                  <ConfigNumberInput size="xs" value={config.receiver.maxBiasDt} disabled={!isPPP}
+                    onChange={(value) => handleConfigChange({ ...config, receiver: { ...config.receiver, maxBiasDt: value } })}
                     hideControls style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>PPP Options</Text>
                   <TextInput size="xs" value={config.server.pppOption ?? ''} disabled={!isPPP}
-                    onChange={(e: any) => handleConfigChange({ ...config, server: { ...config.server, pppOption: e.currentTarget.value } })}
+                    onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, pppOption: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
               </Stack>
@@ -2295,7 +2275,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 <Group wrap="nowrap" align="center" gap="xs" style={{ minHeight: 30 }}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Iono Comp.</Text>
                   <Switch size="xs" checked={config.receiver.ionoCorrection} disabled={!isPPP}
-                    onChange={(e: any) => handleConfigChange({ ...config, receiver: { ...config.receiver, ionoCorrection: e.currentTarget.checked } })} />
+                    onChange={(e) => handleConfigChange({ ...config, receiver: { ...config.receiver, ionoCorrection: e.currentTarget.checked } })} />
                 </Group>
               </Stack>
             </Stack>
@@ -2330,7 +2310,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               />
               <Group wrap="nowrap" align="center" gap="xs">
                 <Text size="xs" c="dimmed" style={LABEL_STYLE}>Max Avg Epochs</Text>
-                <NumberInput
+                <ConfigNumberInput
                   size="xs"
                   value={config.antenna.base.maxAverageEpochs}
                   onChange={(v) =>
@@ -2338,7 +2318,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       ...config,
                       antenna: {
                         ...config.antenna,
-                        base: { ...config.antenna.base, maxAverageEpochs: Number(v) || 0 },
+                        base: { ...config.antenna.base, maxAverageEpochs: v },
                       },
                     })
                   }
@@ -2392,15 +2372,15 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Solution Format</Text>
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.output.solutionFormat}
-                    onChange={(value: any) =>
+                    onChange={(value) =>
                       handleConfigChange({
                         ...config,
                         output: {
                           ...config.output,
-                          solutionFormat: value as SolutionFormat,
+                          solutionFormat: value,
                         },
                       })
                     }
@@ -2419,26 +2399,26 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Output</Text>
                   <Group wrap="nowrap" align="center" gap="md" justify="space-between" style={{ flex: 1, minWidth: 0 }}>
                     <Switch size="xs" label="Header" checked={config.output.outputHeader}
-                      onChange={(e: any) => handleConfigChange({ ...config, output: { ...config.output, outputHeader: e.currentTarget.checked } })}
+                      onChange={(e) => handleConfigChange({ ...config, output: { ...config.output, outputHeader: e.currentTarget.checked } })}
                       disabled={isSolNMEA} styles={{ label: { fontSize: '10px' } }} />
                     <Switch size="xs" label="Options" checked={config.output.outputProcessingOptions}
-                      onChange={(e: any) => handleConfigChange({ ...config, output: { ...config.output, outputProcessingOptions: e.currentTarget.checked } })}
+                      onChange={(e) => handleConfigChange({ ...config, output: { ...config.output, outputProcessingOptions: e.currentTarget.checked } })}
                       disabled={isSolNMEA} styles={{ label: { fontSize: '10px' } }} />
                     <Switch size="xs" label="Velocity" checked={config.output.outputVelocity}
-                      onChange={(e: any) => handleConfigChange({ ...config, output: { ...config.output, outputVelocity: e.currentTarget.checked } })}
+                      onChange={(e) => handleConfigChange({ ...config, output: { ...config.output, outputVelocity: e.currentTarget.checked } })}
                       styles={{ label: { fontSize: '10px' } }} />
                   </Group>
                 </Group>
 
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Time Format</Text>
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.output.timeFormat}
-                    onChange={(value: any) =>
+                    onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        output: { ...config.output, timeFormat: value as TimeFormat },
+                        output: { ...config.output, timeFormat: value },
                       })
                     }
                     data={[
@@ -2453,13 +2433,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}># of Decimals</Text>
-                  <NumberInput
+                  <ConfigNumberInput
                     size="xs"
                     value={config.output.numDecimals}
-                    onChange={(value: any) =>
+                    onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        output: { ...config.output, numDecimals: Number(value) },
+                        output: { ...config.output, numDecimals: value },
                       })
                     }
                     min={0}
@@ -2472,13 +2452,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Lat/Lon Format</Text>
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.output.latLonFormat}
-                    onChange={(value: any) =>
+                    onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        output: { ...config.output, latLonFormat: value as LatLonFormat },
+                        output: { ...config.output, latLonFormat: value },
                       })
                     }
                     data={[
@@ -2496,7 +2476,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     size="xs"
                     placeholder="Space (default)"
                     value={config.output.fieldSeparator}
-                    onChange={(e: any) =>
+                    onChange={(e) =>
                       handleConfigChange({
                         ...config,
                         output: { ...config.output, fieldSeparator: e.currentTarget.value },
@@ -2512,13 +2492,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Height</Text>
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.output.height}
-                    onChange={(value: any) =>
+                    onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        output: { ...config.output, height: value as HeightType },
+                        output: { ...config.output, height: value },
                       })
                     }
                     data={[
@@ -2532,13 +2512,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Geoid Model</Text>
-                  <Select
+                  <ConfigSelect
                     size="xs"
                     value={config.output.geoidModel}
-                    onChange={(value: any) =>
+                    onChange={(value) =>
                       handleConfigChange({
                         ...config,
-                        output: { ...config.output, geoidModel: value as GeoidModel },
+                        output: { ...config.output, geoidModel: value },
                       })
                     }
                     data={[
@@ -2561,8 +2541,8 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 <Group wrap="nowrap" align="center" gap="xs" style={{ minHeight: 30 }}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Static / Single Outage</Text>
                   <Group wrap="nowrap" align="center" gap="md" style={{ flex: 1, minWidth: 0 }}>
-                    <Select size="xs" title="Static Solution Mode" aria-label="Static Solution Mode" value={config.output.staticSolutionMode}
-                      onChange={(value: any) => handleConfigChange({ ...config, output: { ...config.output, staticSolutionMode: value as StaticSolutionMode } })}
+                    <ConfigSelect size="xs" title="Static Solution Mode" aria-label="Static Solution Mode" value={config.output.staticSolutionMode}
+                      onChange={(value) => handleConfigChange({ ...config, output: { ...config.output, staticSolutionMode: value } })}
                       data={[
                         { value: 'all', label: 'All' },
                         { value: 'single', label: 'Single' },
@@ -2570,7 +2550,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       ]}
                       disabled={!isStaticMode} style={{ flex: 1, minWidth: 0 }} />
                     <Switch size="xs" label="Single" title="Single on Outage" checked={config.output.outputSingleOnOutage}
-                      onChange={(e: any) => handleConfigChange({ ...config, output: { ...config.output, outputSingleOnOutage: e.currentTarget.checked } })}
+                      onChange={(e) => handleConfigChange({ ...config, output: { ...config.output, outputSingleOnOutage: e.currentTarget.checked } })}
                       disabled={isSingle} styles={{ label: { fontSize: '10px' } }} style={{ flexShrink: 0 }} />
                   </Group>
                 </Group>
@@ -2579,11 +2559,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA RMC/GGA · GSA/GSV (s)</Text>
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <NumberInput size="xs" title="NMEA RMC/GGA interval (s)" aria-label="NMEA RMC/GGA (s)" value={config.output.nmeaIntervalRmcGga}
-                      onChange={(value: any) => handleConfigChange({ ...config, output: { ...config.output, nmeaIntervalRmcGga: Number(value) } })}
+                    <ConfigNumberInput size="xs" title="NMEA RMC/GGA interval (s)" aria-label="NMEA RMC/GGA (s)" value={config.output.nmeaIntervalRmcGga}
+                      onChange={(value) => handleConfigChange({ ...config, output: { ...config.output, nmeaIntervalRmcGga: value } })}
                       min={0} step={1} hideControls disabled={!isSolNMEA} style={{ flex: 1, minWidth: 0 }} />
-                    <NumberInput size="xs" title="NMEA GSA/GSV interval (s)" aria-label="NMEA GSA/GSV (s)" value={config.output.nmeaIntervalGsaGsv}
-                      onChange={(value: any) => handleConfigChange({ ...config, output: { ...config.output, nmeaIntervalGsaGsv: Number(value) } })}
+                    <ConfigNumberInput size="xs" title="NMEA GSA/GSV interval (s)" aria-label="NMEA GSA/GSV (s)" value={config.output.nmeaIntervalGsaGsv}
+                      onChange={(value) => handleConfigChange({ ...config, output: { ...config.output, nmeaIntervalGsaGsv: value } })}
                       min={0} step={1} hideControls disabled={!isSolNMEA} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
@@ -2592,16 +2572,16 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Sol Status / Debug Trace</Text>
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <Select size="xs" title="Solution Status" aria-label="Sol Status" value={config.output.outputSolutionStatus}
-                      onChange={(value: any) => handleConfigChange({ ...config, output: { ...config.output, outputSolutionStatus: value as any } })}
+                    <ConfigSelect size="xs" title="Solution Status" aria-label="Sol Status" value={config.output.outputSolutionStatus}
+                      onChange={(value) => handleConfigChange({ ...config, output: { ...config.output, outputSolutionStatus: value } })}
                       data={[
                         { value: 'off', label: 'OFF' },
                         { value: 'state', label: 'State' },
                         { value: 'residual', label: 'Residual' },
                       ]}
                       style={{ flex: 1, minWidth: 0 }} />
-                    <Select size="xs" title="Debug Trace" aria-label="Debug Trace" value={config.output.debugTrace}
-                      onChange={(value: any) => handleConfigChange({ ...config, output: { ...config.output, debugTrace: value as DebugTraceLevel } })}
+                    <ConfigSelect size="xs" title="Debug Trace" aria-label="Debug Trace" value={config.output.debugTrace}
+                      onChange={(value) => handleConfigChange({ ...config, output: { ...config.output, debugTrace: value } })}
                       data={[
                         { value: 'off', label: 'OFF' },
                         { value: 'level1', label: 'Level 1' },
@@ -2617,10 +2597,10 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 {/* [output] max_solution_std — 0 = no limit */}
                 <Group wrap="nowrap" align="center" gap="xs">
                   <OptionLabel metaKey="output.max_solution_std" style={OPT_LABEL_STYLE} />
-                  <NumberInput size="xs" aria-label="Max solution std (m)" value={config.output.maxSolutionStd}
-                    onChange={(value: string | number) => handleConfigChange({
+                  <ConfigNumberInput size="xs" aria-label="Max solution std (m)" value={config.output.maxSolutionStd}
+                    onChange={(value) => handleConfigChange({
                       ...config,
-                      output: { ...config.output, maxSolutionStd: typeof value === 'number' ? value : 0 },
+                      output: { ...config.output, maxSolutionStd: value },
                     })}
                     min={0} step={0.1} decimalScale={3} hideControls placeholder="0 = no limit"
                     style={{ flex: 1, minWidth: 0 }} />
@@ -2937,25 +2917,25 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>RINEX Option 1</Text>
                   <TextInput size="xs" value={config.server.rinexOption1 ?? ''}
-                    onChange={(e: any) => handleConfigChange({ ...config, server: { ...config.server, rinexOption1: e.currentTarget.value } })}
+                    onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, rinexOption1: e.currentTarget.value } })}
                     placeholder="e.g. -GL2X" style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>RINEX Option 2</Text>
                   <TextInput size="xs" value={config.server.rinexOption2 ?? ''}
-                    onChange={(e: any) => handleConfigChange({ ...config, server: { ...config.server, rinexOption2: e.currentTarget.value } })}
+                    onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, rinexOption2: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>RTCM Options</Text>
                   <TextInput size="xs" value={config.server.rtcmOption ?? ''}
-                    onChange={(e: any) => handleConfigChange({ ...config, server: { ...config.server, rtcmOption: e.currentTarget.value } })}
+                    onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, rtcmOption: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>SBAS Satellite</Text>
                   <TextInput size="xs" value={config.server.sbasSatellite ?? '0'}
-                    onChange={(e: any) => handleConfigChange({ ...config, server: { ...config.server, sbasSatellite: e.currentTarget.value } })}
+                    onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, sbasSatellite: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
               </Stack>
@@ -2969,62 +2949,62 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Stack gap={6}>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Cycle (ms)</Text>
-                  <NumberInput size="xs" value={config.server.cycleMs ?? 10}
-                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, cycleMs: Number(v) || 0 } })}
+                  <ConfigNumberInput size="xs" value={config.server.cycleMs ?? 10}
+                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, cycleMs: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Timeout (ms)</Text>
-                  <NumberInput size="xs" value={config.server.timeoutMs ?? 10000}
-                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, timeoutMs: Number(v) || 0 } })}
+                  <ConfigNumberInput size="xs" value={config.server.timeoutMs ?? 10000}
+                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, timeoutMs: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Reconnect (ms)</Text>
-                  <NumberInput size="xs" value={config.server.reconnectMs ?? 10000}
-                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, reconnectMs: Number(v) || 0 } })}
+                  <ConfigNumberInput size="xs" value={config.server.reconnectMs ?? 10000}
+                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, reconnectMs: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Cycle (ms)</Text>
-                  <NumberInput size="xs" value={config.server.nmeaCycleMs ?? 5000}
-                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, nmeaCycleMs: Number(v) || 0 } })}
+                  <ConfigNumberInput size="xs" value={config.server.nmeaCycleMs ?? 5000}
+                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, nmeaCycleMs: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Buffer Size</Text>
-                  <NumberInput size="xs" value={config.server.bufferSize ?? 32768}
-                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, bufferSize: Number(v) || 0 } })}
+                  <ConfigNumberInput size="xs" value={config.server.bufferSize ?? 32768}
+                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, bufferSize: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Nav Msg Select</Text>
                   <TextInput size="xs" value={config.server.navMsgSelect ?? 'all'}
-                    onChange={(e: any) => handleConfigChange({ ...config, server: { ...config.server, navMsgSelect: e.currentTarget.value } })}
+                    onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, navMsgSelect: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Proxy</Text>
                   <TextInput size="xs" value={config.server.proxy ?? ''}
-                    onChange={(e: any) => handleConfigChange({ ...config, server: { ...config.server, proxy: e.currentTarget.value } })}
+                    onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, proxy: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Swap Margin (s)</Text>
-                  <NumberInput size="xs" value={config.server.swapMargin ?? 30}
-                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, swapMargin: Number(v) || 0 } })}
+                  <ConfigNumberInput size="xs" value={config.server.swapMargin ?? 30}
+                    onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, swapMargin: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Start Cmd</Text>
                   <TextInput size="xs" value={config.server.startCmd ?? ''}
-                    onChange={(e: any) => handleConfigChange({ ...config, server: { ...config.server, startCmd: e.currentTarget.value } })}
+                    onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, startCmd: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
                 <Group wrap="nowrap" align="center" gap="xs">
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Stop Cmd</Text>
                   <TextInput size="xs" value={config.server.stopCmd ?? ''}
-                    onChange={(e: any) => handleConfigChange({ ...config, server: { ...config.server, stopCmd: e.currentTarget.value } })}
+                    onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, stopCmd: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
               </Stack>
