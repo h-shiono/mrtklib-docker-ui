@@ -812,8 +812,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <ConfigSelect
                     size="xs"
                     value={config.positioning.positioningMode}
-                    onChange={(value) => {
-                      const newMode = value;
+                    onChange={(newMode) => {
                       // Keep correction valid for the new mode (MRTKLIB rejects invalid combos)
                       const valid = validCorrections(newMode);
                       const correction = valid.includes(config.positioning.correction)
