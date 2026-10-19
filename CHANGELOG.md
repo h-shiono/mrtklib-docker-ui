@@ -8,8 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 - Post Processing / Real-Time config: clearing a number field no longer
-  writes 0 to the config. An empty or partial entry keeps the last value
-  and the field shows it again when it loses focus. Clicking the
+  writes 0 to the config. A field left empty or partial goes back to the
+  value it had before editing when it loses focus. Clicking the
   selected option of a dropdown again no longer clears the option (#63).
 
 ## [0.4.2-alpha] - 2026-10-13
