@@ -44,6 +44,7 @@ import { QUALITY } from './utils/rtQuality';
 import { ConversionPanel } from './components/ConversionPanel';
 import { StreamPathHelp } from './components/StreamPathHelp';
 import { ClasPipelinePanel } from './components/ClasPipelinePanel';
+import { StreamMonitorPanel } from './components/StreamMonitorPanel';
 import { MaskedPathInput } from './components/common/MaskedPathInput';
 import { maskLogLine } from './utils/maskPath';
 import { randomUUID } from './utils/uuid';
@@ -1446,6 +1447,7 @@ function StreamServerWithCLAS() {
         <Tabs.List>
           <Tabs.Tab value="multi-stream">Multi-Stream Relay</Tabs.Tab>
           <Tabs.Tab value="clas">CLAS Pipeline</Tabs.Tab>
+          <Tabs.Tab value="monitor">Stream Monitor</Tabs.Tab>
         </Tabs.List>
       </Tabs>
       <div style={{ display: mode === 'multi-stream' ? undefined : 'none' }}>
@@ -1453,6 +1455,9 @@ function StreamServerWithCLAS() {
       </div>
       <div style={{ display: mode === 'clas' ? undefined : 'none' }}>
         <ClasPipelinePanel />
+      </div>
+      <div style={{ display: mode === 'monitor' ? undefined : 'none' }}>
+        <StreamMonitorPanel />
       </div>
     </Stack>
   );
