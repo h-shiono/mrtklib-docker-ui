@@ -1374,36 +1374,43 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   styles={{ label: { fontSize: '10px' } }}
                 />
 
-                {/* BeiDou PRN reassignment (MRTKLIB v0.7.13 / v0.7.16) */}
+                {/* BeiDou PRN reassignment (MRTKLIB v0.7.13 / v0.7.16): BDS-2 / GEO lists on one row */}
                 <Group wrap="nowrap" align="center" gap="xs">
-                  <OptionLabel metaKey="positioning.bds2_sats" style={OPT_LABEL_STYLE} />
-                  <TextInput
-                    size="xs"
-                    placeholder="none — e.g. C09 C10"
-                    value={config.positioning.bds2Sats}
-                    onChange={(e) => handleConfigChange({
-                      ...config,
-                      positioning: { ...config.positioning, bds2Sats: e.currentTarget.value },
-                    })}
-                    disabled={!config.positioning.constellations.beidou}
-                    styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
-                    style={{ flex: 1, minWidth: 0 }}
-                  />
-                </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
-                  <OptionLabel metaKey="positioning.bds_geo_sats" style={OPT_LABEL_STYLE} />
-                  <TextInput
-                    size="xs"
-                    placeholder="default C01-C04"
-                    value={config.positioning.bdsGeoSats}
-                    onChange={(e) => handleConfigChange({
-                      ...config,
-                      positioning: { ...config.positioning, bdsGeoSats: e.currentTarget.value },
-                    })}
-                    disabled={modeDisabled('positioning.bds_geo_sats') || config.positioning.correction !== 'bds-b2b'}
-                    styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
-                    style={{ flex: 1, minWidth: 0 }}
-                  />
+                  <ComboLabel label="BDS-2 / GEO Sats" style={OPT_LABEL_STYLE}
+                    fields={[
+                      { name: 'BDS-2', metaKey: 'positioning.bds2_sats' },
+                      { name: 'GEO', metaKey: 'positioning.bds_geo_sats' },
+                    ]} />
+                  <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
+                    <TextInput
+                      size="xs"
+                      title="BDS-2 satellites (bds2_sats)"
+                      aria-label="BDS-2 satellites"
+                      placeholder="none — e.g. C09 C10"
+                      value={config.positioning.bds2Sats}
+                      onChange={(e) => handleConfigChange({
+                        ...config,
+                        positioning: { ...config.positioning, bds2Sats: e.currentTarget.value },
+                      })}
+                      disabled={!config.positioning.constellations.beidou}
+                      styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                    <TextInput
+                      size="xs"
+                      title="BDS-3 GEO satellites, PPP-B2b (bds_geo_sats)"
+                      aria-label="BDS-3 GEO satellites"
+                      placeholder="default C01-C04"
+                      value={config.positioning.bdsGeoSats}
+                      onChange={(e) => handleConfigChange({
+                        ...config,
+                        positioning: { ...config.positioning, bdsGeoSats: e.currentTarget.value },
+                      })}
+                      disabled={modeDisabled('positioning.bds_geo_sats') || config.positioning.correction !== 'bds-b2b'}
+                      styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                  </Group>
                 </Group>
               </Stack>
 
@@ -2614,7 +2621,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       min={0} step={1} hideControls disabled={!isSolNMEA} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap="xs" style={{ minHeight: 30 }}>
                   <OptionLabel metaKey="output.clas_nmea_source_id" style={OPT_LABEL_STYLE} />
                   <Switch size="xs" checked={config.output.clasNmeaSourceId}
                     aria-label="CLAS NMEA source id"
