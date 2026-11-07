@@ -50,7 +50,7 @@ def test_byte_by_byte_feed_gives_the_same_frames():
 
 def test_nmea_line_without_cr_and_split_crlf():
     _, frames = _frames(nmea("GNRMC,1,A", eol=b"\n") + nmea("GNRMC,2,A"), chunk=5)
-    assert [fr.data for fr in frames] == [b"$GNRMC,1,A*" + frames[0].data[-2:], frames[1].data]
+    assert [fr.data for fr in frames] == [nmea("GNRMC,1,A", eol=b""), nmea("GNRMC,2,A", eol=b"")]
 
 
 def test_bad_checksums_are_rejected_and_counted():
@@ -58,7 +58,9 @@ def test_bad_checksums_are_rejected_and_counted():
     broken_ubx = good[:-1] + bytes([good[-1] ^ 0xFF])
     block = sbf(4027, sbf_tow(0, 1) + b"\x00" * 20)
     broken_sbf = block[:2] + bytes([block[2] ^ 0xFF]) + block[3:]
-    broken_nmea = GGA.replace(b"*", b"*0")[:-3] + b"\r\n"  # wrong checksum digits
+    star = GGA.rindex(b"*")
+    wrong = f"{int(GGA[star + 1 : star + 3], 16) ^ 0x01:02X}".encode()
+    broken_nmea = GGA[: star + 1] + wrong + b"\r\n"
     f, frames = _frames(broken_ubx + broken_sbf + broken_nmea + GGA)
     assert [fr.label for fr in frames] == ["GNGGA"]
     assert f.bad_frames >= 3
