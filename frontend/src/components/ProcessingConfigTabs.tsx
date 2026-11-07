@@ -3169,9 +3169,9 @@ export function TomlDrawer({ config, opened, onClose, streams }: { config: MrtkP
     if (p.constellations.beidou) systems.push('"BeiDou"');
     if (p.constellations.irnss) systems.push('"NavIC"');
     L.push(`systems             = [${systems.join(', ')}]`);
-    const satArr = (v: string) => `[${v.split(/[,\s]+/).filter(Boolean).map(s => _s(s)).join(', ')}]`;
+    const satArr = (v: string | undefined) => `[${(v ?? '').split(/[,\s]+/).filter(Boolean).map(s => _s(s)).join(', ')}]`;
     L.push(`bds2_sats           = ${satArr(p.bds2Sats)}`);
-    if (p.bdsGeoSats.trim()) L.push(`bds_geo_sats        = ${satArr(p.bdsGeoSats)}`);
+    if (p.bdsGeoSats?.trim()) L.push(`bds_geo_sats        = ${satArr(p.bdsGeoSats)}`);
     if (p.robust !== 'off') L.push(`robust              = ${_s(p.robust)}`);
     if (p.tdcp !== 'off') L.push(`tdcp                = ${_s(p.tdcp)}`);
     L.push('');
@@ -3202,7 +3202,7 @@ export function TomlDrawer({ config, opened, onClose, streams }: { config: MrtkP
     L.push(`glonass_ar = ${_s(ar.glonassAr)}`);
     L.push(`bds_ar     = ${_s(ar.bdsAr)}`);
     L.push(`qzs_ar     = ${_s(ar.qzsAr)}`);
-    if (ar.bds3IgsoSats.trim()) L.push(`bds3_igso_sats = ${satArr(ar.bds3IgsoSats)}`);
+    if (ar.bds3IgsoSats?.trim()) L.push(`bds3_igso_sats = ${satArr(ar.bds3IgsoSats)}`);
     L.push('');
     L.push('[ambiguity_resolution.thresholds]');
     L.push(`ratio          = ${ar.thresholds.ratio}`);
