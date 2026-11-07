@@ -143,6 +143,10 @@ def build_relay_args(
     args = ["-in", f"{scheme}://{path}", "-out", f"tcpsvr://:{port}"]
     numbered = None
     if raw_log and raw_log.strip():
+        if "#" in raw_log:
+            # mrtk relay reads "#fmt" as a format tag and strips it from the
+            # file name, so the numbering below would check another file.
+            raise ValueError("Raw log path must not contain '#'")
         numbered = number_file_stream_path(raw_log.strip(), now or gpst_now(), set())
         args += ["-out", f"file://{numbered}"]
     return args, numbered

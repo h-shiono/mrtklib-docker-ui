@@ -7,6 +7,7 @@ broadcast that ends a session carries `exited: true`.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -26,19 +27,51 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_ws_clients: set[WebSocket] = set()
+# Messages queued per client. A client whose send blocks (stalled network)
+# fills its queue and is dropped, so it cannot hold up the other clients, the
+# session ticker or the relay log callback (process_manager awaits it).
+CLIENT_QUEUE_MAX = 256
+
+
+class _Client:
+    def __init__(self, ws: WebSocket) -> None:
+        self.ws = ws
+        self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=CLIENT_QUEUE_MAX)
+        self.task: asyncio.Task | None = None
+
+    async def run(self) -> None:
+        while True:
+            await self.ws.send_text(await self.queue.get())
+
+
+_clients: set[_Client] = set()
+
+
+def _drop(client: _Client, close: bool = False) -> None:
+    _clients.discard(client)
+    if client.task is not None:
+        client.task.cancel()
+    if close:
+        # Closing makes the page reconnect and get a fresh `history`.
+        asyncio.create_task(_close_quietly(client.ws))
+
+
+async def _close_quietly(ws: WebSocket) -> None:
+    try:
+        await asyncio.wait_for(ws.close(code=1013), timeout=5.0)  # 1013: try again later
+    except Exception:
+        pass
 
 
 async def _broadcast(msg: dict[str, Any]) -> None:
-    global _ws_clients
+    """Queue a message for every client; never waits on a socket."""
     text = json.dumps(msg)
-    gone = set()
-    for ws in list(_ws_clients):  # sends yield; handlers may discard meanwhile
+    for client in list(_clients):
         try:
-            await ws.send_text(text)
-        except Exception:
-            gone.add(ws)
-    _ws_clients -= gone
+            client.queue.put_nowait(text)
+        except asyncio.QueueFull:
+            logger.warning("Stream Monitor: dropping a WebSocket client that stopped reading")
+            _drop(client, close=True)
 
 
 _service.set_broadcast(_broadcast)
@@ -104,14 +137,17 @@ async def websocket_monitor(websocket: WebSocket) -> None:
     - {"type": "log", "message": "..."} mrtk relay output (credentials masked)
     """
     await websocket.accept()
-    _ws_clients.add(websocket)
+    client = _Client(websocket)
+    # Replay first, through the same queue so it stays ahead of live messages.
+    client.queue.put_nowait(json.dumps(_service.history_message()))
+    client.queue.put_nowait(json.dumps(_service.status_message()))
+    _clients.add(client)
+    client.task = asyncio.create_task(client.run())
     try:
-        await websocket.send_text(json.dumps(_service.history_message()))
-        await websocket.send_text(json.dumps(_service.status_message()))
         while True:
             try:
                 await websocket.receive_text()
-            except WebSocketDisconnect:
+            except (WebSocketDisconnect, RuntimeError):  # RuntimeError: closed by _drop
                 break
     finally:
-        _ws_clients.discard(websocket)
+        _drop(client)

@@ -112,6 +112,14 @@ def test_build_relay_args_rejects(kind, path):
         build_relay_args(kind, path, None, 41000)
 
 
+def test_raw_log_with_a_format_tag_is_rejected(tmp_path):
+    # mrtk relay strips "#ubx" and would open (and truncate) mon.ubx, which the
+    # numbering never checked.
+    (tmp_path / "mon.ubx").write_bytes(b"old")
+    with pytest.raises(ValueError, match="#"):
+        build_relay_args("tcpcli", "h:1", f"{tmp_path / 'mon.ubx'}#ubx", 41000)
+
+
 # ── API + WebSocket with a fake relay ───────────────────────────────────────
 
 
@@ -235,6 +243,7 @@ def test_relay_exit_ends_the_session_with_an_error(relay, client):
         ({"input": {"type": "file", "path": "/etc/passwd"}}, 403),
         ({"input": {"type": "file", "path": "/workspace/.credentials.toml"}}, 403),
         ({"input": {"type": "tcpcli", "path": "h:1"}, "raw_log": "/tmp/x.raw"}, 403),
+        ({"input": {"type": "tcpcli", "path": "h:1"}, "raw_log": "/workspace/m.ubx#ubx"}, 400),
     ],
 )
 def test_start_rejects_bad_requests(relay, client, body, code):
@@ -271,3 +280,42 @@ def test_relay_start_line_is_masked():
     line = "[SYSTEM] Starting: mrtk relay -in ntrip://user:secret@caster:2101/MNT -out tcpsvr://:1"
     assert "secret" not in mask_log_line(line)
     assert "ntrip://user:***@caster:2101/MNT" in mask_log_line(line)
+
+
+def test_a_stalled_client_cannot_block_the_broadcast():
+    from mrtklib_web_ui.api import stream_monitor as api
+
+    class StalledWs:
+        closed = False
+
+        async def send_text(self, text):
+            await asyncio.Event().wait()  # network stalled: never returns
+
+        async def close(self, code=1000):
+            self.closed = True
+
+    class GoodWs:
+        def __init__(self):
+            self.got = []
+
+        async def send_text(self, text):
+            self.got.append(text)
+
+    async def run():
+        stalled, good = api._Client(StalledWs()), api._Client(GoodWs())
+        for c in (stalled, good):
+            api._clients.add(c)
+            c.task = asyncio.create_task(c.run())
+        try:
+            n = api.CLIENT_QUEUE_MAX + 5
+            for k in range(n):  # each broadcast must return without waiting
+                await asyncio.wait_for(api._broadcast({"k": k}), timeout=0.1)
+                await asyncio.sleep(0)
+            await asyncio.sleep(0.01)
+            assert stalled not in api._clients and stalled.ws.closed
+            assert good in api._clients and len(good.ws.got) == n
+        finally:
+            for c in (stalled, good):
+                api._drop(c)
+
+    asyncio.run(run())
