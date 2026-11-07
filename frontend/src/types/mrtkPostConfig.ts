@@ -16,16 +16,16 @@ export type PositioningMode =
 
 // [positioning] correction — which SSR/PPP correction provider to use.
 export type CorrectionProvider =
-  | 'none' | 'igs' | 'igs-rts' | 'qzs-madoca' | 'gal-has' | 'bds-b2b' | 'qzs-clas';
+  | 'none' | 'igs' | 'igs-rts' | 'qzs-madoca' | 'gal-has' | 'bds-b2b' | 'southpan-pvs' | 'qzs-clas';
 
 // Correction providers valid per positioning mode. Mirrors the validity matrix
 // in MRTKLIB src/pos/mrtk_opt.c — MRTKLIB hard-errors on invalid combos
 // (e.g. "invalid correction=none for mode=ppp-rtk (use qzs-clas)"). Modes not
 // listed here (single/dgps/kinematic/static/moving-base/fixed) accept only 'none'.
 export const CORRECTION_BY_MODE: Partial<Record<PositioningMode, CorrectionProvider[]>> = {
-  'ppp-kinematic': ['igs', 'igs-rts', 'qzs-madoca', 'gal-has', 'bds-b2b'],
-  'ppp-static':    ['igs', 'igs-rts', 'qzs-madoca', 'gal-has', 'bds-b2b'],
-  'ppp-fixed':     ['igs', 'igs-rts', 'qzs-madoca', 'gal-has', 'bds-b2b'],
+  'ppp-kinematic': ['igs', 'igs-rts', 'qzs-madoca', 'gal-has', 'bds-b2b', 'southpan-pvs'],
+  'ppp-static':    ['igs', 'igs-rts', 'qzs-madoca', 'gal-has', 'bds-b2b', 'southpan-pvs'],
+  'ppp-fixed':     ['igs', 'igs-rts', 'qzs-madoca', 'gal-has', 'bds-b2b', 'southpan-pvs'],
   'ppp-rtk':       ['qzs-clas'],
   'vrs-rtk':       ['qzs-clas'],
 };
@@ -173,6 +173,11 @@ export interface PositioningConfig {
   constellations: ConstellationSelection;
   excludedSatellites: string;
 
+  // BeiDou generation / GEO lists (v0.7.13 / v0.7.16), space-separated like
+  // excludedSatellites ("C09 C10", ranges "C01-C18").
+  bds2Sats: string;              // [positioning] bds2_sats — always emitted ('' -> [])
+  bdsGeoSats: string;            // [positioning] bds_geo_sats — '' = MRTKLIB default C01-C04
+
   // v0.7.6 additions (top-level [positioning])
   robust: RobustMode;
   robustK0: number;              // IGG-III k0 threshold (<=0: code default)
@@ -237,6 +242,7 @@ export interface AmbiguityResolutionConfig {
   bdsAr: BdsARMode;
   qzsAr: QzsARMode;
   systems: number;   // v0.7.6: [ambiguity_resolution] systems bitmask (PPP-AR)
+  bds3IgsoSats: string;  // v0.7.13: bds3_igso_sats, space-separated; '' = default C06-C08
 
   // [ambiguity_resolution.thresholds]
   thresholds: ARThresholds;
@@ -406,6 +412,7 @@ export interface OutputConfig {
   nmeaIntervalGsaGsv: number;
   outputSolutionStatus: SolutionStatus;
   debugTrace: DebugTraceLevel;
+  clasNmeaSourceId: boolean;  // v0.7.15: [output] clas_nmea_source_id (GGA station id = CLAS L6 source)
 }
 
 // ─── [files] ─────────────────────────────────────────────────────────────────
@@ -547,6 +554,8 @@ export const DEFAULT_POSITIONING: PositioningConfig = {
     sbas: true, beidou: true, irnss: false,
   },
   excludedSatellites: '',
+  bds2Sats: '',     // emitted as [] = no BDS-2 (MRTKLIB default), silences the v0.7.13 warning
+  bdsGeoSats: '',
   robust: 'off',
   robustK0: 1.5,   // IGG-III code default (mrtk_rtkpos.c)
   robustK1: 4.0,   // IGG-III code default (mrtk_rtkpos.c)
@@ -579,6 +588,7 @@ export const DEFAULT_AMBIGUITY_RESOLUTION: AmbiguityResolutionConfig = {
   bdsAr: 'on',
   qzsAr: 'on',
   systems: 1,   // SYS_GPS (0x01) — matches prcopt_default.arsys (mrtk_opt.c)
+  bds3IgsoSats: '',
   thresholds: {
     ratio: 3.0,
     ratio1: 0.9999,
@@ -735,6 +745,7 @@ export const DEFAULT_OUTPUT: OutputConfig = {
   nmeaIntervalGsaGsv: 0,
   outputSolutionStatus: 'off',
   debugTrace: 'off',
+  clasNmeaSourceId: true,   // solopt_default.clasrefid (on)
 };
 
 export const DEFAULT_FILES: FilesConfig = {

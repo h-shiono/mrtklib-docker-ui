@@ -46,11 +46,38 @@ const OPTION_META_DEF = {
   'positioning.correction': {
     label: 'Correction',
     description:
-      'SSR/PPP correction provider. PPP: igs, igs-rts, qzs-madoca, gal-has ' +
-      '(bds-b2b is reserved). igs-rts and gal-has need Satellite Ephemeris = ' +
-      'brdc+ssrapc or brdc+ssrcom. PPP-RTK / VRS-RTK: qzs-clas (CLAS). ' +
-      'RTK/relative modes: none.',
+      'SSR/PPP correction provider. PPP: igs, igs-rts, qzs-madoca, gal-has, ' +
+      'bds-b2b, southpan-pvs. igs-rts, gal-has and bds-b2b need Satellite ' +
+      'Ephemeris = brdc+ssrapc or brdc+ssrcom. ' +
+      'bds-b2b (BeiDou PPP-B2b): float PPP, BeiDou-3 only; post needs the .b2b ' +
+      'file from mrtk l6extract and a RINEX 4 nav with CNV1 records; real time ' +
+      'takes SBF BDSRawB2b + BDSCNav1. ' +
+      'southpan-pvs (SouthPAN PVS, DFMC L5 MT32 of GEO PRN 122): float PPP ' +
+      'only — needs brdc+ssrapc, Frequencies L1+2, AR off, Solution Type ' +
+      'forward, Signals GPS L1/L5 + Galileo E1/E5a; post needs the .sbs file ' +
+      '(mrtk convert -s), real time takes SBF GEORawL5. ' +
+      'gal-has / bds-b2b / southpan-pvs ignore .rtcm3 and L6E correction files. ' +
+      'PPP-RTK / VRS-RTK: qzs-clas (CLAS). RTK/relative modes: none.',
     docsAnchor: '#positioning',
+  },
+  'positioning.bds2_sats': {
+    label: 'BDS-2 Sats',
+    description:
+      'BeiDou satellites in PRN 1-18 that are BDS-2 (space-separated, ranges ' +
+      'allowed: "C09 C10", "C01-C18"). Since the BeiDou PRN reassignment of ' +
+      '2026-04-10..21, BDS-3 also uses PRN 1-18. Use C09 C10 for data after ' +
+      '2026-04-21 and C01-C18 for data before 2026-04-10. Empty = no BDS-2 ' +
+      '(written as [], the MRTKLIB default).',
+    docsAnchor: '#positioning',
+  },
+  'positioning.bds_geo_sats': {
+    label: 'BDS-3 GEO Sats',
+    description:
+      'BeiDou-3 GEO satellites that transmit PPP-B2b (correction = bds-b2b). ' +
+      'Empty = MRTKLIB default C01-C04 (since 2026-04-21). Use C59-C62 for ' +
+      'data before 2026-04-17.',
+    docsAnchor: '#positioning',
+    modes: modes(MODE_SETS.PPP),
   },
   'positioning.frequency': {
     label: 'Frequencies',
@@ -150,7 +177,27 @@ const OPTION_META_DEF = {
     modes: modes(MODE_SETS.PPP),
   },
 
+  'ar.bds3_igso_sats': {
+    label: 'BDS-3 IGSO Sats',
+    description:
+      'BeiDou-3 IGSO satellites, never taken as the PPP-AR reference and ' +
+      'excluded first in partial AR (e.g. C06-C08). Empty = MRTKLIB default ' +
+      'C06-C08 (after the 2026-04 PRN reassignment). Use C38-C40 for data ' +
+      'before 2026-04-10.',
+    docsAnchor: '#ambiguity-resolution',
+    modes: modes(MODE_SETS.PPP),
+  },
+
   // ── [output] ─────────────────────────────────────────────────
+  'output.clas_nmea_source_id': {
+    label: 'CLAS NMEA Src ID',
+    description:
+      'PPP-RTK: write the CLAS L6 source as the NMEA GGA station id ' +
+      '(P1*100 + P2*10 + F; P1/P2 = L6 PRN - 192 of channel 1/2, F = facility ' +
+      '+ 1, 9 when the channels differ). Off writes 0000. MRTKLIB default: on.',
+    docsAnchor: '#output',
+    modes: modes(MODE_SETS.PPP_RTK),
+  },
   'output.max_solution_std': {
     label: 'Max Sol Std (m)',
     description:

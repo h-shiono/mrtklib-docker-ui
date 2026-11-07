@@ -27,6 +27,28 @@ def _bool_to_onoff(v: Any) -> str:
 
 BoolOrStr = Annotated[str, BeforeValidator(_bool_to_onoff)]
 
+# Satellite id / range token of the BeiDou lists (bds2_sats, bds_geo_sats,
+# bds3_igso_sats): "C09", "C01-C18". MRTKLIB checks the ids; this only keeps
+# the tokens safe to quote into the TOML.
+_SAT_TOKEN = re.compile(r"^[A-Za-z0-9-]+$")
+
+
+def _sat_tokens(v: Any) -> list[str]:
+    """Split a satellite list (list or space/comma-separated string) into tokens."""
+    items = [str(x) for x in v] if isinstance(v, (list, tuple)) else str(v or "").replace(",", " ").split()
+    tokens = [t.strip() for t in items if t.strip()]
+    for t in tokens:
+        if not _SAT_TOKEN.match(t):
+            raise ValueError(f"invalid satellite id {t!r} (use e.g. C09 or C01-C18)")
+    return tokens
+
+
+def _sat_list_str(v: Any) -> str:
+    return " ".join(_sat_tokens(v))
+
+
+SatList = Annotated[str, BeforeValidator(_sat_list_str)]
+
 logger = logging.getLogger(__name__)
 
 # Pattern to match mrtk_post progress output:
@@ -102,7 +124,7 @@ class AtmosphereConfig(BaseModel):
 
 class PositioningConfig(BaseModel):
     positioning_mode: str = "kinematic"
-    correction: str = "auto"   # SSR/PPP provider: none/igs/igs-rts/qzs-madoca/gal-has/bds-b2b/qzs-clas
+    correction: str = "auto"   # none/igs/igs-rts/qzs-madoca/gal-has/bds-b2b/southpan-pvs/qzs-clas
     frequency: str = "l1+l2"
     signal_mode: str = "frequency"
     signals: str = ""
@@ -112,6 +134,11 @@ class PositioningConfig(BaseModel):
     ephemeris_option: str = "broadcast"
     constellations: ConstellationSelection = Field(default_factory=ConstellationSelection)
     excluded_satellites: str = ""
+    # BeiDou PRN reassignment (MRTKLIB v0.7.13 / v0.7.16), space-separated.
+    # bds2_sats is always written ('' -> [] = no BDS-2, the MRTKLIB default):
+    # without the key mrtk warns on every run with BeiDou enabled.
+    bds2_sats: SatList = ""
+    bds_geo_sats: SatList = ""   # '' = MRTKLIB default C01-C04 (key omitted)
     # v0.7.6 additions
     robust: str = "off"
     robust_k0: float = 1.5   # IGG-III code default (mrtk_rtkpos.c)
@@ -166,6 +193,7 @@ class AmbiguityResolutionConfig(BaseModel):
     bds_ar: BoolOrStr = "on"
     qzs_ar: BoolOrStr = "on"
     systems: int = 1               # v0.7.6 (PPP-AR system bitmask; SYS_GPS)
+    bds3_igso_sats: SatList = ""   # v0.7.13; '' = MRTKLIB default C06-C08 (key omitted)
     thresholds: ARThresholds = Field(default_factory=ARThresholds)
     counters: ARCounters = Field(default_factory=ARCounters)
     partial_ar: PartialARConfig = Field(default_factory=PartialARConfig)
@@ -318,6 +346,7 @@ class OutputConfig(BaseModel):
     nmea_interval_gsa_gsv: int = 0
     output_solution_status: str = "off"
     debug_trace: str = "off"
+    clas_nmea_source_id: bool = True   # v0.7.15 (out-clasrefid; MRTKLIB default on)
 
 
 # ── [files] ──────────────────────────────────────────────────────────────────
@@ -501,6 +530,13 @@ class MrtkPostService:
         else:
             lines.append("excluded_sats       = []")
 
+        def _sat_arr(v: str) -> str:
+            return "[" + ", ".join(_s(t) for t in _sat_tokens(v)) + "]"
+
+        lines.append(f"bds2_sats           = {_sat_arr(p.bds2_sats)}")
+        if p.bds_geo_sats.strip():
+            lines.append(f"bds_geo_sats        = {_sat_arr(p.bds_geo_sats)}")
+
         c = p.constellations
         systems = []
         if c.gps:
@@ -661,6 +697,8 @@ class MrtkPostService:
         lines.append(f"qzs_ar     = {_ar_flag(ar.qzs_ar)}")
         # PPP-AR constellation bitmask (pos2-arsys; MRTKLIB default SYS_GPS=1)
         lines.append(f"systems    = {ar.systems}")
+        if ar.bds3_igso_sats.strip():
+            lines.append(f"bds3_igso_sats = {_sat_arr(ar.bds3_igso_sats)}")
         lines.append("")
 
         # ── [ambiguity_resolution.thresholds] ─────────────────────────────
@@ -887,6 +925,7 @@ class MrtkPostService:
         lines.append(f"nmea_interval_1   = {float(out.nmea_interval_rmc_gga)}")
         lines.append(f"nmea_interval_2   = {float(out.nmea_interval_gsa_gsv)}")
         lines.append(f"solution_status   = {_s(sol_status_map.get(out.output_solution_status, 'off'))}")
+        lines.append(f"clas_nmea_source_id = {_b(out.clas_nmea_source_id)}")
         lines.append("")
 
         # ── [files] ──────────────────────────────────────────────────────

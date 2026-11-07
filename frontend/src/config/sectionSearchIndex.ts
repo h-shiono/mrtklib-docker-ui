@@ -24,7 +24,8 @@ const SECTION_SEARCH: Record<string, string[]> = {
 
   mode: [
     'positioning mode', 'correction', 'correction provider', 'clas', 'madoca', 'igs', 'igs-rts',
-    'galileo has', 'beidou b2b', 'ssr provider', 'positioning.correction', 'qzs-clas', 'qzs-madoca',
+    'galileo has', 'beidou b2b', 'ppp-b2b', 'bds-b2b', 'southpan', 'southpan-pvs', 'pvs',
+    'ssr provider', 'positioning.correction', 'qzs-clas', 'qzs-madoca',
     'filter direction', 'solution type', 'frequencies', 'frequency',
     'signals', 'signal mode', 'elevation mask', 'snr mask', 'ionosphere', 'troposphere',
     'atmosphere', 'satellite ephemeris', 'ephemeris', 'constellations', 'gps', 'glonass',
@@ -34,6 +35,8 @@ const SECTION_SEARCH: Record<string, string[]> = {
     'positioning.snr_mask', 'positioning.atmosphere.ionosphere', 'positioning.atmosphere.troposphere',
     'positioning.satellite_ephemeris', 'positioning.constellations',
     'positioning.excluded_sats',
+    'bds-2 sats', 'bds2 sats', 'beidou prn reassignment', 'bds geo sats', 'beidou geo',
+    'positioning.bds2_sats', 'positioning.bds_geo_sats',
     // Receiver Dynamics + Earth Tides + corrections toggles (relocated into Basic Strategy)
     'earth tides', 'tidal correction', 'receiver dynamics', 'sat pcv', 'rec pcv',
     'satellite antenna pcv', 'receiver antenna pcv', 'phase windup', 'reject eclipse',
@@ -54,6 +57,7 @@ const SECTION_SEARCH: Record<string, string[]> = {
   ar: [
     'ar mode', 'ambiguity resolution', 'gps ar', 'glonass ar', 'beidou ar', 'bds ar', 'qzss ar',
     'ambiguity_resolution.gps_ar',
+    'bds-3 igso', 'bds3 igso sats', 'ambiguity_resolution.bds3_igso_sats',
     'ratio threshold', 'ar elevation mask', 'hold elevation mask', 'ratio 1', 'ratio 2',
     'ratio 3', 'ratio 4', 'ratio 5', 'ratio 6',
     'lock count', 'min fix epochs', 'max lambda iterations', 'outage reset count',
@@ -161,6 +165,7 @@ const SECTION_SEARCH: Record<string, string[]> = {
     'output.field_separator', 'output.height', 'output.geoid_model',
     'output.static_solution_mode', 'output.output_single_on_outage', 'output.output_solution_status',
     'output.debug_trace',
+    'clas nmea source id', 'gga station id', 'output.clas_nmea_source_id',
   ],
 
   files: [

@@ -37,6 +37,9 @@ NOT_EMITTED = {
 ALT_VALUES = {
     "positioning.positioning_mode": "static",
     "positioning.correction": "igs",
+    "positioning.bds2_sats": "C09 C10",
+    "positioning.bds_geo_sats": "C59-C62",
+    "ambiguity_resolution.bds3_igso_sats": "C38-C40",
     "positioning.frequency": "l1+l2+l5",
     "positioning.signal_mode": "signals",
     "positioning.filter_type": "combined",
@@ -195,6 +198,52 @@ def test_non_default_values_round_trip():
     assert t["kalman_filter"]["measurement_error"]["ura_ratio"] == 0.3
     assert t["slip_detection"]["doppler"] == 2.5
     assert t["positioning"]["elevation_mask"] == 12.5
+
+
+def test_bds_satellite_lists():
+    """v0.7.13 / v0.7.16 BeiDou lists. bds2_sats is always written ([] = no
+    BDS-2): without the key mrtk warns on every run with BeiDou enabled. The
+    other two are omitted when empty (MRTKLIB default)."""
+    t = tomllib.loads(svc.generate_conf_file(MrtkPostConfig()))
+    assert t["positioning"]["bds2_sats"] == []
+    assert "bds_geo_sats" not in t["positioning"]
+    assert "bds3_igso_sats" not in t["ambiguity_resolution"]
+
+    cfg = MrtkPostConfig.model_validate({
+        "positioning": {"bds2_sats": "C09, C10", "bds_geo_sats": ["C01-C04"]},
+        "ambiguity_resolution": {"bds3_igso_sats": " C06-C08 "},
+    })
+    t = tomllib.loads(svc.generate_conf_file(cfg))
+    assert t["positioning"]["bds2_sats"] == ["C09", "C10"]
+    assert t["positioning"]["bds_geo_sats"] == ["C01-C04"]
+    assert t["ambiguity_resolution"]["bds3_igso_sats"] == ["C06-C08"]
+
+
+@pytest.mark.parametrize("bad", ['C09"]', "C09 x=1", "C\\09"])
+def test_bds_satellite_list_rejects_unsafe_tokens(bad):
+    with pytest.raises(ValueError):
+        MrtkPostConfig.model_validate({"positioning": {"bds2_sats": bad}})
+
+
+@pytest.mark.parametrize("correction", ["bds-b2b", "southpan-pvs"])
+def test_new_correction_sources_are_written(correction):
+    cfg = MrtkPostConfig.model_validate({
+        "positioning": {
+            "positioning_mode": "ppp-kinematic",
+            "correction": correction,
+            "ephemeris_option": "broadcast+ssrapc",
+        },
+    })
+    t = tomllib.loads(svc.generate_conf_file(cfg))
+    assert t["positioning"]["correction"] == correction
+    assert t["positioning"]["satellite_ephemeris"] == "brdc+ssrapc"
+
+
+def test_clas_nmea_source_id():
+    t = tomllib.loads(svc.generate_conf_file(MrtkPostConfig()))
+    assert t["output"]["clas_nmea_source_id"] is True
+    cfg = MrtkPostConfig.model_validate({"output": {"clas_nmea_source_id": False}})
+    assert tomllib.loads(svc.generate_conf_file(cfg))["output"]["clas_nmea_source_id"] is False
 
 
 def test_legacy_conf_converts_to_schema_keys():
