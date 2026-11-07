@@ -147,6 +147,8 @@ export function StreamMonitorPanel() {
   const [logLines, setLogLines] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
+  // The page's WebSocket is open. While it is not, the last status is stale.
+  const [wsOpen, setWsOpen] = useState(false);
 
   const [tab, setTab] = useState<string | null>('chart');
   const [chartViews, setChartViews] = useState<string[]>(['scatter', 'skysnr']);
@@ -158,6 +160,10 @@ export function StreamMonitorPanel() {
   // A start request is in flight: a "not running" status sent before it
   // (e.g. on WS connect) must not flip the page back to idle.
   const startingRef = useRef(false);
+  // Counts `exited` statuses. A Start response that arrives after a session
+  // ended (relay exit, Stop from another page) is older than that exit and
+  // must not bring Running back: no further status would correct it.
+  const exitCountRef = useRef(0);
 
   const clearData = useCallback(() => {
     setEpochs([]);
@@ -168,6 +174,10 @@ export function StreamMonitorPanel() {
     if (wsRef.current || unmountedRef.current) return;
     const ws = streamMonitorApi.connectWs();
     wsRef.current = ws;
+
+    ws.onopen = () => {
+      if (wsRef.current === ws) setWsOpen(true);
+    };
 
     ws.onmessage = (event) => {
       let msg: MonitorMessage;
@@ -186,7 +196,10 @@ export function StreamMonitorPanel() {
         case 'status':
           if (!msg.running && !msg.exited && startingRef.current) break;
           setStatus(msg);
-          if (msg.exited) clearData();
+          if (msg.exited) {
+            exitCountRef.current += 1;
+            clearData();
+          }
           break;
         case 'epochs':
           setEpochs((prev) => [...prev, ...msg.epochs].slice(-MAX_EPOCHS));
@@ -205,6 +218,7 @@ export function StreamMonitorPanel() {
       if (wsRef.current !== ws) return;
       wsRef.current = null;
       if (unmountedRef.current) return;
+      setWsOpen(false);
       wsReconnectRef.current = setTimeout(() => {
         wsReconnectRef.current = null;
         connectWs();
@@ -227,6 +241,8 @@ export function StreamMonitorPanel() {
 
   const running = !!status?.running;
   const busy = running || submitting;
+  // Live figures only while the WebSocket delivers them.
+  const live = running && wsOpen;
 
   const handleStart = async () => {
     startingRef.current = true;
@@ -234,12 +250,15 @@ export function StreamMonitorPanel() {
     setRequestError(null);
     clearData();
     setLogLines([]);
+    const exitsBefore = exitCountRef.current;
     try {
       const st = await streamMonitorApi.start({
         input: { type: typeMeta.value, path: inputPath.trim() },
         raw_log: saveRaw && rawLog.trim() ? rawLog.trim() : null,
       });
-      setStatus(st);
+      // A session that ended meanwhile keeps its exit status. If the exit
+      // was another session's, the next status tick (1 s) shows this one.
+      if (exitCountRef.current === exitsBefore) setStatus(st);
     } catch (err) {
       setRequestError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -280,7 +299,7 @@ export function StreamMonitorPanel() {
   // bad checksums and decode errors are not.
   const framingIssues = status ? status.bad_frames + status.decode_errors : 0;
   // The relay's status line is only current while it runs.
-  const relayStatusLine = running ? relayLog.status : null;
+  const relayStatusLine = live ? relayLog.status : null;
 
   return (
     <Stack gap="sm">
@@ -380,12 +399,16 @@ export function StreamMonitorPanel() {
                 <Badge color={STATE_COLOR[state]} variant="dot" size="sm">
                   {state}
                 </Badge>
-                {running && status && (
-                  // `connected` is the backend's link to the relay, not the
-                  // relay's input: judge the input by the bytes arriving.
-                  <Text size="xs" c={status.bytes_per_sec > 0 ? 'green' : 'orange'}>
-                    {status.bytes_per_sec > 0 ? 'receiving' : status.connected ? 'no data' : 'starting relay'}
-                  </Text>
+                {status && !wsOpen ? (
+                  <Text size="xs" c="orange">connection to the server lost · reconnecting</Text>
+                ) : (
+                  live && status && (
+                    // `connected` is the backend's link to the relay, not the
+                    // relay's input: judge the input by the bytes arriving.
+                    <Text size="xs" c={status.bytes_per_sec > 0 ? 'green' : 'orange'}>
+                      {status.bytes_per_sec > 0 ? 'receiving' : status.connected ? 'no data' : 'starting relay'}
+                    </Text>
+                  )
                 )}
               </Group>
             </Row>
@@ -404,7 +427,7 @@ export function StreamMonitorPanel() {
             )}
             <Row label="Data rate">
               <Mono>
-                {status && running
+                {status && live
                   ? `${formatBytes(status.bytes_per_sec)}/s · ${formatBytes(status.bytes_total)} total`
                   : '—'}
               </Mono>
