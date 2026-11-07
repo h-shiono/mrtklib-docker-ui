@@ -47,7 +47,8 @@ def test_mosaic_sbf_head(localdata):
         data = f.read(3_000_000)
     dec, epochs, snaps = _decode(data)
     stats = dec.stats()
-    assert stats["unknown_bytes"] == 0 and stats["bad_frames"] == 0
+    # The 3 MB cut ends 32 bytes into a block, which flush() drops.
+    assert stats["unknown_bytes"] == 32 and stats["bad_frames"] == 0
     n_pvt = stats["msg_counts"]["SBF 4007 PVTGeodetic"]
     assert len(epochs) == n_pvt == 197
     assert len(snaps) == stats["msg_counts"]["SBF 4027 MeasEpoch"]

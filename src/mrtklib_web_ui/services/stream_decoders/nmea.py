@@ -20,6 +20,7 @@ with the older ranges accepted too (GP 33-64 SBAS, 65-96 GLONASS, QZSS
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
@@ -91,11 +92,10 @@ def nmea_sat(system: str | None, n: int) -> str | None:
     return None
 
 
-def _deg(value: str, hemi: str) -> float | None:
-    """ddmm.mmmm / dddmm.mmmm → signed degrees."""
-    try:
-        v = float(value)
-    except ValueError:
+def _deg(value: str, hemi: str, limit: float) -> float | None:
+    """ddmm.mmmm / dddmm.mmmm → signed degrees; None if not a valid angle."""
+    v = _float(value)
+    if v is None or not 0 <= v <= limit * 100:
         return None
     d = int(v // 100)
     deg = d + (v - d * 100) / 60.0
@@ -110,23 +110,25 @@ def _tod(value: str) -> float | None:
         h, m, s = int(value[0:2]), int(value[2:4]), float(value[4:])
     except ValueError:
         return None
-    if h > 23 or m > 59 or s >= 61:
+    if h > 23 or m > 59 or not 0 <= s < 61:  # also rejects nan
         return None
     return h * 3600 + m * 60 + s
 
 
 def _float(value: str) -> float | None:
+    """Field → float; None when empty, malformed or not finite ('nan', 'inf')."""
     try:
-        return float(value)
+        v = float(value)
     except ValueError:
         return None
+    return v if math.isfinite(v) else None
 
 
 @dataclass
 class _Pending:
     tod: float
     date: date | None = None
-    position: tuple[float, float, float, int, int | None, float | None] | None = None
+    position: tuple[float, float, float | None, int, int | None, float | None] | None = None
     sd: tuple[float | None, float | None, float | None] | None = None
     sats: dict[str, SatState] = field(default_factory=dict)
     used: set[str] = field(default_factory=set)
@@ -212,11 +214,13 @@ class NmeaDecoder:
             q = NMEA_GGA_TO_Q[int(f[6])]
         except (ValueError, IndexError):
             return
-        lat, lon = _deg(f[2], f[3]), _deg(f[4], f[5])
+        lat, lon = _deg(f[2], f[3], 90), _deg(f[4], f[5], 180)
         if not q or lat is None or lon is None:
             return
+        # Ellipsoidal = MSL altitude + geoid separation. Either one missing
+        # leaves the height unknown rather than off by the geoid (tens of m).
         alt, sep = _float(f[9]), _float(f[11])
-        height = (alt or 0.0) + (sep or 0.0)  # ellipsoidal = MSL + geoid separation
+        height = alt + sep if alt is not None and sep is not None else None
         try:
             ns: int | None = int(f[7])
         except ValueError:

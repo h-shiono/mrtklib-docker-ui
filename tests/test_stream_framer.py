@@ -96,3 +96,19 @@ def test_incomplete_frame_waits_for_more_data():
     f = Framer()
     assert f.feed(block[:-5]) == []
     assert [fr.label for fr in f.feed(block[-5:])] == ["SBF 4013 ChannelStatus"]
+
+
+def test_flush_ends_the_last_line():
+    f = Framer()
+    assert f.feed(GGA[:-2] + b"\r") == []  # lone CR: waits for a possible LF
+    assert [fr.label for fr in f.flush()] == ["GNGGA"]
+    f.feed(b"2026/11/07 12:19:11.000 35.0 139.0 60.3 5 12")  # row without LF
+    assert [fr.kind for fr in f.flush()] == ["text"]
+    assert f.unknown_bytes == 0
+
+
+def test_flush_drops_an_incomplete_binary_frame():
+    f = Framer()
+    block = sbf(4013, sbf_tow(0, 1) + b"\x00" * 30)
+    assert f.feed(block[:-4]) == []
+    assert f.flush() == [] and f.unknown_bytes == len(block) - 4

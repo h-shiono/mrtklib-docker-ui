@@ -151,7 +151,15 @@ class Framer:
             self._buf.clear()
         return frames
 
-    def _scan(self, frames: list[Frame]) -> int:
+    def flush(self) -> list[Frame]:
+        """End of stream: the buffer end also ends a line (a last row without
+        LF, or with a lone CR); incomplete binary frames are dropped."""
+        frames: list[Frame] = []
+        self._scan(frames, eof=True)
+        self._buf.clear()
+        return frames
+
+    def _scan(self, frames: list[Frame], eof: bool = False) -> int:
         buf = self._buf
         n = len(buf)
         pos = 0
@@ -171,11 +179,13 @@ class Framer:
             elif b0 == 0x24 and pos + 1 < n and buf[pos + 1] == 0x40:
                 res = self._try_sbf(pos)
             elif b0 == 0x24:
-                res = self._try_line(pos, nmea=True)
+                res = self._try_line(pos, nmea=True, eof=eof)
             else:
-                res = self._try_line(pos, nmea=False)
-            if res is _NEED_MORE:
+                res = self._try_line(pos, nmea=False, eof=eof)
+            if res is _NEED_MORE and not eof:
                 return pos
+            if res is _NEED_MORE:  # end of stream: it will never complete
+                res = _NO
             if res is _NO:
                 self.unknown_bytes += 1
                 pos += 1
@@ -234,7 +244,7 @@ class Framer:
         mtype = ((buf[pos + 3] << 4) | (buf[pos + 4] >> 4)) if length >= 2 else 0
         return Frame("rtcm3", bytes(buf[pos:end]), f"RTCM3 {mtype}"), end
 
-    def _try_line(self, pos: int, nmea: bool):
+    def _try_line(self, pos: int, nmea: bool, eof: bool = False):
         """A printable line ending in CR / LF. NMEA lines need a valid *hh.
 
         A '$' inside the line starts the next sentence (the stream lost a
@@ -252,17 +262,21 @@ class Framer:
                 return _NO
             i += 1
         else:
-            return _NEED_MORE if limit == n and n - pos < MAX_LINE else _NO
+            if limit == n and n - pos < MAX_LINE:
+                if not eof:
+                    return _NEED_MORE
+                c = None  # end of stream ends the line
+            else:
+                return _NO
         line = bytes(buf[pos:i])
-        if c == 0x24:
+        if c is None or c == 0x24:
             end = i
         else:
             end = i + 1
-            if c == 0x0D:
-                if end == n:
-                    return _NEED_MORE  # the LF may come in the next chunk
-                if buf[end] == 0x0A:
-                    end += 1
+            if c == 0x0D and end == n and not eof:
+                return _NEED_MORE  # the LF may come in the next chunk
+            if c == 0x0D and end < n and buf[end] == 0x0A:
+                end += 1
         if not nmea:
             return Frame("text", line, "text"), end
         star = line.rfind(b"*")

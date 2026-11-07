@@ -14,6 +14,7 @@ service decides which source to show and how often.
 
 from __future__ import annotations
 
+import struct
 from collections import Counter
 from datetime import datetime
 from typing import Callable
@@ -41,15 +42,24 @@ class StreamDecoder:
         self.ubx = UbxDecoder()
         self.pos = PosTextDecoder()
         self.bytes_total = 0
+        self.decode_errors = 0
         self.msg_counts: Counter[str] = Counter()
 
     def feed(self, chunk: bytes) -> list[Event]:
         self.bytes_total += len(chunk)
         events: list[Event] = []
         for frame in self.framer.feed(chunk):
-            self.msg_counts[frame.label] += 1
-            events += self.decode_frame(frame)
+            events += self._decode(frame)
         return events
+
+    def _decode(self, frame: Frame) -> list[Event]:
+        """Decode one frame; a malformed record costs only itself (input is untrusted)."""
+        self.msg_counts[frame.label] += 1
+        try:
+            return self.decode_frame(frame)
+        except (ValueError, OverflowError, IndexError, struct.error):
+            self.decode_errors += 1
+            return []
 
     def decode_frame(self, frame: Frame) -> list[Event]:
         if frame.kind == "nmea":
@@ -63,13 +73,18 @@ class StreamDecoder:
         return []  # RTCM3: counted only
 
     def flush(self) -> list[Event]:
-        """Emit the epochs still being collected (call when the stream stops)."""
-        return self.nmea.flush() + self.sbf.flush() + self.ubx.flush()
+        """End of stream: decode the last unterminated line, then emit the
+        epochs still being collected."""
+        events: list[Event] = []
+        for frame in self.framer.flush():
+            events += self._decode(frame)
+        return events + self.nmea.flush() + self.sbf.flush() + self.ubx.flush()
 
     def stats(self) -> dict:
         return {
             "bytes_total": self.bytes_total,
             "unknown_bytes": self.framer.unknown_bytes,
             "bad_frames": self.framer.bad_frames,
+            "decode_errors": self.decode_errors,
             "msg_counts": dict(self.msg_counts),
         }

@@ -141,3 +141,26 @@ def test_svid_numbering(svid, prn):
 
 def test_cn0_rule():
     assert cn0_dbhz(100, 0) == 35.0 and cn0_dbhz(100, 1) == 25.0 and cn0_dbhz(255, 0) is None
+
+
+def test_pvt_with_nan_coordinates_is_dropped_and_the_stream_continues():
+    epochs, _ = _run(sbf(4007, pvt_body(lat=float("nan"))) + sbf(4007, pvt_body(tow=TOW + 1000)))
+    assert len(epochs) == 1 and epochs[0].lat == pytest.approx(35.5)
+
+
+def test_decode_errors_are_contained_per_frame(monkeypatch):
+    dec = StreamDecoder()
+
+    def boom(frame):
+        raise struct.error("bad layout")
+
+    monkeypatch.setattr(dec.sbf, "decode", boom)
+    events = dec.feed(sbf(4007, pvt_body()) + nmea_gga())
+    assert [type(e) for e in events + dec.flush()] == [Epoch]  # the NMEA epoch survives
+    assert dec.stats()["decode_errors"] == 1
+
+
+def nmea_gga():
+    from stream_builders import nmea
+
+    return nmea("GPGGA,000001.00,3500.0,N,13900.0,E,1,08,1.0,10.0,M,30.0,M,,")

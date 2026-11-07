@@ -87,3 +87,9 @@ def test_nav_sat_snapshot_takes_the_pvt_time():
 def test_nav_sat_without_matching_pvt_has_no_time():
     _, (snap,) = _run(nav_sat([(0, 5, 45, 30, 120, 0x08)], itow=ITOW + 1000))
     assert snap.time is None
+
+
+@pytest.mark.parametrize("valid", [0x01, 0x02])
+def test_nav_pvt_needs_both_valid_date_and_time(valid):
+    epochs, snaps = _run(nav_pvt(valid=valid) + nav_sat([(0, 5, 45, 30, 120, 0x08)]))
+    assert epochs == [] and snaps[0].time is None  # NAV-SAT does not inherit it

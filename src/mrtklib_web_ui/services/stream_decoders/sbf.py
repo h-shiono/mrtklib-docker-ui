@@ -199,6 +199,8 @@ class SbfDecoder:
         if r is None:
             return []
         t, lat, lon, hgt, q, ns, age = r
+        if not (abs(lat) <= 90 and abs(lon) <= 180 and math.isfinite(hgt)):
+            return []  # NaN / inf doubles; CLAS sniffer keeps its own behaviour
         return [Epoch(t, "GPST", lat, lon, hgt, q, ns, "sbf:pvtgeodetic",
                       age=age if age >= 0 else None)]
 

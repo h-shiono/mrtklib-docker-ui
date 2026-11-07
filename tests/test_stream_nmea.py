@@ -137,3 +137,32 @@ def test_bare_gngsa_only_resolves_glonass():
 )
 def test_nmea_satellite_numbers(system, n, prn):
     assert nmea_sat(system, n) == prn
+
+
+@pytest.mark.parametrize(
+    "alt, sep",
+    [("", "39.4"), ("20.9", ""), ("", "")],
+)
+def test_missing_altitude_or_geoid_separation_leaves_height_unknown(alt, sep):
+    epochs, _ = _run(f"GPGGA,000001.00,3500.0,N,13900.0,E,1,08,1.0,{alt},M,{sep},M,,")
+    assert epochs[0].height is None and epochs[0].lat == pytest.approx(35.0)
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "GPGGA,000001.00,nan,N,13900.0,E,1,08,1.0,10.0,M,30.0,M,,",
+        "GPGGA,000001.00,3500.0,N,inf,E,1,08,1.0,10.0,M,30.0,M,,",
+        "GPGGA,0000nan,3500.0,N,13900.0,E,1,08,1.0,10.0,M,30.0,M,,",
+        "GPGGA,000001.00,9500.0,N,13900.0,E,1,08,1.0,10.0,M,30.0,M,,",
+        "GPGST,000001.00,0.5,0.1,0.1,0.0,nan,inf,0.025",
+    ],
+)
+def test_malformed_numbers_do_not_stop_the_stream(bad):
+    good = "GPGGA,000002.00,3500.0,N,13900.0,E,1,08,1.0,10.0,M,30.0,M,,"
+    dec = StreamDecoder()
+    events = dec.feed(nmea(bad) + nmea(good)) + dec.flush()
+    epochs = [e for e in events if isinstance(e, Epoch)]
+    assert epochs[-1].to_json()["time"].endswith("00:00:02.000Z")
+    for e in epochs:  # no NaN / inf reaches the JSON
+        assert all(v is None or abs(v) < 1e9 for v in (e.lat, e.lon, e.height, e.sdn, e.sde))

@@ -61,7 +61,7 @@ class UbxDecoder:
         nano = struct.unpack_from("<i", p, 16)[0]
         fix_type, flags, _, num_sv = struct.unpack_from("<BBBB", p, 20)
         lon, lat, height = struct.unpack_from("<iii", p, 24)
-        if not valid & 0x03:  # validDate | validTime
+        if (valid & 0x03) != 0x03:  # needs validDate and validTime
             return []
         try:
             t = datetime(year, month, day, hour, minute, sec, tzinfo=timezone.utc)
@@ -71,6 +71,8 @@ class UbxDecoder:
         self._pvt_time = (itow, t)
 
         if len(p) >= 92 and p[78] & 0x01:  # flags3.invalidLlh
+            return []
+        if abs(lat) > 900000000 or abs(lon) > 1800000000:
             return []
         gnss_fix_ok = flags & 0x01
         carr = (flags >> 6) & 0x03

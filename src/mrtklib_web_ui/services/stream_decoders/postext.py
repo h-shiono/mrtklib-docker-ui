@@ -66,10 +66,12 @@ class PosTextDecoder:
         t = self._time(parts)
         if t is None:
             return []
+        c0, c1, c2 = _num(parts, 2), _num(parts, 3), _num(parts, 4)
         try:
-            c0, c1, c2 = float(parts[2]), float(parts[3]), float(parts[4])
             q, ns = int(parts[5]), int(parts[6])
         except ValueError:
+            return []
+        if c0 is None or c1 is None or c2 is None:
             return []
         layout = self.layout or ("xyz" if abs(c0) > 90 or abs(c1) > 180 else "llh")
         if layout == "xyz":
@@ -103,11 +105,14 @@ class PosTextDecoder:
             if "/" in parts[0]:
                 d = datetime.strptime(parts[0], "%Y/%m/%d").replace(tzinfo=timezone.utc)
                 h, m, s = parts[1].split(":")
-                return d + timedelta(hours=int(h), minutes=int(m), seconds=float(s))
+                hh, mm, ss = int(h), int(m), float(s)
+                if not (0 <= hh <= 23 and 0 <= mm <= 59 and 0 <= ss < 61):  # rejects nan
+                    return None
+                return d + timedelta(hours=hh, minutes=mm, seconds=ss)
             week, tow = int(parts[0]), float(parts[1])
         except ValueError:
             return None
-        if not 0 <= tow < 604800 or week < 0:
+        if not 0 <= tow < 604800 or not 0 <= week <= 9999:  # rejects nan / overflow
             return None
         return _GPS_EPOCH + timedelta(weeks=week, seconds=tow)
 
@@ -116,6 +121,7 @@ def _num(parts: list[str], i: int) -> float | None:
     if i >= len(parts):
         return None
     try:
-        return float(parts[i])
+        v = float(parts[i])
     except ValueError:
         return None
+    return v if math.isfinite(v) else None

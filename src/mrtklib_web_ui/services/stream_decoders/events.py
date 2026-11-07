@@ -53,7 +53,7 @@ class Epoch:
     time_sys: str  # "GPST" | "UTC" | "JST"
     lat: float  # deg
     lon: float  # deg
-    height: float  # m, ellipsoidal
+    height: float | None  # m, ellipsoidal; None when the format leaves it unknown
     q: int  # 1=Fix 2=Float 3=SBAS 4=DGPS 5=Single 6=PPP 7=DR (CLAUDE.md)
     ns: int | None
     source: str  # e.g. "nmea:gga", "sbf:pvtgeodetic", "ubx:nav-pvt", "pos:llh"

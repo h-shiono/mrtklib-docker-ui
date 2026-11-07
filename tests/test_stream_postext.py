@@ -68,3 +68,23 @@ def test_enu_and_dms_layouts_are_skipped():
 
 def test_other_text_lines_are_ignored():
     assert _epochs("12 monkeys\n2026/13/45 99:99:99 1 2 3 4 5\n") == []
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "1000000000 389951.000 35.5 139.25 60.3 1 10",  # week overflows datetime
+        "2380 nan 35.5 139.25 60.3 1 10",
+        "2026/11/07 12:19:nan 35.5 139.25 60.3 1 10",
+        "2026/11/07 12:19:11.000 nan 139.25 60.3 1 10",
+        "2026/11/07 12:19:11.000 inf inf inf 1 10",
+    ],
+)
+def test_malformed_rows_do_not_stop_the_stream(bad):
+    (e,) = _epochs(bad + "\n" + LLH_ROW)
+    assert e.lat == 35.5
+
+
+def test_last_row_without_newline_is_decoded_on_flush():
+    (e,) = _epochs(LLH_HEADER + LLH_ROW.rstrip("\n"))
+    assert e.ns == 21
