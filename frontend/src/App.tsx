@@ -1447,7 +1447,6 @@ function StreamServerWithCLAS() {
         <Tabs.List>
           <Tabs.Tab value="multi-stream">Multi-Stream Relay</Tabs.Tab>
           <Tabs.Tab value="clas">CLAS Pipeline</Tabs.Tab>
-          <Tabs.Tab value="monitor">Stream Monitor</Tabs.Tab>
         </Tabs.List>
       </Tabs>
       <div style={{ display: mode === 'multi-stream' ? undefined : 'none' }}>
@@ -1455,9 +1454,6 @@ function StreamServerWithCLAS() {
       </div>
       <div style={{ display: mode === 'clas' ? undefined : 'none' }}>
         <ClasPipelinePanel />
-      </div>
-      <div style={{ display: mode === 'monitor' ? undefined : 'none' }}>
-        <StreamMonitorPanel />
       </div>
     </Stack>
   );
@@ -1478,6 +1474,7 @@ const PRIMARY_MODES = [
 
 const SECONDARY_VIEWS = [
   { value: 'stream-server', label: 'Stream Server' },
+  { value: 'stream-monitor', label: 'Stream Monitor' },
   { value: 'conversion', label: 'Conversion' },
   { value: 'tools', label: 'Tools' },
 ] as const;
@@ -1585,7 +1582,8 @@ function App() {
           <Group gap="md" wrap="nowrap">
             <Group gap={9} wrap="nowrap">
               <IconSatellite size={22} />
-              <Text fw={600} size="sm" visibleFrom="sm" style={{ whiteSpace: 'nowrap' }}>
+              {/* Name only from md: below it the header buttons need the room. */}
+              <Text fw={600} size="sm" visibleFrom="md" style={{ whiteSpace: 'nowrap' }}>
                 MRTKLIB Console
               </Text>
             </Group>
@@ -1644,6 +1642,7 @@ function App() {
             <Tabs.Tab value="post-processing">Post</Tabs.Tab>
             <Tabs.Tab value="realtime">RT</Tabs.Tab>
             <Tabs.Tab value="stream-server">Stream</Tabs.Tab>
+            <Tabs.Tab value="stream-monitor">Monitor</Tabs.Tab>
             <Tabs.Tab value="conversion">Convert</Tabs.Tab>
             <Tabs.Tab value="tools">Tools</Tabs.Tab>
           </Tabs.List>
@@ -1658,6 +1657,9 @@ function App() {
         </div>
         <div style={{ display: activeTab === 'stream-server' ? undefined : 'none' }}>
           <StreamServerWithCLAS />
+        </div>
+        <div style={{ display: activeTab === 'stream-monitor' ? undefined : 'none' }}>
+          <StreamMonitorPanel />
         </div>
         <div style={{ display: activeTab === 'conversion' ? undefined : 'none' }}>
           <ConversionPanel />
