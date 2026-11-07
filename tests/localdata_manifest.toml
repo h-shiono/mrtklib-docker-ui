@@ -1,0 +1,20 @@
+# Local-only test data (#96). The files are not in the repository: put them
+# in tests/localdata/ (gitignored) or in the directory named by
+# MRTK_UI_TESTDATA. Tests marked `localdata` skip when a file is missing or
+# its sha256 differs. Problems found with these files should become
+# synthesized tests (tests/stream_builders.py) so CI covers them.
+
+[files."G5P3073h.sbf"]
+sha256 = "52dd926414880f7346a814178b31e53072c43f08a69936b7e79a0d0f5c6936a8"
+size = 54654984
+origin = "MRTKLIB tests/data/cssr2rtcm3/G5P3073h.sbf (mosaic-G5, 1 h SBF: PVTGeodetic, MeasEpoch, ChannelStatus, no SatVisibility)"
+
+[files."rtkrcv_clas_ref.nmea"]
+sha256 = "e893ef1f7454b94dde146a4d8102750b31587629df4624153ba17f3c1f85ed63"
+size = 2334889
+origin = "MRTKLIB tests/data/claslib/rtkrcv_clas_ref.nmea (MRTKLIB NMEA output: RMC GGA GSA GSV, signal ID 0)"
+
+[files."ublox_f9_rawx_nmea_60s.raw"]
+sha256 = "20e1f15a27f5bb12d9b49ce3013ac21ef0ed72a3b4df5546f838195d09cacb24"
+size = 310086
+origin = "u-blox F9 live stream capture, 60 s, 2026-11-07 (UBX RXM-RAWX + RXM-SFRBX, NMEA 4.11 RMC VTG GGA GSA GSV GLL)"

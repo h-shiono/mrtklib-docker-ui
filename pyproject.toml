@@ -47,3 +47,8 @@ version-file = "src/mrtklib_web_ui/_version.py"
 # Pin ruff's classic default rules so a ruff upgrade in uv.lock cannot change
 # what CI enforces without a reviewed change here.
 select = ["E4", "E7", "E9", "F"]
+
+[tool.pytest.ini_options]
+markers = [
+    "localdata: needs local-only test data (tests/localdata_manifest.toml); skipped when absent",
+]

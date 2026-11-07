@@ -8,29 +8,21 @@ streaming entry point is available.
 from __future__ import annotations
 
 import asyncio
-import math
 import struct
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Awaitable, Callable
 
+# The PVTGeodetic decode lives with the Stream Monitor decoders (#96) so both
+# share one implementation; SBF_MODE is re-exported for existing imports.
+from mrtklib_web_ui.services.stream_decoders.sbf import (  # noqa: F401
+    SBF_MODE as _SBF_MODE,
+    parse_pvt_geodetic,
+)
+
 SBF_SYNC = b"\x24\x40"
 SBF_PVTGEODETIC = 4007
-_GPS_EPOCH = datetime(1980, 1, 6, tzinfo=timezone.utc)
-# Septentrio PVTGeodetic Mode (low 4 bits) → QUALITY_COLOR enum the UI uses
-# (Fix=1, Float=2, SBAS=3, DGPS=4, Single=5, PPP=6). See QUALITY_COLOR in CLAUDE.md.
-_SBF_MODE = {
-    1: 5,   # Stand-alone     → Single
-    2: 4,   # Differential    → DGPS
-    3: 5,   # Fixed location  → Single
-    4: 1,   # RTK fixed       → Fix
-    5: 2,   # RTK float       → Float
-    6: 3,   # SBAS-aided      → SBAS
-    7: 1,   # Moving-base fix → Fix
-    8: 2,   # Moving-base flt → Float
-    10: 6,  # PPP             → PPP
-}
 
 # Cap the rolling buffer so a malformed stream cannot grow it without bound.
 _MAX_BUFFER = 1 << 20  # 1 MiB
@@ -162,26 +154,16 @@ class SbfStreamParser:
 
     @staticmethod
     def _decode_pvt(p: bytes) -> PvtFix | None:
-        tow_ms = struct.unpack_from("<I", p, 0)[0]
-        wn = struct.unpack_from("<H", p, 4)[0]
-        mode_raw = p[6] & 0x0F
-        error = p[7]
-        if mode_raw == 0 or error != 0 or tow_ms == 0xFFFFFFFF or wn == 0xFFFF:
+        r = parse_pvt_geodetic(p)
+        if r is None:
             return None
-        lat_rad, lon_rad, hgt = struct.unpack_from("<ddd", p, 8)
-        # SBF marks "do-not-use" with -2e10
-        if lat_rad <= -2.0e10 or lon_rad <= -2.0e10 or hgt <= -2.0e10:
-            return None
-        ns = p[66] if len(p) > 66 else 0
-        # `unpack_from('<H', p, 70)` reads bytes 70..72, so we need len(p) >= 72.
-        age_raw = struct.unpack_from("<H", p, 70)[0] if len(p) >= 72 else 0xFFFF
-        age = age_raw * 0.01 if age_raw != 0xFFFF else -1.0
+        time_gpst, lat, lon, hgt, quality, ns, age = r
         return PvtFix(
-            time_gpst=_GPS_EPOCH + timedelta(weeks=wn, milliseconds=tow_ms),
-            lat_deg=math.degrees(lat_rad),
-            lon_deg=math.degrees(lon_rad),
+            time_gpst=time_gpst,
+            lat_deg=lat,
+            lon_deg=lon,
             hgt_m=hgt,
-            quality=_SBF_MODE.get(mode_raw, 5),
+            quality=quality,
             ns=ns,
             age_s=age,
         )
