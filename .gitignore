@@ -30,3 +30,6 @@ data/
 
 # temp
 tmp/
+
+# Local-only test data (see tests/localdata_manifest.toml)
+tests/localdata/
