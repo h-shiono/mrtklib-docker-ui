@@ -46,7 +46,7 @@ screen recording or before/after screenshots is very helpful.
 ## Affected area
 
 <!--
-- Tab: Post Processing / Real-Time / Stream Server / Conversion / Tools / Monitor
+- Tab: Post Processing / Real-Time / Stream Relay / Stream Monitor / Conversion / Tools
 - Layer: frontend / backend / docker / ci / docs
 -->
 

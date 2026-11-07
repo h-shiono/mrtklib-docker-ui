@@ -31,7 +31,7 @@ if you have one.
 
 <!--
 Which part of the UI or stack is affected? Examples:
-- Tab: Post Processing / Real-Time / Stream Server / Conversion / Tools / Monitor
+- Tab: Post Processing / Real-Time / Stream Relay / Stream Monitor / Conversion / Tools
 - Component: sidebar, form panel, chart, file browser, preset manager
 - Backend: API router, service, WebSocket, Docker image
 -->
