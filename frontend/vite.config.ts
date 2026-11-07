@@ -9,6 +9,8 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        // WebSockets under /api (e.g. /api/mrtk-run/ws) go through here too.
+        ws: true,
       },
       '/socket.io': {
         target: 'http://localhost:8000',
