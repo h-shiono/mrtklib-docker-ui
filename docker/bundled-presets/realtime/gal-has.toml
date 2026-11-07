@@ -1,0 +1,180 @@
+# Preset: Galileo HAS (PPP-Kinematic)
+# MRTKLIB Configuration (TOML v1.0.0)
+
+[positioning]
+mode                = "ppp-kine"
+correction          = "gal-has"
+frequency           = "l1+2"
+solution_type       = "forward"
+elevation_mask      = 10.0
+dynamics            = false
+satellite_ephemeris = "brdc+ssrapc"
+excluded_sats       = []
+systems             = ["GPS", "Galileo"]
+
+[positioning.snr_mask]
+rover_enabled = false
+base_enabled  = false
+L1            = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+L2            = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+L5            = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+[positioning.corrections]
+satellite_antenna = false
+receiver_antenna  = true
+phase_windup      = "on"
+raim_fde          = false
+tidal_correction  = "on"
+
+[positioning.atmosphere]
+ionosphere  = "dual-freq"
+troposphere = "est-ztd"
+
+[positioning.ppp]
+options = ""
+
+[positioning.relative]
+time_interpolation = false
+
+[ambiguity_resolution]
+mode    = "off"
+systems = 9
+
+[ambiguity_resolution.thresholds]
+ratio          = 1.5
+ratio1         = 1.5
+elevation_mask = 15.0
+
+[ambiguity_resolution.counters]
+min_fix        = 600
+max_iterations = 10
+
+[rejection]
+innovation = 50.0
+gdop       = 30.0
+
+[slip_detection]
+threshold = 0.15
+
+[kalman_filter]
+iterations = 1
+
+[kalman_filter.measurement_error]
+code_phase_ratio_L1 = 300.0
+code_phase_ratio_L2 = 300.0
+ura_ratio           = 0.1
+phase               = 0.003
+phase_elevation     = 0.003
+
+[kalman_filter.process_noise]
+bias        = 1.00e-04
+ionosphere  = 0.01
+troposphere = 1.00e-04
+position    = 0.0
+ifb         = 1.00e-05
+
+[signals]
+gps     = "L1/L2/L5"
+qzs     = "L1/L5/L2"
+galileo = "E1/E5a/E5b/E6"
+bds2    = "B1I/B3I/B2I"
+bds3    = "B1I/B3I/B2a"
+
+[antenna.rover]
+position_type = "single"
+type          = "*"
+delta_e       = 0.0
+delta_n       = 0.0
+delta_u       = 0.0
+
+[output]
+format            = "llh"
+header            = true
+options           = true
+velocity          = false
+time_system       = "gpst"
+time_format       = "hms"
+time_decimals     = 3
+coordinate_format = "deg"
+field_separator   = ""
+single_output     = false
+max_solution_std  = 0.0
+height_type       = "ellipsoidal"
+geoid_model       = "internal"
+static_solution   = "all"
+nmea_interval_1   = 0.0
+nmea_interval_2   = 0.0
+solution_status   = "off"
+
+[files]
+satellite_atx = ""
+receiver_atx  = ""
+station_pos   = ""
+geoid         = ""
+ionosphere    = ""
+dcb           = ""
+eop           = ""
+ocean_loading = ""
+temp_dir      = ""
+trace         = ""
+
+[server]
+cycle_ms       = 10
+timeout_ms     = 10000
+reconnect_ms   = 10000
+nmea_cycle_ms  = 5000
+buffer_size    = 32768
+nav_msg_select = "all"
+proxy          = ""
+swap_margin    = 30
+
+[input.rinex]
+option_1 = ""
+option_2 = ""
+
+[input.rtcm]
+options = ""
+
+[input.sbas]
+satellite = 0
+
+
+[streams.input.rover]
+type   = ""
+path   = ""
+format = ""
+
+[streams.input.base]
+type   = "off"
+path   = ""
+format = ""
+nmeareq = false
+nmealat = 0.0
+nmealon = 0.0
+
+[streams.input.correction]
+type   = "off"
+path   = ""
+format = ""
+
+[streams.output.stream1]
+type   = "off"
+path   = ""
+format = ""
+
+[streams.output.stream2]
+type   = "off"
+path   = ""
+format = ""
+
+[streams.log.stream1]
+type   = "off"
+path   = ""
+
+[streams.log.stream2]
+type   = "off"
+path   = ""
+
+[streams.log.stream3]
+type   = "off"
+path   = ""

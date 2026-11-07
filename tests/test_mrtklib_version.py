@@ -14,6 +14,7 @@ main = importlib.import_module("mrtklib_web_ui.main")
 @pytest.mark.parametrize("out, expected", [
     ("mrtk (MRTKLIB ver.0.7.11 git v0.7.11-1-g8dc1fc6-dirty)\n", ("0.7.11", "v0.7.11-1-g8dc1fc6-dirty")),
     ("mrtk (MRTKLIB ver.0.7.11)\n", ("0.7.11", "")),
+    ("mrtk (MRTKLIB ver.0.7.17 git v0.7.17-2-gead89cb-dirty)\n", ("0.7.17", "v0.7.17-2-gead89cb-dirty")),
     ("garbage\n", ("", "")),
 ])
 def test_read_mrtk_version(tmp_path, monkeypatch, out, expected):
