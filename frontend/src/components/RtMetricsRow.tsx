@@ -40,6 +40,14 @@ const NUM = {
 
 const DASH = '—';
 
+/** The fields shown here. A PositionUpdate fits; the Stream Monitor passes
+ *  `null` for what its stream format does not carry (shown as —). */
+export type MetricsPosition = Pick<PositionUpdate, 'timestamp' | 'lat' | 'lon' | 'quality'> & {
+  height: number | null;
+  ratio: number | null;
+  age: number | null;
+};
+
 function Cell({ caption, children, minWidth }: { caption: string; children: React.ReactNode; minWidth: number }) {
   return (
     <Box style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth }}>
@@ -52,9 +60,12 @@ function Cell({ caption, children, minWidth }: { caption: string; children: Reac
 export function RtMetricsRow({
   lastPosition,
   satellites,
+  timeSystem = 'GPST',
 }: {
-  lastPosition: PositionUpdate | null;
+  lastPosition: MetricsPosition | null;
   satellites: Satellite[];
+  /** Time system of `lastPosition.timestamp`. */
+  timeSystem?: string;
 }) {
   const q = lastPosition ? QUALITY[lastPosition.quality] : undefined;
 
@@ -82,7 +93,7 @@ export function RtMetricsRow({
       }}
     >
       {/* Time */}
-      <Cell caption="Current time · GPST" minWidth={140}>
+      <Cell caption={`Current time · ${timeSystem}`} minWidth={140}>
         <Text component="span" style={{ ...NUM, fontSize: '22px' }}>
           {lastPosition?.timestamp || DASH}
         </Text>
@@ -94,7 +105,7 @@ export function RtMetricsRow({
           {([
             ['Lat', lastPosition ? lastPosition.lat.toFixed(8) : DASH, ''],
             ['Lon', lastPosition ? lastPosition.lon.toFixed(8) : DASH, ''],
-            ['Height', lastPosition ? lastPosition.height.toFixed(3) : DASH, 'm'],
+            ['Height', lastPosition?.height != null ? lastPosition.height.toFixed(3) : DASH, 'm'],
           ] as const).map(([label, value, unit]) => (
             <Group key={label} justify="space-between" wrap="nowrap" gap="sm">
               <Text component="span" c="dimmed" style={{ fontSize: '10.5px' }}>{label}</Text>
@@ -125,15 +136,15 @@ export function RtMetricsRow({
       {/* Ratio */}
       <Cell caption="Ratio" minWidth={70}>
         <Text component="span" style={{ ...NUM, color: 'var(--mantine-color-blue-text)' }}>
-          {lastPosition ? lastPosition.ratio.toFixed(2) : DASH}
+          {lastPosition?.ratio != null ? lastPosition.ratio.toFixed(2) : DASH}
         </Text>
       </Cell>
 
       {/* Age */}
       <Cell caption="Age" minWidth={70}>
         <Text component="span" style={NUM}>
-          {lastPosition ? lastPosition.age.toFixed(1) : DASH}
-          {lastPosition && <Text component="span" c="dimmed" style={{ fontSize: '14px' }}>s</Text>}
+          {lastPosition?.age != null ? lastPosition.age.toFixed(1) : DASH}
+          {lastPosition?.age != null && <Text component="span" c="dimmed" style={{ fontSize: '14px' }}>s</Text>}
         </Text>
       </Cell>
 
