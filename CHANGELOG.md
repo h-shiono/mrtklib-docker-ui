@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.4-alpha] - 2026-11-07
+
+No action is needed to upgrade from 0.4.3-alpha.
+
 ### Added
 - Post Processing / Real-Time: correction source **SouthPAN PVS**
   (`southpan-pvs`, MRTKLIB v0.7.17) for PPP modes. **BeiDou PPP-B2b**
