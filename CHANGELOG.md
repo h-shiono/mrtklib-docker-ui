@@ -18,6 +18,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   and legacy `.conf` conversion carry them.
 - Output: **CLAS NMEA Src ID** (`clas_nmea_source_id`, PPP-RTK; on by
   default as in MRTKLIB).
+- Real-Time: bundled presets **BeiDou PPP-B2b**, **Galileo HAS** and
+  **SouthPAN PVS** (PPP-Kinematic, float PPP), from the MRTKLIB v0.7.17
+  `mrtk run` sample configurations. Each takes one SBF rover stream.
+- Tests: every bundled preset names itself on its first line and uses
+  only MRTKLIB schema keys.
 
 ### Changed
 - MRTKLIB pinned to v0.7.17. New TOML keys since v0.7.11: `bds2_sats`,
