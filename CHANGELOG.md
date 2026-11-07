@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed
+- The **Stream Server** header button is now **Stream Relay** (it runs
+  `mrtk relay`), and its first tab **Multi-Stream** (was Multi-Stream
+  Relay). Nothing else changes.
+
 ## [0.4.4-alpha] - 2026-11-07
 
 No action is needed to upgrade from 0.4.3-alpha.

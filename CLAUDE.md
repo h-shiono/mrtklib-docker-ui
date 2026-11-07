@@ -74,7 +74,7 @@ mrtklib-docker-ui/
 ### Navigation
 The header has a mode switch for the two primary modes,
 **Real-time | Post-processing**, and separate header buttons for
-**Stream Server** (Multi-Stream Relay, CLAS Pipeline) | **Stream Monitor** |
+**Stream Relay** (Multi-Stream, CLAS Pipeline) | **Stream Monitor** |
 **Conversion** | **Tools** (Time Converter, Data Downloader, AI Settings).
 
 Real-time and Post-processing use `ConsoleFrame`: a collapsible

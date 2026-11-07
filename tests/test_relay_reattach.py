@@ -1,4 +1,4 @@
-"""Stream Server relays survive a page reload / reconnect (#52)."""
+"""Relays from the Stream Relay view survive a page reload / reconnect (#52)."""
 
 import asyncio
 import importlib
@@ -114,7 +114,7 @@ def test_streams_endpoint_lists_ui_relays_with_log(pm):
         r = c.post("/api/mrtk-relay/start", json={"args": args, "name": "Base NTRIP"})
         assert r.status_code == 200
         pid = r.json()["id"]
-        # a relay the CLAS pipeline runs is not a Stream Server stream
+        # a relay the CLAS pipeline runs is not a Stream Relay stream
         c.portal.call(pm.start, "str2str", [], "clas-relay")
         c.portal.call(_wait_for_log, pm, pid, "stream: 0 B")
 

@@ -826,7 +826,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
   );
 }
 
-// --- Stream Server (Multi-stream) ---
+// --- Stream Relay: Multi-Stream ---
 
 const DEFAULT_SS_INPUT: InputStream = {
   id: 'input-1',
@@ -955,7 +955,7 @@ function hasMaskedPassword(stream: RelayStream): boolean {
   return [stream.input, ...stream.outputs].some((c) => /^[^:@/]*:\*\*\*@/.test(c.path));
 }
 
-function StreamServerPanel() {
+function MultiStreamPanel() {
   const [streams, setStreams] = useState<RelayStream[]>(() => [newRelayStream('Stream 1')]);
   const [selectedStreamId, setActiveStreamId] = useState<string>(streams[0].id);
   // Adopting relays may replace the selected stream; fall back to the first
@@ -1183,7 +1183,7 @@ function StreamServerPanel() {
         <Card withBorder p="xs" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           {/* Header */}
           <Group justify="space-between" mb="xs">
-            <Title order={5} size="sm">Stream Server</Title>
+            <Title order={5} size="sm">Streams</Title>
             <Group gap="xs">
               <Button
                 variant="light"
@@ -1439,18 +1439,18 @@ function StreamServerPanel() {
   );
 }
 
-function StreamServerWithCLAS() {
+function StreamRelayView() {
   const [mode, setMode] = useState<string | null>('multi-stream');
   return (
     <Stack gap="sm">
       <Tabs value={mode} onChange={setMode}>
         <Tabs.List>
-          <Tabs.Tab value="multi-stream">Multi-Stream Relay</Tabs.Tab>
+          <Tabs.Tab value="multi-stream">Multi-Stream</Tabs.Tab>
           <Tabs.Tab value="clas">CLAS Pipeline</Tabs.Tab>
         </Tabs.List>
       </Tabs>
       <div style={{ display: mode === 'multi-stream' ? undefined : 'none' }}>
-        <StreamServerPanel />
+        <MultiStreamPanel />
       </div>
       <div style={{ display: mode === 'clas' ? undefined : 'none' }}>
         <ClasPipelinePanel />
@@ -1473,7 +1473,7 @@ const PRIMARY_MODES = [
 ] as const;
 
 const SECONDARY_VIEWS = [
-  { value: 'stream-server', label: 'Stream Server' },
+  { value: 'stream-relay', label: 'Stream Relay' },
   { value: 'stream-monitor', label: 'Stream Monitor' },
   { value: 'conversion', label: 'Conversion' },
   { value: 'tools', label: 'Tools' },
@@ -1641,7 +1641,7 @@ function App() {
           <Tabs.List grow>
             <Tabs.Tab value="post-processing">Post</Tabs.Tab>
             <Tabs.Tab value="realtime">RT</Tabs.Tab>
-            <Tabs.Tab value="stream-server">Stream</Tabs.Tab>
+            <Tabs.Tab value="stream-relay">Relay</Tabs.Tab>
             <Tabs.Tab value="stream-monitor">Monitor</Tabs.Tab>
             <Tabs.Tab value="conversion">Convert</Tabs.Tab>
             <Tabs.Tab value="tools">Tools</Tabs.Tab>
@@ -1655,8 +1655,8 @@ function App() {
         <div style={{ display: activeTab === 'realtime' ? undefined : 'none' }}>
           <RealTimePanel aiConfigured={aiConfigured} onNavigateToAiSettings={() => { setActiveTab('tools'); setSelectedTool('ai-settings'); }} configOpen={configOpen} onToggleConfig={toggleConfig} onLiveStatus={handleRtStatus} />
         </div>
-        <div style={{ display: activeTab === 'stream-server' ? undefined : 'none' }}>
-          <StreamServerWithCLAS />
+        <div style={{ display: activeTab === 'stream-relay' ? undefined : 'none' }}>
+          <StreamRelayView />
         </div>
         <div style={{ display: activeTab === 'stream-monitor' ? undefined : 'none' }}>
           <StreamMonitorPanel />

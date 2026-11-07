@@ -38,7 +38,7 @@ https://github.com/h-shiono/MRTKLIB/issues
 - Docker version (if applicable): <!-- `docker --version` -->
 - Host OS: <!-- e.g. macOS 14.5 (arm64), Ubuntu 22.04, Windows 11 + WSL2 -->
 - Browser + version: <!-- e.g. Chrome 131, Safari 17.4, Firefox 128 -->
-- Affected tab(s): <!-- Post Processing / Real-Time / Stream Server / Conversion / Tools / Monitor -->
+- Affected tab(s): <!-- Post Processing / Real-Time / Stream Relay / Stream Monitor / Conversion / Tools -->
 
 ## Steps to reproduce
 
