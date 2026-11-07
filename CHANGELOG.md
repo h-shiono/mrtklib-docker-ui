@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.4-alpha] - 2026-11-07
+
+No action is needed to upgrade from 0.4.3-alpha.
+
+### Added
+- Post Processing / Real-Time: correction source **SouthPAN PVS**
+  (`southpan-pvs`, MRTKLIB v0.7.17) for PPP modes. **BeiDou PPP-B2b**
+  (`bds-b2b`) is no longer marked reserved (works since MRTKLIB v0.7.16).
+  The Correction help lists what each needs (satellite ephemeris,
+  frequencies, AR, signals, correction file).
+- BeiDou PRN reassignment options: **BDS-2 Sats** (`bds2_sats`) and
+  **BDS-3 GEO Sats** (`bds_geo_sats`, PPP-B2b) under Satellite Selection,
+  **BDS-3 IGSO Sats** (`bds3_igso_sats`) under AR. TOML import, export
+  and legacy `.conf` conversion carry them.
+- Output: **CLAS NMEA Src ID** (`clas_nmea_source_id`, PPP-RTK; on by
+  default as in MRTKLIB).
+- Real-Time: bundled presets **BeiDou PPP-B2b**, **Galileo HAS** and
+  **SouthPAN PVS** (PPP-Kinematic, float PPP), from the MRTKLIB v0.7.17
+  `mrtk run` sample configurations. Each takes one SBF rover stream.
+- Tests: every bundled preset names itself on its first line and uses
+  only MRTKLIB schema keys.
+
+### Changed
+- MRTKLIB pinned to v0.7.17. New TOML keys since v0.7.11: `bds2_sats`,
+  `bds_geo_sats`, `bds3_igso_sats`, `clas_nmea_source_id`; none removed.
+- `bds2_sats` is always written. Empty means no BDS-2 and is written as
+  `[]` (MRTKLIB's default), so `mrtk` no longer warns on every run with
+  BeiDou enabled. For data after 2026-04-21 set `C09 C10`; before
+  2026-04-10, `C01-C18`.
+
 ## [0.4.3-alpha] - 2026-10-19
 
 No action is needed to upgrade from 0.4.2-alpha.

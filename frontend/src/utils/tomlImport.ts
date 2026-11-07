@@ -31,6 +31,18 @@ function getFb<T>(primary: AnyDict | undefined, pk: string, legacy: AnyDict | un
   return fallback;
 }
 
+/**
+ * Read a satellite-list key (bds2_sats, bds_geo_sats, bds3_igso_sats) as the
+ * space-separated form the UI edits. TOML gives a string array; a plain string
+ * ("C09,C10", the legacy .conf form) is split on commas / whitespace.
+ */
+function satList(obj: AnyDict | undefined, key: string, fallback: string): string {
+  if (!obj || !(key in obj)) return fallback;
+  const v = obj[key];
+  const items = Array.isArray(v) ? v.map(String) : String(v).split(/[\s,]+/);
+  return items.map((s) => s.trim()).filter(Boolean).join(' ');
+}
+
 /** Normalize a TOML value that may be bool (v0.7.6) or number (legacy) to number. */
 function boolNum(v: unknown): number {
   if (typeof v === 'boolean') return v ? 1 : 0;
@@ -149,6 +161,8 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
       ) as MrtkPostConfig['positioning']['ephemerisOption'],
       constellations,
       excludedSatellites: Array.isArray(pos.excluded_sats) ? (pos.excluded_sats as string[]).join(' ') : get(pos, 'excluded_sats', d.positioning.excludedSatellites),
+      bds2Sats: satList(pos, 'bds2_sats', d.positioning.bds2Sats),
+      bdsGeoSats: satList(pos, 'bds_geo_sats', d.positioning.bdsGeoSats),
       robust: get(pos, 'robust', d.positioning.robust) as MrtkPostConfig['positioning']['robust'],
       robustK0: get(pos, 'robust_k0', d.positioning.robustK0),
       robustK1: get(pos, 'robust_k1', d.positioning.robustK1),
@@ -202,6 +216,7 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
       bdsAr: boolToOnOff(ar, 'bds_ar', d.ambiguityResolution.bdsAr) as typeof d.ambiguityResolution.bdsAr,
       qzsAr: boolToOnOff(ar, 'qzs_ar', d.ambiguityResolution.qzsAr) as typeof d.ambiguityResolution.qzsAr,
       systems: get(ar, 'systems', d.ambiguityResolution.systems),
+      bds3IgsoSats: satList(ar, 'bds3_igso_sats', d.ambiguityResolution.bds3IgsoSats),
       thresholds: {
         ...d.ambiguityResolution.thresholds,
         ratio: get(arTh, 'ratio', d.ambiguityResolution.thresholds.ratio),
@@ -375,6 +390,7 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
       outputSolutionStatus: get(out, 'solution_status', d.output.outputSolutionStatus),
       maxSolutionStd: get(out, 'max_solution_std', d.output.maxSolutionStd),
       debugTrace: get(out, 'debug_trace', d.output.debugTrace),
+      clasNmeaSourceId: get(out, 'clas_nmea_source_id', d.output.clasNmeaSourceId),
     },
     files: {
       ...d.files,

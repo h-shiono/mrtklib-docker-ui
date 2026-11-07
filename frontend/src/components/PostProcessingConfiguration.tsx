@@ -22,6 +22,7 @@ import {
 } from '@tabler/icons-react';
 import type { MrtkPostConfig } from '../types/mrtkPostConfig';
 import { DEFAULT_MRTK_POST_CONFIG } from '../types/mrtkPostConfig';
+import { deserializeWithDefaults } from '../utils/withDefaults';
 import { ProcessingConfigPanel, TomlDrawer } from './ProcessingConfigTabs';
 import { PresetPanel } from './PresetPanel';
 import { ConfigAssistantModal } from './ConfigAssistantModal';
@@ -81,6 +82,8 @@ export function PostProcessingConfiguration({
   const [config, setConfig] = useLocalStorage<MrtkPostConfig>({
     key: 'mrtklib-web-ui-mrtk-post-config-v20',
     defaultValue: DEFAULT_MRTK_POST_CONFIG,
+    // A config saved by an older UI lacks newer fields: fill them from the defaults.
+    deserialize: deserializeWithDefaults(DEFAULT_MRTK_POST_CONFIG),
   });
 
   // Sync config to parent whenever it changes, including initial localStorage load.

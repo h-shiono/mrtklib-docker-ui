@@ -329,7 +329,8 @@ const CORRECTION_OPTIONS: { value: CorrectionProvider; label: string }[] = [
   { value: 'igs-rts', label: 'IGS-RTS (RTCM-SSR)' },
   { value: 'qzs-madoca', label: 'MADOCA-PPP (QZSS L6E)' },
   { value: 'gal-has', label: 'Galileo HAS (E6B SSR)' },
-  { value: 'bds-b2b', label: 'BeiDou PPP-B2b (reserved)' },
+  { value: 'bds-b2b', label: 'BeiDou PPP-B2b (B2b-I)' },
+  { value: 'southpan-pvs', label: 'SouthPAN PVS (L5 MT32)' },
   { value: 'qzs-clas', label: 'CLAS (QZSS L6D)' },
 ];
 
@@ -739,7 +740,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               {/* Correction Files */}
               <div>
                 <Group gap="xs" mb={4} justify="space-between">
-                  <Text size="xs" style={{ fontSize: '10px' }}>Corrections (CLK, SP3, FCB, IONEX, L6, etc.)</Text>
+                  <Text size="xs" style={{ fontSize: '10px' }}>Corrections (CLK, SP3, FCB, IONEX, L6, HAS, B2b, SBS, etc.)</Text>
                   <ActionIcon variant="light" size="xs" onClick={() => execution.onCorrectionFilesChange([...execution.correctionFiles, ''])}>
                     <IconPlus size={12} />
                   </ActionIcon>
@@ -1372,6 +1373,45 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   }
                   styles={{ label: { fontSize: '10px' } }}
                 />
+
+                {/* BeiDou PRN reassignment (MRTKLIB v0.7.13 / v0.7.16): BDS-2 / GEO lists on one row */}
+                <Group wrap="nowrap" align="center" gap="xs">
+                  <ComboLabel label="BDS-2 / GEO Sats" style={OPT_LABEL_STYLE}
+                    fields={[
+                      { name: 'BDS-2', metaKey: 'positioning.bds2_sats' },
+                      { name: 'GEO', metaKey: 'positioning.bds_geo_sats' },
+                    ]} />
+                  <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
+                    <TextInput
+                      size="xs"
+                      title="BDS-2 satellites (bds2_sats)"
+                      aria-label="BDS-2 satellites"
+                      placeholder="none — e.g. C09 C10"
+                      value={config.positioning.bds2Sats}
+                      onChange={(e) => handleConfigChange({
+                        ...config,
+                        positioning: { ...config.positioning, bds2Sats: e.currentTarget.value },
+                      })}
+                      disabled={!config.positioning.constellations.beidou}
+                      styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                    <TextInput
+                      size="xs"
+                      title="BDS-3 GEO satellites, PPP-B2b (bds_geo_sats)"
+                      aria-label="BDS-3 GEO satellites"
+                      placeholder="default C01-C04"
+                      value={config.positioning.bdsGeoSats}
+                      onChange={(e) => handleConfigChange({
+                        ...config,
+                        positioning: { ...config.positioning, bdsGeoSats: e.currentTarget.value },
+                      })}
+                      disabled={modeDisabled('positioning.bds_geo_sats') || config.positioning.correction !== 'bds-b2b'}
+                      styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                  </Group>
+                </Group>
               </Stack>
 
             </Stack>
@@ -1577,6 +1617,21 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       />
                     ))}
                   </Group>
+                </Group>
+                <Group wrap="nowrap" align="center" gap="xs">
+                  <OptionLabel metaKey="ar.bds3_igso_sats" style={OPT_LABEL_STYLE} />
+                  <TextInput
+                    size="xs"
+                    placeholder="default C06-C08"
+                    value={config.ambiguityResolution.bds3IgsoSats}
+                    onChange={(e) => handleConfigChange({
+                      ...config,
+                      ambiguityResolution: { ...config.ambiguityResolution, bds3IgsoSats: e.currentTarget.value },
+                    })}
+                    disabled={modeDisabled('ar.bds3_igso_sats')}
+                    styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
                 </Group>
               </Stack>
 
@@ -2566,6 +2621,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       min={0} step={1} hideControls disabled={!isSolNMEA} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
+                <Group wrap="nowrap" align="center" gap="xs" style={{ minHeight: 30 }}>
+                  <OptionLabel metaKey="output.clas_nmea_source_id" style={OPT_LABEL_STYLE} />
+                  <Switch size="xs" checked={config.output.clasNmeaSourceId}
+                    aria-label="CLAS NMEA source id"
+                    onChange={(e) => handleConfigChange({ ...config, output: { ...config.output, clasNmeaSourceId: e.currentTarget.checked } })}
+                    disabled={modeDisabled('output.clas_nmea_source_id')} />
+                </Group>
 
                 {/* Sol Status + Debug Trace on one row */}
                 <Group wrap="nowrap" align="center" gap="xs">
@@ -3114,6 +3176,9 @@ export function TomlDrawer({ config, opened, onClose, streams }: { config: MrtkP
     if (p.constellations.beidou) systems.push('"BeiDou"');
     if (p.constellations.irnss) systems.push('"NavIC"');
     L.push(`systems             = [${systems.join(', ')}]`);
+    const satArr = (v: string | undefined) => `[${(v ?? '').split(/[,\s]+/).filter(Boolean).map(s => _s(s)).join(', ')}]`;
+    L.push(`bds2_sats           = ${satArr(p.bds2Sats)}`);
+    if (p.bdsGeoSats?.trim()) L.push(`bds_geo_sats        = ${satArr(p.bdsGeoSats)}`);
     if (p.robust !== 'off') L.push(`robust              = ${_s(p.robust)}`);
     if (p.tdcp !== 'off') L.push(`tdcp                = ${_s(p.tdcp)}`);
     L.push('');
@@ -3144,6 +3209,7 @@ export function TomlDrawer({ config, opened, onClose, streams }: { config: MrtkP
     L.push(`glonass_ar = ${_s(ar.glonassAr)}`);
     L.push(`bds_ar     = ${_s(ar.bdsAr)}`);
     L.push(`qzs_ar     = ${_s(ar.qzsAr)}`);
+    if (ar.bds3IgsoSats?.trim()) L.push(`bds3_igso_sats = ${satArr(ar.bds3IgsoSats)}`);
     L.push('');
     L.push('[ambiguity_resolution.thresholds]');
     L.push(`ratio          = ${ar.thresholds.ratio}`);
@@ -3209,6 +3275,7 @@ export function TomlDrawer({ config, opened, onClose, streams }: { config: MrtkP
     L.push(`format        = ${_s(out.solutionFormat)}`);
     L.push(`header        = ${_b(out.outputHeader)}`);
     L.push(`velocity      = ${_b(out.outputVelocity)}`);
+    if (isClasPreview) L.push(`clas_nmea_source_id = ${_b(out.clasNmeaSourceId)}`);
     L.push('');
     L.push('[files]');
     if (fl.satelliteAtx) L.push(`satellite_atx = ${_s(fl.satelliteAtx)}`);

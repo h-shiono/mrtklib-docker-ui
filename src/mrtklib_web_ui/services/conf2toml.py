@@ -1,7 +1,7 @@
 """conf2toml — Convert MRTKLIB legacy .conf files to v0.7.6 TOML format.
 
 Vendored from MRTKLIB `scripts/tools/conf2toml.py`
-(commit 2c83abb, 2026-07-12). Keep the MAPPING / ENUM_DEFS / conversion
+(commit 2c83abb, 2026-07-12; MAPPING synced to v0.7.17). Keep the MAPPING / ENUM_DEFS / conversion
 logic in sync with upstream — those tables are the source of truth for the
 v0.7.6 config schema. The only local changes are string-oriented helpers
 (`parse_conf_text`, `dumps`, `convert_text`) added for use from the web API,
@@ -45,6 +45,8 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos1-sateph", "positioning", "satellite_ephemeris", "enum"),
     ("pos1-navsys", "positioning", "systems", "navsys"),
     ("pos1-exclsats", "positioning", "excluded_sats", "strlist"),
+    ("pos2-bds2prn", "positioning", "bds2_sats", "siglist"),
+    ("pos2-bdsgeo", "positioning", "bds_geo_sats", "siglist"),
     ("pos1-signals", "positioning", "signals", "siglist"),
     ("pos1-robust", "positioning", "robust", "enum"),
     ("pos1-robustk0", "positioning", "robust_k0", "float"),
@@ -84,6 +86,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos2-gloarmode", "ambiguity_resolution", "glonass_ar", "enum"),
     ("pos2-bdsarmode", "ambiguity_resolution", "bds_ar", "bool"),
     ("pos2-qzsarmode", "ambiguity_resolution", "qzs_ar", "bool"),
+    ("pos2-bds3igso", "ambiguity_resolution", "bds3_igso_sats", "siglist"),
     ("pos2-arsys", "ambiguity_resolution", "systems", "int"),
     # ── ambiguity_resolution.thresholds ──────────────────────────────────────
     ("pos2-arthres", "ambiguity_resolution.thresholds", "ratio", "float"),
@@ -232,6 +235,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("out-solstatic", "output", "static_solution", "enum"),
     ("out-nmeaintv1", "output", "nmea_interval_1", "float"),
     ("out-nmeaintv2", "output", "nmea_interval_2", "float"),
+    ("out-clasrefid", "output", "clas_nmea_source_id", "bool"),
     ("out-outstat", "output", "solution_status", "enum"),
     # ── files ────────────────────────────────────────────────────────────────
     ("file-satantfile", "files", "satellite_atx", "str"),

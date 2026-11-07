@@ -22,6 +22,8 @@ export function configToBackend(config: MrtkPostConfig): Record<string, unknown>
       ephemeris_option: p.ephemerisOption,
       constellations: p.constellations,
       excluded_satellites: p.excludedSatellites,
+      bds2_sats: p.bds2Sats,
+      bds_geo_sats: p.bdsGeoSats,
       robust: p.robust,
       robust_k0: p.robustK0,
       robust_k1: p.robustK1,
@@ -67,6 +69,7 @@ export function configToBackend(config: MrtkPostConfig): Record<string, unknown>
       bds_ar: ar.bdsAr,
       qzs_ar: ar.qzsAr,
       systems: ar.systems,
+      bds3_igso_sats: ar.bds3IgsoSats,
       thresholds: {
         ratio: ar.thresholds.ratio,
         ratio1: ar.thresholds.ratio1,
@@ -184,6 +187,7 @@ export function configToBackend(config: MrtkPostConfig): Record<string, unknown>
       nmea_interval_gsa_gsv: config.output.nmeaIntervalGsaGsv,
       output_solution_status: config.output.outputSolutionStatus,
       debug_trace: config.output.debugTrace,
+      clas_nmea_source_id: config.output.clasNmeaSourceId,
     },
     files: {
       satellite_atx: config.files.satelliteAtx,

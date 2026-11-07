@@ -9,9 +9,9 @@ GNSS positioning capabilities. No compilation required — just
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![React](https://img.shields.io/badge/react-19-blue.svg)
-![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.11-green.svg)
+![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.17-green.svg)
 
-> **Status**: v0.4.3-alpha — core features are functional.
+> **Status**: v0.4.4-alpha — core features are functional.
 > Known limitations are listed in [Known Issues](#known-issues).
 
 ![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
@@ -28,6 +28,8 @@ GNSS positioning capabilities. No compilation required — just
 - Support for all positioning modes: Single, DGPS, Kinematic,
   Static, PPP-Kinematic, PPP-Static, PPP-AR, CLAS PPP-RTK,
   MADOCA PPP, VRS-RTK
+- PPP correction sources: IGS, IGS-RTS, MADOCA, Galileo HAS,
+  BeiDou PPP-B2b, SouthPAN PVS
 - Result visualization: 2D E/N scatter, interactive basemap (Leaflet),
   and position / quality charts — reads **LLH, XYZ-ECEF, and NMEA-0183**
   solution outputs (auto-detected)
@@ -127,10 +129,10 @@ Images are published for both `linux/amd64` and `linux/arm64`
 1. **Pull the image**
    ```bash
    # Docker Hub
-   docker pull hatognss/mrtklib-docker-ui:0.4.3-alpha
+   docker pull hatognss/mrtklib-docker-ui:0.4.4-alpha
 
    # or GitHub Container Registry
-   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.3-alpha
+   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.4-alpha
    ```
 
 2. **Prepare host directories**
@@ -146,7 +148,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
      -e PUID="$(id -u)" -e PGID="$(id -g)" \
-     hatognss/mrtklib-docker-ui:0.4.3-alpha
+     hatognss/mrtklib-docker-ui:0.4.4-alpha
    ```
 
 4. **Open the UI** at <http://localhost:8080>
@@ -363,7 +365,8 @@ surface orphan state in its UI.
 | **v0.4.0-alpha** | Audit follow-ups (#39, #40): PPP-AR systems / max sol std controls, broader log masking, bounded file previews, NMEA and time-system fixes in the Result Viewer, slimmer image (QC Preview paused), reproducible builds (`uv.lock`) |
 | **v0.4.1-alpha** | Bug fixes: Hatanaka (`crx2rnx`) inputs in the image, Real-Time log views hold while scrolled up, Post Processing Trace shows the file's end, Data Downloader (Earthdata login, non-blocking GSI, past default dates), Galileo HAS label, CLAS single-port docs |
 | **v0.4.2-alpha** | Small improvements: Trace search (Real-Time / Post Processing), Hatanaka compress / decompress in Conversion, readable ENU chart axes, sky plot hover details and larger markers, Real-Time satellite count matches the solution |
-| **v0.4.3-alpha** (current) | Config form fix: a cleared number field keeps its value instead of becoming 0, and re-clicking a dropdown option no longer clears it |
+| **v0.4.3-alpha** | Config form fix: a cleared number field keeps its value instead of becoming 0, and re-clicking a dropdown option no longer clears it |
+| **v0.4.4-alpha** (current) | MRTKLIB 0.7.17: SouthPAN PVS and BeiDou PPP-B2b correction sources, BeiDou PRN options (BDS-2 / GEO / IGSO), CLAS NMEA source id, Real-Time presets for PPP-B2b / Galileo HAS / SouthPAN PVS |
 
 ---
 
