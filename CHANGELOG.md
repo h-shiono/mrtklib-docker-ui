@@ -24,6 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   without satellites). They replace the Real-Time 2D scatter and time
   series there; Real-Time keeps them. Zoom and pan stay put while epochs
   arrive, and reset for a new session.
+- Stream Monitor input form: same compact size as the other screens;
+  the description moved behind a **?** next to the title.
 - Map (Result Viewer, Real-Time, Stream Monitor): after you drag or zoom
   it, the map stops re-fitting to new data; a **Fit** button fits it
   and follows again.
@@ -41,6 +43,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   has none).
 
 ### Fixed
+- Stream Monitor: a **File** input showed "no data" (#161). `mrtk relay`
+  read the whole file before the decoder connected, so the data was
+  lost. A file is now read directly, **All at once** or paced by its
+  epoch times (real time, 10×, 60×), and stays on screen at the end of
+  the file until Stop.
 - Real-Time metrics row and status bar: SINGLE showed in the same gray
   as DGPS; it is red again.
 - The quality legends of the position scatter and the Result Viewer
