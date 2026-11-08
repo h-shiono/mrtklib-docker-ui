@@ -33,6 +33,7 @@ import {
   type MonitorEpoch,
   type MonitorInputType,
   type MonitorMessage,
+  type MonitorSatellite,
   type MonitorSatellites,
   type MonitorState,
   type MonitorStatus,
@@ -44,7 +45,6 @@ import {
   toMetricsPosition,
   toPosEpoch,
   toPositionPoint,
-  toSatellite,
   toTimeSeriesPoint,
 } from '../utils/streamMonitor';
 import { maskLogLine } from '../utils/maskPath';
@@ -65,6 +65,7 @@ const MAX_EPOCHS = 3600;
 /** Time series (Recharts) slows down with many points; RT shows 600. */
 const MAX_SERIES = 600;
 const MAX_LOG_LINES = 500;
+const NO_SATELLITES: MonitorSatellite[] = [];
 /** Height of the chart / text area. The page has no tall sibling to stretch
  *  against, and the map needs a measured pixel height (lessons L02). */
 const CHART_HEIGHT = 460;
@@ -301,7 +302,7 @@ export function StreamMonitorPanel() {
   const points = useMemo(() => epochs.map(toPositionPoint), [epochs]);
   const series = useMemo(() => epochs.slice(-MAX_SERIES).map(toTimeSeriesPoint), [epochs]);
   const mapEpochs = useMemo(() => epochs.map(toPosEpoch), [epochs]);
-  const satellites = useMemo(() => (sats ? sats.satellites.map(toSatellite) : []), [sats]);
+  const satellites = sats?.satellites ?? NO_SATELLITES;
   const satTime = sats?.time ? `${rtTimestamp(sats.time)} ${sats.time_sys}` : undefined;
 
   const relayLog = useMemo(() => splitRelayLog(logLines), [logLines]);
