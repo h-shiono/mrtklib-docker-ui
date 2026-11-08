@@ -11,7 +11,7 @@ GNSS positioning capabilities. No compilation required — just
 ![React](https://img.shields.io/badge/react-19-blue.svg)
 ![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.17-green.svg)
 
-> **Status**: v0.4.5-alpha — core features are functional.
+> **Status**: v0.4.6-alpha — core features are functional.
 > Known limitations are listed in [Known Issues](#known-issues).
 
 ![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
@@ -148,10 +148,10 @@ Images are published for both `linux/amd64` and `linux/arm64`
 1. **Pull the image**
    ```bash
    # Docker Hub
-   docker pull hatognss/mrtklib-docker-ui:0.4.5-alpha
+   docker pull hatognss/mrtklib-docker-ui:0.4.6-alpha
 
    # or GitHub Container Registry
-   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.5-alpha
+   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.6-alpha
    ```
 
 2. **Prepare host directories**
@@ -167,7 +167,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
      -e PUID="$(id -u)" -e PGID="$(id -g)" \
-     hatognss/mrtklib-docker-ui:0.4.5-alpha
+     hatognss/mrtklib-docker-ui:0.4.6-alpha
    ```
 
 4. **Open the UI** at <http://localhost:8080>
@@ -386,7 +386,8 @@ surface orphan state in its UI.
 | **v0.4.2-alpha** | Small improvements: Trace search (Real-Time / Post Processing), Hatanaka compress / decompress in Conversion, readable ENU chart axes, sky plot hover details and larger markers, Real-Time satellite count matches the solution |
 | **v0.4.3-alpha** | Config form fix: a cleared number field keeps its value instead of becoming 0, and re-clicking a dropdown option no longer clears it |
 | **v0.4.4-alpha** | MRTKLIB 0.7.17: SouthPAN PVS and BeiDou PPP-B2b correction sources, BeiDou PRN options (BDS-2 / GEO / IGSO), CLAS NMEA source id, Real-Time presets for PPP-B2b / Galileo HAS / SouthPAN PVS |
-| **v0.4.5-alpha** (current) | Stream Monitor: live decode of a receiver or stream (NMEA, SBF, UBX, solution text) with the Real-Time views; Stream Server renamed Stream Relay |
+| **v0.4.5-alpha** | Stream Monitor: live decode of a receiver or stream (NMEA, SBF, UBX, solution text) with the Real-Time views; Stream Server renamed Stream Relay |
+| **v0.4.6-alpha** (current) | Stream Monitor: Result Viewer views (2D / ENU / Map) live, per-band SNR, constellation toggles, file playback; one quality colour table; CLAS L6 source (PRN / facility) marked in the Result Viewer and Stream Monitor |
 
 ---
 
@@ -403,8 +404,10 @@ Bug reports and feedback are very welcome — please
   edge cases (stream reconnection, dual-channel CLAS, long runs)
   not yet validated
 - **Stream Monitor**: checked with u-blox F9 (RXM-RAWX + SFRBX +
-  NMEA) and Septentrio mosaic-G5 (SBF) streams; UBX NAV-PVT / NAV-SAT
-  and other receivers are not yet tested with real data
+  NMEA) and Septentrio mosaic-G5 (SBF) streams and files; UBX NAV-PVT /
+  NAV-SAT and other receivers are not yet tested with real data
+- **CLAS L6 source**: checked with MRTKLIB's handover test output
+  (`mrtk post` NMEA); not yet with a live `mrtk run` NMEA stream
 - **Data Downloader**: QZSS L6D/L6E endpoints implemented;
   IGS products (NASA Earthdata) and GSI CORS (FTP) untested
 - **TOML import round-trip**: basic cases work; complex configs
