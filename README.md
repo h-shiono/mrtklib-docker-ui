@@ -96,8 +96,9 @@ GNSS positioning capabilities. No compilation required — just
 - Decodes NMEA (GGA, RMC, ZDA, GST, GSA, GSV), Septentrio SBF
   (PVTGeodetic, MeasEpoch, ChannelStatus, SatVisibility), u-blox UBX
   (NAV-PVT, NAV-SAT) and MRTKLIB solution text, mixed in one stream
-- Live views shared with Real-Time: position and quality, 2D scatter,
-  map, sky plot + SNR, time series, solution list, relay log
+- Live views: position and quality, the Post-processing viewer's 2D /
+  ENU / Map (zoom and pan are kept while epochs arrive), sky plot + SNR
+  with per-constellation toggles, solution list, relay log
 - Stream health: data rate, message counts, undecoded bytes / bad
   frames
 - Optional raw log of the received bytes under `/workspace`

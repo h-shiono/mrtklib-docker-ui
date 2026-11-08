@@ -7,6 +7,9 @@ import { qualityColor } from '../../utils/quality';
 interface Plot2DViewProps {
   data: ENUEpoch[];
   height: number;
+  /** Zoom / pan is reset when this changes (another source or reference);
+   *  without it, whenever `data` changes. Live epochs keep the same key. */
+  resetKey?: string;
 }
 
 interface Bounds {
@@ -18,7 +21,7 @@ interface Bounds {
 
 const PADDING = { top: 10, right: 10, bottom: 30, left: 50 };
 
-export function Plot2DView({ data, height }: Plot2DViewProps) {
+export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { ref: containerRef, width: containerWidth } = useElementSize();
   const { colorScheme } = useMantineColorScheme();
@@ -59,10 +62,11 @@ export function Plot2DView({ data, height }: Plot2DViewProps) {
     };
   }, [data]);
 
-  // Reset zoom when data changes
+  // Reset zoom for new data, or only for a new source when keyed
+  const resetDep = resetKey ?? data;
   useEffect(() => {
     viewRef.current = null;
-  }, [data]);
+  }, [resetDep]);
 
   // Core draw function — reads zoom state from viewRef
   const draw = useCallback(() => {
