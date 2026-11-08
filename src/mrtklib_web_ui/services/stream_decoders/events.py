@@ -62,6 +62,9 @@ class Epoch:
     sdu: float | None = None
     age: float | None = None
     ratio: float | None = None
+    # NMEA GGA differential reference station id (field 14). In MRTKLIB CLAS
+    # PPP-RTK output it names the L6 source (P1*100 + P2*10 + F, #144).
+    refid: int | None = None
 
     def to_json(self) -> dict:
         return {
@@ -77,6 +80,7 @@ class Epoch:
             "sdu": self.sdu,
             "age": self.age,
             "ratio": self.ratio,
+            "refid": self.refid,
         }
 
 

@@ -20,7 +20,7 @@ import {
   xyzToLlh,
 } from './enuUtils';
 import { MapView } from './MapView';
-import { ChartView, X_AXIS_LABELLED, X_AXIS_TICKS_ONLY } from './ChartView';
+import { ChartView, X_AXIS_LABELLED, X_AXIS_TICKS_ONLY, type ChartMarker } from './ChartView';
 import { Plot2DView } from './Plot2DView';
 import type {
   PosEpoch,
@@ -30,6 +30,7 @@ import type {
   ChartMetric,
 } from './types';
 import { qualityColor, qualityLabel } from '../../utils/quality';
+import { clasSourceChanges, formatClasSource, shortClasSource } from '../../utils/clasSource';
 
 /**
  * Position views (2D / ENU / Map) over a list of epochs, from any source:
@@ -149,6 +150,28 @@ export function PositionViewer({
     return convertToENU(epochs, referencePos);
   }, [epochs, referencePos]);
 
+  // CLAS L6 source changes (GGA station id in MRTKLIB NMEA output, #144):
+  // marked on the ENU charts and summed up next to the Q legend. Nothing
+  // shows when no epoch names a source.
+  const l6Changes = useMemo(() => clasSourceChanges(epochs), [epochs]);
+  const l6Markers = useMemo(
+    (): ChartMarker[] => l6Changes.map((c) => ({ t: c.timeUnix, label: shortClasSource(c.source) })),
+    [l6Changes],
+  );
+  const l6Summary = useMemo(() => {
+    if (l6Changes.length === 0) return null;
+    const hhmmss = (t: number) => new Date(t * 1000).toISOString().slice(11, 19);
+    const n = l6Changes.length - 1;
+    return {
+      text: n === 0
+        ? `L6 ${formatClasSource(l6Changes[0].source)}`
+        : `L6 ${shortClasSource(l6Changes[n].source)} · ${n} change${n > 1 ? 's' : ''}`,
+      title: l6Changes
+        .map((c) => `${hhmmss(c.timeUnix)} ${timeSystem}  ${String(c.id).padStart(4, '0')}  ${formatClasSource(c.source)}`)
+        .join('\n'),
+    };
+  }, [l6Changes, timeSystem]);
+
   // Q-flag statistics
   const qStats = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -212,6 +235,8 @@ export function PositionViewer({
                 onXRangeChange={handleXRangeChange}
                 cursorSyncKey="enu-sync"
                 showXLabels={last}
+                markers={l6Markers}
+                showMarkerLabels={i === 0}
               />
             </div>
           );
@@ -439,6 +464,14 @@ export function PositionViewer({
               {qualityLabel(Number(q))}: {(count / epochs.length * 100).toFixed(1)}% ({count})
             </Badge>
           ))}
+        {l6Summary && (
+          // Hover for every source and when it started
+          <Badge size="xs" variant="outline" color="gray" title={l6Summary.title}
+            style={{ marginLeft: 'auto', textTransform: 'none', fontFamily: "'IBM Plex Mono', monospace" }}
+          >
+            {l6Summary.text}
+          </Badge>
+        )}
       </Group>
     </Stack>
   );

@@ -31,6 +31,8 @@ export interface MonitorFile {
 /** One position solution (PosEpoch-shaped). `time` is ISO 8601 with a `Z`
  *  suffix, in the clock of `time_sys` (no leap seconds applied). */
 export interface MonitorEpoch {
+  /** NMEA GGA station id (CLAS L6 source in MRTKLIB output, #144). */
+  refid?: number | null;
   time: string;
   time_sys: string;
   lat: number;

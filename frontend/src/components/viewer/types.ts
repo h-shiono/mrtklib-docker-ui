@@ -26,6 +26,9 @@ export interface PosEpoch {
   age: number | null;
   /** AR ratio */
   ratio: number | null;
+  /** NMEA GGA station id (field 14); in MRTKLIB CLAS output the L6 source
+   *  (utils/clasSource.ts). Absent for .pos and other sources. */
+  refid?: number | null;
 }
 
 /** Parsed .pos file data including header info */

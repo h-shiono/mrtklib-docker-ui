@@ -47,6 +47,7 @@ export function toPosEpoch(e: MonitorEpoch): PosEpoch {
     sdu: e.sdu,
     age: e.age,
     ratio: e.ratio,
+    refid: e.refid ?? null,
   };
 }
 

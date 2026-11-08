@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ## [Unreleased]
 
 ### Added
+- CLAS PPP-RTK L6 source (#144): the Result Viewer reads the NMEA GGA
+  station id that MRTKLIB writes in CLAS output (L6 PRN of each channel
+  and the facility) and marks where it changes on the ENU charts, so a
+  QZSS handover or facility switch lines up with fix drops. A badge next
+  to the Q legend sums it up (hover for every source and when it
+  started), and the map tooltip shows it per epoch. The Stream Monitor
+  shows it live (an "L6 source" row) when it reads the NMEA output of a
+  CLAS `mrtk run`. NMEA output only; `.pos` files do not carry it.
 - Sky / SNR panel (Real-Time and Stream Monitor): toggle each
   constellation on and off. The toggles show the system colours and
   satellite counts, and the choice is kept in the browser.

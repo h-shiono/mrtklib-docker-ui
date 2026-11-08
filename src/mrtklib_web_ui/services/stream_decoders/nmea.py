@@ -115,6 +115,15 @@ def _tod(value: str) -> float | None:
     return h * 3600 + m * 60 + s
 
 
+def _station_id(value: str) -> int | None:
+    """GGA field 14 (differential reference station id, 0000-1023)."""
+    v = value.strip()
+    if not v.isdigit() or len(v) > 4:
+        return None
+    n = int(v)
+    return n if n <= 1023 else None
+
+
 def _float(value: str) -> float | None:
     """Field → float; None when empty, malformed or not finite ('nan', 'inf')."""
     try:
@@ -128,7 +137,8 @@ def _float(value: str) -> float | None:
 class _Pending:
     tod: float
     date: date | None = None
-    position: tuple[float, float, float | None, int, int | None, float | None] | None = None
+    # lat, lon, height, Q, ns, age, station id
+    position: tuple[float, float, float | None, int, int | None, float | None, int | None] | None = None
     sd: tuple[float | None, float | None, float | None] | None = None
     sats: dict[str, SatState] = field(default_factory=dict)
     used: set[str] = field(default_factory=set)
@@ -193,10 +203,10 @@ class NmeaDecoder:
         t = datetime(day.year, day.month, day.day, tzinfo=timezone.utc) + timedelta(seconds=cur.tod)
         events: list[Event] = []
         if cur.position is not None:
-            lat, lon, height, q, ns, age = cur.position
+            lat, lon, height, q, ns, age, refid = cur.position
             sdn, sde, sdu = cur.sd or (None, None, None)
             events.append(Epoch(t, "UTC", lat, lon, height, q, ns, "nmea:gga",
-                                sdn=sdn, sde=sde, sdu=sdu, age=age))
+                                sdn=sdn, sde=sde, sdu=sdu, age=age, refid=refid))
         if cur.sats:
             for prn, s in cur.sats.items():
                 if prn[:1] in cur.used_systems:
@@ -226,7 +236,8 @@ class NmeaDecoder:
         except ValueError:
             ns = None
         age = _float(f[13]) if len(f) > 13 else None
-        cur.position = (lat, lon, height, q, ns, age)
+        refid = _station_id(f[14]) if len(f) > 14 else None
+        cur.position = (lat, lon, height, q, ns, age, refid)
 
     @staticmethod
     def _gsa(cur: _Pending, talker: str, f: list[str]) -> None:

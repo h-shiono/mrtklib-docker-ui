@@ -40,6 +40,7 @@ def test_ublox_epoch_gives_one_epoch_and_one_snapshot():
     assert e["height"] == pytest.approx(20.9 + 39.4)  # MSL + geoid separation
     assert e["Q"] == 4 and e["ns"] == 12 and e["age"] == 1.0  # GGA 2 = DGPS
     assert e["sdn"] is None and e["ratio"] is None
+    assert e["refid"] == 137  # GGA station id, as sent
 
 
 def test_gsv_signals_accumulate_per_band_and_gsa_sets_used():
@@ -166,3 +167,19 @@ def test_malformed_numbers_do_not_stop_the_stream(bad):
     assert epochs[-1].to_json()["time"].endswith("00:00:02.000Z")
     for e in epochs:  # no NaN / inf reaches the JSON
         assert all(v is None or abs(v) < 1e9 for v in (e.lat, e.lon, e.height, e.sdn, e.sde))
+
+
+@pytest.mark.parametrize(
+    "field, refid",
+    [("0243", 243), ("0101", 101), ("0000", 0), ("0137", 137), ("", None), ("12a", None), ("2000", None)],
+)
+def test_gga_station_id_is_kept(field, refid):
+    """GGA field 14; MRTKLIB CLAS output names the L6 source there (#144)."""
+    gga = f"GNGGA,121911.00,3530.0,N,13915.0,E,4,12,0.5,20.0,M,40.0,M,4.0,{field}"
+    (e,), _ = _run(gga)
+    assert e.to_json()["refid"] == refid
+
+
+def test_gga_without_station_id_field():
+    (e,), _ = _run("GNGGA,121911.00,3530.0,N,13915.0,E,1,08,0.9,20.0,M,40.0,M")
+    assert e.refid is None

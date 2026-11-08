@@ -5,6 +5,13 @@ import type { LatLngBoundsExpression } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { PosEpoch } from './types';
 import { qualityColor, qualityLabel } from '../../utils/quality';
+import { decodeClasSource, formatClasSource } from '../../utils/clasSource';
+
+/** Tooltip line for the CLAS L6 source (#144); nothing without one. */
+function clasSourceLine(refid: number | null | undefined) {
+  const s = decodeClasSource(refid);
+  return s ? <div>L6: {formatClasSource(s)}</div> : null;
+}
 
 interface MapViewProps {
   data: PosEpoch[];
@@ -141,6 +148,7 @@ export function MapView({ data, height, timeSystem = 'GPST', fitKey = '' }: MapV
                 <div>Lon: {epoch.lon.toFixed(8)}°</div>
                 <div>Height: {epoch.height != null ? `${epoch.height.toFixed(4)} m` : '—'}</div>
                 <div>ns={epoch.ns ?? '—'} ratio={epoch.ratio != null ? epoch.ratio.toFixed(1) : '—'}</div>
+                {clasSourceLine(epoch.refid)}
               </div>
             </Tooltip>
           </CircleMarker>
