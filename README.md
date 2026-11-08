@@ -98,7 +98,8 @@ GNSS positioning capabilities. No compilation required — just
   (NAV-PVT, NAV-SAT) and MRTKLIB solution text, mixed in one stream
 - Live views: position and quality, the Post-processing viewer's 2D /
   ENU / Map (zoom and pan are kept while epochs arrive), sky plot + SNR
-  with per-constellation toggles, solution list, relay log
+  per band (L1 / L2 / L5 / L6) with per-constellation toggles, solution
+  list, relay log
 - Stream health: data rate, message counts, undecoded bytes / bad
   frames
 - Optional raw log of the received bytes under `/workspace`

@@ -7,7 +7,7 @@ import {
   Text,
 } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
-import { hasSkyPosition, isUsed } from '../utils/satellites';
+import { bandGroupsIn, bandSnr, hasBandSnr, hasSkyPosition, isUsed } from '../utils/satellites';
 import type { Satellite } from '../types/satellite';
 import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 
@@ -37,11 +37,17 @@ function sysRank(sys: string): number {
   return i < 0 ? SYS_ORDER.length : i;
 }
 
+/** Without per-band C/N0 (Real-Time), a band keeps the systems that
+ *  broadcast it; the SNR shown stays the satellite's one value. */
 const FREQ_SYSTEMS: Record<string, string[]> = {
   L1:  ['GPS', 'QZSS', 'Galileo', 'GLONASS', 'BeiDou', 'SBAS'],
   L2:  ['GPS', 'GLONASS', 'BeiDou'],
   L5:  ['GPS', 'QZSS', 'Galileo', 'BeiDou'],
 };
+
+/** A satellite as shown: with a band selected, `snr` is that band's and
+ *  `band` names the signal. */
+type ShownSatellite = Satellite & { band?: string };
 
 
 function prnNumber(prn: string): string {
@@ -49,7 +55,7 @@ function prnNumber(prn: string): string {
 }
 
 /** Native SVG tooltip text for a sky plot marker. */
-function satTooltip(sat: Satellite): string {
+function satTooltip(sat: ShownSatellite): string {
   let state: string;
   if (sat.used == null && sat.valid === undefined) state = 'Tracked (usage not reported)';
   else if (isUsed(sat)) state = sat.fix && sat.fix !== 'NONE' ? `Used (${sat.fix})` : 'Used';
@@ -62,7 +68,7 @@ function satTooltip(sat: Satellite): string {
   return [
     `${sat.prn} · ${sat.system}`,
     pos,
-    `SNR ${snr}`,
+    `SNR${sat.band ? ` ${sat.band}` : ''} ${snr}`,
     state,
   ].join('\n');
 }
@@ -82,7 +88,7 @@ const SAT_R = 11;
 const SAT_FONT = 10;
 const SKY_MAX_PX = 440;
 
-function SkyPlot({ satellites }: { satellites: Satellite[] }) {
+function SkyPlot({ satellites }: { satellites: ShownSatellite[] }) {
   const size = 320;
   const cx = size / 2;
   const cy = size / 2;
@@ -160,7 +166,7 @@ function SkyPlot({ satellites }: { satellites: Satellite[] }) {
 
 // ── SNR Bar Chart (Chart.js) ───────────────────────────────────────────────
 
-function SnrBarChart({ satellites }: { satellites: Satellite[] }) {
+function SnrBarChart({ satellites }: { satellites: ShownSatellite[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart | null>(null);
 
@@ -168,6 +174,11 @@ function SnrBarChart({ satellites }: { satellites: Satellite[] }) {
     () => [...satellites].sort((a, b) => (b.snr ?? 0) - (a.snr ?? 0)),
     [satellites],
   );
+  // For the tooltip, which the chart keeps from its creation.
+  const sortedRef = useRef(sorted);
+  useEffect(() => {
+    sortedRef.current = sorted;
+  }, [sorted]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -185,7 +196,10 @@ function SnrBarChart({ satellites }: { satellites: Satellite[] }) {
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: (ctx) => `${ctx.label}: ${(ctx.parsed.y ?? 0).toFixed(1)} dBHz`,
+                label: (ctx) => {
+                  const band = sortedRef.current[ctx.dataIndex]?.band;
+                  return `${ctx.label}${band ? ` ${band}` : ''}: ${(ctx.parsed.y ?? 0).toFixed(1)} dBHz`;
+                },
               },
             },
           },
@@ -256,11 +270,28 @@ export function SkySnrPanel({ satellites, updateTime }: SkySnrPanelProps) {
     defaultValue: [],
   });
 
-  const bandFiltered = useMemo(() => {
-    if (freqFilter === 'All') return satellites;
-    const systems = FREQ_SYSTEMS[freqFilter] || [];
+  // Per-band C/N0 (Stream Monitor): the bands in the data, and each
+  // satellite's SNR in the selected band. Otherwise (Real-Time): L1 / L2 / L5
+  // by the systems that broadcast them.
+  const perBand = useMemo(() => hasBandSnr(satellites), [satellites]);
+  const bandOptions = useMemo(
+    () => ['All', ...(perBand ? bandGroupsIn(satellites) : Object.keys(FREQ_SYSTEMS))],
+    [perBand, satellites],
+  );
+  // A band no longer in the data shows All (the choice comes back with it).
+  const band = bandOptions.includes(freqFilter) ? freqFilter : 'All';
+
+  const bandFiltered = useMemo((): ShownSatellite[] => {
+    if (band === 'All') return satellites;
+    if (perBand) {
+      return satellites.flatMap((s) => {
+        const b = bandSnr(s, band);
+        return b ? [{ ...s, snr: b.snr, band: b.band }] : [];
+      });
+    }
+    const systems = FREQ_SYSTEMS[band] || [];
     return satellites.filter((s) => systems.includes(s.system));
-  }, [satellites, freqFilter]);
+  }, [satellites, band, perBand]);
 
   // Systems in view (after the band filter), with their satellite counts.
   const systems = useMemo(() => {
@@ -295,9 +326,9 @@ export function SkySnrPanel({ satellites, updateTime }: SkySnrPanelProps) {
       <div style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
         <SegmentedControl
           size="xs"
-          value={freqFilter}
+          value={band}
           onChange={setFreqFilter}
-          data={['All', 'L1', 'L2', 'L5']}
+          data={bandOptions}
         />
         <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", color: 'var(--mantine-color-dimmed)' }}>
           {usedCount}/{filtered.length} sats used{updateTime ? ` \u00b7 ${updateTime}` : ''}

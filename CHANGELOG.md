@@ -10,6 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Sky / SNR panel (Real-Time and Stream Monitor): toggle each
   constellation on and off. The toggles show the system colours and
   satellite counts, and the choice is kept in the browser.
+- Stream Monitor Sky / SNR: the band buttons show each satellite's SNR in
+  that band (from the receiver's per-signal C/N0) and list only the bands
+  in the stream: L1, L2 (incl. Galileo E5b and BeiDou B2I / B2b, the
+  second band of L1 / L2 receivers), L5 and L6 (E6, B3). Real-Time keeps
+  L1 / L2 / L5 as a filter by constellation.
 
 ### Changed
 - Stream Monitor (#96): the Chart tab shows the Post-processing Result
