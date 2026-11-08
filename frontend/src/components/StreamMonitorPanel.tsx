@@ -10,13 +10,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActionIcon,
   Badge,
   Box,
   Button,
   Card,
   Chip,
+  Code,
   Grid,
   Group,
+  Popover,
   ScrollArea,
   Select,
   Stack,
@@ -26,8 +29,8 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { useLocalStorage } from '@mantine/hooks';
-import { IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
+import { useDisclosure, useLocalStorage } from '@mantine/hooks';
+import { IconPlayerPlay, IconPlayerStop, IconQuestionMark } from '@tabler/icons-react';
 import {
   streamMonitorApi,
   type MonitorEpoch,
@@ -74,6 +77,39 @@ const INPUT_TYPES: { value: MonitorInputType; label: string; placeholder: string
 
 const DEFAULT_RAW_LOG = '/workspace/rtlog/monitor_%Y%m%d%h%M.raw';
 
+/** File input playback (#161): '0' = the whole file at once, else × real
+ *  time paced by the epoch times in the file. */
+const FILE_SPEEDS = [
+  { value: '0', label: 'All at once' },
+  { value: '1', label: 'Real time' },
+  { value: '10', label: '10× real time' },
+  { value: '60', label: '60× real time' },
+];
+
+/** What the Stream Monitor does, behind the ? next to its title. */
+function MonitorHelp() {
+  const [opened, { toggle, close }] = useDisclosure(false);
+  return (
+    <Popover opened={opened} onClose={close} position="bottom-start" width={380} shadow="md" withArrow>
+      <Popover.Target>
+        <ActionIcon size={14} variant="subtle" radius="xl" onClick={toggle} style={{ opacity: 0.5 }}
+          aria-label="About the Stream Monitor"
+        >
+          <IconQuestionMark size={10} />
+        </ActionIcon>
+      </Popover.Target>
+      <Popover.Dropdown p="xs">
+        <Text size="xs">
+          Decodes NMEA, Septentrio SBF, u-blox UBX and MRTKLIB solution text from a
+          receiver or another stream (e.g. <Code style={{ fontSize: 10 }}>mrtk run</Code> output)
+          through <Code style={{ fontSize: 10 }}>mrtk relay</Code>. A file is read directly, all
+          at once or paced by its epoch times.
+        </Text>
+      </Popover.Dropdown>
+    </Popover>
+  );
+}
+
 const STATE_COLOR: Record<MonitorState, string> = {
   idle: 'gray',
   starting: 'yellow',
@@ -83,10 +119,16 @@ const STATE_COLOR: Record<MonitorState, string> = {
 };
 
 /** Label-left / input-right row (project form convention). */
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, children, minHeight }: {
+  label: string;
+  children: React.ReactNode;
+  /** Form rows whose control is shorter than an input (a switch) take the
+   *  input height, so every form row has the same pitch. */
+  minHeight?: number;
+}) {
   return (
-    <Group justify="space-between" align="center" mb={6} wrap="nowrap">
-      <Text size="sm" c="dimmed" style={{ width: 130, flexShrink: 0 }}>
+    <Group justify="space-between" align="center" mb={6} wrap="nowrap" style={{ minHeight }}>
+      <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: 11 }}>
         {label}
       </Text>
       <Box style={{ flex: 1, minWidth: 0 }}>{children}</Box>
@@ -133,7 +175,12 @@ export function StreamMonitorPanel() {
     key: 'mrtk-stream-monitor-raw-log',
     defaultValue: DEFAULT_RAW_LOG,
   });
+  const [fileSpeed, setFileSpeed] = useLocalStorage<string>({
+    key: 'mrtk-stream-monitor-file-speed',
+    defaultValue: '0',
+  });
   const typeMeta = INPUT_TYPES.find((t) => t.value === inputType) ?? INPUT_TYPES[1];
+  const isFile = typeMeta.value === 'file';
 
   // ── session data
   const [status, setStatus] = useState<MonitorStatus | null>(null);
@@ -263,7 +310,8 @@ export function StreamMonitorPanel() {
     try {
       const st = await streamMonitorApi.start({
         input: { type: typeMeta.value, path: inputPath.trim() },
-        raw_log: saveRaw && rawLog.trim() ? rawLog.trim() : null,
+        raw_log: !isFile && saveRaw && rawLog.trim() ? rawLog.trim() : null,
+        file_speed: isFile && Number(fileSpeed) > 0 ? Number(fileSpeed) : null,
       });
       // A session that ended meanwhile keeps its exit status. If the exit
       // was another session's, the next status tick (1 s) shows this one.
@@ -315,7 +363,10 @@ export function StreamMonitorPanel() {
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Card withBorder p="md" h="100%">
             <Group justify="space-between" mb="xs">
-              <Title order={5}>Stream Monitor</Title>
+              <Group gap={6} wrap="nowrap">
+                <Title order={5}>Stream Monitor</Title>
+                <MonitorHelp />
+              </Group>
               {!running ? (
                 <Button
                   size="xs"
@@ -339,14 +390,9 @@ export function StreamMonitorPanel() {
                 </Button>
               )}
             </Group>
-            <Text size="xs" c="dimmed" mb="sm">
-              Decodes NMEA, Septentrio SBF, u-blox UBX and MRTKLIB solution text
-              from a receiver or another stream (e.g. <code>mrtk run</code> output) through{' '}
-              <code>mrtk relay</code>.
-            </Text>
             <Row label="Input type">
               <Select
-                size="sm"
+                size="xs"
                 value={typeMeta.value}
                 onChange={(v) => v && setInputType(v)}
                 data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
@@ -358,7 +404,7 @@ export function StreamMonitorPanel() {
               <Group gap={6} wrap="nowrap">
                 <Box style={{ flex: 1, minWidth: 0 }}>
                   <MaskedPathInput
-                    size="sm"
+                    size="xs"
                     value={inputPath}
                     onChange={setInputPath}
                     placeholder={typeMeta.placeholder}
@@ -369,18 +415,32 @@ export function StreamMonitorPanel() {
                 <StreamPathHelp />
               </Group>
             </Row>
-            <Row label="Save raw stream">
-              <Switch
-                size="sm"
-                checked={saveRaw}
-                onChange={(e) => setSaveRaw(e.currentTarget.checked)}
-                disabled={busy}
-              />
-            </Row>
-            {saveRaw && (
+            {isFile && (
+              <Row label="Playback">
+                <Select
+                  size="xs"
+                  value={fileSpeed}
+                  onChange={(v) => v && setFileSpeed(v)}
+                  data={FILE_SPEEDS}
+                  allowDeselect={false}
+                  disabled={busy}
+                />
+              </Row>
+            )}
+            {!isFile && (
+              <Row label="Save raw stream" minHeight={30}>
+                <Switch
+                  size="xs"
+                  checked={saveRaw}
+                  onChange={(e) => setSaveRaw(e.currentTarget.checked)}
+                  disabled={busy}
+                />
+              </Row>
+            )}
+            {!isFile && saveRaw && (
               <Row label="Raw log file">
                 <TextInput
-                  size="sm"
+                  size="xs"
                   value={rawLog}
                   onChange={(e) => setRawLog(e.currentTarget.value)}
                   placeholder={DEFAULT_RAW_LOG}
@@ -410,11 +470,17 @@ export function StreamMonitorPanel() {
                   <Text size="xs" c="orange">connection to the server lost · reconnecting</Text>
                 ) : (
                   live && status && (
-                    // `connected` is the backend's link to the relay, not the
-                    // relay's input: judge the input by the bytes arriving.
-                    <Text size="xs" c={status.bytes_per_sec > 0 ? 'green' : 'orange'}>
-                      {status.bytes_per_sec > 0 ? 'receiving' : status.connected ? 'no data' : 'starting relay'}
-                    </Text>
+                    status.file ? (
+                      <Text size="xs" c={status.file.eof ? 'dimmed' : 'green'}>
+                        {status.file.eof ? 'end of file' : 'reading'}
+                      </Text>
+                    ) : (
+                      // `connected` is the backend's link to the relay, not the
+                      // relay's input: judge the input by the bytes arriving.
+                      <Text size="xs" c={status.bytes_per_sec > 0 ? 'green' : 'orange'}>
+                        {status.bytes_per_sec > 0 ? 'receiving' : status.connected ? 'no data' : 'starting relay'}
+                      </Text>
+                    )
                   )
                 )}
               </Group>
@@ -432,13 +498,23 @@ export function StreamMonitorPanel() {
                 <Mono>{status.raw_log}</Mono>
               </Row>
             )}
-            <Row label="Data rate">
-              <Mono>
-                {status && live
-                  ? `${formatBytes(status.bytes_per_sec)}/s · ${formatBytes(status.bytes_total)} total`
-                  : '—'}
-              </Mono>
-            </Row>
+            {status?.file ? (
+              <Row label="Read">
+                <Mono>
+                  {`${formatBytes(status.file.read)} of ${formatBytes(status.file.size)}`
+                    + ` (${status.file.size > 0 ? Math.floor((status.file.read / status.file.size) * 100) : 100}%)`
+                    + ` · ${status.file.speed ? `${status.file.speed}× real time` : 'all at once'}`}
+                </Mono>
+              </Row>
+            ) : (
+              <Row label="Data rate">
+                <Mono>
+                  {status && live
+                    ? `${formatBytes(status.bytes_per_sec)}/s · ${formatBytes(status.bytes_total)} total`
+                    : '—'}
+                </Mono>
+              </Row>
+            )}
             <Row label="Position from">
               <Mono>{status?.epoch_source ?? '—'}</Mono>
             </Row>

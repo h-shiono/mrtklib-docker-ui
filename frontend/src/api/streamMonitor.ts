@@ -16,6 +16,16 @@ export type MonitorInputType = 'serial' | 'tcpcli' | 'tcpsvr' | 'ntripcli' | 'fi
 export interface MonitorStartRequest {
   input: { type: MonitorInputType; path: string };
   raw_log: string | null;
+  /** File input: × real time, paced by the epoch times; null = all at once. */
+  file_speed?: number | null;
+}
+
+/** A file input's progress (#161); the session stays open at the end. */
+export interface MonitorFile {
+  size: number;
+  read: number;
+  eof: boolean;
+  speed: number | null;
 }
 
 /** One position solution (PosEpoch-shaped). `time` is ISO 8601 with a `Z`
@@ -62,6 +72,8 @@ export interface MonitorStatus {
   raw_log: string | null;
   connected: boolean;
   bytes_per_sec: number;
+  /** File input only. */
+  file: MonitorFile | null;
   epoch_source: string | null;
   satellite_source: string | null;
   sources: string[];
