@@ -1,6 +1,18 @@
 import type { PosEpoch, PosFileData, ReferencePosition } from './types';
 import { xyzToLlh } from './enuUtils';
 
+/** A column's number, or null when the column is absent, empty or not a number. */
+function numOrNull(field: string | undefined): number | null {
+  if (field === undefined || field.trim() === '') return null;
+  const v = parseFloat(field);
+  return Number.isFinite(v) ? v : null;
+}
+
+function intOrNull(field: string | undefined): number | null {
+  const v = numOrNull(field);
+  return v == null ? null : Math.trunc(v);
+}
+
 /**
  * Parse the "% ref pos" line from a .pos file header.
  * Example: "% ref pos   : 35.326680366  139.466069646    46.4279"
@@ -132,12 +144,12 @@ function parseColumns(lines: string[], fmt: PosFormat): PosEpoch[] {
       lon,
       height,
       Q: parseInt(parts[qi], 10) || 0,
-      ns: parseInt(parts[qi + 1], 10) || 0,
-      sdn: isLlh && parts.length > qi + 2 ? parseFloat(parts[qi + 2]) || 0 : 0,
-      sde: isLlh && parts.length > qi + 3 ? parseFloat(parts[qi + 3]) || 0 : 0,
-      sdu: isLlh && parts.length > qi + 4 ? parseFloat(parts[qi + 4]) || 0 : 0,
-      age: parts.length > qi + 8 ? parseFloat(parts[qi + 8]) || 0 : 0,
-      ratio: parts.length > qi + 9 ? parseFloat(parts[qi + 9]) || 0 : 0,
+      ns: intOrNull(parts[qi + 1]),
+      sdn: isLlh ? numOrNull(parts[qi + 2]) : null,
+      sde: isLlh ? numOrNull(parts[qi + 3]) : null,
+      sdu: isLlh ? numOrNull(parts[qi + 4]) : null,
+      age: numOrNull(parts[qi + 8]),
+      ratio: numOrNull(parts[qi + 9]),
     });
   }
   return epochs;
@@ -296,10 +308,12 @@ function parseNmea(lines: string[], fileName?: string): { epochs: PosEpoch[]; no
     if (isNaN(time.getTime())) continue;
 
     const solq = parseInt(f[6], 10);
-    // Ellipsoidal height = orthometric altitude (f[9]) + geoid separation (f[11]).
-    const alt = parseFloat(f[9]);
-    const geoid = parseFloat(f[11]);
-    const height = (isNaN(alt) ? 0 : alt) + (isNaN(geoid) ? 0 : geoid);
+    // Ellipsoidal height = orthometric altitude (f[9]) + geoid separation
+    // (f[11]). Either one missing leaves the height unknown rather than off
+    // by the geoid (tens of m), as the Stream Monitor's NMEA decoder does.
+    const alt = numOrNull(f[9]);
+    const geoid = numOrNull(f[11]);
+    const height = alt != null && geoid != null ? alt + geoid : null;
 
     epochs.push({
       time,
@@ -308,12 +322,15 @@ function parseNmea(lines: string[], fileName?: string): { epochs: PosEpoch[]; no
       lon,
       height,
       Q: NMEA_GGA_TO_Q[solq] ?? 0,
-      ns: parseInt(f[7], 10) || 0,
-      sdn: 0,
-      sde: 0,
-      sdu: 0,
-      age: parseFloat(f[13]) || 0,
-      ratio: 0,
+      ns: intOrNull(f[7]),
+      // GGA has no sigmas (GST does; not read here) and no AR ratio.
+      sdn: null,
+      sde: null,
+      sdu: null,
+      age: numOrNull(f[13]),
+      // Station id; MRTKLIB CLAS output names the L6 source here (#144).
+      refid: intOrNull(f[14]),
+      ratio: null,
     });
   }
   return { epochs, notice };

@@ -33,3 +33,6 @@ tmp/
 
 # Local-only test data (see tests/localdata_manifest.toml)
 tests/localdata/
+
+# Local vendor reference manuals (receiver docs): never commit third-party PDFs
+refs/

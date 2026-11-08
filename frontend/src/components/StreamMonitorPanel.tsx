@@ -10,13 +10,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActionIcon,
   Badge,
   Box,
   Button,
   Card,
   Chip,
+  Code,
   Grid,
   Group,
+  Popover,
   ScrollArea,
   Select,
   Stack,
@@ -26,13 +29,14 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { useElementSize, useLocalStorage } from '@mantine/hooks';
-import { IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
+import { useDisclosure, useLocalStorage } from '@mantine/hooks';
+import { IconPlayerPlay, IconPlayerStop, IconQuestionMark } from '@tabler/icons-react';
 import {
   streamMonitorApi,
   type MonitorEpoch,
   type MonitorInputType,
   type MonitorMessage,
+  type MonitorSatellite,
   type MonitorSatellites,
   type MonitorState,
   type MonitorStatus,
@@ -43,30 +47,25 @@ import {
   splitRelayLog,
   toMetricsPosition,
   toPosEpoch,
-  toPositionPoint,
-  toSatellite,
-  toTimeSeriesPoint,
 } from '../utils/streamMonitor';
 import { maskLogLine } from '../utils/maskPath';
+import { decodeClasSource, formatClasSource } from '../utils/clasSource';
 import { useFollowScroll } from '../hooks/useFollowScroll';
 import { MaskedPathInput } from './common/MaskedPathInput';
 import { JumpToLatest } from './common/JumpToLatest';
 import { StreamPathHelp } from './StreamPathHelp';
 import { RtMetricsRow } from './RtMetricsRow';
-import { PositionScatter } from './PositionScatter';
 import { SkySnrPanel } from './SkySnrPanel';
-import { TimeSeriesChart } from './TimeSeriesChart';
-import { MapView } from './viewer';
+import { PositionViewer, type ViewMode } from './viewer';
 
 const MONO = "'IBM Plex Mono', monospace";
 
 /** Same cap as the backend history (HISTORY_EPOCHS, 1 Hz → one hour). */
 const MAX_EPOCHS = 3600;
-/** Time series (Recharts) slows down with many points; RT shows 600. */
-const MAX_SERIES = 600;
 const MAX_LOG_LINES = 500;
+const NO_SATELLITES: MonitorSatellite[] = [];
 /** Height of the chart / text area. The page has no tall sibling to stretch
- *  against, and the map needs a measured pixel height (lessons L02). */
+ *  against, and the viewer takes a pixel height (lessons L02). */
 const CHART_HEIGHT = 460;
 
 const INPUT_TYPES: { value: MonitorInputType; label: string; placeholder: string }[] = [
@@ -77,7 +76,45 @@ const INPUT_TYPES: { value: MonitorInputType; label: string; placeholder: string
   { value: 'file', label: 'File', placeholder: '/data/rover.sbf' },
 ];
 
+/** Chart views in display order: the viewer's (2D / ENU / Map) and Sky / SNR. */
+const POSITION_VIEWS: ViewMode[] = ['2d', 'enu', 'map'];
+const CHART_VIEWS: string[] = [...POSITION_VIEWS, 'skysnr'];
+const DEFAULT_VIEWS = ['2d', 'skysnr'];
+
 const DEFAULT_RAW_LOG = '/workspace/rtlog/monitor_%Y%m%d%h%M.raw';
+
+/** File input playback (#161): '0' = the whole file at once, else × real
+ *  time paced by the epoch times in the file. */
+const FILE_SPEEDS = [
+  { value: '0', label: 'All at once' },
+  { value: '1', label: 'Real time' },
+  { value: '10', label: '10× real time' },
+  { value: '60', label: '60× real time' },
+];
+
+/** What the Stream Monitor does, behind the ? next to its title. */
+function MonitorHelp() {
+  const [opened, { toggle, close }] = useDisclosure(false);
+  return (
+    <Popover opened={opened} onClose={close} position="bottom-start" width={380} shadow="md" withArrow>
+      <Popover.Target>
+        <ActionIcon size={14} variant="subtle" radius="xl" onClick={toggle} style={{ opacity: 0.5 }}
+          aria-label="About the Stream Monitor"
+        >
+          <IconQuestionMark size={10} />
+        </ActionIcon>
+      </Popover.Target>
+      <Popover.Dropdown p="xs">
+        <Text size="xs">
+          Decodes NMEA, Septentrio SBF, u-blox UBX and MRTKLIB solution text from a
+          receiver or another stream (e.g. <Code style={{ fontSize: 10 }}>mrtk run</Code> output)
+          through <Code style={{ fontSize: 10 }}>mrtk relay</Code>. A file is read directly, all
+          at once or paced by its epoch times.
+        </Text>
+      </Popover.Dropdown>
+    </Popover>
+  );
+}
 
 const STATE_COLOR: Record<MonitorState, string> = {
   idle: 'gray',
@@ -88,10 +125,16 @@ const STATE_COLOR: Record<MonitorState, string> = {
 };
 
 /** Label-left / input-right row (project form convention). */
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, children, minHeight }: {
+  label: string;
+  children: React.ReactNode;
+  /** Form rows whose control is shorter than an input (a switch) take the
+   *  input height, so every form row has the same pitch. */
+  minHeight?: number;
+}) {
   return (
-    <Group justify="space-between" align="center" mb={6} wrap="nowrap">
-      <Text size="sm" c="dimmed" style={{ width: 130, flexShrink: 0 }}>
+    <Group justify="space-between" align="center" mb={6} wrap="nowrap" style={{ minHeight }}>
+      <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: 11 }}>
         {label}
       </Text>
       <Box style={{ flex: 1, minWidth: 0 }}>{children}</Box>
@@ -138,7 +181,19 @@ export function StreamMonitorPanel() {
     key: 'mrtk-stream-monitor-raw-log',
     defaultValue: DEFAULT_RAW_LOG,
   });
+  const [fileSpeed, setFileSpeed] = useLocalStorage<string>({
+    key: 'mrtk-stream-monitor-file-speed',
+    defaultValue: '0',
+  });
+  // Read the GGA station id as the CLAS L6 source (#144). Off by default:
+  // only `mrtk run` CLAS output puts the source there; any other receiver
+  // puts its base station id, which can look like a valid source.
+  const [clasSource, setClasSource] = useLocalStorage<boolean>({
+    key: 'mrtk-stream-monitor-clas-source',
+    defaultValue: false,
+  });
   const typeMeta = INPUT_TYPES.find((t) => t.value === inputType) ?? INPUT_TYPES[1];
+  const isFile = typeMeta.value === 'file';
 
   // ── session data
   const [status, setStatus] = useState<MonitorStatus | null>(null);
@@ -151,8 +206,17 @@ export function StreamMonitorPanel() {
   const [wsOpen, setWsOpen] = useState(false);
 
   const [tab, setTab] = useState<string | null>('chart');
-  const [chartViews, setChartViews] = useState<string[]>(['scatter', 'skysnr']);
-  const { ref: mapWrapRef, height: mapHeight } = useElementSize();
+  // Chart views, side by side; kept per browser. A stored value from an
+  // older layout (e.g. 'position') is dropped (L28).
+  const [storedViews, setChartViews] = useLocalStorage<string[]>({
+    key: 'mrtk-stream-monitor-views',
+    defaultValue: DEFAULT_VIEWS,
+  });
+  const chartViews = useMemo(() => {
+    const known = (Array.isArray(storedViews) ? storedViews : []).filter((v) => CHART_VIEWS.includes(v));
+    return known.length > 0 ? known : DEFAULT_VIEWS;
+  }, [storedViews]);
+  const positionViews = POSITION_VIEWS.filter((v) => chartViews.includes(v));
 
   const wsRef = useRef<WebSocket | null>(null);
   const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -269,7 +333,8 @@ export function StreamMonitorPanel() {
     try {
       const st = await streamMonitorApi.start({
         input: { type: typeMeta.value, path: inputPath.trim() },
-        raw_log: saveRaw && rawLog.trim() ? rawLog.trim() : null,
+        raw_log: !isFile && saveRaw && rawLog.trim() ? rawLog.trim() : null,
+        file_speed: isFile && Number(fileSpeed) > 0 ? Number(fileSpeed) : null,
       });
       // A session that ended meanwhile keeps its exit status. If the exit
       // was another session's, the next status tick (1 s) shows this one.
@@ -298,10 +363,11 @@ export function StreamMonitorPanel() {
   // ── adapters to the RT components
   const last = epochs.length > 0 ? epochs[epochs.length - 1] : null;
   const metricsPosition = useMemo(() => (last ? toMetricsPosition(last) : null), [last]);
-  const points = useMemo(() => epochs.map(toPositionPoint), [epochs]);
-  const series = useMemo(() => epochs.slice(-MAX_SERIES).map(toTimeSeriesPoint), [epochs]);
-  const mapEpochs = useMemo(() => epochs.map(toPosEpoch), [epochs]);
-  const satellites = useMemo(() => (sats ? sats.satellites.map(toSatellite) : []), [sats]);
+  const posEpochs = useMemo(() => epochs.map(toPosEpoch), [epochs]);
+  const lastL6 = live && clasSource ? decodeClasSource(last?.refid) : null;
+  // Without a decoded source, a non-zero station id is still shown as is.
+  const lastStationId = live && !lastL6 && last?.refid ? String(last.refid).padStart(4, '0') : null;
+  const satellites = sats?.satellites ?? NO_SATELLITES;
   const satTime = sats?.time ? `${rtTimestamp(sats.time)} ${sats.time_sys}` : undefined;
 
   const relayLog = useMemo(() => splitRelayLog(logLines), [logLines]);
@@ -323,7 +389,10 @@ export function StreamMonitorPanel() {
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Card withBorder p="md" h="100%">
             <Group justify="space-between" mb="xs">
-              <Title order={5}>Stream Monitor</Title>
+              <Group gap={6} wrap="nowrap">
+                <Title order={5}>Stream Monitor</Title>
+                <MonitorHelp />
+              </Group>
               {!running ? (
                 <Button
                   size="xs"
@@ -347,14 +416,9 @@ export function StreamMonitorPanel() {
                 </Button>
               )}
             </Group>
-            <Text size="xs" c="dimmed" mb="sm">
-              Decodes NMEA, Septentrio SBF, u-blox UBX and MRTKLIB solution text
-              from a receiver or another stream (e.g. <code>mrtk run</code> output) through{' '}
-              <code>mrtk relay</code>.
-            </Text>
             <Row label="Input type">
               <Select
-                size="sm"
+                size="xs"
                 value={typeMeta.value}
                 onChange={(v) => v && setInputType(v)}
                 data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
@@ -366,7 +430,7 @@ export function StreamMonitorPanel() {
               <Group gap={6} wrap="nowrap">
                 <Box style={{ flex: 1, minWidth: 0 }}>
                   <MaskedPathInput
-                    size="sm"
+                    size="xs"
                     value={inputPath}
                     onChange={setInputPath}
                     placeholder={typeMeta.placeholder}
@@ -377,18 +441,32 @@ export function StreamMonitorPanel() {
                 <StreamPathHelp />
               </Group>
             </Row>
-            <Row label="Save raw stream">
-              <Switch
-                size="sm"
-                checked={saveRaw}
-                onChange={(e) => setSaveRaw(e.currentTarget.checked)}
-                disabled={busy}
-              />
-            </Row>
-            {saveRaw && (
+            {isFile && (
+              <Row label="Playback">
+                <Select
+                  size="xs"
+                  value={fileSpeed}
+                  onChange={(v) => v && setFileSpeed(v)}
+                  data={FILE_SPEEDS}
+                  allowDeselect={false}
+                  disabled={busy}
+                />
+              </Row>
+            )}
+            {!isFile && (
+              <Row label="Save raw stream" minHeight={30}>
+                <Switch
+                  size="xs"
+                  checked={saveRaw}
+                  onChange={(e) => setSaveRaw(e.currentTarget.checked)}
+                  disabled={busy}
+                />
+              </Row>
+            )}
+            {!isFile && saveRaw && (
               <Row label="Raw log file">
                 <TextInput
-                  size="sm"
+                  size="xs"
                   value={rawLog}
                   onChange={(e) => setRawLog(e.currentTarget.value)}
                   placeholder={DEFAULT_RAW_LOG}
@@ -397,6 +475,14 @@ export function StreamMonitorPanel() {
                 />
               </Row>
             )}
+            <Row label="CLAS L6 source" minHeight={30}>
+              <Switch
+                size="xs"
+                checked={clasSource}
+                onChange={(e) => setClasSource(e.currentTarget.checked)}
+                title="Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there."
+              />
+            </Row>
             {requestError && (
               <Text size="sm" c="red" mt={4}>
                 {requestError}
@@ -418,11 +504,17 @@ export function StreamMonitorPanel() {
                   <Text size="xs" c="orange">connection to the server lost · reconnecting</Text>
                 ) : (
                   live && status && (
-                    // `connected` is the backend's link to the relay, not the
-                    // relay's input: judge the input by the bytes arriving.
-                    <Text size="xs" c={status.bytes_per_sec > 0 ? 'green' : 'orange'}>
-                      {status.bytes_per_sec > 0 ? 'receiving' : status.connected ? 'no data' : 'starting relay'}
-                    </Text>
+                    status.file ? (
+                      <Text size="xs" c={status.file.eof ? 'dimmed' : 'green'}>
+                        {status.file.eof ? 'end of file' : 'reading'}
+                      </Text>
+                    ) : (
+                      // `connected` is the backend's link to the relay, not the
+                      // relay's input: judge the input by the bytes arriving.
+                      <Text size="xs" c={status.bytes_per_sec > 0 ? 'green' : 'orange'}>
+                        {status.bytes_per_sec > 0 ? 'receiving' : status.connected ? 'no data' : 'starting relay'}
+                      </Text>
+                    )
                   )
                 )}
               </Group>
@@ -440,19 +532,40 @@ export function StreamMonitorPanel() {
                 <Mono>{status.raw_log}</Mono>
               </Row>
             )}
-            <Row label="Data rate">
-              <Mono>
-                {status && live
-                  ? `${formatBytes(status.bytes_per_sec)}/s · ${formatBytes(status.bytes_total)} total`
-                  : '—'}
-              </Mono>
-            </Row>
+            {status?.file ? (
+              <Row label="Read">
+                <Mono>
+                  {`${formatBytes(status.file.read)} of ${formatBytes(status.file.size)}`
+                    + ` (${status.file.size > 0 ? Math.floor((status.file.read / status.file.size) * 100) : 100}%)`
+                    + ` · ${status.file.speed ? `${status.file.speed}× real time` : 'all at once'}`}
+                </Mono>
+              </Row>
+            ) : (
+              <Row label="Data rate">
+                <Mono>
+                  {status && live
+                    ? `${formatBytes(status.bytes_per_sec)}/s · ${formatBytes(status.bytes_total)} total`
+                    : '—'}
+                </Mono>
+              </Row>
+            )}
             <Row label="Position from">
               <Mono>{status?.epoch_source ?? '—'}</Mono>
             </Row>
             <Row label="Satellites from">
               <Mono>{status?.satellite_source ?? '—'}</Mono>
             </Row>
+            {lastL6 && (
+              // CLAS: the GGA station id of `mrtk run` NMEA output (#144)
+              <Row label="L6 source">
+                <Mono>{`${formatClasSource(lastL6)} (${String(last?.refid).padStart(4, '0')})`}</Mono>
+              </Row>
+            )}
+            {lastStationId && (
+              <Row label="Station ID">
+                <Mono>{lastStationId}</Mono>
+              </Row>
+            )}
             <Row label="Messages">
               <Mono>
                 {msgCounts.length > 0
@@ -489,34 +602,36 @@ export function StreamMonitorPanel() {
               </Tabs.List>
               <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
                 <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
-                  <Chip value="scatter" size="xs" variant="light">2D</Chip>
+                  <Chip value="2d" size="xs" variant="light">2D</Chip>
+                  <Chip value="enu" size="xs" variant="light">ENU</Chip>
                   <Chip value="map" size="xs" variant="light">Map</Chip>
                   <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
-                  <Chip value="series" size="xs" variant="light">Time series</Chip>
                 </Group>
               </Chip.Group>
             </Group>
 
             <Tabs.Panel value="chart" pt={6}>
               <div style={{ display: 'flex', gap: 10, height: CHART_HEIGHT, minHeight: 0 }}>
-                {chartViews.includes('scatter') && (
-                  <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                    <PositionScatter points={points} maxPoints={MAX_EPOCHS} />
-                  </div>
-                )}
-                {chartViews.includes('map') && (
-                  <div ref={mapWrapRef} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                    {mapHeight > 0 && <MapView data={mapEpochs} height={mapHeight} timeSystem={last?.time_sys} />}
+                {positionViews.length > 0 && (
+                  // One share of the width per view
+                  <div style={{ flex: positionViews.length, minWidth: 0, minHeight: 0 }}>
+                    {/* The PP Result Viewer's views over the live epochs,
+                        sharing reference and legend; a new session
+                        (started_at) resets zoom and map. */}
+                    <PositionViewer
+                      epochs={posEpochs}
+                      dataKey={status?.started_at ?? ''}
+                      maxHeight={CHART_HEIGHT}
+                      timeSystem={last?.time_sys ?? 'GPST'}
+                      emptyText={live ? 'Waiting for positions…' : 'No position data'}
+                      views={positionViews}
+                      clasSource={clasSource}
+                    />
                   </div>
                 )}
                 {chartViews.includes('skysnr') && (
                   <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
                     <SkySnrPanel satellites={satellites} updateTime={satTime} />
-                  </div>
-                )}
-                {chartViews.includes('series') && (
-                  <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                    <TimeSeriesChart points={series} maxPoints={MAX_SERIES} />
                   </div>
                 )}
               </div>

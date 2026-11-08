@@ -1,12 +1,16 @@
 """Stream Monitor (#96): show what a receiver or solution stream carries.
 
-    input (serial / tcpcli / tcpsvr / ntrip / file)
+    input (serial / tcpcli / tcpsvr / ntrip)
         └──► mrtk relay ──► tcpsvr://:PORT ──► StreamDecoder (this process)
                        └──► file://<raw log> (optional)
+    input (file) ──► StreamDecoder, read here (all at once or paced, #161)
 
 `mrtk relay` opens the input with MRTKLIB's own stream code (serial, NTRIP,
 ...) and copies the bytes unchanged; the backend reads them back from the
 relay's local TCP server, as the CLAS pipeline does for its SBF sniffer.
+A file is read here instead: the relay would read it in a moment and its
+tcpsvr would drop it before the reader connects (#161). The session stays
+open at the end of the file, so the data stays on the page until Stop.
 Like the CLAS bridge, `tcpsvr://:PORT` binds all interfaces (mrtk relay has
 no bind-address option); docker-compose publishes only 8080, not this port.
 
@@ -24,6 +28,7 @@ import socket
 import time
 from collections import deque
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from mrtklib_web_ui.services.mask_credentials import mask_log_line
@@ -50,6 +55,9 @@ HISTORY_EPOCHS = 3600
 SOURCE_HOLD_S = 5.0
 _CONNECT_RETRY_S = 0.5
 _DRAIN_S = 1.0  # on stop, wait this long for the reader to reach EOF
+_FILE_CHUNK_FAST = 1 << 16  # bytes per read when reading a file at once
+_FILE_CHUNK_PACED = 512  # small, so pacing by epoch time stays smooth
+_FILE_MAX_WAIT_S = 2.0  # a gap in the data is skipped after this long
 
 # Lower = preferred. A source is shown unless a preferred one was seen
 # within SOURCE_HOLD_S.
@@ -82,7 +90,8 @@ class MonitorState:
 
     def take_updates(self) -> tuple[list[dict], dict | None]:
         """Epochs kept since the last call, and the satellites if they changed."""
-        epochs, self._pending = self._pending, []
+        # A file read at once can decode far more than the history holds.
+        epochs, self._pending = self._pending[-HISTORY_EPOCHS:], []
         sats = self.satellites if self._sats_new else None
         self._sats_new = False
         return epochs, sats
@@ -178,6 +187,9 @@ class StreamMonitorService:
         self._bytes_at_tick = 0
         self.bytes_per_sec = 0.0
         self.connected = False
+        # File input (#161): {"size", "read", "eof", "speed"}; None for a relay.
+        self.file: dict[str, Any] | None = None
+        self._file_log: list[str] = []
 
     def set_broadcast(self, cb: Callable[[dict], Awaitable[None]]) -> None:
         self._broadcast = cb
@@ -188,22 +200,28 @@ class StreamMonitorService:
 
     # ── lifecycle ───────────────────────────────────────────────────────────
 
+    def _begin(self, input_label: str, raw_log: str | None, port: int | None) -> None:
+        """Reset for a new session (caller holds the lock)."""
+        if self.is_running:
+            raise RuntimeError("Stream Monitor is already running")
+        self._run += 1
+        self._state = MonitorState()
+        self._decoder = StreamDecoder()
+        self.state = "starting"
+        self.error_message = None
+        self.started_at = datetime.now()
+        self.input_label = mask_log_line(input_label)
+        self.raw_log = raw_log
+        self.port = port
+        self._bytes_at_tick = 0
+        self.bytes_per_sec = 0.0
+        self.connected = False
+        self.file = None
+        self._file_log = []
+
     async def start(self, args: list[str], input_label: str, raw_log: str | None, port: int) -> None:
         async with self._lock:
-            if self.is_running:
-                raise RuntimeError("Stream Monitor is already running")
-            self._run += 1
-            self._state = MonitorState()
-            self._decoder = StreamDecoder()
-            self.state = "starting"
-            self.error_message = None
-            self.started_at = datetime.now()
-            self.input_label = mask_log_line(input_label)
-            self.raw_log = raw_log
-            self.port = port
-            self._bytes_at_tick = 0
-            self.bytes_per_sec = 0.0
-            self.connected = False
+            self._begin(input_label, raw_log, port)
             # Before the relay's first log line: a new `started_at` tells every
             # page that a new session begins (its console and data reset).
             await self._send(self.status_message())
@@ -217,6 +235,23 @@ class StreamMonitorService:
             self.state = "running"
             run = self._run
             self._reader = asyncio.create_task(self._read(run, port))
+            self._ticker = asyncio.create_task(self._tick(run))
+        await self._send(self.status_message())
+
+    async def start_file(self, path: Path, speed: float | None) -> None:
+        """Read a file into the decoder (#161): at once (`speed` None) or paced
+        by the epoch times at `speed` × real time. The session stays open at
+        the end of the file, until Stop."""
+        async with self._lock:
+            self._begin(f"file://{path}", None, None)
+            size = path.stat().st_size
+            self.file = {"size": size, "read": 0, "eof": False, "speed": speed}
+            await self._send(self.status_message())
+            pace = "at once" if speed is None else f"at {speed:g}x real time"
+            await self._log(f"[SYSTEM] Reading {path} ({size:,} bytes) {pace}")
+            self.state = "running"
+            run = self._run
+            self._reader = asyncio.create_task(self._read_file(run, path, speed))
             self._ticker = asyncio.create_task(self._tick(run))
         await self._send(self.status_message())
 
@@ -234,12 +269,13 @@ class StreamMonitorService:
         epoch is only complete then), instead of being cut off mid-stream.
         """
         self._run += 1  # the reader stops reconnecting, the ticker stops
-        try:
-            await process_manager.stop(RELAY_PID, timeout=3.0)
-        except ValueError:
-            pass  # already exited
-        except Exception:
-            logger.exception("Failed to stop the Stream Monitor relay")
+        if self.file is None:
+            try:
+                await process_manager.stop(RELAY_PID, timeout=3.0)
+            except ValueError:
+                pass  # already exited
+            except Exception:
+                logger.exception("Failed to stop the Stream Monitor relay")
         current = asyncio.current_task()
         reader, ticker = self._reader, self._ticker
         self._reader = self._ticker = None
@@ -292,6 +328,55 @@ class StreamMonitorService:
                     pass
             await asyncio.sleep(_CONNECT_RETRY_S)
 
+    async def _read_file(self, run: int, path: Path, speed: float | None) -> None:
+        """Feed a file to the decoder; paced by the decoded epoch times."""
+        loop = asyncio.get_running_loop()
+        chunk = _FILE_CHUNK_FAST if speed is None else _FILE_CHUNK_PACED
+        last_t: datetime | None = None  # data time of the last paced epoch
+        due = loop.time()  # wall-clock time that epoch is due
+        self.connected = True
+        try:
+            with path.open("rb") as f:
+                while run == self._run:
+                    data = f.read(chunk)
+                    if not data:
+                        break
+                    events = self._decoder.feed(data)
+                    self._state.add(events)
+                    self.file["read"] += len(data)
+                    if speed is None:
+                        await asyncio.sleep(0)  # let the ticker and clients run
+                        continue
+                    times = [e.time for e in events if isinstance(e, Epoch)]
+                    if not times:
+                        # A stretch with no position (e.g. a measurement-only
+                        # log) must still yield, or Stop and clients stall.
+                        await asyncio.sleep(0)
+                        continue
+                    t = times[-1]
+                    if last_t is not None:
+                        dt = (t - last_t).total_seconds()
+                        # Going back (a joined file) or a long gap: no wait.
+                        due += min(max(dt, 0.0), _FILE_MAX_WAIT_S * speed) / speed
+                    else:
+                        due = loop.time()
+                    last_t = t
+                    wait = due - loop.time()
+                    if wait > 0:
+                        await asyncio.sleep(wait)
+                    else:
+                        await asyncio.sleep(0)
+            if run == self._run:
+                self._state.add(self._decoder.flush())
+                self.file["eof"] = True
+                await self._log(f"[SYSTEM] End of file: {self.file['read']:,} bytes read")
+        except OSError as e:
+            if run == self._run:
+                self.file["eof"] = True
+                await self._log(f"[SYSTEM] Read error: {e}")
+        finally:
+            self.connected = False
+
     async def _tick(self, run: int) -> None:
         while run == self._run:
             await asyncio.sleep(TICK_S)
@@ -302,6 +387,8 @@ class StreamMonitorService:
             self._bytes_at_tick = total
             await self._send_updates()
             await self._send(self.status_message())
+            if self.file is not None:
+                continue  # no relay; the session ends on Stop
             info = await process_manager.get_status(RELAY_PID)
             if info is None or info.state.value in ("stopped", "error"):
                 rc = info.return_code if info else None
@@ -317,6 +404,13 @@ class StreamMonitorService:
 
     async def on_relay_log(self, line: str) -> None:
         """process_manager log line of the relay (already masked)."""
+        if self.file is not None:
+            return  # a relay left over from before does not belong here
+        await self._send({"type": "log", "message": line})
+
+    async def _log(self, line: str) -> None:
+        """A log line of a file session (there is no relay log)."""
+        self._file_log.append(line)
         await self._send({"type": "log", "message": line})
 
     def status_message(self) -> dict[str, Any]:
@@ -330,6 +424,7 @@ class StreamMonitorService:
             "raw_log": self.raw_log,
             "connected": self.connected,
             "bytes_per_sec": self.bytes_per_sec,
+            "file": dict(self.file) if self.file is not None else None,
             "epoch_source": self._state.epoch_source,
             "satellite_source": self._state.satellite_source,
             "sources": self._state.sources(),
@@ -343,7 +438,8 @@ class StreamMonitorService:
             "type": "history",
             "epochs": list(self._state.history) if running else [],
             "satellites": self._state.satellites if running else None,
-            "logs": process_manager.get_log(RELAY_PID),
+            "logs": list(self._file_log) if self.file is not None
+            else process_manager.get_log(RELAY_PID),
         }
 
     async def _send_updates(self) -> None:

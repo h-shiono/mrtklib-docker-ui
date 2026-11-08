@@ -6,6 +6,8 @@
  * stream format does not carry are `null`, never a made-up 0.
  */
 
+import type { Satellite } from '../types/satellite';
+
 const API_BASE = '/api/stream-monitor';
 
 /** Input stream types the backend accepts (`INPUT_SCHEMES`). */
@@ -14,11 +16,23 @@ export type MonitorInputType = 'serial' | 'tcpcli' | 'tcpsvr' | 'ntripcli' | 'fi
 export interface MonitorStartRequest {
   input: { type: MonitorInputType; path: string };
   raw_log: string | null;
+  /** File input: × real time, paced by the epoch times; null = all at once. */
+  file_speed?: number | null;
+}
+
+/** A file input's progress (#161); the session stays open at the end. */
+export interface MonitorFile {
+  size: number;
+  read: number;
+  eof: boolean;
+  speed: number | null;
 }
 
 /** One position solution (PosEpoch-shaped). `time` is ISO 8601 with a `Z`
  *  suffix, in the clock of `time_sys` (no leap seconds applied). */
 export interface MonitorEpoch {
+  /** NMEA GGA station id (CLAS L6 source in MRTKLIB output, #144). */
+  refid?: number | null;
   time: string;
   time_sys: string;
   lat: number;
@@ -34,13 +48,10 @@ export interface MonitorEpoch {
 }
 
 /** One satellite (Satellite-shaped). `used: null` = the stream did not say. */
-export interface MonitorSatellite {
-  prn: string;
-  system: string;
-  azimuth: number | null;
-  elevation: number | null;
+/** The shared Satellite shape; a stream always says `used` (maybe null)
+ *  and gives the per-band C/N0. */
+export interface MonitorSatellite extends Satellite {
   used: boolean | null;
-  snr: number | null;
   snr_by_band: Record<string, number>;
 }
 
@@ -63,6 +74,8 @@ export interface MonitorStatus {
   raw_log: string | null;
   connected: boolean;
   bytes_per_sec: number;
+  /** File input only. */
+  file: MonitorFile | null;
   epoch_source: string | null;
   satellite_source: string | null;
   sources: string[];

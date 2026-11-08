@@ -348,3 +348,106 @@ def test_a_stalled_client_cannot_block_the_broadcast():
                 api._drop(c)
 
     asyncio.run(run())
+
+
+# ── File input (#161): read here, not through mrtk relay ───────────────────
+
+
+def _nmea_file(path, n: int) -> None:
+    out = b""
+    for k in range(n):
+        t = (T0 + timedelta(seconds=k)).strftime("%H%M%S.00")
+        out += nmea(f"GNRMC,{t},A,3530.0,N,13915.0,E,0.0,,071126,,,A,V")
+        out += nmea(f"GNGGA,{t},3530.0,N,13915.0,E,4,12,0.5,20.0,M,40.0,M,1.0,0001")
+        out += nmea("GPGSV,1,1,01,05,45,120,44,1")
+    path.write_bytes(out)
+
+
+@pytest.fixture
+def data_root(tmp_path, monkeypatch):
+    from mrtklib_web_ui import paths
+
+    root = tmp_path.resolve()
+    monkeypatch.setattr(paths, "ALLOWED_ROOTS", [root])
+    return root
+
+
+def test_file_is_read_at_once_without_the_relay(relay, client, data_root):
+    f = data_root / "rcv.nmea"
+    _nmea_file(f, 30)
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        r = client.post("/api/stream-monitor/start", json={"input": {"type": "file", "path": str(f)}})
+        assert r.status_code == 200, r.text
+        assert relay.args is None  # no mrtk relay for a file
+        epochs = []
+        status = _receive_until(
+            ws,
+            lambda m: (m["type"] == "epochs" and epochs.extend(m["epochs"])) or (
+                m["type"] == "status" and m["file"] and m["file"]["eof"]
+            ),
+        )
+        # The whole file arrived and the session stays open with the data.
+        assert status["running"] and status["file"]["read"] == f.stat().st_size
+        _receive_until(ws, lambda m: m["type"] == "epochs" and epochs.extend(m["epochs"]) or len(epochs) == 30)
+        assert len(epochs) == 30
+        with client.websocket_connect("/api/stream-monitor/ws") as ws2:  # reload keeps it
+            hist = json.loads(ws2.receive_text())
+            assert len(hist["epochs"]) == 30 and hist["satellites"]
+            assert any("End of file" in line for line in hist["logs"])
+        client.post("/api/stream-monitor/stop")
+        end = _receive_until(ws, lambda m: m.get("exited"))
+        assert end["state"] == "stopped"
+
+
+def test_file_is_paced_by_epoch_time(relay, client, data_root):
+    f = data_root / "rcv.nmea"
+    _nmea_file(f, 11)  # 10 s of data
+    r = client.post("/api/stream-monitor/start", json={
+        "input": {"type": "file", "path": str(f)}, "file_speed": 20})
+    assert r.status_code == 200, r.text
+    assert r.json()["file"]["speed"] == 20
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        first = _receive_until(ws, lambda m: m["type"] == "status")
+        assert not first["file"]["eof"]  # 10 s at 20x: about 0.5 s
+        last = _receive_until(ws, lambda m: m["type"] == "status" and m["file"]["eof"])
+        assert last["file"]["read"] == f.stat().st_size
+        client.post("/api/stream-monitor/stop")
+        _receive_until(ws, lambda m: m.get("exited"))
+
+
+def test_paced_file_without_epochs_still_yields(tmp_path):
+    """A paced file with no position (a measurement-only log) must not read
+    through in one go: Stop, the ticker and clients run between chunks."""
+    f = tmp_path / "sats.nmea"
+    f.write_bytes(nmea("GPGSV,1,1,01,05,45,120,44,1") * 2000)  # ~60 KiB, no Epoch
+    size = f.stat().st_size
+
+    async def run():
+        svc = sms.StreamMonitorService()
+        await svc.start_file(f, 1.0)
+        for _ in range(5):
+            await asyncio.sleep(0)
+        read, eof = svc.file["read"], svc.file["eof"]
+        await asyncio.wait_for(svc.stop(), timeout=2)
+        return read, eof, svc.state
+
+    read, eof, state = asyncio.run(run())
+    assert not eof and 0 < read < size
+    assert state == "stopped"
+
+
+@pytest.mark.parametrize(
+    "body, code",
+    [
+        ({"input": {"type": "file", "path": "{root}/missing.ubx"}}, 400),
+        ({"input": {"type": "file", "path": "{root}/rcv.nmea::T::x2"}}, 400),
+        ({"input": {"type": "file", "path": "{root}/rcv.nmea"}, "raw_log": "/workspace/x.raw"}, 400),
+        ({"input": {"type": "file", "path": "{root}/rcv.nmea"}, "file_speed": 0}, 422),
+        ({"input": {"type": "file", "path": "/etc/hosts"}}, 403),
+    ],
+)
+def test_file_input_rejects(relay, client, data_root, body, code):
+    _nmea_file(data_root / "rcv.nmea", 2)
+    body = json.loads(json.dumps(body).replace("{root}", str(data_root)))
+    assert client.post("/api/stream-monitor/start", json=body).status_code == code
+    assert client.get("/api/stream-monitor/status").json()["running"] is False

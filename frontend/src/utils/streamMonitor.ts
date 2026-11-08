@@ -1,13 +1,10 @@
 /**
- * Adapters from Stream Monitor messages to the shapes of the Real-Time
- * components it reuses (#96 P1). Every `null` → number decision lives here;
- * P2 makes the components take the nullable shapes directly.
+ * Adapters from Stream Monitor epochs to the metrics row and the position
+ * viewer (#96). Both take nullable values, so nothing is made up here;
+ * satellites go to the Sky / SNR panel as they come (shared `Satellite`).
  */
 
-import type { MonitorEpoch, MonitorSatellite } from '../api/streamMonitor';
-import type { PositionPoint } from '../components/PositionScatter';
-import type { TimeSeriesPoint } from '../components/TimeSeriesChart';
-import type { Satellite } from '../components/SkySnrPanel';
+import type { MonitorEpoch } from '../api/streamMonitor';
 import type { MetricsPosition } from '../components/RtMetricsRow';
 import type { PosEpoch } from '../components/viewer';
 
@@ -32,18 +29,9 @@ export function toMetricsPosition(e: MonitorEpoch): MetricsPosition {
   };
 }
 
-export function toPositionPoint(e: MonitorEpoch): PositionPoint {
-  // The scatter only plots lat / lon; height is not shown.
-  return { lat: e.lat, lon: e.lon, height: e.height ?? 0, quality: e.Q, timestamp: rtTimestamp(e.time) };
-}
-
-export function toTimeSeriesPoint(e: MonitorEpoch): TimeSeriesPoint {
-  // No AR ratio (NMEA, SBF PVT, UBX) plots as 0, as RT does in SPP.
-  return { timestamp: rtTimestamp(e.time), quality: e.Q, ns: e.ns ?? 0, ratio: e.ratio ?? 0 };
-}
-
 export function toPosEpoch(e: MonitorEpoch): PosEpoch {
   // The clock of `time_sys` as a UTC Date, as posParser does for .pos files.
+  // Missing values stay null, as in PosEpoch.
   const t = new Date(e.time);
   const time = isNaN(t.getTime()) ? new Date(0) : t;
   return {
@@ -51,31 +39,15 @@ export function toPosEpoch(e: MonitorEpoch): PosEpoch {
     timeUnix: time.getTime() / 1000,
     lat: e.lat,
     lon: e.lon,
-    height: e.height ?? 0,
+    height: e.height,
     Q: e.Q,
-    ns: e.ns ?? 0,
-    sdn: e.sdn ?? 0,
-    sde: e.sde ?? 0,
-    sdu: e.sdu ?? 0,
-    age: e.age ?? 0,
-    ratio: e.ratio ?? 0,
-  };
-}
-
-export function toSatellite(s: MonitorSatellite): Satellite {
-  return {
-    prn: s.prn,
-    system: s.system,
-    // NaN = position unknown: the sky plot skips it, the SNR bars keep it.
-    azimuth: s.azimuth ?? NaN,
-    elevation: s.elevation ?? NaN,
-    // A stream without usage info (`used: null`) lists the satellites it
-    // tracks; show them as used rather than as rejected.
-    valid: s.used ?? true,
-    used: s.used ?? true,
-    fix: 'NONE',
-    // SkySnrPanel shows n/a for SNR ≤ 0.
-    snr: s.snr ?? 0,
+    ns: e.ns,
+    sdn: e.sdn,
+    sde: e.sde,
+    sdu: e.sdu,
+    age: e.age,
+    ratio: e.ratio,
+    refid: e.refid ?? null,
   };
 }
 

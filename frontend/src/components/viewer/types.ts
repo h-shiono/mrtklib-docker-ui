@@ -1,29 +1,34 @@
-/** Single epoch from a RTKLIB .pos file */
+/** One position epoch: from a solution file (.pos / NMEA), Real-Time or a
+ *  live stream (Stream Monitor). `null` = the source does not carry the
+ *  value (e.g. NMEA has no AR ratio); never a made-up 0. */
 export interface PosEpoch {
-  /** GPST timestamp as Date object */
+  /** Epoch time as a Date whose UTC fields carry the source's time system */
   time: Date;
-  /** GPST timestamp as unix seconds (for uPlot X-axis) */
+  /** `time` as unix seconds (for uPlot X-axis) */
   timeUnix: number;
   /** Latitude in degrees */
   lat: number;
   /** Longitude in degrees */
   lon: number;
   /** Height in meters (ellipsoidal) */
-  height: number;
-  /** Quality flag: 1=fix, 2=float, 3=sbas, 4=dgps, 5=single, 6=ppp */
+  height: number | null;
+  /** Quality flag (utils/quality.ts): 1=fix 2=float 3=sbas 4=dgps 5=single 6=ppp 7=dr */
   Q: number;
   /** Number of satellites */
-  ns: number;
+  ns: number | null;
   /** Standard deviation north (m) */
-  sdn: number;
+  sdn: number | null;
   /** Standard deviation east (m) */
-  sde: number;
+  sde: number | null;
   /** Standard deviation up (m) */
-  sdu: number;
+  sdu: number | null;
   /** Age of differential (s) */
-  age: number;
+  age: number | null;
   /** AR ratio */
-  ratio: number;
+  ratio: number | null;
+  /** NMEA GGA station id (field 14); in MRTKLIB CLAS output the L6 source
+   *  (utils/clasSource.ts). Absent for .pos and other sources. */
+  refid?: number | null;
 }
 
 /** Parsed .pos file data including header info */
@@ -49,34 +54,15 @@ export interface ENUEpoch {
   timeUnix: number;
   e: number;
   n: number;
-  u: number;
+  /** null when the epoch has no height */
+  u: number | null;
   Q: number;
-  ns: number;
-  ratio: number;
+  ns: number | null;
+  ratio: number | null;
 }
 
 /** Reference coordinate mode for ENU conversion */
 export type ReferenceMode = 'mean' | 'median' | 'rinex-header' | 'manual-llh' | 'manual-xyz';
-
-/** Color mapping for Q flags */
-export const Q_COLORS: Record<number, string> = {
-  1: '#40c057', // green - fix
-  2: '#fab005', // yellow/orange - float
-  3: '#228be6', // blue - sbas
-  4: '#15aabf', // cyan - dgps
-  5: '#fa5252', // red - single
-  6: '#be4bdb', // purple - ppp
-};
-
-/** Labels for Q flags */
-export const Q_LABELS: Record<number, string> = {
-  1: 'Fix',
-  2: 'Float',
-  3: 'SBAS',
-  4: 'DGPS',
-  5: 'Single',
-  6: 'PPP',
-};
 
 /** Which metric to plot on ENU chart Y-axis */
 export type ChartMetric = 'e' | 'n' | 'u' | 'ns';

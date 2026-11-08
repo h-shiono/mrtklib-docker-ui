@@ -11,7 +11,7 @@ conversion, and data tools from a browser without compiling anything.
 - **Unified binary:** `mrtk` with subcommands (`post`, `run`, `relay`,
   `convert`, `ssr2obs`, `ssr2osr`, `bias`, `dump`, `cssr2rtcm3`,
   `l6extract`)
-- **UI version:** v0.4.5-alpha (next: v0.5.0 — drops the alpha suffix)
+- **UI version:** v0.4.6-alpha (next: v0.5.0 — drops the alpha suffix)
 
 ## Tech Stack
 
@@ -141,8 +141,10 @@ const QUALITY_COLOR = {
   4: '#6b7280',  // DGPS
   5: '#ef4444',  // Single
   6: '#3b82f6',  // PPP
+  7: '#06b6d4',  // DR
 };
 ```
+Single source: `frontend/src/utils/quality.ts` (`qualityColor` / `qualityLabel`).
 
 ### Constellation colors (Sky Plot / SNR)
 ```typescript

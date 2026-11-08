@@ -1,16 +1,28 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from 'react-leaflet';
-import { useMantineColorScheme } from '@mantine/core';
+import { Button, useMantineColorScheme } from '@mantine/core';
 import type { LatLngBoundsExpression } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { PosEpoch } from './types';
-import { Q_COLORS, Q_LABELS } from './types';
+import { qualityColor, qualityLabel } from '../../utils/quality';
+import { decodeClasSource, formatClasSource } from '../../utils/clasSource';
+
+/** Tooltip line for the CLAS L6 source (#144); nothing without one. */
+function clasSourceLine(refid: number | null | undefined) {
+  const s = decodeClasSource(refid);
+  return s ? <div>L6: {formatClasSource(s)}</div> : null;
+}
 
 interface MapViewProps {
   data: PosEpoch[];
   height: number;
   /** Time system of the epoch times, shown in the tooltip. */
   timeSystem?: string;
+  /** Identifies the data source. The map follows the data (fits it as it
+   *  changes) until the user drags or zooms; a new key follows again. */
+  fitKey?: string;
+  /** Show the GGA station id as the CLAS L6 source (PositionViewer). */
+  clasSource?: boolean;
 }
 
 // OpenStreetMap tiles in both themes. Dark mode darkens them with a CSS
@@ -21,12 +33,12 @@ const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
-/** Sub-component that auto-fits map bounds when data changes */
-function AutoFitBounds({ data }: { data: PosEpoch[] }) {
+/** Sub-component that fits the map to the data while following */
+function AutoFitBounds({ data, follow }: { data: PosEpoch[]; follow: boolean }) {
   const map = useMap();
 
   useEffect(() => {
-    if (data.length === 0) return;
+    if (!follow || data.length === 0) return;
 
     let minLat = Infinity, maxLat = -Infinity;
     let minLon = Infinity, maxLon = -Infinity;
@@ -44,8 +56,23 @@ function AutoFitBounds({ data }: { data: PosEpoch[] }) {
     ];
 
     map.fitBounds(bounds, { padding: [20, 20], maxZoom: 18 });
-  }, [data, map]);
+  }, [data, map, follow]);
 
+  return null;
+}
+
+/** Calls `onMove` when the user drags or zooms the map (not when we fit it). */
+function UserMoveListener({ onMove }: { onMove: () => void }) {
+  const map = useMap();
+  useEffect(() => {
+    const el = map.getContainer();
+    el.addEventListener('pointerdown', onMove);
+    el.addEventListener('wheel', onMove, { passive: true });
+    return () => {
+      el.removeEventListener('pointerdown', onMove);
+      el.removeEventListener('wheel', onMove);
+    };
+  }, [map, onMove]);
   return null;
 }
 
@@ -64,13 +91,17 @@ function downsample(data: PosEpoch[], maxPoints: number): PosEpoch[] {
   return result;
 }
 
-export function MapView({ data, height, timeSystem = 'GPST' }: MapViewProps) {
+export function MapView({ data, height, timeSystem = 'GPST', fitKey = '', clasSource = false }: MapViewProps) {
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === 'dark';
+  // The source the user moved the map away from; follow any other source.
+  const [movedKey, setMovedKey] = useState<string | null>(null);
+  const follow = movedKey !== fitKey;
+  const onUserMove = useCallback(() => setMovedKey(fitKey), [fitKey]);
 
   // Drop null/invalid solutions at (0, 0, 0) so they don't map to "null island".
   const validData = useMemo(
-    () => data.filter((e) => !(e.lat === 0 && e.lon === 0 && e.height === 0)),
+    () => data.filter((e) => !(e.lat === 0 && e.lon === 0 && (e.height ?? 0) === 0)),
     [data],
   );
 
@@ -83,44 +114,59 @@ export function MapView({ data, height, timeSystem = 'GPST' }: MapViewProps) {
     : [35.68, 139.77];
 
   return (
-    <MapContainer
-      center={defaultCenter}
-      zoom={15}
-      preferCanvas={true}
-      style={{ height, width: '100%' }}
-    >
-      <TileLayer
-        // className is fixed when Leaflet creates the layer; remount on theme change.
-        key={isDark ? 'dark' : 'light'}
-        attribution={TILE_ATTRIBUTION}
-        url={TILE_URL}
-        className={isDark ? 'mrtk-tiles-dark' : undefined}
-      />
-      <AutoFitBounds data={validData} />
-      {displayData.map((epoch, i) => (
-        <CircleMarker
-          key={i}
-          center={[epoch.lat, epoch.lon]}
-          radius={2}
-          pathOptions={{
-            color: Q_COLORS[epoch.Q] || '#888',
-            fillColor: Q_COLORS[epoch.Q] || '#888',
-            fillOpacity: 0.8,
-            weight: 0,
-          }}
+    <div style={{ position: 'relative', height, width: '100%' }}>
+      <MapContainer
+        center={defaultCenter}
+        zoom={15}
+        preferCanvas={true}
+        style={{ height, width: '100%' }}
+      >
+        <TileLayer
+          // className is fixed when Leaflet creates the layer; remount on theme change.
+          key={isDark ? 'dark' : 'light'}
+          attribution={TILE_ATTRIBUTION}
+          url={TILE_URL}
+          className={isDark ? 'mrtk-tiles-dark' : undefined}
+        />
+        <AutoFitBounds data={validData} follow={follow} />
+        <UserMoveListener onMove={onUserMove} />
+        {displayData.map((epoch, i) => (
+          <CircleMarker
+            key={i}
+            center={[epoch.lat, epoch.lon]}
+            radius={2}
+            pathOptions={{
+              color: qualityColor(epoch.Q),
+              fillColor: qualityColor(epoch.Q),
+              fillOpacity: 0.8,
+              weight: 0,
+            }}
+          >
+            <Tooltip>
+              <div style={{ fontSize: '11px', lineHeight: 1.4 }}>
+                <div><b>{epoch.time.toISOString().replace('T', ' ').replace('Z', '')} {timeSystem}</b></div>
+                <div>Q={epoch.Q} ({qualityLabel(epoch.Q)})</div>
+                <div>Lat: {epoch.lat.toFixed(8)}°</div>
+                <div>Lon: {epoch.lon.toFixed(8)}°</div>
+                <div>Height: {epoch.height != null ? `${epoch.height.toFixed(4)} m` : '—'}</div>
+                <div>ns={epoch.ns ?? '—'} ratio={epoch.ratio != null ? epoch.ratio.toFixed(1) : '—'}</div>
+                {clasSource && clasSourceLine(epoch.refid)}
+              </div>
+            </Tooltip>
+          </CircleMarker>
+        ))}
+      </MapContainer>
+      {!follow && validData.length > 0 && (
+        <Button
+          size="compact-xs"
+          variant="default"
+          onClick={() => setMovedKey(null)}
+          title="Fit the map to the data and follow it again"
+          style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000 }}
         >
-          <Tooltip>
-            <div style={{ fontSize: '11px', lineHeight: 1.4 }}>
-              <div><b>{epoch.time.toISOString().replace('T', ' ').replace('Z', '')} {timeSystem}</b></div>
-              <div>Q={epoch.Q} ({Q_LABELS[epoch.Q] || 'Unknown'})</div>
-              <div>Lat: {epoch.lat.toFixed(8)}°</div>
-              <div>Lon: {epoch.lon.toFixed(8)}°</div>
-              <div>Height: {epoch.height.toFixed(4)} m</div>
-              <div>ns={epoch.ns} ratio={epoch.ratio.toFixed(1)}</div>
-            </div>
-          </Tooltip>
-        </CircleMarker>
-      ))}
-    </MapContainer>
+          Fit
+        </Button>
+      )}
+    </div>
   );
 }
