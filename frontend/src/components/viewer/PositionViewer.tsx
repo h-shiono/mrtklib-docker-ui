@@ -55,6 +55,10 @@ interface PositionViewerProps {
    *  Without it, one view at a time with a 2D / ENU / Map switch (PP). The
    *  reference, y range and Q legend are shared by all views shown. */
   views?: ViewMode[];
+  /** Read the GGA station id as the CLAS L6 source (#144). Only when the
+   *  data is known to be CLAS output: any other receiver puts its base
+   *  station id there, which can look like a valid source. */
+  clasSource?: boolean;
 }
 
 const REFERENCE_OPTIONS = [
@@ -88,6 +92,7 @@ export function PositionViewer({
   notice = null,
   emptyText = 'No position data',
   views,
+  clasSource = false,
 }: PositionViewerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('2d');
   const [refMode, setRefMode] = useState<ReferenceMode>('mean');
@@ -152,8 +157,8 @@ export function PositionViewer({
 
   // CLAS L6 source changes (GGA station id in MRTKLIB NMEA output, #144):
   // marked on the ENU charts and summed up next to the Q legend. Nothing
-  // shows when no epoch names a source.
-  const l6Changes = useMemo(() => clasSourceChanges(epochs), [epochs]);
+  // shows when no epoch names a source, or the data is not CLAS output.
+  const l6Changes = useMemo(() => (clasSource ? clasSourceChanges(epochs) : []), [epochs, clasSource]);
   const l6Markers = useMemo(
     (): ChartMarker[] => l6Changes.map((c) => ({ t: c.timeUnix, label: shortClasSource(c.source) })),
     [l6Changes],
@@ -198,12 +203,20 @@ export function PositionViewer({
     );
   }
 
+  const isManual = refMode === 'manual-llh' || refMode === 'manual-xyz';
+  // The 2D view refits when the data source or the reference changes. A
+  // manual reference counts by value; the mean / last reference moves with
+  // every live epoch and must not refit while the user is zoomed in.
+  const refKey = isManual && referencePos
+    ? `${refMode}:${referencePos.lat},${referencePos.lon},${referencePos.height}`
+    : refMode;
+
   const renderView = (v: ViewMode) => {
     if (v === '2d') {
-      return <Plot2DView data={enuData} height={vizHeight} resetKey={`${dataKey}\0${refMode}`} />;
+      return <Plot2DView data={enuData} height={vizHeight} resetKey={`${dataKey}\0${refKey}`} />;
     }
     if (v === 'map') {
-      return <MapView data={epochs} height={vizHeight} timeSystem={timeSystem} fitKey={dataKey} />;
+      return <MapView data={epochs} height={vizHeight} timeSystem={timeSystem} fitKey={dataKey} clasSource={clasSource} />;
     }
     return (
       <Stack gap={0}>
@@ -244,8 +257,6 @@ export function PositionViewer({
       </Stack>
     );
   };
-
-  const isManual = refMode === 'manual-llh' || refMode === 'manual-xyz';
 
   return (
     <Stack gap={0} h={maxHeight}>
