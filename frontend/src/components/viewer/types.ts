@@ -10,7 +10,7 @@ export interface PosEpoch {
   lon: number;
   /** Height in meters (ellipsoidal) */
   height: number;
-  /** Quality flag: 1=fix, 2=float, 3=sbas, 4=dgps, 5=single, 6=ppp */
+  /** Quality flag (utils/quality.ts): 1=fix 2=float 3=sbas 4=dgps 5=single 6=ppp 7=dr */
   Q: number;
   /** Number of satellites */
   ns: number;
@@ -57,26 +57,6 @@ export interface ENUEpoch {
 
 /** Reference coordinate mode for ENU conversion */
 export type ReferenceMode = 'mean' | 'median' | 'rinex-header' | 'manual-llh' | 'manual-xyz';
-
-/** Color mapping for Q flags */
-export const Q_COLORS: Record<number, string> = {
-  1: '#40c057', // green - fix
-  2: '#fab005', // yellow/orange - float
-  3: '#228be6', // blue - sbas
-  4: '#15aabf', // cyan - dgps
-  5: '#fa5252', // red - single
-  6: '#be4bdb', // purple - ppp
-};
-
-/** Labels for Q flags */
-export const Q_LABELS: Record<number, string> = {
-  1: 'Fix',
-  2: 'Float',
-  3: 'SBAS',
-  4: 'DGPS',
-  5: 'Single',
-  6: 'PPP',
-};
 
 /** Which metric to plot on ENU chart Y-axis */
 export type ChartMetric = 'e' | 'n' | 'u' | 'ns';

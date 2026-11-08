@@ -11,6 +11,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   constellation on and off. The toggles show the system colours and
   satellite counts, and the choice is kept in the browser.
 
+### Changed
+- Solution quality (Q) colours are the same in every view (#96): the
+  Post-processing Result Viewer, the Real-Time and Stream Monitor
+  views, the status bar and the progress badge now share one table.
+  The Result Viewer's SBAS, DGPS and PPP colours change to match the
+  Real-Time scatter. Q=7 (DR, dead reckoning) gets its own colour
+  and label.
+
+### Fixed
+- Real-Time metrics row and status bar: SINGLE showed in the same gray
+  as DGPS; it is red again.
+- The quality legends of the position scatter and the Result Viewer
+  showed every dot in the default blue instead of its quality colour.
+
 ## [0.4.5-alpha] - 2026-11-08
 
 No action is needed to upgrade from 0.4.4-alpha.

@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { useMantineColorScheme } from '@mantine/core';
 import { useElementSize } from '@mantine/hooks';
 import type { ENUEpoch } from './types';
-import { Q_COLORS } from './types';
+import { qualityColor } from '../../utils/quality';
 
 interface Plot2DViewProps {
   data: ENUEpoch[];
@@ -171,7 +171,7 @@ export function Plot2DView({ data, height }: Plot2DViewProps) {
     for (const epoch of data) {
       const x = toX(epoch.e);
       const y = toY(epoch.n);
-      ctx.fillStyle = Q_COLORS[epoch.Q] || '#888';
+      ctx.fillStyle = qualityColor(epoch.Q);
       ctx.beginPath();
       ctx.arc(x, y, 2, 0, Math.PI * 2);
       ctx.fill();
@@ -207,7 +207,7 @@ export function Plot2DView({ data, height }: Plot2DViewProps) {
     const getEffectiveBounds = (): Bounds => {
       if (viewRef.current) return viewRef.current;
       // Compute aspect-ratio adjusted natural bounds (same logic as draw)
-      let { minE, maxE, minN, maxN } = naturalBounds;
+      const { minE, maxE, minN, maxN } = naturalBounds;
       const scaleE = plotW / (maxE - minE);
       const scaleN = plotH / (maxN - minN);
       const scale = Math.min(scaleE, scaleN);

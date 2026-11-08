@@ -2,7 +2,7 @@ import { Box, Group, Stack, Text } from '@mantine/core';
 import type { PositionUpdate } from '../types/mrtkRunConfig';
 import type { Satellite } from './SkySnrPanel';
 import { isUsed } from '../utils/rtSatellites';
-import { QUALITY } from '../utils/rtQuality';
+import { qualityColor, qualityLabel } from '../utils/quality';
 
 // ─── Real-time metrics row (console redesign Phase 4) ────────────────────────
 // Borderless at-a-glance metrics. Order: Time · Position(LLH) · Quality · Ratio
@@ -67,7 +67,9 @@ export function RtMetricsRow({
   /** Time system of `lastPosition.timestamp`. */
   timeSystem?: string;
 }) {
-  const q = lastPosition ? QUALITY[lastPosition.quality] : undefined;
+  const q = lastPosition
+    ? { label: qualityLabel(lastPosition.quality).toUpperCase(), color: qualityColor(lastPosition.quality) }
+    : undefined;
 
   // Per-system used/total breakdown.
   const counts: Record<string, { used: number; total: number }> = {};
