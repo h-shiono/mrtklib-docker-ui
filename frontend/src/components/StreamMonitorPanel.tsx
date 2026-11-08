@@ -119,9 +119,15 @@ const STATE_COLOR: Record<MonitorState, string> = {
 };
 
 /** Label-left / input-right row (project form convention). */
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, children, minHeight }: {
+  label: string;
+  children: React.ReactNode;
+  /** Form rows whose control is shorter than an input (a switch) take the
+   *  input height, so every form row has the same pitch. */
+  minHeight?: number;
+}) {
   return (
-    <Group justify="space-between" align="center" mb={6} wrap="nowrap">
+    <Group justify="space-between" align="center" mb={6} wrap="nowrap" style={{ minHeight }}>
       <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: 11 }}>
         {label}
       </Text>
@@ -422,7 +428,7 @@ export function StreamMonitorPanel() {
               </Row>
             )}
             {!isFile && (
-              <Row label="Save raw stream">
+              <Row label="Save raw stream" minHeight={30}>
                 <Switch
                   size="xs"
                   checked={saveRaw}
