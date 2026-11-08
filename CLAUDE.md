@@ -141,8 +141,10 @@ const QUALITY_COLOR = {
   4: '#6b7280',  // DGPS
   5: '#ef4444',  // Single
   6: '#3b82f6',  // PPP
+  7: '#06b6d4',  // DR
 };
 ```
+Single source: `frontend/src/utils/quality.ts` (`qualityColor` / `qualityLabel`).
 
 ### Constellation colors (Sky Plot / SNR)
 ```typescript

@@ -4,7 +4,7 @@ import { useMantineColorScheme } from '@mantine/core';
 import type { LatLngBoundsExpression } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { PosEpoch } from './types';
-import { Q_COLORS, Q_LABELS } from './types';
+import { qualityColor, qualityLabel } from '../../utils/quality';
 
 interface MapViewProps {
   data: PosEpoch[];
@@ -103,8 +103,8 @@ export function MapView({ data, height, timeSystem = 'GPST' }: MapViewProps) {
           center={[epoch.lat, epoch.lon]}
           radius={2}
           pathOptions={{
-            color: Q_COLORS[epoch.Q] || '#888',
-            fillColor: Q_COLORS[epoch.Q] || '#888',
+            color: qualityColor(epoch.Q),
+            fillColor: qualityColor(epoch.Q),
             fillOpacity: 0.8,
             weight: 0,
           }}
@@ -112,7 +112,7 @@ export function MapView({ data, height, timeSystem = 'GPST' }: MapViewProps) {
           <Tooltip>
             <div style={{ fontSize: '11px', lineHeight: 1.4 }}>
               <div><b>{epoch.time.toISOString().replace('T', ' ').replace('Z', '')} {timeSystem}</b></div>
-              <div>Q={epoch.Q} ({Q_LABELS[epoch.Q] || 'Unknown'})</div>
+              <div>Q={epoch.Q} ({qualityLabel(epoch.Q)})</div>
               <div>Lat: {epoch.lat.toFixed(8)}°</div>
               <div>Lon: {epoch.lon.toFixed(8)}°</div>
               <div>Height: {epoch.height.toFixed(4)} m</div>

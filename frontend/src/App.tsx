@@ -40,7 +40,7 @@ import { PostProcessingConfiguration  } from './components';
 import { ResultViewer } from './components/viewer';
 import { ConsoleFrame } from './components/ConsoleFrame';
 import { RealTimeProcessing, type RtLiveStatus } from './components/RealTimeProcessing';
-import { QUALITY } from './utils/rtQuality';
+import { qualityColor, qualityLabel } from './utils/quality';
 import { ConversionPanel } from './components/ConversionPanel';
 import { StreamPathHelp } from './components/StreamPathHelp';
 import { ClasPipelinePanel } from './components/ClasPipelinePanel';
@@ -136,21 +136,8 @@ function PostProcessingRightPanel({
           <Group gap="xs">
             {progress ? (
               <>
-                <Badge
-                  size="sm"
-                  color={
-                    progress.quality === 1 ? 'green' :
-                    progress.quality === 2 ? 'yellow' :
-                    progress.quality === 4 ? 'cyan' :
-                    progress.quality === 5 ? 'orange' :
-                    'gray'
-                  }
-                >
-                  {progress.quality === 1 ? 'FIXED' :
-                   progress.quality === 2 ? 'FLOAT' :
-                   progress.quality === 4 ? 'DGPS' :
-                   progress.quality === 5 ? 'SINGLE' :
-                   `Q=${progress.quality}`}
+                <Badge size="sm" color={qualityColor(progress.quality)}>
+                  {qualityLabel(progress.quality).toUpperCase()}
                 </Badge>
                 <Text size="xs" ff="monospace" style={{ fontSize: '11px' }}>
                   {progress.epoch}
@@ -1490,7 +1477,6 @@ function StatusBar({ activeTab, mrtkVersion, rtStatus }: { activeTab: string; mr
     (SECONDARY_VIEWS.find((v) => v.value === activeTab)?.label.toLowerCase() ?? activeTab);
 
   const cell = { fontFamily: MONO, fontSize: 10.5 } as const;
-  const q = rtStatus ? QUALITY[rtStatus.quality] : undefined;
   const sat = rtStatus
     ? (rtStatus.satsVisible > 0 ? `${rtStatus.ns}/${rtStatus.satsVisible}` : `${rtStatus.ns}`)
     : '—/—';
@@ -1504,8 +1490,8 @@ function StatusBar({ activeTab, mrtkVersion, rtStatus }: { activeTab: string; mr
       style={{ fontFamily: MONO, fontSize: 10.5, color: 'var(--mantine-color-dimmed)', overflow: 'hidden' }}
     >
       {rtStatus ? (
-        <Text span style={{ ...cell, color: q?.color ?? 'var(--mantine-color-dimmed)', fontWeight: 600 }}>
-          ● {q?.label ?? `Q${rtStatus.quality}`}
+        <Text span style={{ ...cell, color: qualityColor(rtStatus.quality), fontWeight: 600 }}>
+          ● {qualityLabel(rtStatus.quality).toUpperCase()}
         </Text>
       ) : (
         <Text span style={{ ...cell, color: 'var(--color-single)' }}>● —</Text>

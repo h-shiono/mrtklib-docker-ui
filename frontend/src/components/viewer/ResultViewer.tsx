@@ -32,7 +32,7 @@ import type {
   ReferenceMode,
   ChartMetric,
 } from './types';
-import { Q_COLORS, Q_LABELS } from './types';
+import { qualityColor, qualityLabel } from '../../utils/quality';
 
 interface ResultViewerProps {
   filePath: string | null;
@@ -475,14 +475,9 @@ export function ResultViewer({
               key={q}
               size="xs"
               variant="dot"
-              color="gray"
-              styles={{
-                root: {
-                  '--badge-dot-color': Q_COLORS[Number(q)] || '#888',
-                },
-              }}
+              color={qualityColor(Number(q))}
             >
-              {Q_LABELS[Number(q)] || `Q${q}`}: {(count / epochs.length * 100).toFixed(1)}% ({count})
+              {qualityLabel(Number(q))}: {(count / epochs.length * 100).toFixed(1)}% ({count})
             </Badge>
           ))}
       </Group>
