@@ -1,29 +1,31 @@
-/** Single epoch from a RTKLIB .pos file */
+/** One position epoch: from a solution file (.pos / NMEA), Real-Time or a
+ *  live stream (Stream Monitor). `null` = the source does not carry the
+ *  value (e.g. NMEA has no AR ratio); never a made-up 0. */
 export interface PosEpoch {
-  /** GPST timestamp as Date object */
+  /** Epoch time as a Date whose UTC fields carry the source's time system */
   time: Date;
-  /** GPST timestamp as unix seconds (for uPlot X-axis) */
+  /** `time` as unix seconds (for uPlot X-axis) */
   timeUnix: number;
   /** Latitude in degrees */
   lat: number;
   /** Longitude in degrees */
   lon: number;
   /** Height in meters (ellipsoidal) */
-  height: number;
+  height: number | null;
   /** Quality flag (utils/quality.ts): 1=fix 2=float 3=sbas 4=dgps 5=single 6=ppp 7=dr */
   Q: number;
   /** Number of satellites */
-  ns: number;
+  ns: number | null;
   /** Standard deviation north (m) */
-  sdn: number;
+  sdn: number | null;
   /** Standard deviation east (m) */
-  sde: number;
+  sde: number | null;
   /** Standard deviation up (m) */
-  sdu: number;
+  sdu: number | null;
   /** Age of differential (s) */
-  age: number;
+  age: number | null;
   /** AR ratio */
-  ratio: number;
+  ratio: number | null;
 }
 
 /** Parsed .pos file data including header info */
@@ -49,10 +51,11 @@ export interface ENUEpoch {
   timeUnix: number;
   e: number;
   n: number;
-  u: number;
+  /** null when the epoch has no height */
+  u: number | null;
   Q: number;
-  ns: number;
-  ratio: number;
+  ns: number | null;
+  ratio: number | null;
 }
 
 /** Reference coordinate mode for ENU conversion */

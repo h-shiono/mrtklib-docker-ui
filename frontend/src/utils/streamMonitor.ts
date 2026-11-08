@@ -44,6 +44,7 @@ export function toTimeSeriesPoint(e: MonitorEpoch): TimeSeriesPoint {
 
 export function toPosEpoch(e: MonitorEpoch): PosEpoch {
   // The clock of `time_sys` as a UTC Date, as posParser does for .pos files.
+  // Missing values stay null, as in PosEpoch.
   const t = new Date(e.time);
   const time = isNaN(t.getTime()) ? new Date(0) : t;
   return {
@@ -51,14 +52,14 @@ export function toPosEpoch(e: MonitorEpoch): PosEpoch {
     timeUnix: time.getTime() / 1000,
     lat: e.lat,
     lon: e.lon,
-    height: e.height ?? 0,
+    height: e.height,
     Q: e.Q,
-    ns: e.ns ?? 0,
-    sdn: e.sdn ?? 0,
-    sde: e.sde ?? 0,
-    sdu: e.sdu ?? 0,
-    age: e.age ?? 0,
-    ratio: e.ratio ?? 0,
+    ns: e.ns,
+    sdn: e.sdn,
+    sde: e.sde,
+    sdu: e.sdu,
+    age: e.age,
+    ratio: e.ratio,
   };
 }
 

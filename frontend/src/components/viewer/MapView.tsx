@@ -70,7 +70,7 @@ export function MapView({ data, height, timeSystem = 'GPST' }: MapViewProps) {
 
   // Drop null/invalid solutions at (0, 0, 0) so they don't map to "null island".
   const validData = useMemo(
-    () => data.filter((e) => !(e.lat === 0 && e.lon === 0 && e.height === 0)),
+    () => data.filter((e) => !(e.lat === 0 && e.lon === 0 && (e.height ?? 0) === 0)),
     [data],
   );
 
@@ -115,8 +115,8 @@ export function MapView({ data, height, timeSystem = 'GPST' }: MapViewProps) {
               <div>Q={epoch.Q} ({qualityLabel(epoch.Q)})</div>
               <div>Lat: {epoch.lat.toFixed(8)}°</div>
               <div>Lon: {epoch.lon.toFixed(8)}°</div>
-              <div>Height: {epoch.height.toFixed(4)} m</div>
-              <div>ns={epoch.ns} ratio={epoch.ratio.toFixed(1)}</div>
+              <div>Height: {epoch.height != null ? `${epoch.height.toFixed(4)} m` : '—'}</div>
+              <div>ns={epoch.ns ?? '—'} ratio={epoch.ratio != null ? epoch.ratio.toFixed(1) : '—'}</div>
             </div>
           </Tooltip>
         </CircleMarker>
