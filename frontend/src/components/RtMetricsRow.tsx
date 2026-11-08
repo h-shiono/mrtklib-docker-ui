@@ -1,7 +1,7 @@
 import { Box, Group, Stack, Text } from '@mantine/core';
 import type { PositionUpdate } from '../types/mrtkRunConfig';
-import type { Satellite } from './SkySnrPanel';
-import { isUsed } from '../utils/rtSatellites';
+import type { Satellite } from '../types/satellite';
+import { isUsed } from '../utils/satellites';
 import { qualityColor, qualityLabel } from '../utils/quality';
 
 // ─── Real-time metrics row (console redesign Phase 4) ────────────────────────

@@ -6,6 +6,8 @@
  * stream format does not carry are `null`, never a made-up 0.
  */
 
+import type { Satellite } from '../types/satellite';
+
 const API_BASE = '/api/stream-monitor';
 
 /** Input stream types the backend accepts (`INPUT_SCHEMES`). */
@@ -34,13 +36,10 @@ export interface MonitorEpoch {
 }
 
 /** One satellite (Satellite-shaped). `used: null` = the stream did not say. */
-export interface MonitorSatellite {
-  prn: string;
-  system: string;
-  azimuth: number | null;
-  elevation: number | null;
+/** The shared Satellite shape; a stream always says `used` (maybe null)
+ *  and gives the per-band C/N0. */
+export interface MonitorSatellite extends Satellite {
   used: boolean | null;
-  snr: number | null;
   snr_by_band: Record<string, number>;
 }
 

@@ -24,6 +24,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   as DGPS; it is red again.
 - The quality legends of the position scatter and the Result Viewer
   showed every dot in the default blue instead of its quality colour.
+- Stream Monitor sky plot tooltips: a satellite the receiver does not
+  use read "Not valid" (a Real-Time-only state); it now reads "Not
+  used", and "Tracked (usage not reported)" when the stream does not
+  say.
 
 ## [0.4.5-alpha] - 2026-11-08
 

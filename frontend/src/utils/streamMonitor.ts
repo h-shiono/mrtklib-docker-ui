@@ -1,13 +1,13 @@
 /**
- * Adapters from Stream Monitor messages to the shapes of the Real-Time
- * components it reuses (#96 P1). Every `null` → number decision lives here;
- * P2 makes the components take the nullable shapes directly.
+ * Adapters from Stream Monitor epochs to the shapes of the Real-Time
+ * components it reuses (#96 P1). Every `null` → number decision for epochs
+ * lives here; satellites need none (the Sky / SNR panel takes the shared
+ * nullable `Satellite`).
  */
 
-import type { MonitorEpoch, MonitorSatellite } from '../api/streamMonitor';
+import type { MonitorEpoch } from '../api/streamMonitor';
 import type { PositionPoint } from '../components/PositionScatter';
 import type { TimeSeriesPoint } from '../components/TimeSeriesChart';
-import type { Satellite } from '../components/SkySnrPanel';
 import type { MetricsPosition } from '../components/RtMetricsRow';
 import type { PosEpoch } from '../components/viewer';
 
@@ -59,23 +59,6 @@ export function toPosEpoch(e: MonitorEpoch): PosEpoch {
     sdu: e.sdu ?? 0,
     age: e.age ?? 0,
     ratio: e.ratio ?? 0,
-  };
-}
-
-export function toSatellite(s: MonitorSatellite): Satellite {
-  return {
-    prn: s.prn,
-    system: s.system,
-    // NaN = position unknown: the sky plot skips it, the SNR bars keep it.
-    azimuth: s.azimuth ?? NaN,
-    elevation: s.elevation ?? NaN,
-    // A stream without usage info (`used: null`) lists the satellites it
-    // tracks; show them as used rather than as rejected.
-    valid: s.used ?? true,
-    used: s.used ?? true,
-    fix: 'NONE',
-    // SkySnrPanel shows n/a for SNR ≤ 0.
-    snr: s.snr ?? 0,
   };
 }
 

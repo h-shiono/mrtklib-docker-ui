@@ -7,24 +7,11 @@ import {
   Text,
 } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
-import { isUsed } from '../utils/rtSatellites';
+import { hasSkyPosition, isUsed } from '../utils/satellites';
+import type { Satellite } from '../types/satellite';
 import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
-
-export interface Satellite {
-  prn: string;
-  system: string;
-  azimuth: number;
-  elevation: number;
-  /** Valid in the single point (SPP) solution (rtkrcv C1 column). */
-  valid: boolean;
-  /** Counted in the solution's ns: valid on L1 in the RTK / PPP filter, or
-   *  the SPP flag when no filter is running (backend, #120). */
-  used?: boolean;
-  fix: string;
-  snr: number;
-}
 
 interface SkySnrPanelProps {
   satellites: Satellite[];
@@ -63,15 +50,18 @@ function prnNumber(prn: string): string {
 
 /** Native SVG tooltip text for a sky plot marker. */
 function satTooltip(sat: Satellite): string {
-  const state = isUsed(sat)
-    ? sat.fix !== 'NONE' ? `Used (${sat.fix})` : 'Used'
-    : sat.valid
-      ? 'Valid, not used'
-      : 'Not valid';
-  const snr = sat.snr > 0 ? `${sat.snr.toFixed(1)} dBHz` : 'n/a';
+  let state: string;
+  if (sat.used == null && sat.valid === undefined) state = 'Tracked (usage not reported)';
+  else if (isUsed(sat)) state = sat.fix && sat.fix !== 'NONE' ? `Used (${sat.fix})` : 'Used';
+  else if (sat.valid === undefined) state = 'Not used';
+  else state = sat.valid ? 'Valid, not used' : 'Not valid';
+  const snr = sat.snr != null && sat.snr > 0 ? `${sat.snr.toFixed(1)} dBHz` : 'n/a';
+  const pos = hasSkyPosition(sat)
+    ? `Az ${sat.azimuth.toFixed(1)}°  El ${sat.elevation.toFixed(1)}°`
+    : 'Az / El n/a';
   return [
     `${sat.prn} · ${sat.system}`,
-    `Az ${sat.azimuth.toFixed(1)}°  El ${sat.elevation.toFixed(1)}°`,
+    pos,
     `SNR ${snr}`,
     state,
   ].join('\n');
@@ -98,10 +88,10 @@ function SkyPlot({ satellites }: { satellites: Satellite[] }) {
   const cy = size / 2;
   const R = 138;
   // Used satellites on top, so they are not hidden by unused ones. A satellite
-  // without a position (NaN: the Stream Monitor's stream did not give az/el)
-  // is left off the plot but stays in the SNR bars.
+  // without a position (the Stream Monitor's stream did not give az/el) is
+  // left off the plot but stays in the SNR bars.
   const ordered = satellites
-    .filter((s) => Number.isFinite(s.azimuth) && Number.isFinite(s.elevation))
+    .filter(hasSkyPosition)
     .sort((a, b) => Number(isUsed(a)) - Number(isUsed(b)));
 
   const elToR = (el: number) => R * (1 - el / 90);
@@ -175,7 +165,7 @@ function SnrBarChart({ satellites }: { satellites: Satellite[] }) {
   const chartRef = useRef<Chart | null>(null);
 
   const sorted = useMemo(
-    () => [...satellites].sort((a, b) => b.snr - a.snr),
+    () => [...satellites].sort((a, b) => (b.snr ?? 0) - (a.snr ?? 0)),
     [satellites],
   );
 
@@ -235,7 +225,7 @@ function SnrBarChart({ satellites }: { satellites: Satellite[] }) {
     const chart = chartRef.current;
     const ds = chart.data.datasets[0];
     chart.data.labels = sorted.map((s) => s.prn);
-    ds.data = sorted.map((s) => s.snr);
+    ds.data = sorted.map((s) => s.snr ?? 0);
     ds.backgroundColor = sorted.map((s) => {
       const hex = SYS_COLOR[s.system] || SYS_COLOR.Unknown;
       return hexToRgba(hex, isUsed(s) ? 0.8 : 0.25);
