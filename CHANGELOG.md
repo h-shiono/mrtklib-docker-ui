@@ -43,6 +43,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   has none).
 
 ### Fixed
+- Conversion → RINEX Converter: a refused start (input or output path not
+  allowed, a conversion already running) left the badge on
+  **Converting** with no message (#123). It now shows **Failed** and the
+  reason in the console.
+- Bundled Real-Time preset **QZSS MADOCA (PPP-Kinematic)**: sets
+  `bds2_sats = ["C09", "C10"]` (BDS-2 IGSO after the 2026-04 BeiDou PRN
+  reassignment), as MRTKLIB's own MADOCA real-time sample does (#143).
 - Stream Monitor: a **File** input showed "no data" (#161). `mrtk relay`
   read the whole file before the decoder connected, so the data was
   lost. A file is now read directly, **All at once** or paced by its
