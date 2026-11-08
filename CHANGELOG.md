@@ -20,6 +20,11 @@ DGPS and PPP colours change (see Changed).
   started), and the map tooltip shows it per epoch. The Stream Monitor
   shows it live (an "L6 source" row) when it reads the NMEA output of a
   CLAS `mrtk run`. NMEA output only; `.pos` files do not carry it.
+  Other receivers put their base station id in the same field, so it is
+  read as an L6 source only for CLAS output: in the Result Viewer when
+  the configuration is PPP-RTK with **CLAS NMEA Src ID** on, in the
+  Stream Monitor with the **CLAS L6 source** switch (off by default,
+  kept in the browser; while off, a station id shows as is).
 - Sky / SNR panel (Real-Time and Stream Monitor): toggle each
   constellation on and off. The toggles show the system colours and
   satellite counts, and the choice is kept in the browser.

@@ -35,9 +35,10 @@ GNSS positioning capabilities. No compilation required — just
   solution outputs (auto-detected)
 - CLAS PPP-RTK: the L6 source of the corrections (L6 PRN and facility,
   from the NMEA GGA station id) is marked on the ENU charts where it
-  changes (QZSS handover, facility switch), in the Result Viewer and
-  live in the Stream Monitor. NMEA output only; LLH / XYZ `.pos` files
-  do not carry it
+  changes (QZSS handover, facility switch), in the Result Viewer
+  (PPP-RTK configurations) and live in the Stream Monitor (**CLAS L6
+  source** switch). NMEA output only; LLH / XYZ `.pos` files do not
+  carry it
 - Compressed inputs (`.gz`, `.Z`, single-file `.zip`, `.tar`) and
   Hatanaka-compressed RINEX (`.crx`, `.??d`, e.g. `.crx.gz`) are
   decompressed by `mrtk` (the image bundles `crx2rnx` / `rnx2crx`)
