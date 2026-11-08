@@ -10,12 +10,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from mrtklib_web_ui.api.mrtk_relay import _validate_relay_args
+from mrtklib_web_ui.api.mrtk_relay import _stream_file_path, _validate_relay_args
 from mrtklib_web_ui.services.stream_monitor_service import (
     INPUT_SCHEMES,
     build_relay_args,
@@ -93,6 +94,13 @@ class StreamMonitorStartRequest(BaseModel):
         description="Optional raw log file under /workspace (mrtk time keywords allowed)",
         examples=["/workspace/rtlog/monitor_%Y%m%d_%h%M.raw"],
     )
+    file_speed: float | None = Field(
+        default=None,
+        gt=0,
+        le=1000,
+        description="File input only: replay at this many times real time, paced by "
+        "the epoch times; null reads the whole file at once",
+    )
 
 
 @router.post("/start")
@@ -106,8 +114,29 @@ async def start_monitor(request: StreamMonitorStartRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(e))
     if err := _validate_relay_args(args):
         raise HTTPException(status_code=403, detail=err)
+    if request.input.type == "file":
+        return await _start_file(args[1], request)
     try:
         await _service.start(args, args[1], raw_log, port)
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return _service.status_message()
+
+
+async def _start_file(stream: str, request: StreamMonitorStartRequest) -> dict[str, Any]:
+    """File input (#161): read here, not through mrtk relay."""
+    if "::" in request.input.path:
+        raise HTTPException(
+            status_code=400,
+            detail="File options (::T, ::x...) are not supported here; choose the playback speed",
+        )
+    if request.raw_log:
+        raise HTTPException(status_code=400, detail="A file input is not saved again as a raw log")
+    path = Path(_stream_file_path(stream) or "")  # the path _validate_relay_args checked
+    if not path.is_file():
+        raise HTTPException(status_code=400, detail=f"File not found: {path}")
+    try:
+        await _service.start_file(path, request.file_speed)
     except RuntimeError as e:
         raise HTTPException(status_code=409, detail=str(e))
     return _service.status_message()
