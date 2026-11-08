@@ -4,7 +4,7 @@ import { useMantineColorScheme } from '@mantine/core';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import type { ENUEpoch, ChartMetric } from './types';
-import { Q_COLORS } from './types';
+import { qualityColor } from '../../utils/quality';
 
 interface ChartViewProps {
   data: ENUEpoch[];
@@ -69,7 +69,7 @@ function qColorPlugin(qValuesRef: { current: number[] }): uPlot.Plugin {
           if (x < 0 || y < 0) continue;
 
           const q = qValuesRef.current[i] ?? 5;
-          ctx.fillStyle = Q_COLORS[q] || '#888';
+          ctx.fillStyle = qualityColor(q);
           ctx.beginPath();
           ctx.arc(x, y, 2, 0, Math.PI * 2);
           ctx.fill();

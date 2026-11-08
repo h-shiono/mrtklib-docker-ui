@@ -6,6 +6,7 @@
 import { useMemo } from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Text, Group, Badge, useMantineColorScheme } from '@mantine/core';
+import { qualityColor, qualityLabel } from '../utils/quality';
 
 export interface PositionPoint {
   lat: number;
@@ -14,19 +15,6 @@ export interface PositionPoint {
   quality: number;
   timestamp: string;
 }
-
-const QUALITY_COLOR: Record<number, string> = {
-  1: '#22c55e',  // Fix — green
-  2: '#f59e0b',  // Float — amber
-  3: '#a855f7',  // SBAS — purple
-  4: '#6b7280',  // DGPS — gray
-  5: '#ef4444',  // Single — red
-  6: '#3b82f6',  // PPP — blue
-};
-
-const QUALITY_LABEL: Record<number, string> = {
-  1: 'Fix', 2: 'Float', 3: 'SBAS', 4: 'DGPS', 5: 'Single', 6: 'PPP',
-};
 
 const DEG_TO_M_LAT = 111320;
 
@@ -85,10 +73,9 @@ export function PositionScatter({ points, maxPoints = 3600 }: PositionScatterPro
             key={q}
             size="xs"
             variant="dot"
-            color={undefined}
-            styles={{ root: { '--badge-dot-color': QUALITY_COLOR[q] || '#6b7280' } }}
+            color={qualityColor(q)}
           >
-            {QUALITY_LABEL[q] || `Q=${q}`} ({datasets[q]?.length || 0})
+            {qualityLabel(q)} ({datasets[q]?.length || 0})
           </Badge>
         ))}
       </Group>
@@ -126,9 +113,9 @@ export function PositionScatter({ points, maxPoints = 3600 }: PositionScatterPro
           {qualityKeys.map(q => (
             <Scatter
               key={q}
-              name={QUALITY_LABEL[q] || `Q=${q}`}
+              name={qualityLabel(q)}
               data={datasets[q]}
-              fill={QUALITY_COLOR[q] || '#6b7280'}
+              fill={qualityColor(q)}
               fillOpacity={0.8}
               isAnimationActive={false}
               legendType="none"
