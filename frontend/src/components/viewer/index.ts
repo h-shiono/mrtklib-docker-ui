@@ -1,5 +1,6 @@
 export { ResultViewer } from './ResultViewer';
 export { PositionViewer } from './PositionViewer';
+export type { ViewMode } from './PositionViewer';
 export { MapView } from './MapView';
 export { ChartView } from './ChartView';
 export { Plot2DView } from './Plot2DView';

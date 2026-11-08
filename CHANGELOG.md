@@ -18,10 +18,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 - Stream Monitor (#96): the Chart tab shows the Post-processing Result
-  Viewer (2D / ENU / Map) over the live epochs next to Sky / SNR. It
-  replaces the Real-Time 2D scatter and time series there; Real-Time
-  keeps them for now. Zoom and pan stay put while epochs arrive, and
-  reset for a new session.
+  Viewer's views over the live epochs: **2D**, **ENU**, **Map** and
+  **Sky / SNR** as chips, side by side, 2D + Sky / SNR by default (the
+  choice is kept in the browser; drop Sky / SNR for a solution stream
+  without satellites). They replace the Real-Time 2D scatter and time
+  series there; Real-Time keeps them. Zoom and pan stay put while epochs
+  arrive, and reset for a new session.
 - Map (Result Viewer, Real-Time, Stream Monitor): after you drag or zoom
   it, the map stops re-fitting to new data; a **Fit** button fits it
   and follows again.
