@@ -50,6 +50,10 @@ interface PositionViewerProps {
   notice?: string | null;
   /** Shown instead of the views while there are no epochs. */
   emptyText?: string;
+  /** Views to show side by side, chosen outside (Stream Monitor chips).
+   *  Without it, one view at a time with a 2D / ENU / Map switch (PP). The
+   *  reference, y range and Q legend are shared by all views shown. */
+  views?: ViewMode[];
 }
 
 const REFERENCE_OPTIONS = [
@@ -62,7 +66,7 @@ const REFERENCE_OPTIONS = [
 
 const METRICS: ChartMetric[] = ['e', 'n', 'u', 'ns'];
 
-type ViewMode = '2d' | 'enu' | 'map';
+export type ViewMode = '2d' | 'enu' | 'map';
 
 interface YRangeSettings {
   auto: boolean;
@@ -82,6 +86,7 @@ export function PositionViewer({
   headerRefPos = null,
   notice = null,
   emptyText = 'No position data',
+  views,
 }: PositionViewerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('2d');
   const [refMode, setRefMode] = useState<ReferenceMode>('mean');
@@ -157,6 +162,8 @@ export function PositionViewer({
   const controlBarHeight = 32;
   const legendHeight = 28;
   const vizHeight = maxHeight - controlBarHeight - legendHeight;
+  const shown: ViewMode[] = views ?? [viewMode];
+  const showsEnu = shown.includes('enu');
 
   if (epochs.length === 0) {
     return (
@@ -167,6 +174,51 @@ export function PositionViewer({
       </Stack>
     );
   }
+
+  const renderView = (v: ViewMode) => {
+    if (v === '2d') {
+      return <Plot2DView data={enuData} height={vizHeight} resetKey={`${dataKey}\0${refMode}`} />;
+    }
+    if (v === 'map') {
+      return <MapView data={epochs} height={vizHeight} timeSystem={timeSystem} fitKey={dataKey} />;
+    }
+    return (
+      <Stack gap={0}>
+        {METRICS.map((metric, i) => {
+          // Time labels on the bottom chart only; the plot areas share
+          // the rest of the height equally.
+          const last = i === METRICS.length - 1;
+          const plotH = Math.floor(
+            (vizHeight - (METRICS.length - 1) * X_AXIS_TICKS_ONLY - X_AXIS_LABELLED) / METRICS.length,
+          );
+          return (
+            <div
+              key={metric}
+              style={{
+                // Alternate bands and a rule mark where each chart starts
+                backgroundColor: i % 2 === 1
+                  ? 'light-dark(rgba(0,0,0,0.025), rgba(255,255,255,0.025))'
+                  : undefined,
+                borderTop: i > 0 ? '1px solid var(--mantine-color-default-border)' : undefined,
+              }}
+            >
+              <ChartView
+                data={enuData}
+                height={plotH + (last ? X_AXIS_LABELLED : X_AXIS_TICKS_ONLY) - (i > 0 ? 1 : 0)}
+                metric={metric}
+                xRange={xRange}
+                yRange={getYRange(metric)}
+                ySymmetric={enuYRange.auto && enuYRange.symmetric}
+                onXRangeChange={handleXRangeChange}
+                cursorSyncKey="enu-sync"
+                showXLabels={last}
+              />
+            </div>
+          );
+        })}
+      </Stack>
+    );
+  };
 
   const isManual = refMode === 'manual-llh' || refMode === 'manual-xyz';
 
@@ -180,17 +232,19 @@ export function PositionViewer({
         style={{ height: controlBarHeight, flexShrink: 0 }}
       >
         <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-          <SegmentedControl
-            size="xs"
-            style={{ flexShrink: 0 }}
-            value={viewMode}
-            onChange={(v) => setViewMode(v as ViewMode)}
-            data={[
-              { label: '2D', value: '2d' },
-              { label: 'ENU', value: 'enu' },
-              { label: 'Map', value: 'map' },
-            ]}
-          />
+          {!views && (
+            <SegmentedControl
+              size="xs"
+              style={{ flexShrink: 0 }}
+              value={viewMode}
+              onChange={(v) => setViewMode(v as ViewMode)}
+              data={[
+                { label: '2D', value: '2d' },
+                { label: 'ENU', value: 'enu' },
+                { label: 'Map', value: 'map' },
+              ]}
+            />
+          )}
           {notice && (
             <Text size="xs" c="dimmed" truncate title={notice} style={{ minWidth: 0 }}>
               {notice}
@@ -200,7 +254,7 @@ export function PositionViewer({
 
         <Group gap="xs">
           {/* Reset zoom (ENU mode, visible when zoomed) */}
-          {viewMode === 'enu' && xRange && (
+          {showsEnu && xRange && (
             <ActionIcon
               variant="subtle"
               color="gray"
@@ -213,7 +267,7 @@ export function PositionViewer({
           )}
 
           {/* Y-Axis settings (ENU mode only) */}
-          {viewMode === 'enu' && (
+          {showsEnu && (
             <Popover
               opened={yAxisPopoverOpened}
               onChange={setYAxisPopoverOpened}
@@ -285,7 +339,7 @@ export function PositionViewer({
           )}
 
           {/* Reference coordinate settings */}
-          {viewMode !== 'map' && (
+          {shown.some((v) => v !== 'map') && (
             <Popover
               opened={refPopoverOpened}
               onChange={setRefPopoverOpened}
@@ -353,50 +407,22 @@ export function PositionViewer({
         </Group>
       </Group>
 
-      {/* Visualization area */}
-      <div style={{ flex: 1, minHeight: 0, overflow: viewMode === 'enu' ? 'auto' : undefined }}>
-        {viewMode === '2d' && (
-          <Plot2DView data={enuData} height={vizHeight} resetKey={`${dataKey}\0${refMode}`} />
-        )}
-        {viewMode === 'enu' && (
-          <Stack gap={0}>
-            {METRICS.map((metric, i) => {
-              // Time labels on the bottom chart only; the plot areas share
-              // the rest of the height equally.
-              const last = i === METRICS.length - 1;
-              const plotH = Math.floor(
-                (vizHeight - (METRICS.length - 1) * X_AXIS_TICKS_ONLY - X_AXIS_LABELLED) / METRICS.length,
-              );
-              return (
-                <div
-                  key={metric}
-                  style={{
-                    // Alternate bands and a rule mark where each chart starts
-                    backgroundColor: i % 2 === 1
-                      ? 'light-dark(rgba(0,0,0,0.025), rgba(255,255,255,0.025))'
-                      : undefined,
-                    borderTop: i > 0 ? '1px solid var(--mantine-color-default-border)' : undefined,
-                  }}
-                >
-                  <ChartView
-                    data={enuData}
-                    height={plotH + (last ? X_AXIS_LABELLED : X_AXIS_TICKS_ONLY) - (i > 0 ? 1 : 0)}
-                    metric={metric}
-                    xRange={xRange}
-                    yRange={getYRange(metric)}
-                    ySymmetric={enuYRange.auto && enuYRange.symmetric}
-                    onXRangeChange={handleXRangeChange}
-                    cursorSyncKey="enu-sync"
-                    showXLabels={last}
-                  />
-                </div>
-              );
-            })}
-          </Stack>
-        )}
-        {viewMode === 'map' && (
-          <MapView data={epochs} height={vizHeight} timeSystem={timeSystem} fitKey={dataKey} />
-        )}
+      {/* Visualization area: one view, or the chosen views side by side */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        {shown.map((v, i) => (
+          <div
+            key={v}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              minHeight: 0,
+              overflow: v === 'enu' ? 'auto' : undefined,
+              borderLeft: i > 0 ? '1px solid var(--mantine-color-default-border)' : undefined,
+            }}
+          >
+            {renderView(v)}
+          </div>
+        ))}
       </div>
 
       {/* Q-flag legend */}

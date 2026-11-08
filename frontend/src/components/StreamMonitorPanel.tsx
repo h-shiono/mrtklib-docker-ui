@@ -55,7 +55,7 @@ import { JumpToLatest } from './common/JumpToLatest';
 import { StreamPathHelp } from './StreamPathHelp';
 import { RtMetricsRow } from './RtMetricsRow';
 import { SkySnrPanel } from './SkySnrPanel';
-import { PositionViewer } from './viewer';
+import { PositionViewer, type ViewMode } from './viewer';
 
 const MONO = "'IBM Plex Mono', monospace";
 
@@ -74,6 +74,11 @@ const INPUT_TYPES: { value: MonitorInputType; label: string; placeholder: string
   { value: 'ntripcli', label: 'NTRIP Client', placeholder: 'user:pass@caster:2101/MOUNT' },
   { value: 'file', label: 'File', placeholder: '/data/rover.sbf' },
 ];
+
+/** Chart views in display order: the viewer's (2D / ENU / Map) and Sky / SNR. */
+const POSITION_VIEWS: ViewMode[] = ['2d', 'enu', 'map'];
+const CHART_VIEWS: string[] = [...POSITION_VIEWS, 'skysnr'];
+const DEFAULT_VIEWS = ['2d', 'skysnr'];
 
 const DEFAULT_RAW_LOG = '/workspace/rtlog/monitor_%Y%m%d%h%M.raw';
 
@@ -193,7 +198,17 @@ export function StreamMonitorPanel() {
   const [wsOpen, setWsOpen] = useState(false);
 
   const [tab, setTab] = useState<string | null>('chart');
-  const [chartViews, setChartViews] = useState<string[]>(['position', 'skysnr']);
+  // Chart views, side by side; kept per browser. A stored value from an
+  // older layout (e.g. 'position') is dropped (L28).
+  const [storedViews, setChartViews] = useLocalStorage<string[]>({
+    key: 'mrtk-stream-monitor-views',
+    defaultValue: DEFAULT_VIEWS,
+  });
+  const chartViews = useMemo(() => {
+    const known = (Array.isArray(storedViews) ? storedViews : []).filter((v) => CHART_VIEWS.includes(v));
+    return known.length > 0 ? known : DEFAULT_VIEWS;
+  }, [storedViews]);
+  const positionViews = POSITION_VIEWS.filter((v) => chartViews.includes(v));
 
   const wsRef = useRef<WebSocket | null>(null);
   const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -557,7 +572,9 @@ export function StreamMonitorPanel() {
               </Tabs.List>
               <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
                 <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
-                  <Chip value="position" size="xs" variant="light">Position</Chip>
+                  <Chip value="2d" size="xs" variant="light">2D</Chip>
+                  <Chip value="enu" size="xs" variant="light">ENU</Chip>
+                  <Chip value="map" size="xs" variant="light">Map</Chip>
                   <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
                 </Group>
               </Chip.Group>
@@ -565,21 +582,24 @@ export function StreamMonitorPanel() {
 
             <Tabs.Panel value="chart" pt={6}>
               <div style={{ display: 'flex', gap: 10, height: CHART_HEIGHT, minHeight: 0 }}>
-                {chartViews.includes('position') && (
-                  <div style={{ flex: 3, minWidth: 0, minHeight: 0 }}>
-                    {/* The PP Result Viewer's views over the live epochs; a
-                        new session (started_at) resets zoom and map. */}
+                {positionViews.length > 0 && (
+                  // One share of the width per view
+                  <div style={{ flex: positionViews.length, minWidth: 0, minHeight: 0 }}>
+                    {/* The PP Result Viewer's views over the live epochs,
+                        sharing reference and legend; a new session
+                        (started_at) resets zoom and map. */}
                     <PositionViewer
                       epochs={posEpochs}
                       dataKey={status?.started_at ?? ''}
                       maxHeight={CHART_HEIGHT}
                       timeSystem={last?.time_sys ?? 'GPST'}
                       emptyText={live ? 'Waiting for positions…' : 'No position data'}
+                      views={positionViews}
                     />
                   </div>
                 )}
                 {chartViews.includes('skysnr') && (
-                  <div style={{ flex: 2, minWidth: 0, minHeight: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
                     <SkySnrPanel satellites={satellites} updateTime={satTime} />
                   </div>
                 )}
