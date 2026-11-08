@@ -668,9 +668,12 @@ export function ConversionPanel() {
         }),
       });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ detail: 'Request failed' }));
-        setLogLines(prev => [...prev, `Error: ${err.detail || 'Request failed'}`]);
+      // A refusal (path not allowed, already running, spawn failure) comes
+      // back as HTTP 200 with status "error" (#123), like the Hatanaka start.
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.status === 'error') {
+        const detail = typeof data.detail === 'string' ? data.detail : data.message || 'Request failed';
+        setLogLines(prev => [...prev, `Error: ${detail}`]);
         setStatus('failed');
       }
     } catch (err) {
