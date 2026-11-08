@@ -10,6 +10,7 @@ elevation_mask      = 10.0
 dynamics            = false
 satellite_ephemeris = "brdc+ssrapc"
 excluded_sats       = []
+bds2_sats           = ["C09", "C10"]
 systems             = ["GPS", "GLONASS", "Galileo", "QZSS", "BeiDou"]
 
 [positioning.snr_mask]
