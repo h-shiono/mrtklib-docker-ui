@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   satellite counts, and the choice is kept in the browser.
 
 ### Changed
+- Stream Monitor (#96): the Chart tab shows the Post-processing Result
+  Viewer (2D / ENU / Map) over the live epochs next to Sky / SNR. It
+  replaces the Real-Time 2D scatter and time series there; Real-Time
+  keeps them for now. Zoom and pan stay put while epochs arrive, and
+  reset for a new session.
+- Map (Result Viewer, Real-Time, Stream Monitor): after you drag or zoom
+  it, the map stops re-fitting to new data; a **Fit** button fits it
+  and follows again.
 - Solution quality (Q) colours are the same in every view (#96): the
   Post-processing Result Viewer, the Real-Time and Stream Monitor
   views, the status bar and the progress badge now share one table.

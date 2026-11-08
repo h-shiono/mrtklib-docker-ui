@@ -26,7 +26,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { useElementSize, useLocalStorage } from '@mantine/hooks';
+import { useLocalStorage } from '@mantine/hooks';
 import { IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
 import {
   streamMonitorApi,
@@ -44,8 +44,6 @@ import {
   splitRelayLog,
   toMetricsPosition,
   toPosEpoch,
-  toPositionPoint,
-  toTimeSeriesPoint,
 } from '../utils/streamMonitor';
 import { maskLogLine } from '../utils/maskPath';
 import { useFollowScroll } from '../hooks/useFollowScroll';
@@ -53,21 +51,17 @@ import { MaskedPathInput } from './common/MaskedPathInput';
 import { JumpToLatest } from './common/JumpToLatest';
 import { StreamPathHelp } from './StreamPathHelp';
 import { RtMetricsRow } from './RtMetricsRow';
-import { PositionScatter } from './PositionScatter';
 import { SkySnrPanel } from './SkySnrPanel';
-import { TimeSeriesChart } from './TimeSeriesChart';
-import { MapView } from './viewer';
+import { PositionViewer } from './viewer';
 
 const MONO = "'IBM Plex Mono', monospace";
 
 /** Same cap as the backend history (HISTORY_EPOCHS, 1 Hz → one hour). */
 const MAX_EPOCHS = 3600;
-/** Time series (Recharts) slows down with many points; RT shows 600. */
-const MAX_SERIES = 600;
 const MAX_LOG_LINES = 500;
 const NO_SATELLITES: MonitorSatellite[] = [];
 /** Height of the chart / text area. The page has no tall sibling to stretch
- *  against, and the map needs a measured pixel height (lessons L02). */
+ *  against, and the viewer takes a pixel height (lessons L02). */
 const CHART_HEIGHT = 460;
 
 const INPUT_TYPES: { value: MonitorInputType; label: string; placeholder: string }[] = [
@@ -152,8 +146,7 @@ export function StreamMonitorPanel() {
   const [wsOpen, setWsOpen] = useState(false);
 
   const [tab, setTab] = useState<string | null>('chart');
-  const [chartViews, setChartViews] = useState<string[]>(['scatter', 'skysnr']);
-  const { ref: mapWrapRef, height: mapHeight } = useElementSize();
+  const [chartViews, setChartViews] = useState<string[]>(['position', 'skysnr']);
 
   const wsRef = useRef<WebSocket | null>(null);
   const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -299,9 +292,7 @@ export function StreamMonitorPanel() {
   // ── adapters to the RT components
   const last = epochs.length > 0 ? epochs[epochs.length - 1] : null;
   const metricsPosition = useMemo(() => (last ? toMetricsPosition(last) : null), [last]);
-  const points = useMemo(() => epochs.map(toPositionPoint), [epochs]);
-  const series = useMemo(() => epochs.slice(-MAX_SERIES).map(toTimeSeriesPoint), [epochs]);
-  const mapEpochs = useMemo(() => epochs.map(toPosEpoch), [epochs]);
+  const posEpochs = useMemo(() => epochs.map(toPosEpoch), [epochs]);
   const satellites = sats?.satellites ?? NO_SATELLITES;
   const satTime = sats?.time ? `${rtTimestamp(sats.time)} ${sats.time_sys}` : undefined;
 
@@ -490,34 +481,30 @@ export function StreamMonitorPanel() {
               </Tabs.List>
               <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
                 <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
-                  <Chip value="scatter" size="xs" variant="light">2D</Chip>
-                  <Chip value="map" size="xs" variant="light">Map</Chip>
+                  <Chip value="position" size="xs" variant="light">Position</Chip>
                   <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
-                  <Chip value="series" size="xs" variant="light">Time series</Chip>
                 </Group>
               </Chip.Group>
             </Group>
 
             <Tabs.Panel value="chart" pt={6}>
               <div style={{ display: 'flex', gap: 10, height: CHART_HEIGHT, minHeight: 0 }}>
-                {chartViews.includes('scatter') && (
-                  <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                    <PositionScatter points={points} maxPoints={MAX_EPOCHS} />
-                  </div>
-                )}
-                {chartViews.includes('map') && (
-                  <div ref={mapWrapRef} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                    {mapHeight > 0 && <MapView data={mapEpochs} height={mapHeight} timeSystem={last?.time_sys} />}
+                {chartViews.includes('position') && (
+                  <div style={{ flex: 3, minWidth: 0, minHeight: 0 }}>
+                    {/* The PP Result Viewer's views over the live epochs; a
+                        new session (started_at) resets zoom and map. */}
+                    <PositionViewer
+                      epochs={posEpochs}
+                      dataKey={status?.started_at ?? ''}
+                      maxHeight={CHART_HEIGHT}
+                      timeSystem={last?.time_sys ?? 'GPST'}
+                      emptyText={live ? 'Waiting for positions…' : 'No position data'}
+                    />
                   </div>
                 )}
                 {chartViews.includes('skysnr') && (
-                  <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                  <div style={{ flex: 2, minWidth: 0, minHeight: 0 }}>
                     <SkySnrPanel satellites={satellites} updateTime={satTime} />
-                  </div>
-                )}
-                {chartViews.includes('series') && (
-                  <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                    <TimeSeriesChart points={series} maxPoints={MAX_SERIES} />
                   </div>
                 )}
               </div>

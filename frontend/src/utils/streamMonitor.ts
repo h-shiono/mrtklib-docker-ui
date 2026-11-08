@@ -1,13 +1,10 @@
 /**
- * Adapters from Stream Monitor epochs to the shapes of the Real-Time
- * components it reuses (#96 P1). Every `null` → number decision for epochs
- * lives here; satellites need none (the Sky / SNR panel takes the shared
- * nullable `Satellite`).
+ * Adapters from Stream Monitor epochs to the metrics row and the position
+ * viewer (#96). Both take nullable values, so nothing is made up here;
+ * satellites go to the Sky / SNR panel as they come (shared `Satellite`).
  */
 
 import type { MonitorEpoch } from '../api/streamMonitor';
-import type { PositionPoint } from '../components/PositionScatter';
-import type { TimeSeriesPoint } from '../components/TimeSeriesChart';
 import type { MetricsPosition } from '../components/RtMetricsRow';
 import type { PosEpoch } from '../components/viewer';
 
@@ -30,16 +27,6 @@ export function toMetricsPosition(e: MonitorEpoch): MetricsPosition {
     ratio: e.ratio,
     age: e.age,
   };
-}
-
-export function toPositionPoint(e: MonitorEpoch): PositionPoint {
-  // The scatter only plots lat / lon; height is not shown.
-  return { lat: e.lat, lon: e.lon, height: e.height ?? 0, quality: e.Q, timestamp: rtTimestamp(e.time) };
-}
-
-export function toTimeSeriesPoint(e: MonitorEpoch): TimeSeriesPoint {
-  // No AR ratio (NMEA, SBF PVT, UBX) plots as 0, as RT does in SPP.
-  return { timestamp: rtTimestamp(e.time), quality: e.Q, ns: e.ns ?? 0, ratio: e.ratio ?? 0 };
 }
 
 export function toPosEpoch(e: MonitorEpoch): PosEpoch {
