@@ -23,7 +23,19 @@ interface ChartViewProps {
   showXLabels?: boolean;
   /** Auto Y range symmetric about 0 (ignored for ns and a fixed yRange) */
   ySymmetric?: boolean;
+  /** Vertical lines at these times, e.g. CLAS L6 source changes (#144). */
+  markers?: ChartMarker[];
+  /** Draw the markers' labels (stacked charts: the top one only). */
+  showMarkerLabels?: boolean;
 }
+
+/** A vertical line at a time (unix seconds), with an optional label. */
+export interface ChartMarker {
+  t: number;
+  label?: string;
+}
+
+const NO_MARKERS: ChartMarker[] = [];
 
 /** Height of the x axis with time labels (two lines when the date shows). */
 export const X_AXIS_LABELLED = 40;
@@ -46,6 +58,44 @@ const METRIC_SHORT: Record<ChartMetric, string> = {
   u: 'U',
   ns: 'ns',
 };
+
+/** uPlot plugin drawing dashed vertical marker lines (and labels at the
+ *  top). Reads the markers through a ref, like the Q colours. */
+function markerPlugin(
+  markersRef: { current: { markers: ChartMarker[]; labels: boolean } },
+  isDark: boolean,
+): uPlot.Plugin {
+  return {
+    hooks: {
+      draw: (u: uPlot) => {
+        const { markers, labels } = markersRef.current;
+        if (markers.length === 0) return;
+        const ctx = u.ctx;
+        const { left, top, width, height } = u.bbox;
+        const px = uPlot.pxRatio;
+        ctx.save();
+        ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
+        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.7)';
+        ctx.lineWidth = px;
+        ctx.setLineDash([4 * px, 3 * px]);
+        ctx.font = `${10 * px}px "IBM Plex Mono", monospace`;
+        ctx.textBaseline = 'top';
+        ctx.textAlign = 'left'; // uPlot leaves the axes' alignment set
+        for (const m of markers) {
+          const x = Math.round(u.valToPos(m.t, 'x', true));
+          if (x < left || x > left + width) continue;
+          ctx.beginPath();
+          ctx.moveTo(x, top);
+          ctx.lineTo(x, top + height);
+          ctx.stroke();
+          // Below the stats chip (top-left, about 18 px tall)
+          if (labels && m.label) ctx.fillText(m.label, x + 3 * px, top + 22 * px);
+        }
+        ctx.restore();
+      },
+    },
+  };
+}
 
 /** uPlot plugin to draw Q-flag colored points. Reads Q values through a ref
  *  so setData() with new data does not need a new plugin (or chart). */
@@ -267,6 +317,8 @@ export function ChartView({
   cursorSyncKey,
   showXLabels = true,
   ySymmetric = false,
+  markers = NO_MARKERS,
+  showMarkerLabels = false,
 }: ChartViewProps) {
   const { ref: containerRef, width } = useElementSize();
   const chartRef = useRef<HTMLDivElement>(null);
@@ -298,6 +350,7 @@ export function ChartView({
   // existing chart (setSize / setData) instead of rebuilding it.
   const plotDataRef = useRef(plotData);
   const qValuesRef = useRef<number[]>([]);
+  const markersRef = useRef({ markers, labels: showMarkerLabels });
   const sizeRef = useRef({ width, height });
   const rangesRef = useRef({ xRange, yRange });
   // Layout effects run before the effects below, so they always see these.
@@ -305,6 +358,7 @@ export function ChartView({
     onXRangeChangeRef.current = onXRangeChange;
     plotDataRef.current = plotData;
     qValuesRef.current = plotData?.qValues ?? [];
+    markersRef.current = { markers, labels: showMarkerLabels };
     sizeRef.current = { width, height };
     rangesRef.current = { xRange, yRange };
   });
@@ -340,6 +394,7 @@ export function ChartView({
       tzDate: (ts: number) => uPlot.tzDate(new Date(ts * 1e3), 'Etc/UTC'),
       plugins: [
         qColorPlugin(qValuesRef),
+        markerPlugin(markersRef, isDark),
         statsChipPlugin(metric, isDark),
         tooltipPlugin(metric, isDark),
       ],
@@ -459,6 +514,11 @@ export function ChartView({
     shownDataRef.current = plotData;
     applyRanges(u);
   }, [plotData]);
+
+  // New markers without new data (e.g. labels toggled) need a redraw.
+  useEffect(() => {
+    uplotRef.current?.redraw(false, false);
+  }, [markers, showMarkerLabels]);
 
   // Apply shared X-range changes imperatively (from other charts' zoom)
   useEffect(() => {

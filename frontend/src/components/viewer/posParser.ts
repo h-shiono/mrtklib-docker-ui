@@ -328,6 +328,8 @@ function parseNmea(lines: string[], fileName?: string): { epochs: PosEpoch[]; no
       sde: null,
       sdu: null,
       age: numOrNull(f[13]),
+      // Station id; MRTKLIB CLAS output names the L6 source here (#144).
+      refid: intOrNull(f[14]),
       ratio: null,
     });
   }

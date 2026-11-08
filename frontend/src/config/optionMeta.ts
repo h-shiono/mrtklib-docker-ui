@@ -194,7 +194,8 @@ const OPTION_META_DEF = {
     description:
       'PPP-RTK: write the CLAS L6 source as the NMEA GGA station id ' +
       '(P1*100 + P2*10 + F; P1/P2 = L6 PRN - 192 of channel 1/2, F = facility ' +
-      '+ 1, 9 when the channels differ). Off writes 0000. MRTKLIB default: on.',
+      '+ 1, 9 when the channels differ). Off writes 0000. MRTKLIB default: on. ' +
+      'Only NMEA output carries it; the Result Viewer marks where it changes.',
     docsAnchor: '#output',
     modes: modes(MODE_SETS.PPP_RTK),
   },

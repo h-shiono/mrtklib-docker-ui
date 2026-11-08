@@ -49,6 +49,7 @@ import {
   toPosEpoch,
 } from '../utils/streamMonitor';
 import { maskLogLine } from '../utils/maskPath';
+import { decodeClasSource, formatClasSource } from '../utils/clasSource';
 import { useFollowScroll } from '../hooks/useFollowScroll';
 import { MaskedPathInput } from './common/MaskedPathInput';
 import { JumpToLatest } from './common/JumpToLatest';
@@ -356,6 +357,7 @@ export function StreamMonitorPanel() {
   const last = epochs.length > 0 ? epochs[epochs.length - 1] : null;
   const metricsPosition = useMemo(() => (last ? toMetricsPosition(last) : null), [last]);
   const posEpochs = useMemo(() => epochs.map(toPosEpoch), [epochs]);
+  const lastL6 = live ? decodeClasSource(last?.refid) : null;
   const satellites = sats?.satellites ?? NO_SATELLITES;
   const satTime = sats?.time ? `${rtTimestamp(sats.time)} ${sats.time_sys}` : undefined;
 
@@ -536,6 +538,12 @@ export function StreamMonitorPanel() {
             <Row label="Satellites from">
               <Mono>{status?.satellite_source ?? '—'}</Mono>
             </Row>
+            {lastL6 && (
+              // CLAS: the GGA station id of `mrtk run` NMEA output (#144)
+              <Row label="L6 source">
+                <Mono>{`${formatClasSource(lastL6)} (${String(last?.refid).padStart(4, '0')})`}</Mono>
+              </Row>
+            )}
             <Row label="Messages">
               <Mono>
                 {msgCounts.length > 0
