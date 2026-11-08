@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- Sky / SNR panel (Real-Time and Stream Monitor): toggle each
+  constellation on and off. The toggles show the system colours and
+  satellite counts, and the choice is kept in the browser.
+
 ### Changed
 - Solution quality (Q) colours are the same in every view (#96): the
   Post-processing Result Viewer, the Real-Time and Stream Monitor
