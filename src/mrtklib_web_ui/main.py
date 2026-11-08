@@ -19,9 +19,13 @@ except importlib.metadata.PackageNotFoundError:
 
 from mrtklib_web_ui.api import (
     files, config, mrtk_relay, mrtk_post, mrtk_run, obs_qc,
-    presets, downloader, convert, ai, clas_pipeline,
+    presets, downloader, convert, ai, clas_pipeline, stream_monitor,
 )
 from mrtklib_web_ui.services import clas_pipeline_service, process_manager, ws_manager
+from mrtklib_web_ui.services.stream_monitor_service import (
+    RELAY_PID as STREAM_MONITOR_RELAY_PID,
+    stream_monitor_service,
+)
 
 # Static files directory (set in Docker build)
 STATIC_DIR = Path("/app/static")
@@ -31,7 +35,12 @@ STATIC_DIR = Path("/app/static")
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler."""
     # Startup: Wire up process manager to WebSocket manager
-    process_manager.set_log_callback(ws_manager.broadcast_log)
+    async def _on_process_log(process_id: str, line: str) -> None:
+        await ws_manager.broadcast_log(process_id, line)
+        if process_id == STREAM_MONITOR_RELAY_PID:
+            await stream_monitor_service.on_relay_log(line)
+
+    process_manager.set_log_callback(_on_process_log)
     process_manager.set_status_callback(ws_manager.broadcast_status)
 
     async def _on_clas_pvt(fix) -> None:
@@ -50,6 +59,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # get a clean stop signal before we kill them in the loop below.
     try:
         await clas_pipeline_service.stop()
+    except Exception:
+        pass
+    try:
+        await stream_monitor_service.stop()
     except Exception:
         pass
     for proc_info in process_manager.get_all_processes():
@@ -88,6 +101,7 @@ app.include_router(downloader.router, prefix="/api/downloader", tags=["downloade
 app.include_router(convert.router, prefix="/api/convert", tags=["convert"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 app.include_router(clas_pipeline.router, prefix="/api/clas-pipeline", tags=["clas-pipeline"])
+app.include_router(stream_monitor.router, prefix="/api/stream-monitor", tags=["stream-monitor"])
 
 
 @app.get("/api/health")

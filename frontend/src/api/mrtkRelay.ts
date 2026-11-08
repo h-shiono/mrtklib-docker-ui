@@ -17,7 +17,7 @@ export interface ProcessStatus {
   args: string[];
 }
 
-/** A relay started from the Stream Server tab, with its recent log */
+/** A relay started from the Stream Relay view, with its recent log */
 export interface RelayStreamInfo extends ProcessStatus {
   name: string;
   log: string[];
@@ -84,7 +84,7 @@ export async function listProcesses(): Promise<ProcessStatus[]> {
 }
 
 /**
- * List the relays started from the Stream Server tab, running or recently ended
+ * List the relays started from the Stream Relay view, running or recently ended
  */
 export async function listStreams(): Promise<RelayStreamInfo[]> {
   const response = await fetch(`${API_BASE}/streams`);

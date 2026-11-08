@@ -86,8 +86,12 @@ function SkyPlot({ satellites }: { satellites: Satellite[] }) {
   const cx = size / 2;
   const cy = size / 2;
   const R = 138;
-  // Used satellites on top, so they are not hidden by unused ones
-  const ordered = [...satellites].sort((a, b) => Number(isUsed(a)) - Number(isUsed(b)));
+  // Used satellites on top, so they are not hidden by unused ones. A satellite
+  // without a position (NaN: the Stream Monitor's stream did not give az/el)
+  // is left off the plot but stays in the SNR bars.
+  const ordered = satellites
+    .filter((s) => Number.isFinite(s.azimuth) && Number.isFinite(s.elevation))
+    .sort((a, b) => Number(isUsed(a)) - Number(isUsed(b)));
 
   const elToR = (el: number) => R * (1 - el / 90);
   const toXY = (az: number, el: number) => {

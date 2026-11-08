@@ -11,7 +11,7 @@ conversion, and data tools from a browser without compiling anything.
 - **Unified binary:** `mrtk` with subcommands (`post`, `run`, `relay`,
   `convert`, `ssr2obs`, `ssr2osr`, `bias`, `dump`, `cssr2rtcm3`,
   `l6extract`)
-- **UI version:** v0.4.4-alpha (next: v0.5.0 — drops the alpha suffix)
+- **UI version:** v0.4.5-alpha (next: v0.5.0 — drops the alpha suffix)
 
 ## Tech Stack
 
@@ -74,8 +74,8 @@ mrtklib-docker-ui/
 ### Navigation
 The header has a mode switch for the two primary modes,
 **Real-time | Post-processing**, and separate header buttons for
-**Stream Server** (Multi-Stream Relay, CLAS Pipeline) | **Conversion** |
-**Tools** (Time Converter, Data Downloader, AI Settings).
+**Stream Relay** (Multi-Stream, CLAS Pipeline) | **Stream Monitor** |
+**Conversion** | **Tools** (Time Converter, Data Downloader, AI Settings).
 
 Real-time and Post-processing use `ConsoleFrame`: a collapsible
 Config column (left) and a Workspace column (right: Chart / Solution /

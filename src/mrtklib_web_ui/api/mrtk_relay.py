@@ -12,7 +12,7 @@ from mrtklib_web_ui.services.mrtk_run_service import expand_path_keywords, gpst_
 
 router = APIRouter()
 
-# Display names of the relays started from the Stream Server tab, by
+# Display names of the relays started from the Stream Relay view, by
 # process ID. Also tells them apart from relays the CLAS pipeline runs
 # through the same process manager. Entries go when the process info is pruned.
 _stream_names: dict[str, str] = {}
@@ -33,7 +33,7 @@ class MrtkRelayStartRequest(BaseModel):
     name: str | None = Field(
         default=None,
         max_length=100,
-        description="Stream name shown in the Stream Server tab",
+        description="Stream name shown in the Stream Relay view",
     )
 
 
@@ -69,7 +69,7 @@ class ProcessStatusResponse(BaseModel):
 
 
 class RelayStreamResponse(ProcessStatusResponse):
-    """A Stream Server relay, with what a reloaded page needs to adopt it."""
+    """A relay from the Stream Relay view, with what a reloaded page needs to adopt it."""
 
     name: str
     log: list[str] = Field(default_factory=list)
@@ -241,7 +241,7 @@ async def list_processes() -> list[ProcessStatusResponse]:
 
 @router.get("/streams", response_model=list[RelayStreamResponse])
 async def list_streams() -> list[RelayStreamResponse]:
-    """List the relays started from the Stream Server tab, with their recent log.
+    """List the relays started from the Stream Relay view, with their recent log.
 
     Lets a page that was reloaded or reconnected pick up relays that are
     still running, and catch up on ones that ended meanwhile (#52).

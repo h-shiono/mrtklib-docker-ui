@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.5-alpha] - 2026-11-08
+
+No action is needed to upgrade from 0.4.4-alpha.
+
+### Added
+- **Stream Monitor** (header, between Stream Relay and Conversion,
+  #96): connect to a receiver or any GNSS stream (serial, TCP client /
+  server, NTRIP client, file) through `mrtk relay` and see it decoded
+  live, with the Real-Time views: position and quality, 2D scatter,
+  map, sky plot and SNR, time series, a solution list and the relay
+  log.
+  - Decodes NMEA (GGA, RMC, ZDA, GST, GSA, GSV), Septentrio SBF
+    (PVTGeodetic, MeasEpoch, ChannelStatus, SatVisibility), u-blox UBX
+    (NAV-PVT, NAV-SAT) and MRTKLIB solution text (llh / xyz), mixed in
+    one stream. Checksums are verified; when one stream carries several
+    position sources, the receiver's own (SBF / UBX) is preferred over
+    NMEA.
+  - Times are shown in the stream's own time system (UTC for NMEA and
+    UBX, GPST for SBF), without leap-second shifts.
+  - The Stream card shows the data rate, which messages arrive, and
+    how many bytes could not be decoded.
+  - Optional raw log of the received bytes under `/workspace`
+    (restart-safe `_2`, `_3`, ... names, as in Real-Time).
+  - A reloaded page reattaches to the running session.
+
+### Changed
+- The **Stream Server** header button is now **Stream Relay** (it runs
+  `mrtk relay`), and its first tab **Multi-Stream** (was Multi-Stream
+  Relay). Nothing else changes.
+
+### Fixed
+- Development only: `npm run dev` now proxies the WebSockets under
+  `/api`, so the Real-Time page receives status and positions in dev
+  mode. The Docker image was not affected.
+
 ## [0.4.4-alpha] - 2026-11-07
 
 No action is needed to upgrade from 0.4.3-alpha.
