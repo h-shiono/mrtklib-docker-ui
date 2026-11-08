@@ -273,6 +273,35 @@ def test_stop_delivers_the_last_epochs(relay, client):
     assert [e["time"][11:19] for e in epochs] == ["12:00:00", "12:00:01", "12:00:02", "12:00:03"]
 
 
+def test_other_pages_see_a_new_session_before_its_logs(relay, client):
+    """A status with the new started_at precedes the new relay's output, so a
+    page that did not click Start can drop the previous session's console."""
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        assert json.loads(ws.receive_text())["type"] == "history"
+        assert json.loads(ws.receive_text())["running"] is False
+        assert client.post("/api/stream-monitor/start", json={
+            "input": {"type": "tcpcli", "path": "localhost:1"}}).status_code == 200
+        first = json.loads(ws.receive_text())
+        assert first["type"] == "status" and first["state"] == "starting"
+        assert first["running"] and first["started_at"]
+        client.post("/api/stream-monitor/stop")
+        _receive_until(ws, lambda m: m.get("exited"))
+
+
+def test_a_relay_that_fails_to_start_ends_the_session(relay, client, monkeypatch):
+    async def fail(command, args, process_id):
+        raise OSError("no such binary")
+
+    monkeypatch.setattr(process_manager, "start", fail)
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        _receive_until(ws, lambda m: m["type"] == "status")
+        assert client.post("/api/stream-monitor/start", json={
+            "input": {"type": "tcpcli", "path": "localhost:1"}}).status_code == 409
+        end = _receive_until(ws, lambda m: m.get("exited"))
+        assert end["state"] == "error" and "no such binary" in end["error_message"]
+    assert client.get("/api/stream-monitor/status").json()["running"] is False
+
+
 def test_relay_start_line_is_masked():
     """process_manager masks every log line before it reaches the WebSocket."""
     from mrtklib_web_ui.services.mask_credentials import mask_log_line

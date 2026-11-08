@@ -78,7 +78,9 @@ class PosTextDecoder:
             lat, lon, height = ecef_to_llh(c0, c1, c2)
         else:
             lat, lon, height = c0, c1, c2
-        if not (-90 <= lat <= 90 and -180 <= lon <= 360):
+        # Huge finite ECEF values overflow to an infinite height, which JSON
+        # cannot carry.
+        if not (-90 <= lat <= 90 and -180 <= lon <= 360 and math.isfinite(height)):
             return []
         sd = [None, None, None]
         if layout == "llh":  # xyz rows carry ECEF sigmas
