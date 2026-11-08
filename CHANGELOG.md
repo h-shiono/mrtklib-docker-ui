@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- Sky / SNR panel (Real-Time and Stream Monitor): toggle each
+  constellation on and off. The toggles show the system colours and
+  satellite counts, and the choice is kept in the browser.
+
 ## [0.4.5-alpha] - 2026-11-08
 
 No action is needed to upgrade from 0.4.4-alpha.

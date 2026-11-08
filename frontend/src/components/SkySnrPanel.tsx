@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Chip,
+  Group,
   SegmentedControl,
   Stack,
   Text,
 } from '@mantine/core';
+import { useLocalStorage } from '@mantine/hooks';
 import { isUsed } from '../utils/rtSatellites';
 import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 
@@ -38,6 +41,14 @@ const SYS_COLOR: Record<string, string> = {
   NavIC:   '#6b7280',
   Unknown: '#6b7280',
 };
+
+/** Order of the system toggles; systems not listed follow by name. */
+const SYS_ORDER = ['GPS', 'GLONASS', 'Galileo', 'QZSS', 'BeiDou', 'SBAS', 'NavIC'];
+
+function sysRank(sys: string): number {
+  const i = SYS_ORDER.indexOf(sys);
+  return i < 0 ? SYS_ORDER.length : i;
+}
 
 const FREQ_SYSTEMS: Record<string, string[]> = {
   L1:  ['GPS', 'QZSS', 'Galileo', 'GLONASS', 'BeiDou', 'SBAS'],
@@ -248,12 +259,35 @@ function SnrBarChart({ satellites }: { satellites: Satellite[] }) {
 
 export function SkySnrPanel({ satellites, updateTime }: SkySnrPanelProps) {
   const [freqFilter, setFreqFilter] = useState('All');
+  // Systems switched off (not the ones switched on), so a system that shows
+  // up later is visible. Kept per browser, shared by RT and Stream Monitor.
+  const [hiddenSystems, setHiddenSystems] = useLocalStorage<string[]>({
+    key: 'mrtk-skyplot-hidden-systems',
+    defaultValue: [],
+  });
 
-  const filtered = useMemo(() => {
+  const bandFiltered = useMemo(() => {
     if (freqFilter === 'All') return satellites;
     const systems = FREQ_SYSTEMS[freqFilter] || [];
     return satellites.filter((s) => systems.includes(s.system));
   }, [satellites, freqFilter]);
+
+  // Systems in view (after the band filter), with their satellite counts.
+  const systems = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of bandFiltered) counts.set(s.system, (counts.get(s.system) ?? 0) + 1);
+    return [...counts.entries()].sort(
+      ([a], [b]) => sysRank(a) - sysRank(b) || a.localeCompare(b),
+    );
+  }, [bandFiltered]);
+
+  const filtered = useMemo(
+    () => bandFiltered.filter((s) => !hiddenSystems.includes(s.system)),
+    [bandFiltered, hiddenSystems],
+  );
+
+  const toggleSystem = (sys: string, on: boolean) =>
+    setHiddenSystems((prev) => (on ? prev.filter((x) => x !== sys) : [...prev, sys]));
 
   const usedCount = filtered.filter(isUsed).length;
 
@@ -279,6 +313,25 @@ export function SkySnrPanel({ satellites, updateTime }: SkySnrPanelProps) {
           {usedCount}/{filtered.length} sats used{updateTime ? ` \u00b7 ${updateTime}` : ''}
         </span>
       </div>
+
+      {/* System toggles: also the colour legend */}
+      {systems.length > 0 && (
+        <Group gap={4} px={10} pb={4} wrap="wrap">
+          {systems.map(([sys, n]) => (
+            <Chip
+              key={sys}
+              size="xs"
+              variant="light"
+              color={SYS_COLOR[sys] || SYS_COLOR.Unknown}
+              checked={!hiddenSystems.includes(sys)}
+              onChange={(on) => toggleSystem(sys, on)}
+              styles={{ label: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 10 } }}
+            >
+              {sys} {n}
+            </Chip>
+          ))}
+        </Group>
+      )}
 
       {/* Sky Plot - takes remaining space */}
       <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 0 }}>
