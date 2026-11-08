@@ -207,7 +207,7 @@ export function Plot2DView({ data, height }: Plot2DViewProps) {
     const getEffectiveBounds = (): Bounds => {
       if (viewRef.current) return viewRef.current;
       // Compute aspect-ratio adjusted natural bounds (same logic as draw)
-      let { minE, maxE, minN, maxN } = naturalBounds;
+      const { minE, maxE, minN, maxN } = naturalBounds;
       const scaleE = plotW / (maxE - minE);
       const scaleN = plotH / (maxN - minN);
       const scale = Math.min(scaleE, scaleN);
