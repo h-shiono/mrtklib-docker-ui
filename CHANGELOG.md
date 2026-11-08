@@ -18,6 +18,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   The Result Viewer's SBAS, DGPS and PPP colours change to match the
   Real-Time scatter. Q=7 (DR, dead reckoning) gets its own colour
   and label.
+- Result Viewer: values a solution file does not carry are left out
+  instead of plotted as 0. An NMEA GGA without the altitude or the geoid
+  separation has no height (a gap in the U chart, not a height off by
+  the geoid), a missing satellite count leaves a gap in the ns chart,
+  and the map tooltip shows "—" for a missing height or AR ratio (NMEA
+  has none).
 
 ### Fixed
 - Real-Time metrics row and status bar: SINGLE showed in the same gray

@@ -65,7 +65,9 @@ function qColorPlugin(qValuesRef: { current: number[] }): uPlot.Plugin {
         ctx.clip();
         for (let i = 0; i < xData.length; i++) {
           const x = u.valToPos(xData[i], 'x', true);
-          const y = u.valToPos(yData[i] as number, 'y', true);
+          const v = yData[i];
+          if (v == null) continue;
+          const y = u.valToPos(v, 'y', true);
           if (x < 0 || y < 0) continue;
 
           const q = qValuesRef.current[i] ?? 5;
@@ -279,7 +281,8 @@ export function ChartView({
   const plotData = useMemo(() => {
     if (data.length === 0) return null;
     const xValues = new Float64Array(data.length);
-    const yValues = new Float64Array(data.length);
+    // null (no height / ns / ratio) stays null: uPlot leaves a gap.
+    const yValues: (number | null)[] = new Array(data.length);
     const qValues: number[] = [];
 
     for (let i = 0; i < data.length; i++) {
@@ -414,7 +417,7 @@ export function ChartView({
 
     const uplotData: uPlot.AlignedData = [
       Array.from(plotData.xValues),
-      Array.from(plotData.yValues),
+      plotData.yValues,
     ];
 
     if (uplotRef.current) {
@@ -452,7 +455,7 @@ export function ChartView({
   useEffect(() => {
     const u = uplotRef.current;
     if (!u || !plotData || shownDataRef.current === plotData) return;
-    u.setData([Array.from(plotData.xValues), Array.from(plotData.yValues)]);
+    u.setData([Array.from(plotData.xValues), plotData.yValues]);
     shownDataRef.current = plotData;
     applyRanges(u);
   }, [plotData]);

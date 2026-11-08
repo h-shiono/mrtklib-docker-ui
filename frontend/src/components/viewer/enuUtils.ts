@@ -14,9 +14,9 @@ const DEG2RAD = Math.PI / 180;
 export function llhToEnu(
   lat: number,
   lon: number,
-  h: number,
+  h: number | null,
   ref: ReferencePosition,
-): { e: number; n: number; u: number } {
+): { e: number; n: number; u: number | null } {
   const refLatRad = ref.lat * DEG2RAD;
   const sinRefLat = Math.sin(refLatRad);
 
@@ -33,7 +33,7 @@ export function llhToEnu(
   return {
     e: dLon * (N + ref.height) * Math.cos(refLatRad),
     n: dLat * (M + ref.height),
-    u: h - ref.height,
+    u: h == null ? null : h - ref.height,
   };
 }
 
@@ -79,12 +79,18 @@ function median(values: number[]): number {
     : sorted[mid];
 }
 
+/** Known heights; none known → [0] (the reference needs a height). */
+function heights(epochs: PosEpoch[]): number[] {
+  const hs = epochs.flatMap((e) => (e.height == null ? [] : [e.height]));
+  return hs.length > 0 ? hs : [0];
+}
+
 /** Compute a reference position from epochs using mean */
 export function computeMeanReference(epochs: PosEpoch[]): ReferencePosition {
   return {
     lat: mean(epochs.map((e) => e.lat)),
     lon: mean(epochs.map((e) => e.lon)),
-    height: mean(epochs.map((e) => e.height)),
+    height: mean(heights(epochs)),
   };
 }
 
@@ -93,7 +99,7 @@ export function computeMedianReference(epochs: PosEpoch[]): ReferencePosition {
   return {
     lat: median(epochs.map((e) => e.lat)),
     lon: median(epochs.map((e) => e.lon)),
-    height: median(epochs.map((e) => e.height)),
+    height: median(heights(epochs)),
   };
 }
 
