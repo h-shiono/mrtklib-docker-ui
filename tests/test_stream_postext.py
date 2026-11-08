@@ -88,3 +88,8 @@ def test_malformed_rows_do_not_stop_the_stream(bad):
 def test_last_row_without_newline_is_decoded_on_flush():
     (e,) = _epochs(LLH_HEADER + LLH_ROW.rstrip("\n"))
     assert e.ns == 21
+
+
+def test_ecef_overflowing_to_an_infinite_height_is_dropped():
+    # Finite, but squaring them overflows: the height would be inf (not JSON).
+    assert _epochs("2026/11/07 12:19:11.000 1e160 1e160 1e160 1 21\n") == []

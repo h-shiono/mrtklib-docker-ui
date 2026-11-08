@@ -204,11 +204,15 @@ class StreamMonitorService:
             self._bytes_at_tick = 0
             self.bytes_per_sec = 0.0
             self.connected = False
+            # Before the relay's first log line: a new `started_at` tells every
+            # page that a new session begins (its console and data reset).
+            await self._send(self.status_message())
             try:
                 await process_manager.start(command="str2str", args=args, process_id=RELAY_PID)
             except Exception as e:
                 self.state = "error"
                 self.error_message = f"Failed to start mrtk relay: {e}"
+                await self._send({**self.status_message(), "exited": True})
                 raise RuntimeError(self.error_message) from e
             self.state = "running"
             run = self._run

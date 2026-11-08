@@ -164,6 +164,11 @@ export function StreamMonitorPanel() {
   // ended (relay exit, Stop from another page) is older than that exit and
   // must not bring Running back: no further status would correct it.
   const exitCountRef = useRef(0);
+  // `started_at` of the session this page shows. A status with another one
+  // means a new session (maybe started from another page): its console and
+  // data start empty. `undefined` = take the next status as is (`history`
+  // just replaced everything).
+  const sessionRef = useRef<string | null | undefined>(undefined);
 
   const clearData = useCallback(() => {
     setEpochs([]);
@@ -192,9 +197,19 @@ export function StreamMonitorPanel() {
           setEpochs((msg.epochs ?? []).slice(-MAX_EPOCHS));
           setSats(msg.satellites ?? null);
           setLogLines((msg.logs ?? []).reduce(appendLog, [] as string[]));
+          sessionRef.current = undefined;
           break;
         case 'status':
           if (!msg.running && !msg.exited && startingRef.current) break;
+          if (
+            sessionRef.current !== undefined &&
+            msg.started_at &&
+            msg.started_at !== sessionRef.current
+          ) {
+            clearData();
+            setLogLines([]);
+          }
+          sessionRef.current = msg.started_at;
           setStatus(msg);
           if (msg.exited) {
             exitCountRef.current += 1;
