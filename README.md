@@ -90,9 +90,11 @@ GNSS positioning capabilities. No compilation required — just
 
 ### Stream Monitor (receiver or stream: NMEA / SBF / UBX)
 - Connects to a receiver or any stream (serial, TCP client / server,
-  NTRIP client, file) through `mrtk relay`, without running `mrtk run`
+  NTRIP client) through `mrtk relay`, without running `mrtk run`
   — for example the receiver itself, or the NMEA output of a running
   `mrtk run`
+- Replays a recorded file (raw SBF / UBX / NMEA log or solution text)
+  all at once or paced by its epoch times (real time, 10×, 60×)
 - Decodes NMEA (GGA, RMC, ZDA, GST, GSA, GSV), Septentrio SBF
   (PVTGeodetic, MeasEpoch, ChannelStatus, SatVisibility), u-blox UBX
   (NAV-PVT, NAV-SAT) and MRTKLIB solution text, mixed in one stream
