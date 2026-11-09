@@ -24,6 +24,7 @@ export type ProcessState =
   | 'success'
   | 'done'
   | 'failed'
+  | 'exited'
   | 'error';
 
 const PROCESS_TONE: Record<ProcessState, StatusTone> = {
@@ -36,6 +37,7 @@ const PROCESS_TONE: Record<ProcessState, StatusTone> = {
   success: 'ok',
   done: 'ok',
   failed: 'error',
+  exited: 'error',
   error: 'error',
 };
 

@@ -50,11 +50,16 @@ export type MetricsPosition = Pick<PositionUpdate, 'timestamp' | 'lat' | 'lon' |
   age: number | null;
 };
 
+/** How much of an ended run's values and charts still shows. */
+export const ENDED_OPACITY = 0.55;
+
 const TRUNCATE = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } as const;
 
-function Cell({ caption, children, grow = false, minWidth }: {
+function Cell({ caption, children, grow = false, minWidth, faded = false }: {
   caption: string;
   children: ReactNode;
+  /** The value is from a run that has ended. */
+  faded?: boolean;
   /** Takes the row's remaining width and truncates. */
   grow?: boolean;
   minWidth?: number;
@@ -62,7 +67,7 @@ function Cell({ caption, children, grow = false, minWidth }: {
   return (
     <Box style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: grow ? 0 : minWidth, flex: grow ? '1 1 0' : '0 0 auto' }}>
       <Text component="span" style={CAP}>{caption}</Text>
-      {children}
+      <Box style={{ opacity: faded ? ENDED_OPACITY : 1, minWidth: 0 }}>{children}</Box>
     </Box>
   );
 }
@@ -73,12 +78,16 @@ export function RtMetricsRow({
   lastPosition,
   satellites,
   timeSystem = 'GPST',
+  endedAt = null,
 }: {
   lastPosition: MetricsPosition | null;
   satellites: Satellite[];
   /** Time system of `lastPosition.timestamp`. */
   timeSystem?: string;
+  /** Browser-local time the run shown here ended; null while it is live. */
+  endedAt?: string | null;
 }) {
+  const faded = endedAt !== null;
   const q = lastPosition
     ? {
         label: qualityLabel(lastPosition.quality).toUpperCase(),
@@ -104,13 +113,13 @@ export function RtMetricsRow({
   return (
     <Box style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 16px 6px', flexShrink: 0 }}>
       <Box style={ROW}>
-        <Cell caption={`Current time · ${timeSystem}`} grow>
+        <Cell caption={endedAt ? `Last session · ended ${endedAt} local` : `Current time · ${timeSystem}`} grow faded={faded}>
           <Text component="span" title={lastPosition?.timestamp || undefined} style={{ ...dataText, lineHeight: '24px', ...TRUNCATE }}>
             {lastPosition?.timestamp || DASH}
           </Text>
         </Cell>
 
-        <Cell caption="Quality" minWidth={104}>
+        <Cell caption="Quality" minWidth={104} faded={faded}>
           <Group gap={7} align="center" wrap="nowrap" style={{ lineHeight: 1 }}>
             <Box
               style={{
@@ -124,13 +133,13 @@ export function RtMetricsRow({
           </Group>
         </Cell>
 
-        <Cell caption="Ratio" minWidth={72}>
+        <Cell caption="Ratio" minWidth={72} faded={faded}>
           <Text component="span" style={NUM}>
             {lastPosition?.ratio != null ? lastPosition.ratio.toFixed(2) : DASH}
           </Text>
         </Cell>
 
-        <Cell caption="Age" minWidth={60}>
+        <Cell caption="Age" minWidth={60} faded={faded}>
           <Text component="span" style={NUM}>
             {lastPosition?.age != null ? lastPosition.age.toFixed(1) : DASH}
             {lastPosition?.age != null && <Text component="span" c="dimmed" style={{ fontSize: FONT_SIZE.title }}>s</Text>}
@@ -139,7 +148,7 @@ export function RtMetricsRow({
       </Box>
 
       <Box style={ROW}>
-        <Cell caption="Position · LLH">
+        <Cell caption="Position · LLH" faded={faded}>
           <Group gap={12} wrap="nowrap" style={dataText}>
             <span>{lastPosition ? lastPosition.lat.toFixed(8) : DASH}</span>
             <span>{lastPosition ? lastPosition.lon.toFixed(8) : DASH}</span>
@@ -150,7 +159,7 @@ export function RtMetricsRow({
           </Group>
         </Cell>
 
-        <Cell caption="Satellites · used / visible" grow>
+        <Cell caption="Satellites · used / visible" grow faded={faded}>
           <Group gap={10} wrap="nowrap" title={sysSummary || undefined} style={{ ...dataText, overflow: 'hidden' }}>
             <span style={{ flexShrink: 0 }}>{totalVis ? `${totalUsed}/${totalVis}` : DASH}</span>
             {sysList.map((sys) => (

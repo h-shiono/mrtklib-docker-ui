@@ -36,6 +36,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   Stream Relay, Conversion and CLAS Pipeline: search and copy, following that
   pauses while you read, `[ERROR]` and `[WARN]` in colour, and a count on
   the Console tab for errors that arrive while another tab is open.
+- Real-time: a run that ends stays on screen, dimmed and captioned "Last
+  session", until the next Start. A run that dies shows `exited (code n)`
+  instead of looking as if it never started, and Start no longer turns into
+  Stop before the run is confirmed.
 
 ### Removed
 - The clear-log buttons in Post-processing, Stream Relay and Conversion. A new
