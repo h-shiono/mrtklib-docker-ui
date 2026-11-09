@@ -40,6 +40,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   session", until the next Start. A run that dies shows `exited (code n)`
   instead of looking as if it never started, and Start no longer turns into
   Stop before the run is confirmed.
+- Every configuration field now has a name for screen readers, and clicking
+  a row's label focuses its field.
 
 ### Removed
 - The clear-log buttons in Post-processing, Stream Relay and Conversion. A new

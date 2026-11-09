@@ -469,3 +469,9 @@ const OPTION_META_DEF = {
 
 export type OptionMetaKey = keyof typeof OPTION_META_DEF;
 export const OPTION_META: Record<OptionMetaKey, OptionMeta> = OPTION_META_DEF;
+
+/** The option's label as an accessible name, for a control whose visible label
+ *  also holds a help button and so cannot be a `<label>`. */
+export function optionName(key: OptionMetaKey): string {
+  return OPTION_META[key]?.label ?? key;
+}
