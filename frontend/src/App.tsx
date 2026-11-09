@@ -67,6 +67,7 @@ import { DEFAULT_MRTK_POST_CONFIG } from './types/mrtkPostConfig';
 import type { InputStream, OutputStream, StreamType } from './types/streamConfig';
 import type { BuilderConfig } from './types/streamConfig';
 import { generateRelayArgs, parseRelayArgs } from './utils/streamArgs';
+import { FONT_SIZE, MONO } from './utils/typography';
 
 function ColorSchemeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -144,7 +145,7 @@ function PostProcessingRightPanel({
                 <Badge size="sm" color={qualityColor(progress.quality)}>
                   {qualityLabel(progress.quality).toUpperCase()}
                 </Badge>
-                <Text size="xs" ff="monospace" style={{ fontSize: '11px' }}>
+                <Text size="xs" ff="monospace" style={{ fontSize: FONT_SIZE.label }}>
                   {progress.epoch}
                 </Text>
               </>
@@ -171,7 +172,7 @@ function PostProcessingRightPanel({
         <Group justify="space-between" px="sm" py={6}>
           <Group gap="xs">
             <StatusBadge tone="ok">Complete</StatusBadge>
-            <Code style={{ fontSize: '10px' }}>{outputFile}</Code>
+            <Code style={{ fontSize: FONT_SIZE.label }}>{outputFile}</Code>
           </Group>
           <Button
             variant="light"
@@ -239,28 +240,28 @@ function PostProcessingRightPanel({
             <Tabs.Tab
               value="chart"
               leftSection={<IconChartDots size={13} />}
-              style={{ fontSize: '11px', padding: '6px 10px' }}
+              style={{ fontSize: FONT_SIZE.label, padding: '6px 10px' }}
             >
               Chart
             </Tabs.Tab>
             <Tabs.Tab
               value="solution"
               leftSection={<IconFileText size={13} />}
-              style={{ fontSize: '11px', padding: '6px 10px' }}
+              style={{ fontSize: FONT_SIZE.label, padding: '6px 10px' }}
             >
               Solution
             </Tabs.Tab>
             <Tabs.Tab
               value="console"
               leftSection={<IconTerminal2 size={13} />}
-              style={{ fontSize: '11px', padding: '6px 10px' }}
+              style={{ fontSize: FONT_SIZE.label, padding: '6px 10px' }}
             >
               Console
             </Tabs.Tab>
             <Tabs.Tab
               value="trace"
               leftSection={<IconBug size={13} />}
-              style={{ fontSize: '11px', padding: '6px 10px' }}
+              style={{ fontSize: FONT_SIZE.label, padding: '6px 10px' }}
             >
               Trace
             </Tabs.Tab>
@@ -331,7 +332,7 @@ function PostProcessingRightPanel({
             styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
           >
             {logLines.length === 0 ? (
-              <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
+              <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
                 Waiting for output...
               </Text>
             ) : (
@@ -341,8 +342,8 @@ function PostProcessingRightPanel({
                   size="xs"
                   c="var(--app-console-fg)"
                   style={{
-                    fontFamily: "'IBM Plex Mono', monospace",
-                    fontSize: '11px',
+                    fontFamily: MONO,
+                    fontSize: FONT_SIZE.label,
                     lineHeight: 1.5,
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-all',
@@ -480,7 +481,7 @@ function SolutionView({
   if (loading) {
     return (
       <Stack align="center" justify="center" h={maxHeight} gap="xs" style={{ backgroundColor: consoleBg }}>
-        <Text size="xs" c="dimmed" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>Loading {noun}...</Text>
+        <Text size="xs" c="dimmed" style={{ fontFamily: MONO }}>Loading {noun}...</Text>
       </Stack>
     );
   }
@@ -488,7 +489,7 @@ function SolutionView({
   if (error) {
     return (
       <Stack align="center" justify="center" h={maxHeight} gap="xs" style={{ backgroundColor: consoleBg }}>
-        <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{error}</Text>
+        <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: MONO }}>{error}</Text>
       </Stack>
     );
   }
@@ -496,7 +497,7 @@ function SolutionView({
   if (!content) {
     return (
       <Stack align="center" justify="center" h={maxHeight} gap="xs" style={{ backgroundColor: consoleBg }}>
-        <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>No {noun} to display</Text>
+        <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: MONO }}>No {noun} to display</Text>
       </Stack>
     );
   }
@@ -509,7 +510,7 @@ function SolutionView({
     <>
       {partial && (
         <Group gap={6} wrap="nowrap" px={12} h={NOTE_H} style={{ backgroundColor: consoleBg }}>
-          <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }} truncate>
+          <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: FONT_SIZE.label }} truncate>
             Showing the {fromEnd ? 'last' : 'first'} {loaded.returned.toLocaleString()} of{' '}
             {loaded.total.toLocaleString()} lines{searchable ? ' (search covers these only)' : ''}
           </Text>
@@ -543,9 +544,9 @@ function SolutionView({
           <Text
             c="var(--app-console-fg)"
             style={{
-              fontFamily: "'IBM Plex Mono', monospace",
+              fontFamily: MONO,
               whiteSpace: 'pre',
-              fontSize: '11px',
+              fontSize: FONT_SIZE.label,
               lineHeight: 1.5,
             }}
           >
@@ -1292,7 +1293,7 @@ function MultiStreamPanel() {
                           value={stream.input.path}
                           onChange={(v) => handleInputPathChange(stream.id, v)}
                           placeholder={PATH_PLACEHOLDER_FOR_TYPE[stream.input.type]}
-                          styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }}
+                          styles={{ input: { fontFamily: MONO } }}
                         />
                       </Group>
                     </Box>
@@ -1320,7 +1321,7 @@ function MultiStreamPanel() {
                               value={output.path}
                               onChange={(v) => handleOutputPathChange(stream.id, output.id, v)}
                               placeholder={PATH_PLACEHOLDER_FOR_TYPE[output.type]}
-                              styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }}
+                              styles={{ input: { fontFamily: MONO } }}
                             />
                             <ActionIcon
                               variant="subtle"
@@ -1378,7 +1379,7 @@ function MultiStreamPanel() {
                         }}
                       />
                     }
-                    style={{ fontSize: '11px', padding: '6px 10px' }}
+                    style={{ fontSize: FONT_SIZE.label, padding: '6px 10px' }}
                   >
                     {stream.name}
                   </Tabs.Tab>
@@ -1402,7 +1403,7 @@ function MultiStreamPanel() {
                   styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
                 >
                   {stream.logLines.length === 0 ? (
-                    <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
+                    <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
                       Waiting for output...
                     </Text>
                   ) : (
@@ -1412,8 +1413,8 @@ function MultiStreamPanel() {
                         size="xs"
                         c="var(--app-console-fg)"
                         style={{
-                          fontFamily: "'IBM Plex Mono', monospace",
-                          fontSize: '11px',
+                          fontFamily: MONO,
+                          fontSize: FONT_SIZE.label,
                           lineHeight: 1.5,
                           whiteSpace: 'pre-wrap',
                           wordBreak: 'break-all',
@@ -1473,7 +1474,6 @@ const SECONDARY_VIEWS = [
   { value: 'tools', label: 'Tools' },
 ] as const;
 
-const MONO = "'IBM Plex Mono', monospace";
 
 /** Bottom status bar (console redesign Phase 2/4). Shows live RT solution
  *  values when a Real-time session is producing them; dashes otherwise. */
@@ -1483,7 +1483,7 @@ function StatusBar({ activeTab, mrtkVersion, rtStatus }: { activeTab: string; mr
     activeTab === 'post-processing' ? 'post-proc' :
     (SECONDARY_VIEWS.find((v) => v.value === activeTab)?.label.toLowerCase() ?? activeTab);
 
-  const cell = { fontFamily: MONO, fontSize: 10.5 } as const;
+  const cell = { fontFamily: MONO, fontSize: FONT_SIZE.label } as const;
   const sat = rtStatus
     ? (rtStatus.satsVisible > 0 ? `${rtStatus.ns}/${rtStatus.satsVisible}` : `${rtStatus.ns}`)
     : '—/—';
@@ -1494,7 +1494,7 @@ function StatusBar({ activeTab, mrtkVersion, rtStatus }: { activeTab: string; mr
       px="md"
       gap={18}
       wrap="nowrap"
-      style={{ fontFamily: MONO, fontSize: 10.5, color: 'var(--mantine-color-dimmed)', overflow: 'hidden' }}
+      style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, color: 'var(--mantine-color-dimmed)', overflow: 'hidden' }}
     >
       {rtStatus ? (
         <Text span style={{ ...cell, color: qualityTextColor(rtStatus.quality), fontWeight: 600 }}>

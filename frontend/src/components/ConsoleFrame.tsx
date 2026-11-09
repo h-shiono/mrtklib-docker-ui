@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ActionIcon, Box, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
+import { FONT_SIZE } from '../utils/typography';
 
 // ─── Console redesign Phase 3: collapsible 1:1 Config | Workspace frame ───────
 // The left Config column collapses to a 50px rail; the right Workspace fills the
@@ -60,7 +61,7 @@ function ConfigRail({ onExpand }: { onExpand: () => void }) {
           style={{
             writingMode: 'vertical-rl',
             transform: 'rotate(180deg)',
-            fontSize: 11,
+            fontSize: FONT_SIZE.label,
             letterSpacing: '0.22em',
             textTransform: 'uppercase',
             fontWeight: 600,

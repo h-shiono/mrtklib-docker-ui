@@ -14,6 +14,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   blue when starting, green when running or finished, amber for a warning,
   red for an error (shown with an icon). Colour outside controls now only
   reports a state, so browse buttons and toolbar icons are neutral.
+- Text uses one size scale on every screen. Labels and help text below 11 px
+  grew to 11 px; only uppercase captions and chart tick labels stay at 10 px.
+
+### Fixed
+- Observation QC: switching the SNR plot to Elevation without a NAV file could
+  crash the dialog.
 
 ## [0.4.7-alpha] - 2026-11-09
 

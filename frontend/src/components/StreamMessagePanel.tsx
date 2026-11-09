@@ -17,15 +17,15 @@ import {
   messageRowId,
   sortMessageTypes,
 } from '../utils/streamMessages';
+import { FONT_SIZE, MONO } from '../utils/typography';
 
-const MONO = "'IBM Plex Mono', monospace";
 const LIST_WIDTH = 380;
 const DETAIL_HEIGHT = 170;
 const SELECTED_BG = 'var(--mantine-primary-color-light)';
 const PANE_BG = 'var(--app-console-bg)';
 const CELL = {
   fontFamily: MONO,
-  fontSize: 11,
+  fontSize: FONT_SIZE.label,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -40,7 +40,7 @@ function activateOnKey(event: KeyboardEvent, activate: () => void) {
 
 function Placeholder({ children }: { children: string }) {
   return (
-    <Text c="dimmed" fs="italic" p="xs" style={{ fontFamily: MONO, fontSize: 11 }}>
+    <Text c="dimmed" fs="italic" p="xs" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
       {children}
     </Text>
   );
@@ -138,7 +138,7 @@ function MessageRows({
           {selected ?? ' '}
         </Text>
         {rows.length > 0 && (
-          <Text size="xs" c="dimmed" style={{ flexShrink: 0, fontSize: 11 }}>
+          <Text size="xs" c="dimmed" style={{ flexShrink: 0, fontSize: FONT_SIZE.label }}>
             {keyed ? 'latest per satellite' : `latest ${rows.length}, newest first`}
           </Text>
         )}
@@ -208,7 +208,7 @@ function FrameDetail({ row }: { row: MonitorMessageRow }) {
           c="var(--app-console-fg)"
           style={{
             fontFamily: MONO,
-            fontSize: 11,
+            fontSize: FONT_SIZE.label,
             lineHeight: 1.5,
             whiteSpace: row.preview === null ? 'pre-wrap' : 'pre',
             wordBreak: row.preview === null ? 'break-all' : undefined,

@@ -116,8 +116,8 @@ components:
 
 > **Status.** Adopted 2026-11-09 as the target for the interface. The code is
 > being migrated in stages; where it differs from this file, this file wins.
-> Not yet in code: the type tokens, `LogView`, `FormRow`, the shared workspace
-> skeleton and the Run Ending behaviour.
+> Not yet in code: `LogView`, `FormRow`, the shared workspace skeleton and the
+> Run Ending behaviour.
 
 ## Overview
 
@@ -191,7 +191,7 @@ Weights are 400, 500 and 600, with 700 reserved for state words.
 ### Named Rules
 **The Six Sizes Rule.** Only these sizes exist: 10, 11, 12, 14, 16, 24. Fractional sizes and 9px are gone, and Mantine's 9px extra-small Badge counts.
 
-**The Caption Floor Rule.** 10px is for uppercase captions and nothing else. Anything a person reads as a sentence or a field name is at least 11px.
+**The Caption Floor Rule.** 10px is for uppercase captions and chart tick labels, and nothing else. Anything a person reads as a sentence or a field name is at least 11px.
 
 **The Readout Rule.** Every number, path, log line and code value is IBM Plex Mono, referenced through `var(--mantine-font-family-monospace)`.
 

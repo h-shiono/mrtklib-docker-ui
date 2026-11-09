@@ -1,6 +1,7 @@
 import { useEffect, useRef, useMemo, useCallback } from 'react';
 import { useElementSize } from '@mantine/hooks';
 import type { SatVisSegment } from '../../api/obsQc';
+import { FONT_SIZE, CANVAS_MONO } from '../../utils/typography';
 
 interface SatVisibilityChartProps {
   visibility: SatVisSegment[];
@@ -129,7 +130,7 @@ export function SatVisibilityChart({
     const toX = (t: number) => LABEL_WIDTH + ((t - xMin) / xSpan) * chartWidth;
 
     // Draw satellite labels and rows
-    ctx.font = '10px monospace';
+    ctx.font = `${FONT_SIZE.caption}px ${CANVAS_MONO}`;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
 
@@ -195,7 +196,7 @@ export function SatVisibilityChart({
 
     // Draw time axis
     ctx.fillStyle = textColor;
-    ctx.font = '10px monospace';
+    ctx.font = `${FONT_SIZE.caption}px ${CANVAS_MONO}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
 
@@ -242,7 +243,7 @@ export function SatVisibilityChart({
 
       // Tick labels
       ctx.fillStyle = textColor;
-      ctx.font = '9px monospace';
+      ctx.font = `${FONT_SIZE.caption}px ${CANVAS_MONO}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       const tickValues = [10, 20, 30, 40, 50];

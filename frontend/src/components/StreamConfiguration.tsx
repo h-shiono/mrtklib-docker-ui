@@ -32,6 +32,7 @@ import type {
   ProfileConfig,
 } from '../types/streamConfig';
 import { generateRelayArgs, generateCommandString } from '../utils/streamArgs';
+import { FONT_SIZE, MONO } from '../utils/typography';
 
 interface StreamConfigurationProps {
   onArgsChange: (args: string[]) => void;
@@ -212,7 +213,7 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
     <Card withBorder p="xs">
       <Stack gap="xs">
         <Group justify="space-between">
-          <Title order={6} size="xs">Stream Configuration</Title>
+          <Title order={6} size="sm">Stream Configuration</Title>
           <Group gap={4}>
             <Button
               variant="subtle"
@@ -243,10 +244,10 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
 
         <Tabs value={mode} onChange={(value) => setMode(value as 'builder' | 'raw')}>
           <Tabs.List>
-            <Tabs.Tab value="builder" style={{ fontSize: '11px', padding: '6px 12px' }}>
+            <Tabs.Tab value="builder" style={{ fontSize: FONT_SIZE.label, padding: '6px 12px' }}>
               Form Builder
             </Tabs.Tab>
-            <Tabs.Tab value="raw" style={{ fontSize: '11px', padding: '6px 12px' }}>
+            <Tabs.Tab value="raw" style={{ fontSize: FONT_SIZE.label, padding: '6px 12px' }}>
               Raw Command
             </Tabs.Tab>
           </Tabs.List>
@@ -267,7 +268,7 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
                     value={builderConfig.input.type}
                     onChange={(value) => handleInputTypeChange(value as StreamType)}
                     data={STREAM_TYPES}
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
 
                   <MaskedPathInput
@@ -287,8 +288,8 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
                       ) : undefined
                     }
                     styles={{
-                      label: { fontSize: '10px' },
-                      input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' },
+                      label: { fontSize: FONT_SIZE.label },
+                      input: { fontFamily: MONO },
                     }}
                   />
                 </Stack>
@@ -344,7 +345,7 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
                               handleOutputTypeChange(output.id, value as StreamType)
                             }
                             data={STREAM_TYPES}
-                            styles={{ label: { fontSize: '10px' } }}
+                            styles={{ label: { fontSize: FONT_SIZE.label } }}
                           />
 
                           <MaskedPathInput
@@ -365,8 +366,8 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
                               ) : undefined
                             }
                             styles={{
-                              label: { fontSize: '10px' },
-                              input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' },
+                              label: { fontSize: FONT_SIZE.label },
+                              input: { fontFamily: MONO },
                             }}
                           />
                         </Stack>
@@ -379,7 +380,7 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
               {/* Command Preview */}
               <div>
                 <Text size="xs" fw={600} mb={4}>Command Preview</Text>
-                <Code block style={{ fontSize: '10px', whiteSpace: 'pre-wrap', padding: '6px' }}>
+                <Code block style={{ fontSize: FONT_SIZE.label, whiteSpace: 'pre-wrap', padding: '6px' }}>
                   {commandPreview}
                 </Code>
               </div>
@@ -398,12 +399,9 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
                 minRows={5}
                 autosize
                 styles={{
-                  input: {
-                    fontFamily: 'monospace',
-                    fontSize: '11px',
-                  },
-                  label: { fontSize: '10px' },
-                  description: { fontSize: '10px' },
+                  input: { fontFamily: MONO },
+                  label: { fontSize: FONT_SIZE.label },
+                  description: { fontSize: FONT_SIZE.label },
                 }}
               />
 
@@ -416,7 +414,7 @@ export function StreamConfiguration({ onArgsChange }: StreamConfigurationProps) 
 
               <div>
                 <Text size="xs" c="dimmed" mb={4}>Examples:</Text>
-                <Code block style={{ fontSize: '10px', padding: '6px' }}>
+                <Code block style={{ fontSize: FONT_SIZE.label, padding: '6px' }}>
                   {`# Serial to file
 -in serial://ttyUSB0:115200 -out file:///workspace/out_%Y%m%d.ubx
 

@@ -18,6 +18,12 @@ body {
   --switch-bg: var(--app-input-border);
 }
 
+/* Mantine's xs and lg Badge sizes (9px, 13px) are off the type scale. */
+.mantine-Badge-root.mantine-Badge-root {
+  --badge-fz-xs: 10px;
+  --badge-fz-lg: 12px;
+}
+
 /* IBM Plex Mono for all monospace contexts */
 code, pre, kbd, .mantine-Code-root {
   font-family: 'IBM Plex Mono', monospace !important;

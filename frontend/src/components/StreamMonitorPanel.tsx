@@ -60,8 +60,8 @@ import { StreamMessagePanel } from './StreamMessagePanel';
 import { StatusBadge } from './common/StatusBadge';
 import { processTone, STATUS_COLOR } from '../utils/status';
 import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
+import { FONT_SIZE, MONO } from '../utils/typography';
 
-const MONO = "'IBM Plex Mono', monospace";
 
 const NO_SATELLITES: MonitorSatellite[] = [];
 /** The workspace fills the window under the header (lessons L02: the config
@@ -102,8 +102,8 @@ function MonitorHelp() {
       <Popover.Dropdown p="xs">
         <Text size="xs">
           Decodes NMEA, Septentrio SBF, u-blox UBX and MRTKLIB solution text from a
-          receiver or another stream (e.g. <Code style={{ fontSize: 10 }}>mrtk run</Code> output)
-          through <Code style={{ fontSize: 10 }}>mrtk relay</Code>. A file is read directly, all
+          receiver or another stream (e.g. <Code style={{ fontSize: FONT_SIZE.label }}>mrtk run</Code> output)
+          through <Code style={{ fontSize: FONT_SIZE.label }}>mrtk relay</Code>. A file is read directly, all
           at once or paced by its epoch times.
         </Text>
       </Popover.Dropdown>
@@ -121,7 +121,7 @@ function Row({ label, children, minHeight }: {
 }) {
   return (
     <Group justify="space-between" align="center" mb={6} wrap="nowrap" style={{ minHeight }}>
-      <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: 11 }}>
+      <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: FONT_SIZE.label }}>
         {label}
       </Text>
       <Box style={{ flex: 1, minWidth: 0 }}>{children}</Box>
@@ -218,7 +218,7 @@ function StreamName({ s }: { s: MonitorStream }) {
     <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
       <Box style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: light.color }} />
       <Text size="xs" fw={600} style={{ whiteSpace: 'nowrap' }}>Stream {s.id.toUpperCase()}</Text>
-      <Text c="dimmed" style={{ fontFamily: MONO, fontSize: 10, whiteSpace: 'nowrap' }}>{light.label}</Text>
+      <Text c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, whiteSpace: 'nowrap' }}>{light.label}</Text>
     </Group>
   );
 }
@@ -412,7 +412,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
           <Group justify="space-between" mb="xs" wrap="nowrap">
             <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
               {onToggleConfig && <ConfigCollapseButton onClick={onToggleConfig} />}
-              <Title order={6} size="xs">Stream Monitor</Title>
+              <Title order={6} size="sm">Stream Monitor</Title>
               <MonitorHelp />
             </Group>
             <Group gap="xs" wrap="nowrap">
@@ -543,10 +543,10 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
             <Tabs value={tab} onChange={setTab} style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <Group justify="space-between" align="center" gap={0}>
                 <Tabs.List>
-                  <Tabs.Tab value="chart" style={{ fontSize: 11 }}>Chart</Tabs.Tab>
-                  <Tabs.Tab value="solution" style={{ fontSize: 11 }}>Solution</Tabs.Tab>
-                  <Tabs.Tab value="console" style={{ fontSize: 11 }}>Console</Tabs.Tab>
-                  <Tabs.Tab value="message" style={{ fontSize: 11 }}>Message</Tabs.Tab>
+                  <Tabs.Tab value="chart" style={{ fontSize: FONT_SIZE.label }}>Chart</Tabs.Tab>
+                  <Tabs.Tab value="solution" style={{ fontSize: FONT_SIZE.label }}>Solution</Tabs.Tab>
+                  <Tabs.Tab value="console" style={{ fontSize: FONT_SIZE.label }}>Console</Tabs.Tab>
+                  <Tabs.Tab value="message" style={{ fontSize: FONT_SIZE.label }}>Message</Tabs.Tab>
                 </Tabs.List>
                 <Group gap={6} wrap="nowrap">
                   {twoStreams && (
@@ -611,7 +611,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                       <Text
                         c={epochs.length > 0 ? 'var(--app-console-fg)' : 'dimmed'}
                         fs={epochs.length > 0 ? undefined : 'italic'}
-                        style={{ fontFamily: MONO, whiteSpace: 'pre', fontSize: '11px', lineHeight: 1.5 }}
+                        style={{ fontFamily: MONO, whiteSpace: 'pre', fontSize: FONT_SIZE.label, lineHeight: 1.5 }}
                       >
                         {solutionScroll.shown.length > 0
                           ? solutionScroll.shown
@@ -645,13 +645,13 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                           <Text
                             key={i}
                             c="var(--app-console-fg)"
-                            style={{ fontFamily: MONO, fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+                            style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
                           >
                             {maskLogLine(line)}
                           </Text>
                         ))
                       ) : (
-                        <Text c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: '11px' }}>
+                        <Text c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
                           No log output yet.
                         </Text>
                       )}

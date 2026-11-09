@@ -24,6 +24,7 @@ import {
 } from '@tabler/icons-react';
 import type { MrtkPostConfig } from '../types/mrtkPostConfig';
 import { tomlToConfig } from '../utils/tomlImport';
+import { FONT_SIZE } from '../utils/typography';
 
 interface Preset {
   id: string;
@@ -186,7 +187,7 @@ export function PresetPanel({ opened, onClose, mode, currentConfig, onLoad }: Pr
                           )}
                         </Group>
                       )}
-                      <Text size="xs" c="dimmed" style={{ fontSize: '9px' }}>
+                      <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label }}>
                         {new Date(p.updated_at).toLocaleDateString()}
                       </Text>
                     </Stack>

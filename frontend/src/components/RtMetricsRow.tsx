@@ -4,12 +4,12 @@ import type { Satellite } from '../types/satellite';
 import { isUsed } from '../utils/satellites';
 import { qualityColor, qualityLabel, qualityTextColor } from '../utils/quality';
 import { STATUS_COLOR } from '../utils/status';
+import { FONT_SIZE, MONO } from '../utils/typography';
 
 // ─── Real-time metrics row (console redesign Phase 4) ────────────────────────
 // Borderless at-a-glance metrics. Order: Time · Position(LLH) · Quality · Ratio
 // · Age · Satellites(per-system). All numerics in IBM Plex Mono.
 
-const MONO = "'IBM Plex Mono', monospace";
 
 // Constellation order + letter + color (matches the project's SYS_COLOR / Sky+SNR).
 const SYS_ORDER = ['GPS', 'GLONASS', 'Galileo', 'QZSS', 'BeiDou', 'SBAS', 'NavIC'];
@@ -25,7 +25,7 @@ const SYS_META: Record<string, { letter: string; color: string }> = {
 
 const CAP = {
   fontFamily: MONO,
-  fontSize: '9.5px',
+  fontSize: FONT_SIZE.caption,
   letterSpacing: '0.09em',
   textTransform: 'uppercase',
   color: 'var(--mantine-color-dimmed)',
@@ -34,7 +34,7 @@ const CAP = {
 
 const NUM = {
   fontFamily: MONO,
-  fontSize: '24px',
+  fontSize: FONT_SIZE.metric,
   fontWeight: 500,
   lineHeight: 1,
 } as const;
@@ -101,7 +101,7 @@ export function RtMetricsRow({
     >
       {/* Time */}
       <Cell caption={`Current time · ${timeSystem}`} minWidth={140}>
-        <Text component="span" style={{ ...NUM, fontSize: '22px' }}>
+        <Text component="span" style={{ ...NUM, fontSize: FONT_SIZE.data }}>
           {lastPosition?.timestamp || DASH}
         </Text>
       </Cell>
@@ -115,10 +115,10 @@ export function RtMetricsRow({
             ['Height', lastPosition?.height != null ? lastPosition.height.toFixed(3) : DASH, 'm'],
           ] as const).map(([label, value, unit]) => (
             <Group key={label} justify="space-between" wrap="nowrap" gap="sm">
-              <Text component="span" c="dimmed" style={{ fontSize: '10.5px' }}>{label}</Text>
-              <Text component="span" style={{ fontFamily: MONO, fontSize: '15px', lineHeight: 1.25 }}>
+              <Text component="span" c="dimmed" style={{ fontSize: FONT_SIZE.label }}>{label}</Text>
+              <Text component="span" style={{ fontFamily: MONO, fontSize: FONT_SIZE.data, lineHeight: 1.25 }}>
                 {value}
-                {unit && <Text component="span" c="dimmed" style={{ fontSize: '11px' }}> {unit}</Text>}
+                {unit && <Text component="span" c="dimmed" style={{ fontSize: FONT_SIZE.label }}> {unit}</Text>}
               </Text>
             </Group>
           ))}
@@ -134,7 +134,7 @@ export function RtMetricsRow({
               background: q?.mark ?? STATUS_COLOR.off,
             }}
           />
-          <Text component="span" style={{ fontSize: '24px', fontWeight: 700, lineHeight: 1, color: q?.text ?? 'var(--mantine-color-dimmed)' }}>
+          <Text component="span" style={{ fontSize: FONT_SIZE.metric, fontWeight: 700, lineHeight: 1, color: q?.text ?? 'var(--mantine-color-dimmed)' }}>
             {q?.label ?? DASH}
           </Text>
         </Group>
@@ -151,7 +151,7 @@ export function RtMetricsRow({
       <Cell caption="Age" minWidth={70}>
         <Text component="span" style={NUM}>
           {lastPosition?.age != null ? lastPosition.age.toFixed(1) : DASH}
-          {lastPosition?.age != null && <Text component="span" c="dimmed" style={{ fontSize: '14px' }}>s</Text>}
+          {lastPosition?.age != null && <Text component="span" c="dimmed" style={{ fontSize: FONT_SIZE.title }}>s</Text>}
         </Text>
       </Cell>
 
@@ -160,7 +160,7 @@ export function RtMetricsRow({
         <Group gap={6} align="baseline" wrap="nowrap">
           <Text component="span" style={NUM}>{totalVis ? totalUsed : DASH}</Text>
           {totalVis > 0 && (
-            <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: '13px' }}>
+            <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.body }}>
               / {totalVis} used
             </Text>
           )}
@@ -173,13 +173,13 @@ export function RtMetricsRow({
               const pct = total > 0 ? (used / total) * 100 : 0;
               return (
                 <Group key={sys} gap={7} wrap="nowrap" align="center">
-                  <Text component="span" style={{ fontFamily: MONO, fontSize: '10px', color: m.color, width: 9, flexShrink: 0 }}>
+                  <Text component="span" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, color: m.color, width: 9, flexShrink: 0 }}>
                     {m.letter}
                   </Text>
                   <Box style={{ width: 72, height: 4, borderRadius: 2, background: 'var(--mantine-color-default-border)', flexShrink: 0, position: 'relative' }}>
                     <Box style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, background: m.color, borderRadius: 2 }} />
                   </Box>
-                  <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: '10px' }}>
+                  <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
                     {used}/{total}
                   </Text>
                 </Group>

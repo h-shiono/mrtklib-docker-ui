@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Text, Group, Badge, useMantineColorScheme } from '@mantine/core';
 import { qualityColor, qualityLabel } from '../utils/quality';
+import { FONT_SIZE } from '../utils/typography';
 
 export interface PositionPoint {
   lat: number;
@@ -88,24 +89,24 @@ export function PositionScatter({ points, maxPoints = 3600 }: PositionScatterPro
             dataKey="e"
             name="East"
             domain={[-range, range]}
-            tick={{ fontSize: 9 }}
+            tick={{ fontSize: FONT_SIZE.caption }}
             tickFormatter={(v: number) => v.toFixed(1)}
-            label={{ value: 'East (m)', position: 'bottom', fontSize: 9, offset: 5 }}
+            label={{ value: 'East (m)', position: 'bottom', fontSize: FONT_SIZE.caption, offset: 5 }}
           />
           <YAxis
             type="number"
             dataKey="n"
             name="North"
             domain={[-range, range]}
-            tick={{ fontSize: 9 }}
+            tick={{ fontSize: FONT_SIZE.caption }}
             tickFormatter={(v: number) => v.toFixed(1)}
-            label={{ value: 'North (m)', angle: -90, position: 'insideLeft', fontSize: 9 }}
+            label={{ value: 'North (m)', angle: -90, position: 'insideLeft', fontSize: FONT_SIZE.caption }}
           />
           <Tooltip
             formatter={(value: unknown) => `${Number(value).toFixed(3)} m`}
             labelFormatter={() => ''}
             contentStyle={{
-              fontSize: '10px',
+              fontSize: FONT_SIZE.label,
               backgroundColor: isDark ? '#1a1b2e' : '#fff',
               border: `1px solid ${isDark ? '#444' : '#ddd'}`,
             }}

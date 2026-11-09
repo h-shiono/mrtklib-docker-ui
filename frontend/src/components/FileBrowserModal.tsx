@@ -23,6 +23,7 @@ import {
 } from '@tabler/icons-react';
 import { browseDirectory } from '../api/files';
 import type { FileInfo } from '../api/files';
+import { FONT_SIZE } from '../utils/typography';
 
 interface RootInfo {
   path: string;
@@ -190,7 +191,7 @@ export function FileBrowserModal({
       title={title}
       size="md"
       zIndex={1100}
-      styles={{ title: { fontSize: '14px', fontWeight: 600 } }}
+      styles={{ title: { fontSize: FONT_SIZE.title, fontWeight: 600 } }}
     >
       <Stack gap="xs">
         {/* Root selector */}
@@ -215,19 +216,19 @@ export function FileBrowserModal({
           >
             <IconArrowUp size={14} />
           </ActionIcon>
-          <Breadcrumbs separator="/" styles={{ separator: { fontSize: '11px', color: 'var(--mantine-color-dimmed)' } }}>
+          <Breadcrumbs separator="/" styles={{ separator: { fontSize: FONT_SIZE.label, color: 'var(--mantine-color-dimmed)' } }}>
             {breadcrumbSegments.map((seg, i) => (
               i < breadcrumbSegments.length - 1 ? (
                 <Anchor
                   key={seg.path}
                   size="xs"
                   onClick={() => loadDirectory(seg.path)}
-                  style={{ fontFamily: 'var(--mantine-font-family-monospace)', fontSize: '11px' }}
+                  style={{ fontFamily: 'var(--mantine-font-family-monospace)', fontSize: FONT_SIZE.label }}
                 >
                   {seg.label}
                 </Anchor>
               ) : (
-                <Text key={seg.path} size="xs" fw={500} style={{ fontFamily: 'var(--mantine-font-family-monospace)', fontSize: '11px' }}>
+                <Text key={seg.path} size="xs" fw={500} style={{ fontFamily: 'var(--mantine-font-family-monospace)', fontSize: FONT_SIZE.label }}>
                   {seg.label}
                 </Text>
               )

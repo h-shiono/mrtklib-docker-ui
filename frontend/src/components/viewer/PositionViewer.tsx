@@ -33,6 +33,7 @@ import type {
 } from './types';
 import { qualityColor, qualityLabel } from '../../utils/quality';
 import { clasSourceChanges, formatClasSource, shortClasSource } from '../../utils/clasSource';
+import { FONT_SIZE, MONO } from '../../utils/typography';
 
 /**
  * Position views (2D / ENU / Map) over a list of epochs, from any source:
@@ -99,7 +100,7 @@ function StreamKey({ label, color, ring }: { label: string; color?: string; ring
           border: ring ? `1px solid ${mark}` : undefined,
         }}
       />
-      <Text size="xs" fw={600} style={{ fontSize: '10px', whiteSpace: 'nowrap' }}>{label}</Text>
+      <Text size="xs" fw={600} style={{ fontSize: FONT_SIZE.label, whiteSpace: 'nowrap' }}>{label}</Text>
     </Group>
   );
 }
@@ -351,7 +352,7 @@ export function PositionViewer({
           )}
           {overlay && (
             <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
-              <Text size="xs" c="dimmed" style={{ fontSize: '10px' }}>Color</Text>
+              <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label }}>Color</Text>
               <SegmentedControl
                 size="xs"
                 value={overlayColor}
@@ -414,7 +415,7 @@ export function PositionViewer({
                       const auto = e.currentTarget.checked;
                       setEnuYRange((prev) => ({ ...prev, auto }));
                     }}
-                    styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label, paddingLeft: 4 } }}
                   />
                   <Switch
                     size="xs"
@@ -425,14 +426,14 @@ export function PositionViewer({
                       const symmetric = e.currentTarget.checked;
                       setEnuYRange((prev) => ({ ...prev, symmetric }));
                     }}
-                    styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label, paddingLeft: 4 } }}
                   />
                   <Group gap={6} wrap="nowrap" style={{ paddingLeft: SWITCH_LABEL_OFFSET }}>
                     {(['min', 'max'] as const).map((bound) => (
                       <Group key={bound} gap={4} wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
                         <Text
                           c={enuYRange.auto ? 'dimmed' : undefined}
-                          style={{ fontSize: '10px', flexShrink: 0 }}
+                          style={{ fontSize: FONT_SIZE.label, flexShrink: 0 }}
                         >
                           {bound === 'min' ? 'Min (m)' : 'Max (m)'}
                         </Text>
@@ -458,7 +459,7 @@ export function PositionViewer({
                     label="Show statistics"
                     checked={showEnuStats}
                     onChange={(e) => setShowEnuStats(e.currentTarget.checked)}
-                    styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label, paddingLeft: 4 } }}
                   />
                 </Stack>
               </Popover.Dropdown>
@@ -481,7 +482,7 @@ export function PositionViewer({
                   style={{ cursor: 'pointer' }}
                   onClick={() => setRefPopoverOpened((o) => !o)}
                 >
-                  <Text size="xs" c="dimmed" style={{ fontSize: '10px' }}>
+                  <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label }}>
                     Ref: {REFERENCE_OPTIONS.find((o) => o.value === refMode)?.label}
                   </Text>
                   <ActionIcon variant="subtle" color="gray" size="xs">
@@ -497,15 +498,15 @@ export function PositionViewer({
                     value={refMode}
                     onChange={(v) => v && setRefMode(v as ReferenceMode)}
                     data={REFERENCE_OPTIONS}
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                   {refMode === 'manual-llh' && (
                     <Box>
                       <Text size="xs" c="dimmed" mb={4}>WGS84 LLH</Text>
                       <Stack gap={4}>
-                        <NumberInput size="xs" label="Latitude (deg)" value={manualLat} onChange={(v) => setManualLat(Number(v))} decimalScale={9} step={0.001} styles={{ label: { fontSize: '10px' } }} />
-                        <NumberInput size="xs" label="Longitude (deg)" value={manualLon} onChange={(v) => setManualLon(Number(v))} decimalScale={9} step={0.001} styles={{ label: { fontSize: '10px' } }} />
-                        <NumberInput size="xs" label="Height (m)" value={manualHeight} onChange={(v) => setManualHeight(Number(v))} decimalScale={4} step={0.1} styles={{ label: { fontSize: '10px' } }} />
+                        <NumberInput size="xs" label="Latitude (deg)" value={manualLat} onChange={(v) => setManualLat(Number(v))} decimalScale={9} step={0.001} styles={{ label: { fontSize: FONT_SIZE.label } }} />
+                        <NumberInput size="xs" label="Longitude (deg)" value={manualLon} onChange={(v) => setManualLon(Number(v))} decimalScale={9} step={0.001} styles={{ label: { fontSize: FONT_SIZE.label } }} />
+                        <NumberInput size="xs" label="Height (m)" value={manualHeight} onChange={(v) => setManualHeight(Number(v))} decimalScale={4} step={0.1} styles={{ label: { fontSize: FONT_SIZE.label } }} />
                       </Stack>
                     </Box>
                   )}
@@ -513,14 +514,14 @@ export function PositionViewer({
                     <Box>
                       <Text size="xs" c="dimmed" mb={4}>ECEF XYZ (m)</Text>
                       <Stack gap={4}>
-                        <NumberInput size="xs" label="X (m)" value={manualX} onChange={(v) => setManualX(Number(v))} decimalScale={4} step={1} styles={{ label: { fontSize: '10px' } }} />
-                        <NumberInput size="xs" label="Y (m)" value={manualY} onChange={(v) => setManualY(Number(v))} decimalScale={4} step={1} styles={{ label: { fontSize: '10px' } }} />
-                        <NumberInput size="xs" label="Z (m)" value={manualZ} onChange={(v) => setManualZ(Number(v))} decimalScale={4} step={1} styles={{ label: { fontSize: '10px' } }} />
+                        <NumberInput size="xs" label="X (m)" value={manualX} onChange={(v) => setManualX(Number(v))} decimalScale={4} step={1} styles={{ label: { fontSize: FONT_SIZE.label } }} />
+                        <NumberInput size="xs" label="Y (m)" value={manualY} onChange={(v) => setManualY(Number(v))} decimalScale={4} step={1} styles={{ label: { fontSize: FONT_SIZE.label } }} />
+                        <NumberInput size="xs" label="Z (m)" value={manualZ} onChange={(v) => setManualZ(Number(v))} decimalScale={4} step={1} styles={{ label: { fontSize: FONT_SIZE.label } }} />
                       </Stack>
                     </Box>
                   )}
                   {referencePos && !isManual && (
-                    <Text size="xs" c="dimmed" style={{ fontSize: '10px' }}>
+                    <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label }}>
                       {referencePos.lat.toFixed(8)}°, {referencePos.lon.toFixed(8)}°, {referencePos.height.toFixed(3)}m
                     </Text>
                   )}
@@ -580,7 +581,7 @@ export function PositionViewer({
         {l6Summary && (
           // Hover for every source and when it started
           <Badge size="xs" variant="outline" color="gray" title={l6Summary.title}
-            style={{ marginLeft: 'auto', textTransform: 'none', fontFamily: "'IBM Plex Mono', monospace" }}
+            style={{ marginLeft: 'auto', textTransform: 'none', fontFamily: MONO }}
           >
             {l6Summary.text}
           </Badge>
