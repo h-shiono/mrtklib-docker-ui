@@ -26,6 +26,7 @@ from mrtklib_web_ui.services.stream_decoders.events import (
     SatState,
 )
 from mrtklib_web_ui.services.stream_decoders.framer import Frame, Framer
+from mrtklib_web_ui.services.stream_decoders.messages import MAX_LABELS, OTHER
 from mrtklib_web_ui.services.stream_decoders.nmea import NmeaDecoder
 from mrtklib_web_ui.services.stream_decoders.postext import PosTextDecoder
 from mrtklib_web_ui.services.stream_decoders.sbf import SbfDecoder
@@ -35,8 +36,13 @@ __all__ = ["Epoch", "Event", "Frame", "Satellites", "SatState", "StreamDecoder"]
 
 
 class StreamDecoder:
-    def __init__(self, clock: Callable[[], datetime] | None = None) -> None:
+    def __init__(
+        self,
+        clock: Callable[[], datetime] | None = None,
+        on_frame: Callable[[Frame], None] | None = None,
+    ) -> None:
         self.framer = Framer()
+        self._on_frame = on_frame
         self.nmea = NmeaDecoder(clock)
         self.sbf = SbfDecoder()
         self.ubx = UbxDecoder()
@@ -54,7 +60,10 @@ class StreamDecoder:
 
     def _decode(self, frame: Frame) -> list[Event]:
         """Decode one frame; a malformed record costs only itself (input is untrusted)."""
-        self.msg_counts[frame.label] += 1
+        counts = self.msg_counts
+        counts[frame.label if frame.label in counts or len(counts) < MAX_LABELS else OTHER] += 1
+        if self._on_frame is not None:
+            self._on_frame(frame)
         try:
             return self.decode_frame(frame)
         except (ValueError, OverflowError, IndexError, struct.error):

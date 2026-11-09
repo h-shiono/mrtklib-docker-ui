@@ -17,9 +17,12 @@ import re
 import struct
 from dataclasses import dataclass
 
+from mrtklib_web_ui.services.stream_decoders.names import SBF_NAMES, UBX_NAMES
+
 MAX_FRAME = 16384
 MAX_LINE = 512  # NMEA allows 82; proprietary sentences and .pos lines are longer
 _MAX_BUFFER = 1 << 20
+_MAX_NMEA_LABEL = 16  # a checksummed line without a comma must not become a huge label
 
 # Bytes that can start a frame: UBX µ, RTCM3 0xD3, '$' (NMEA / SBF '$@'),
 # '%' (RTKLIB solution header) and digits (RTKLIB solution rows).
@@ -97,24 +100,6 @@ def nmea_checksum(body: bytes) -> int:
 
 
 # ── labels ──────────────────────────────────────────────────────────────────
-
-UBX_NAMES = {
-    (0x01, 0x07): "NAV-PVT", (0x01, 0x35): "NAV-SAT", (0x01, 0x43): "NAV-SIG",
-    (0x01, 0x03): "NAV-STATUS", (0x01, 0x14): "NAV-HPPOSLLH",
-    (0x01, 0x3C): "NAV-RELPOSNED", (0x01, 0x20): "NAV-TIMEGPS",
-    (0x01, 0x22): "NAV-CLOCK", (0x02, 0x15): "RXM-RAWX", (0x02, 0x13): "RXM-SFRBX",
-    (0x02, 0x72): "RXM-PMP", (0x02, 0x73): "RXM-QZSSL6", (0x0A, 0x09): "MON-HW",
-    (0x0A, 0x04): "MON-VER", (0x05, 0x01): "ACK-ACK", (0x05, 0x00): "ACK-NAK",
-}
-
-SBF_NAMES = {
-    4007: "PVTGeodetic", 4012: "SatVisibility", 4013: "ChannelStatus",
-    4014: "ReceiverStatus", 4027: "MeasEpoch", 4000: "MeasExtra",
-    4006: "PVTCartesian", 5906: "PosCovGeodetic", 4017: "GPSRawCA",
-    4026: "GLORawCA", 4023: "GALRawINAV", 4024: "GALRawCNAV", 4047: "BDSRaw",
-    4069: "QZSRawL6", 4270: "QZSRawL6D", 4271: "QZSRawL6E", 4090: "InputLink",
-}
-
 
 def _ubx_label(cls: int, mid: int) -> str:
     return "UBX " + UBX_NAMES.get((cls, mid), f"{cls:02X}-{mid:02X}")
@@ -293,5 +278,5 @@ class Framer:
             self.unknown_bytes += end - pos
             return None, end
         # "GNGGA" for standard sentences, "PUBX" / "PSSN" for proprietary ones.
-        head = line[1:star].split(b",", 1)[0].decode("ascii", "replace")
+        head = line[1:star].split(b",", 1)[0][:_MAX_NMEA_LABEL].decode("ascii", "replace")
         return Frame("nmea", line, head), end
