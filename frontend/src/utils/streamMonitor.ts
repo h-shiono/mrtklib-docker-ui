@@ -4,7 +4,7 @@
  * satellites go to the Sky / SNR panel as they come (shared `Satellite`).
  */
 
-import type { MonitorEpoch } from '../api/streamMonitor';
+import type { MonitorEpoch, MonitorState, MonitorStatus } from '../api/streamMonitor';
 import type { MetricsPosition } from '../components/RtMetricsRow';
 import type { PosEpoch } from '../components/viewer';
 
@@ -69,4 +69,23 @@ export function splitRelayLog(lines: string[]): { console: string[]; status: str
     else out.push(line);
   }
   return { console: out, status };
+}
+
+/** State of the input. `connected` is the backend's link to the relay, not
+ *  the relay's input: the input is judged by the bytes arriving. */
+export function inputLight(status: MonitorStatus | null, state: MonitorState, live: boolean) {
+  if (live && status?.file) {
+    return status.file.eof
+      ? { label: 'END OF FILE', color: 'var(--color-single)', dimmed: true }
+      : { label: 'READING', color: 'var(--color-fix)', dimmed: false };
+  }
+  if (live && status) {
+    if (status.bytes_per_sec > 0) return { label: 'RECEIVING', color: 'var(--color-fix)', dimmed: false };
+    return status.connected
+      ? { label: 'NO DATA', color: 'var(--color-float)', dimmed: false }
+      : { label: 'STARTING RELAY', color: 'var(--color-live)', dimmed: false };
+  }
+  if (state === 'error') return { label: 'ERROR', color: 'var(--mantine-color-red-6)', dimmed: false };
+  if (state === 'starting') return { label: 'STARTING', color: 'var(--color-live)', dimmed: false };
+  return { label: 'STOPPED', color: 'var(--color-single)', dimmed: true };
 }

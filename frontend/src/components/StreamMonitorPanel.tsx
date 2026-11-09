@@ -3,12 +3,11 @@
  * `mrtk relay`, decode it in the backend and show positions and satellites
  * with the Real-Time views (unchanged, fed through utils/streamMonitor.ts).
  *
- * WebSocket per lessons L17: opened on mount and reconnected on drop; the
- * `history` message on connect is authoritative; `exited: true` ends a
- * session for every open page.
+ * WebSocket per lessons L17: opened on mount and reconnected on drop; each
+ * of the (up to two, #171) streams gets its own messages.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionIcon,
   Badge,
@@ -20,6 +19,7 @@ import {
   Group,
   Popover,
   ScrollArea,
+  SegmentedControl,
   Select,
   Stack,
   Switch,
@@ -29,27 +29,22 @@ import {
   Title,
 } from '@mantine/core';
 import { useDisclosure, useElementSize, useLocalStorage } from '@mantine/hooks';
-import { IconPlayerPlay, IconPlayerStop, IconQuestionMark } from '@tabler/icons-react';
+import { IconPlayerPlay, IconPlayerStop, IconPlus, IconQuestionMark, IconTrash } from '@tabler/icons-react';
 import {
   streamMonitorApi,
-  type MonitorEpoch,
-  type MonitorInputType,
   type MonitorMessage,
-  type MonitorMessageRow,
-  type MonitorMessageType,
   type MonitorSatellite,
-  type MonitorSatellites,
   type MonitorState,
-  type MonitorStatus,
+  type MonitorStreamId,
 } from '../api/streamMonitor';
 import {
-  isRelayStatusLine,
+  inputLight,
   rtTimestamp,
   splitRelayLog,
   toMetricsPosition,
   toPosEpoch,
 } from '../utils/streamMonitor';
-import { mergeMessageRows } from '../utils/streamMessages';
+import { DEFAULT_RAW_LOG, INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
 import { maskLogLine } from '../utils/maskPath';
 import { decodeClasSource, formatClasSource } from '../utils/clasSource';
 import { useFollowScroll } from '../hooks/useFollowScroll';
@@ -65,9 +60,6 @@ import { PositionViewer, type ViewMode } from './viewer';
 
 const MONO = "'IBM Plex Mono', monospace";
 
-/** Same cap as the backend history (HISTORY_EPOCHS, 1 Hz → one hour). */
-const MAX_EPOCHS = 3600;
-const MAX_LOG_LINES = 500;
 const NO_SATELLITES: MonitorSatellite[] = [];
 /** The workspace fills the window under the header (lessons L02: the config
  *  column has no tall content to stretch against). */
@@ -78,20 +70,10 @@ const MIN_CHART_HEIGHT = 420;
 /** Padding above each tab panel. */
 const PANEL_TOP = 6;
 
-const INPUT_TYPES: { value: MonitorInputType; label: string; placeholder: string }[] = [
-  { value: 'serial', label: 'Serial', placeholder: 'ttyACM0:115200' },
-  { value: 'tcpcli', label: 'TCP Client', placeholder: '192.168.1.100:9001' },
-  { value: 'tcpsvr', label: 'TCP Server', placeholder: ':9001' },
-  { value: 'ntripcli', label: 'NTRIP Client', placeholder: 'user:pass@caster:2101/MOUNT' },
-  { value: 'file', label: 'File', placeholder: '/data/rover.sbf' },
-];
-
 /** Chart views in display order: the viewer's (2D / ENU / Map) and Sky / SNR. */
 const POSITION_VIEWS: ViewMode[] = ['2d', 'enu', 'map'];
 const CHART_VIEWS: string[] = [...POSITION_VIEWS, 'skysnr'];
 const DEFAULT_VIEWS = ['2d', 'skysnr'];
-
-const DEFAULT_RAW_LOG = '/workspace/rtlog/monitor_%Y%m%d%h%M.raw';
 
 /** File input playback (#161): '0' = the whole file at once, else × real
  *  time paced by the epoch times in the file. */
@@ -152,62 +134,130 @@ function Row({ label, children, minHeight }: {
   );
 }
 
-/** Keep at most one relay status line (the newest): they arrive every few
- *  seconds and would push everything else out of the buffer. */
-function appendLog(prev: string[], line: string): string[] {
-  const base = isRelayStatusLine(line) ? prev.filter((l) => !isRelayStatusLine(l)) : prev;
-  return [...base.slice(-(MAX_LOG_LINES - 1)), line];
+/** The settings of one stream. `pacing`: a file may be replayed paced (one
+ *  stream only: files with different start times cannot be aligned, #171). */
+function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
+  return (
+    <>
+      <Row label="Input type">
+        <Select
+          size="xs"
+          value={s.typeMeta.value}
+          onChange={(v) => v && s.setInputType(v)}
+          data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
+          allowDeselect={false}
+          disabled={s.busy}
+        />
+      </Row>
+      <Row label="Path">
+        <Group gap={6} wrap="nowrap">
+          <Box style={{ flex: 1, minWidth: 0 }}>
+            <MaskedPathInput
+              size="xs"
+              value={s.inputPath}
+              onChange={s.setInputPath}
+              placeholder={s.typeMeta.placeholder}
+              disabled={s.busy}
+              styles={{ input: { fontFamily: MONO } }}
+            />
+          </Box>
+          <StreamPathHelp />
+        </Group>
+      </Row>
+      {s.isFile && (
+        <Row label="Playback">
+          <Select
+            size="xs"
+            value={pacing ? s.fileSpeed : '0'}
+            onChange={(v) => v && s.setFileSpeed(v)}
+            data={FILE_SPEEDS}
+            allowDeselect={false}
+            disabled={s.busy || !pacing}
+            title={pacing ? undefined : 'With two streams, files are read all at once'}
+          />
+        </Row>
+      )}
+      {!s.isFile && (
+        <Row label="Save raw stream" minHeight={30}>
+          <Switch
+            size="xs"
+            checked={s.saveRaw}
+            onChange={(e) => s.setSaveRaw(e.currentTarget.checked)}
+            disabled={s.busy}
+          />
+        </Row>
+      )}
+      {!s.isFile && s.saveRaw && (
+        <Row label="Raw log file">
+          <TextInput
+            size="xs"
+            value={s.rawLog}
+            onChange={(e) => s.setRawLog(e.currentTarget.value)}
+            placeholder={DEFAULT_RAW_LOG}
+            disabled={s.busy}
+            styles={{ input: { fontFamily: MONO } }}
+          />
+        </Row>
+      )}
+      <Row label="CLAS L6 source" minHeight={30}>
+        <Switch
+          size="xs"
+          checked={s.clasSource}
+          onChange={(e) => s.setClasSource(e.currentTarget.checked)}
+          title="Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there."
+        />
+      </Row>
+      {s.requestError && (
+        <Text size="sm" c="red" mt={4}>
+          {s.requestError}
+        </Text>
+      )}
+    </>
+  );
+}
+
+/** Dot, name and state of a stream, for its card and the selector. */
+function StreamName({ s }: { s: MonitorStream }) {
+  const light = inputLight(s.status, s.state, s.live);
+  return (
+    <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+      <Box style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: light.color }} />
+      <Text size="xs" fw={600} style={{ whiteSpace: 'nowrap' }}>Stream {s.id.toUpperCase()}</Text>
+      <Text c="dimmed" style={{ fontFamily: MONO, fontSize: 10, whiteSpace: 'nowrap' }}>{light.label}</Text>
+    </Group>
+  );
 }
 
 export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   configOpen?: boolean;
   onToggleConfig?: () => void;
 }) {
-  // ── form (persisted; separate keys so an old stored shape cannot break it, L28)
-  const [inputType, setInputType] = useLocalStorage<string>({
-    key: 'mrtk-stream-monitor-input-type',
-    defaultValue: 'tcpcli',
-  });
-  const [inputPath, setInputPath] = useLocalStorage<string>({
-    key: 'mrtk-stream-monitor-input-path',
-    defaultValue: '',
-  });
-  const [saveRaw, setSaveRaw] = useLocalStorage<boolean>({
-    key: 'mrtk-stream-monitor-save-raw',
-    defaultValue: false,
-  });
-  const [rawLog, setRawLog] = useLocalStorage<string>({
-    key: 'mrtk-stream-monitor-raw-log',
-    defaultValue: DEFAULT_RAW_LOG,
-  });
-  const [fileSpeed, setFileSpeed] = useLocalStorage<string>({
-    key: 'mrtk-stream-monitor-file-speed',
-    defaultValue: '0',
-  });
-  // Read the GGA station id as the CLAS L6 source (#144). Off by default:
-  // only `mrtk run` CLAS output puts the source there; any other receiver
-  // puts its base station id, which can look like a valid source.
-  const [clasSource, setClasSource] = useLocalStorage<boolean>({
-    key: 'mrtk-stream-monitor-clas-source',
-    defaultValue: false,
-  });
-  const typeMeta = INPUT_TYPES.find((t) => t.value === inputType) ?? INPUT_TYPES[1];
-  const isFile = typeMeta.value === 'file';
-
-  // ── session data
-  const [status, setStatus] = useState<MonitorStatus | null>(null);
-  const [epochs, setEpochs] = useState<MonitorEpoch[]>([]);
-  const [sats, setSats] = useState<MonitorSatellites | null>(null);
-  const [logLines, setLogLines] = useState<string[]>([]);
-  // Message tab (#136): counters of every type, rows of the selected one.
-  const [messageTypes, setMessageTypes] = useState<MonitorMessageType[]>([]);
-  const [messageNow, setMessageNow] = useState(0);
-  const [messageLabel, setMessageLabel] = useState<string | null>(null);
-  const [messageRows, setMessageRows] = useState<MonitorMessageRow[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [requestError, setRequestError] = useState<string | null>(null);
   // The page's WebSocket is open. While it is not, the last status is stale.
   const [wsOpen, setWsOpen] = useState(false);
+  const streamA = useMonitorStream('a', wsOpen);
+  const streamB = useMonitorStream('b', wsOpen);
+  const onMessageA = streamA.handleMessage;
+  const onMessageB = streamB.handleMessage;
+
+  // The second stream is shown once added, and whenever it runs: it may
+  // have been started from another browser (L16).
+  const [secondAdded, setSecondAdded] = useLocalStorage<boolean>({
+    key: 'mrtk-stream-monitor-second',
+    defaultValue: false,
+  });
+  const twoStreams = secondAdded || streamB.busy;
+  const streams = twoStreams ? [streamA, streamB] : [streamA];
+  const [selectedId, setSelectedId] = useState<MonitorStreamId>('a');
+  const selected = twoStreams && selectedId === 'b' ? streamB : streamA;
+  const {
+    status, epochs, sats, logLines, messageTypes, messageNow, messageLabel, messageRows,
+    live, state, submitting, clasSource,
+  } = selected;
+
+  const anyRunning = streams.some((s) => s.running);
+  const startable = streams.filter((s) => !s.busy && s.inputPath.trim());
+  const handleStartAll = () => startable.forEach((s) => void s.start(!twoStreams));
+  const handleStopAll = () => streams.filter((s) => s.running).forEach((s) => void s.stop());
 
   const [tab, setTab] = useState<string | null>('chart');
   const { ref: panelsRef, height: panelsHeight } = useElementSize();
@@ -226,181 +276,73 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
 
   // What the backend streams rows for: only while the tab is open.
   const subscribedLabel = tab === 'message' ? messageLabel : null;
-  const subscribedLabelRef = useRef<string | null>(null);
+  const subscribedStream = selected.id;
+  const subscribedRef = useRef<{ stream: MonitorStreamId; label: string | null }>({ stream: 'a', label: null });
   useLayoutEffect(() => {
-    subscribedLabelRef.current = subscribedLabel;
+    subscribedRef.current = { stream: subscribedStream, label: subscribedLabel };
   });
 
   const wsRef = useRef<WebSocket | null>(null);
-  const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const unmountedRef = useRef(false);
-  // A start request is in flight: a "not running" status sent before it
-  // (e.g. on WS connect) must not flip the page back to idle.
-  const startingRef = useRef(false);
-  // Counts `exited` statuses. A Start response that arrives after a session
-  // ended (relay exit, Stop from another page) is older than that exit and
-  // must not bring Running back: no further status would correct it.
-  const exitCountRef = useRef(0);
-  // `started_at` of the session this page shows. A status with another one
-  // means a new session (maybe started from another page): its console and
-  // data start empty. `undefined` = take the next status as is (`history`
-  // just replaced everything).
-  const sessionRef = useRef<string | null | undefined>(undefined);
-
-  const clearData = useCallback(() => {
-    setEpochs([]);
-    setSats(null);
-    setMessageTypes([]);
-    setMessageRows([]);
-  }, []);
-
-  const connectWs = useCallback(() => {
-    if (wsRef.current || unmountedRef.current) return;
-    const ws = streamMonitorApi.connectWs();
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      if (wsRef.current === ws) setWsOpen(true);
-    };
-
-    ws.onmessage = (event) => {
-      let msg: MonitorMessage;
-      try {
-        msg = JSON.parse(event.data) as MonitorMessage;
-      } catch {
-        return;
-      }
-      if (msg.stream !== undefined && msg.stream !== 'a') return; // one stream shown so far (#171)
-      switch (msg.type) {
-        case 'history':
-          // Authoritative: empty when no session is running.
-          setEpochs((msg.epochs ?? []).slice(-MAX_EPOCHS));
-          setSats(msg.satellites ?? null);
-          setMessageTypes(msg.messages?.types ?? []);
-          setMessageNow(msg.messages?.now ?? 0);
-          setLogLines((msg.logs ?? []).reduce(appendLog, [] as string[]));
-          sessionRef.current = undefined;
-          break;
-        case 'status':
-          if (!msg.running && !msg.exited && startingRef.current) break;
-          if (
-            sessionRef.current !== undefined &&
-            msg.started_at &&
-            msg.started_at !== sessionRef.current
-          ) {
-            clearData();
-            setLogLines([]);
-          }
-          sessionRef.current = msg.started_at;
-          setStatus(msg);
-          if (msg.exited) {
-            exitCountRef.current += 1;
-            clearData();
-          }
-          break;
-        case 'epochs':
-          setEpochs((prev) => [...prev, ...msg.epochs].slice(-MAX_EPOCHS));
-          break;
-        case 'satellites':
-          setSats({ time: msg.time, time_sys: msg.time_sys, satellites: msg.satellites });
-          break;
-        case 'log':
-          setLogLines((prev) => appendLog(prev, msg.message));
-          break;
-        case 'messages':
-          setMessageTypes(msg.types);
-          setMessageNow(msg.now);
-          break;
-        case 'message_rows':
-          // Rows of the previous selection may still be on their way.
-          if (msg.label === subscribedLabelRef.current) {
-            setMessageRows((prev) => mergeMessageRows(prev, msg.rows, msg.reset));
-          }
-          break;
-      }
-    };
-
-    ws.onclose = () => {
-      // A stale socket (already replaced or torn down) must not touch state.
-      if (wsRef.current !== ws) return;
-      wsRef.current = null;
-      if (unmountedRef.current) return;
-      setWsOpen(false);
-      wsReconnectRef.current = setTimeout(() => {
-        wsReconnectRef.current = null;
-        connectWs();
-      }, 2000);
-    };
-  }, [clearData]);
 
   useEffect(() => {
-    unmountedRef.current = false;
-    connectWs();
+    let closed = false;
+    let reconnect: ReturnType<typeof setTimeout> | null = null;
+
+    const connect = () => {
+      if (wsRef.current || closed) return;
+      const ws = streamMonitorApi.connectWs();
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (wsRef.current === ws) setWsOpen(true);
+      };
+
+      ws.onmessage = (event) => {
+        let msg: MonitorMessage;
+        try {
+          msg = JSON.parse(event.data) as MonitorMessage;
+        } catch {
+          return;
+        }
+        const stream = msg.stream ?? 'a';
+        if (msg.type === 'message_rows') {
+          // Rows of the previous selection may still be on their way.
+          const sub = subscribedRef.current;
+          if (stream !== sub.stream || msg.label !== sub.label) return;
+        }
+        (stream === 'b' ? onMessageB : onMessageA)(msg);
+      };
+
+      ws.onclose = () => {
+        // A stale socket (already replaced or torn down) must not touch state.
+        if (wsRef.current !== ws) return;
+        wsRef.current = null;
+        if (closed) return;
+        setWsOpen(false);
+        reconnect = setTimeout(() => {
+          reconnect = null;
+          connect();
+        }, 2000);
+      };
+    };
+
+    connect();
     return () => {
-      unmountedRef.current = true;
-      if (wsReconnectRef.current) clearTimeout(wsReconnectRef.current);
-      wsReconnectRef.current = null;
+      closed = true;
+      if (reconnect) clearTimeout(reconnect);
       const ws = wsRef.current;
       wsRef.current = null;
       ws?.close();
     };
-  }, [connectWs]);
+  }, [onMessageA, onMessageB]);
 
   // Tell the backend what to send; again after a reconnect, which starts
   // a new client there.
   useEffect(() => {
     const ws = wsRef.current;
     if (!wsOpen || ws?.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: 'select_message', label: subscribedLabel }));
-  }, [subscribedLabel, wsOpen]);
-
-  const handleSelectMessage = (label: string) => {
-    if (label === messageLabel) return;
-    setMessageLabel(label);
-    setMessageRows([]);
-  };
-
-  const running = !!status?.running;
-  const busy = running || submitting;
-  // Live figures only while the WebSocket delivers them.
-  const live = running && wsOpen;
-
-  const handleStart = async () => {
-    startingRef.current = true;
-    setSubmitting(true);
-    setRequestError(null);
-    clearData();
-    setLogLines([]);
-    const exitsBefore = exitCountRef.current;
-    try {
-      const st = await streamMonitorApi.start({
-        input: { type: typeMeta.value, path: inputPath.trim() },
-        raw_log: !isFile && saveRaw && rawLog.trim() ? rawLog.trim() : null,
-        file_speed: isFile && Number(fileSpeed) > 0 ? Number(fileSpeed) : null,
-      });
-      // A session that ended meanwhile keeps its exit status. If the exit
-      // was another session's, the next status tick (1 s) shows this one.
-      if (exitCountRef.current === exitsBefore) setStatus(st);
-    } catch (err) {
-      setRequestError(err instanceof Error ? err.message : String(err));
-    } finally {
-      startingRef.current = false;
-      setSubmitting(false);
-    }
-  };
-
-  const handleStop = async () => {
-    setSubmitting(true);
-    setRequestError(null);
-    try {
-      setStatus(await streamMonitorApi.stop());
-      clearData();
-    } catch (err) {
-      setRequestError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    ws.send(JSON.stringify({ type: 'select_message', stream: subscribedStream, label: subscribedLabel }));
+  }, [subscribedStream, subscribedLabel, wsOpen]);
 
   // ── adapters to the RT components
   const last = epochs.length > 0 ? epochs[epochs.length - 1] : null;
@@ -416,7 +358,6 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   const solutionScroll = useFollowScroll(tab === 'solution', epochs);
   const consoleScroll = useFollowScroll(tab === 'console', relayLog.console);
 
-  const state: MonitorState = submitting && !running ? 'starting' : status?.state ?? 'idle';
   // The relay's status line is only current while it runs.
   const relayStatusLine = live ? relayLog.status : null;
 
@@ -433,112 +374,126 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
               <MonitorHelp />
             </Group>
             <Group gap="xs" wrap="nowrap">
-              {state !== 'idle' && (
+              <Button
+                variant="light"
+                size="compact-xs"
+                leftSection={<IconPlus size={12} />}
+                onClick={() => setSecondAdded(true)}
+                disabled={twoStreams}
+              >
+                Add Stream
+              </Button>
+              {!twoStreams && state !== 'idle' && (
                 <Badge color={STATE_COLOR[state]} variant="dot" size="sm">
                   {state}
                 </Badge>
               )}
-              {!running ? (
-                <Button
-                  size="xs"
-                  color="green"
-                  leftSection={<IconPlayerPlay size={14} />}
-                  onClick={handleStart}
-                  loading={submitting}
-                  disabled={!inputPath.trim()}
-                >
-                  Start
-                </Button>
-              ) : (
+              {anyRunning ? (
                 <Button
                   size="xs"
                   color="red"
                   leftSection={<IconPlayerStop size={14} />}
-                  onClick={handleStop}
-                  loading={submitting}
+                  onClick={handleStopAll}
+                  loading={!twoStreams && submitting}
                 >
-                  Stop
+                  {twoStreams ? 'Stop All' : 'Stop'}
+                </Button>
+              ) : (
+                <Button
+                  size="xs"
+                  color="green"
+                  leftSection={<IconPlayerPlay size={14} />}
+                  onClick={handleStartAll}
+                  loading={!twoStreams && submitting}
+                  disabled={startable.length === 0}
+                >
+                  {twoStreams ? 'Start All' : 'Start'}
                 </Button>
               )}
             </Group>
           </Group>
-          <Row label="Input type">
-            <Select
-              size="xs"
-              value={typeMeta.value}
-              onChange={(v) => v && setInputType(v)}
-              data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
-              allowDeselect={false}
-              disabled={busy}
-            />
-          </Row>
-          <Row label="Path">
-            <Group gap={6} wrap="nowrap">
-              <Box style={{ flex: 1, minWidth: 0 }}>
-                <MaskedPathInput
-                  size="xs"
-                  value={inputPath}
-                  onChange={setInputPath}
-                  placeholder={typeMeta.placeholder}
-                  disabled={busy}
-                  styles={{ input: { fontFamily: MONO } }}
-                />
-              </Box>
-              <StreamPathHelp />
-            </Group>
-          </Row>
-          {isFile && (
-            <Row label="Playback">
-              <Select
-                size="xs"
-                value={fileSpeed}
-                onChange={(v) => v && setFileSpeed(v)}
-                data={FILE_SPEEDS}
-                allowDeselect={false}
-                disabled={busy}
-              />
-            </Row>
-          )}
-          {!isFile && (
-            <Row label="Save raw stream" minHeight={30}>
-              <Switch
-                size="xs"
-                checked={saveRaw}
-                onChange={(e) => setSaveRaw(e.currentTarget.checked)}
-                disabled={busy}
-              />
-            </Row>
-          )}
-          {!isFile && saveRaw && (
-            <Row label="Raw log file">
-              <TextInput
-                size="xs"
-                value={rawLog}
-                onChange={(e) => setRawLog(e.currentTarget.value)}
-                placeholder={DEFAULT_RAW_LOG}
-                disabled={busy}
-                styles={{ input: { fontFamily: MONO } }}
-              />
-            </Row>
-          )}
-          <Row label="CLAS L6 source" minHeight={30}>
-            <Switch
-              size="xs"
-              checked={clasSource}
-              onChange={(e) => setClasSource(e.currentTarget.checked)}
-              title="Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there."
-            />
-          </Row>
-          {requestError && (
-            <Text size="sm" c="red" mt={4}>
-              {requestError}
-            </Text>
+          {twoStreams ? (
+            <Stack gap="xs">
+              {streams.map((s) => (
+                <Card
+                  key={s.id}
+                  withBorder
+                  p="xs"
+                  onClick={() => setSelectedId(s.id)}
+                  style={{ borderColor: selected.id === s.id ? 'var(--mantine-color-blue-5)' : undefined }}
+                >
+                  <Group justify="space-between" wrap="nowrap" mb={6}>
+                    <StreamName s={s} />
+                    <Group gap={4} wrap="nowrap">
+                      {s.state !== 'idle' && (
+                        <Badge color={STATE_COLOR[s.state]} variant="dot" size="xs">{s.state}</Badge>
+                      )}
+                      {s.running ? (
+                        <ActionIcon
+                          variant="light"
+                          color="red"
+                          size="xs"
+                          onClick={() => void s.stop()}
+                          loading={s.submitting}
+                          title={`Stop stream ${s.id.toUpperCase()}`}
+                          aria-label={`Stop stream ${s.id.toUpperCase()}`}
+                        >
+                          <IconPlayerStop size={12} />
+                        </ActionIcon>
+                      ) : (
+                        <ActionIcon
+                          variant="light"
+                          color="green"
+                          size="xs"
+                          onClick={() => void s.start(false)}
+                          loading={s.submitting}
+                          disabled={!s.inputPath.trim()}
+                          title={`Start stream ${s.id.toUpperCase()}`}
+                          aria-label={`Start stream ${s.id.toUpperCase()}`}
+                        >
+                          <IconPlayerPlay size={12} />
+                        </ActionIcon>
+                      )}
+                      {s.id === 'b' && (
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          size="xs"
+                          onClick={(e) => {
+                            e.stopPropagation(); // the card would select this stream again
+                            setSecondAdded(false);
+                            setSelectedId('a');
+                          }}
+                          disabled={s.busy}
+                          title="Remove stream"
+                          aria-label="Remove stream"
+                        >
+                          <IconTrash size={12} />
+                        </ActionIcon>
+                      )}
+                    </Group>
+                  </Group>
+                  <StreamForm s={s} pacing={false} />
+                </Card>
+              ))}
+            </Stack>
+          ) : (
+            <StreamForm s={streamA} pacing />
           )}
         </Card>
       }
       workspace={
         <Card withBorder p="xs" style={{ display: 'flex', flexDirection: 'column', minHeight: WORKSPACE_MIN_HEIGHT }}>
           <Stack gap={6} style={{ flex: '1 1 auto', minHeight: 0 }}>
+            {/* One selector for every per-stream view (#171) */}
+            {twoStreams && (
+              <SegmentedControl
+                size="xs"
+                value={selected.id}
+                onChange={(v) => setSelectedId(v as MonitorStreamId)}
+                data={streams.map((s) => ({ value: s.id, label: <StreamName s={s} /> }))}
+              />
+            )}
             <RtMetricsRow
               lastPosition={metricsPosition}
               satellites={satellites}
@@ -575,7 +530,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                             (started_at) resets zoom and map. */}
                         <PositionViewer
                           epochs={posEpochs}
-                          dataKey={status?.started_at ?? ''}
+                          dataKey={`${selected.id}:${status?.started_at ?? ''}`}
                           maxHeight={chartHeight}
                           timeSystem={last?.time_sys ?? 'GPST'}
                           emptyText={live ? 'Waiting for positions…' : 'No position data'}
@@ -657,7 +612,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                       types={messageTypes}
                       rows={messageRows}
                       selected={messageLabel}
-                      onSelect={handleSelectMessage}
+                      onSelect={selected.selectMessage}
                       now={messageNow}
                       showAge={!status?.file}
                       height={chartHeight}

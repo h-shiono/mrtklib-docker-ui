@@ -14,6 +14,8 @@ const API_BASE = '/api/stream-monitor';
 export type MonitorInputType = 'serial' | 'tcpcli' | 'tcpsvr' | 'ntripcli' | 'file';
 
 export interface MonitorStartRequest {
+  /** Default on the server: stream a. */
+  stream?: MonitorStreamId;
   input: { type: MonitorInputType; path: string };
   raw_log: string | null;
   /** File input: × real time, paced by the epoch times; null = all at once. */
@@ -158,8 +160,8 @@ export const streamMonitorApi = {
     return handleResponse<MonitorStatus>(response);
   },
 
-  stop: async (): Promise<MonitorStatus> => {
-    const response = await fetch(`${API_BASE}/stop`, { method: 'POST' });
+  stop: async (stream: MonitorStreamId = 'a'): Promise<MonitorStatus> => {
+    const response = await fetch(`${API_BASE}/stop?stream=${stream}`, { method: 'POST' });
     return handleResponse<MonitorStatus>(response);
   },
 

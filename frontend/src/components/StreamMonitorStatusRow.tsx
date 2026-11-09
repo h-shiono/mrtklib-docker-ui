@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Box, Text } from '@mantine/core';
 import type { MonitorState, MonitorStatus } from '../api/streamMonitor';
 import { maskLogLine } from '../utils/maskPath';
+import { inputLight } from '../utils/streamMonitor';
 import { StatusCap, StatusFooter, StatusLight } from './RtInputStatusRow';
 
 // ─── Streaming status of the Stream Monitor ──────────────────────────────────
@@ -45,25 +46,6 @@ function Detail({ c = 'dimmed', children }: { c?: string; children: ReactNode })
       {children}
     </Text>
   );
-}
-
-/** State of the input. `connected` is the backend's link to the relay, not
- *  the relay's input: the input is judged by the bytes arriving. */
-function inputLight(status: MonitorStatus | null, state: MonitorState, live: boolean) {
-  if (live && status?.file) {
-    return status.file.eof
-      ? { label: 'END OF FILE', color: 'var(--color-single)', dimmed: true }
-      : { label: 'READING', color: 'var(--color-fix)', dimmed: false };
-  }
-  if (live && status) {
-    if (status.bytes_per_sec > 0) return { label: 'RECEIVING', color: 'var(--color-fix)', dimmed: false };
-    return status.connected
-      ? { label: 'NO DATA', color: 'var(--color-float)', dimmed: false }
-      : { label: 'STARTING RELAY', color: 'var(--color-live)', dimmed: false };
-  }
-  if (state === 'error') return { label: 'ERROR', color: 'var(--mantine-color-red-6)', dimmed: false };
-  if (state === 'starting') return { label: 'STARTING', color: 'var(--color-live)', dimmed: false };
-  return { label: 'STOPPED', color: 'var(--color-single)', dimmed: true };
 }
 
 interface StreamMonitorStatusRowProps {
