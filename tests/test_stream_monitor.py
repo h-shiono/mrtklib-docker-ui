@@ -127,18 +127,19 @@ class FakeRelay:
     """Stands in for `mrtk relay`: serves NMEA on the requested tcpsvr port."""
 
     def __init__(self) -> None:
-        self.server = None
+        self.servers = {}  # process id -> asyncio server (one per stream)
         self.args = None
         self.return_code = None
+        self.exit_codes = {}  # process id -> return code, for one relay only
         self.count = None  # epochs to send before going quiet (None = forever)
-        self.writers = []
+        self.writers = {}  # process id -> open connections
 
     async def start(self, command, args, process_id):
         self.args = args
         port = int(args[3].rsplit(":", 1)[1])
 
         async def handle(reader, writer):
-            self.writers.append(writer)
+            self.writers.setdefault(process_id, []).append(writer)
             k = 0
             try:
                 while self.count is None or k < self.count:
@@ -154,20 +155,21 @@ class FakeRelay:
             except (ConnectionError, asyncio.CancelledError):
                 pass
 
-        self.server = await asyncio.start_server(handle, "127.0.0.1", port)
+        self.servers[process_id] = await asyncio.start_server(handle, "127.0.0.1", port)
         return SimpleNamespace(id=process_id, state=ProcessState.RUNNING)
 
     async def get_status(self, process_id):
-        state = ProcessState.STOPPED if self.return_code is not None else ProcessState.RUNNING
-        return SimpleNamespace(state=state, return_code=self.return_code)
+        rc = self.exit_codes.get(process_id, self.return_code)
+        state = ProcessState.STOPPED if rc is not None else ProcessState.RUNNING
+        return SimpleNamespace(state=state, return_code=rc)
 
     async def stop(self, process_id, timeout=5.0):
         # Like the real relay exiting: connections close after their data.
-        for w in self.writers:
+        for w in self.writers.pop(process_id, []):
             w.close()
-        if self.server is not None:
-            self.server.close()
-            self.server = None
+        server = self.servers.pop(process_id, None)
+        if server is not None:
+            server.close()
 
 
 @pytest.fixture
@@ -189,10 +191,11 @@ def client():
         yield c
 
 
-def _receive_until(ws, pred, limit=200):
+def _receive_until(ws, pred, limit=200, stream="a"):
+    """The first message of `stream` that matches `pred`."""
     for _ in range(limit):
         m = json.loads(ws.receive_text())
-        if pred(m):
+        if m.get("stream") == stream and pred(m):
             return m
     raise AssertionError("message not received")
 
@@ -312,6 +315,8 @@ def test_other_pages_see_a_new_session_before_its_logs(relay, client):
     with client.websocket_connect("/api/stream-monitor/ws") as ws:
         assert json.loads(ws.receive_text())["type"] == "history"
         assert json.loads(ws.receive_text())["running"] is False
+        for _ in range(2):  # the replay of stream b
+            assert json.loads(ws.receive_text())["stream"] == "b"
         assert client.post("/api/stream-monitor/start", json={
             "input": {"type": "tcpcli", "path": "localhost:1"}}).status_code == 200
         first = json.loads(ws.receive_text())
@@ -484,3 +489,94 @@ def test_file_input_rejects(relay, client, data_root, body, code):
     body = json.loads(json.dumps(body).replace("{root}", str(data_root)))
     assert client.post("/api/stream-monitor/start", json=body).status_code == code
     assert client.get("/api/stream-monitor/status").json()["running"] is False
+
+
+# ── two streams (#171) ──────────────────────────────────────────────────────
+
+
+def _start(client, stream, path="localhost:9001", **body):
+    return client.post(
+        "/api/stream-monitor/start",
+        json={"stream": stream, "input": {"type": "tcpcli", "path": path}, **body},
+    )
+
+
+def _stop_both(client):
+    return [client.post("/api/stream-monitor/stop", params={"stream": s}).json() for s in "ab"]
+
+
+def test_two_streams_run_side_by_side(relay, client):
+    assert _start(client, "a").status_code == 200
+    assert _start(client, "b", "localhost:9002").status_code == 200
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        first = [json.loads(ws.receive_text()) for _ in range(4)]
+        assert [(m["type"], m["stream"]) for m in first] == [
+            ("history", "a"), ("status", "a"), ("history", "b"), ("status", "b"),
+        ]
+        for stream, port in (("a", "9001"), ("b", "9002")):
+            status = _receive_until(ws, lambda m: m["type"] == "status", stream=stream)
+            assert status["running"] and status["input"].endswith(port)
+            assert _receive_until(ws, lambda m: m["type"] == "epochs", stream=stream)["epochs"]
+    a = client.get("/api/stream-monitor/status", params={"stream": "a"}).json()
+    b = client.get("/api/stream-monitor/status", params={"stream": "b"}).json()
+    assert a["stream"] == "a" and b["stream"] == "b"
+    assert sorted(relay.servers) == ["stream-monitor-relay-a", "stream-monitor-relay-b"]
+    _stop_both(client)
+
+
+def test_stopping_or_losing_one_stream_leaves_the_other(relay, client):
+    _start(client, "a")
+    _start(client, "b", "localhost:9002")
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        relay.exit_codes["stream-monitor-relay-b"] = 3
+        ended = _receive_until(ws, lambda m: m["type"] == "status" and m.get("exited"), stream="b")
+        assert ended["state"] == "error" and "code 3" in ended["error_message"]
+        assert _receive_until(ws, lambda m: m["type"] == "status", stream="a")["running"]
+
+    # Stream b can start again; stopping it does not touch a.
+    relay.exit_codes.clear()
+    assert _start(client, "b", "localhost:9003").status_code == 200
+    assert client.post("/api/stream-monitor/stop", params={"stream": "b"}).json()["state"] == "stopped"
+    assert client.get("/api/stream-monitor/status", params={"stream": "a"}).json()["running"]
+
+    assert [s["running"] for s in _stop_both(client)] == [False, False]
+
+
+def test_a_running_stream_refuses_a_second_start(relay, client):
+    assert _start(client, "b").status_code == 200
+    r = _start(client, "b", "localhost:9002")
+    assert r.status_code == 409 and "Stream B" in r.json()["detail"]
+    assert _start(client, "a", "localhost:9003").status_code == 200
+    _stop_both(client)
+
+
+def test_unknown_stream_id_is_rejected(relay, client):
+    assert _start(client, "c").status_code == 422
+    assert client.post("/api/stream-monitor/stop", params={"stream": "c"}).status_code == 422
+
+
+def test_message_rows_come_from_the_selected_stream(relay, client):
+    _start(client, "a")
+    _start(client, "b", "localhost:9002")
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        label = _receive_until(ws, lambda m: m["type"] == "messages" and m["types"], stream="b")["types"][0]["label"]
+        ws.send_text(json.dumps({"type": "select_message", "stream": "b", "label": label}))
+        rows = _receive_until(ws, lambda m: m["type"] == "message_rows", stream="b")
+        assert rows["reset"] and rows["label"] == label and rows["rows"]
+        # A bad stream id is ignored; the selection stays.
+        ws.send_text(json.dumps({"type": "select_message", "stream": "x", "label": None}))
+        assert _receive_until(ws, lambda m: m["type"] == "message_rows", stream="b")["label"] == label
+    _stop_both(client)
+
+
+def test_two_streams_get_different_raw_logs(tmp_path):
+    raw = str(tmp_path / "mon_%Y.raw")
+    now = datetime(2026, 11, 9, 4, 0, 0, tzinfo=timezone.utc)
+    _, first = build_relay_args("tcpcli", "h:1", raw, 41000, now=now)
+    _, second = build_relay_args("tcpcli", "h:2", raw, 41001, now=now, other_raw_logs=[first])
+    assert first != second and "_2" in second
+
+
+def test_free_port_skips_excluded_ports():
+    taken = sms.free_port()
+    assert sms.free_port({taken}) != taken

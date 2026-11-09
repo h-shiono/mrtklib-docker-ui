@@ -121,7 +121,10 @@ export interface MonitorMessageCounters {
   types: MonitorMessageType[];
 }
 
-export type MonitorMessage =
+/** The stream a message belongs to (#171). */
+export type MonitorStreamId = 'a' | 'b';
+
+export type MonitorMessage = { stream?: MonitorStreamId } & (
   | MonitorStatus
   | {
       type: 'history';
@@ -134,7 +137,8 @@ export type MonitorMessage =
   | { type: 'message_rows'; label: string; reset: boolean; rows: MonitorMessageRow[] }
   | { type: 'epochs'; epochs: MonitorEpoch[] }
   | ({ type: 'satellites' } & MonitorSatellites)
-  | { type: 'log'; message: string };
+  | { type: 'log'; message: string }
+);
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {

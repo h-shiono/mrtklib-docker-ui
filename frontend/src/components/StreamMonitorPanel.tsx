@@ -270,6 +270,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
       } catch {
         return;
       }
+      if (msg.stream !== undefined && msg.stream !== 'a') return; // one stream shown so far (#171)
       switch (msg.type) {
         case 'history':
           // Authoritative: empty when no session is running.
