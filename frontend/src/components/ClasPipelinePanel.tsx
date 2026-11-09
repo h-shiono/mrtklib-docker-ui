@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
   Alert,
@@ -14,7 +14,6 @@ import {
   Grid,
   Group,
   NumberInput,
-  ScrollArea,
   Select,
   Stack,
   Tabs,
@@ -37,6 +36,7 @@ import { StatusIndicator } from './StatusIndicator';
 import { FONT_SIZE } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
+import { LogView } from './common/LogView';
 
 const MAX_POSITION_POINTS = 3600;
 const MAX_LOG_LINES = 500;
@@ -80,8 +80,6 @@ export function ClasPipelinePanel() {
   const [relayLog, setRelayLog] = useState<string[]>([]);
   const [cssrLog, setCssrLog] = useState<string[]>([]);
 
-  const relayScrollRef = useRef<HTMLDivElement>(null);
-  const cssrScrollRef = useRef<HTMLDivElement>(null);
 
   // --- Initial load (mount only — refreshSerialPorts is intentionally
   // excluded from deps to avoid re-fetching on every input edit) ---
@@ -182,14 +180,6 @@ export function ClasPipelinePanel() {
   }, []);
 
   useWebSocket({ onMessage: handleMessage });
-
-  // --- Auto-scroll log viewports ---
-  useEffect(() => {
-    relayScrollRef.current?.scrollTo({ top: relayScrollRef.current.scrollHeight });
-  }, [relayLog]);
-  useEffect(() => {
-    cssrScrollRef.current?.scrollTo({ top: cssrScrollRef.current.scrollHeight });
-  }, [cssrLog]);
 
   // --- Actions ---
   const handleStart = async () => {
@@ -458,36 +448,10 @@ export function ClasPipelinePanel() {
               <Tabs.Tab value="cssr">mrtk cssr2rtcm3</Tabs.Tab>
             </Tabs.List>
             <Tabs.Panel value="relay" pt="xs" style={{ flex: 1, minHeight: 0 }}>
-              <ScrollArea h="100%" viewportRef={relayScrollRef}>
-                <Code
-                  block
-                  style={{
-                    whiteSpace: 'pre-wrap',
-                    fontSize: FONT_SIZE.label,
-                    fontFamily: 'var(--mantine-font-family-monospace)',
-                  }}
-                >
-                  {relayLog.length === 0
-                    ? 'Waiting for relay output…'
-                    : relayLog.join('\n')}
-                </Code>
-              </ScrollArea>
+              <LogView lines={relayLog} wrap severity running={isRunning} startLabel="Start pipeline" cap={MAX_LOG_LINES} />
             </Tabs.Panel>
             <Tabs.Panel value="cssr" pt="xs" style={{ flex: 1, minHeight: 0 }}>
-              <ScrollArea h="100%" viewportRef={cssrScrollRef}>
-                <Code
-                  block
-                  style={{
-                    whiteSpace: 'pre-wrap',
-                    fontSize: FONT_SIZE.label,
-                    fontFamily: 'var(--mantine-font-family-monospace)',
-                  }}
-                >
-                  {cssrLog.length === 0
-                    ? 'Waiting for cssr2rtcm3 output…'
-                    : cssrLog.join('\n')}
-                </Code>
-              </ScrollArea>
+              <LogView lines={cssrLog} wrap severity running={isRunning} startLabel="Start pipeline" cap={MAX_LOG_LINES} />
             </Tabs.Panel>
           </Tabs>
         </Card>
