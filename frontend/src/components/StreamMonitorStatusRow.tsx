@@ -8,7 +8,7 @@ import { StatusCap, StatusFooter, StatusLight } from './RtInputStatusRow';
 import { FONT_SIZE, MONO } from '../utils/typography';
 
 // ─── Streaming status of the Stream Monitor ──────────────────────────────────
-// Footer of the workspace, in the Real-Time "Streaming status" design.
+// Footer of the workspace, in the Real-Time design: one row, detail in tooltips.
 
 
 const TRUNCATE = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 } as const;
@@ -19,14 +19,14 @@ function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MiB`;
 }
 
-function Cell({ cap, title, flex = '1 1 100px', children }: {
+function Cell({ cap, title, flex = '1 1 0', children }: {
   cap: string;
   title?: string;
   flex?: string;
   children: ReactNode;
 }) {
   return (
-    <Box title={title} style={{ display: 'flex', flexDirection: 'column', gap: 4, flex, minWidth: 0 }}>
+    <Box title={title} style={{ display: 'flex', flexDirection: 'column', gap: 3, flex, minWidth: 0 }}>
       <StatusCap>{cap}</StatusCap>
       {children}
     </Box>
@@ -36,14 +36,6 @@ function Cell({ cap, title, flex = '1 1 100px', children }: {
 function Value({ c, children }: { c?: string; children: ReactNode }) {
   return (
     <Text component="span" c={c} style={{ fontFamily: MONO, fontSize: FONT_SIZE.body, lineHeight: 1.2, ...TRUNCATE }}>
-      {children}
-    </Text>
-  );
-}
-
-function Detail({ c = 'dimmed', children }: { c?: string; children: ReactNode }) {
-  return (
-    <Text component="span" c={c} style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, ...TRUNCATE }}>
       {children}
     </Text>
   );
@@ -90,36 +82,36 @@ export function StreamMonitorStatusRow({
       active={state !== 'idle'}
       faded={disconnected}
       note={disconnected ? 'connection to the server lost, reconnecting' : null}
-      cellGap={16}
     >
-      <Cell cap="Input" title={error ?? input} flex="2 1 170px">
+      <Cell
+        cap="Input"
+        title={error ?? [input, relayLine && `relay  ${maskLogLine(relayLine)}`].filter(Boolean).join('\n')}
+        flex="2 1 0"
+      >
         <StatusLight
           color={light.color}
           label={light.label}
           labelDimmed={light.dimmed}
-          rate={live && status && !file ? `${formatBytes(status.bytes_per_sec)}/s` : undefined}
+          rate={error ?? (live && status && !file ? `${formatBytes(status.bytes_per_sec)}/s` : undefined)}
+          rateColor={error ? STATUS_COLOR.error : undefined}
         />
-        <Detail c={error ? STATUS_COLOR.error : undefined}>{error ?? input}</Detail>
       </Cell>
 
       {file ? (
-        <Cell cap="Read">
+        <Cell cap="Read" title={file.speed ? `${file.speed}× real time` : 'All at once'}>
           <Value>
             {`${formatBytes(file.read)} of ${formatBytes(file.size)}`
               + ` (${file.size > 0 ? Math.floor((file.read / file.size) * 100) : 100}%)`}
           </Value>
-          <Detail>{file.speed ? `${file.speed}× real time` : 'all at once'}</Detail>
         </Cell>
       ) : (
         <Cell cap="Received" title={status?.raw_log ?? undefined}>
           <Value>{status ? formatBytes(status.bytes_total) : '—'}</Value>
-          {status?.raw_log && <Detail>{status.raw_log}</Detail>}
         </Cell>
       )}
 
-      <Cell cap="Decoded from" title={`Position: ${status?.epoch_source ?? '—'}\nSatellites: ${status?.satellite_source ?? '—'}`}>
+      <Cell cap="Decoded from" flex="1.3 1 0" title={`Position: ${status?.epoch_source ?? '—'}\nSatellites: ${status?.satellite_source ?? '—'}`}>
         <Value>{status?.epoch_source ?? '—'}</Value>
-        <Detail>{status?.satellite_source ?? '—'}</Detail>
       </Cell>
 
       {l6Source && (
@@ -138,26 +130,14 @@ export function StreamMonitorStatusRow({
       </Cell>
       <Cell
         cap="Undecoded"
-        title={status ? `${status.bad_frames} bad frames · ${status.decode_errors} decode errors` : undefined}
+        title={status ? `${formatBytes(status.unknown_bytes)} unknown · ${status.bad_frames} bad frames · ${status.decode_errors} decode errors` : undefined}
       >
         <Value c={framingIssues > 0 ? STATUS_COLOR.warn : undefined}>
-          {status ? `${formatBytes(status.unknown_bytes)} unknown` : '—'}
+          {status
+            ? formatBytes(status.unknown_bytes) + (framingIssues > 0 ? ` · ${framingIssues} bad` : '')
+            : '—'}
         </Value>
-        {status && (
-          <Detail c={framingIssues > 0 ? STATUS_COLOR.warn : undefined}>
-            {`${status.bad_frames} bad · ${status.decode_errors} errors`}
-          </Detail>
-        )}
       </Cell>
-
-      <Text
-        c="dimmed"
-        truncate="end"
-        title={relayLine ? maskLogLine(relayLine) : undefined}
-        style={{ flexBasis: '100%', minWidth: 0, fontFamily: MONO, fontSize: FONT_SIZE.label, minHeight: 17 }}
-      >
-        {relayLine ? `relay  ${maskLogLine(relayLine)}` : ''}
-      </Text>
     </StatusFooter>
   );
 }

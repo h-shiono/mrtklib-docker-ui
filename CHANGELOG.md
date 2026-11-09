@@ -28,6 +28,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   order, with Start, Stop or Execute at the far right. Chart views are chips
   shown only on the Chart tab, so Post-processing can show 2D, ENU and Map side
   by side. The empty Fix / Float / Single bar in Post-processing is gone.
+- The Real-time and Stream Monitor summary and Streaming status take far less
+  height, so charts have more room, also with two streams on a laptop.
+  Satellites per constellation are shown as text (`G 8/10`), and the less
+  urgent status details moved to tooltips.
 
 ### Fixed
 - Observation QC: switching the SNR plot to Elevation without a NAV file could
