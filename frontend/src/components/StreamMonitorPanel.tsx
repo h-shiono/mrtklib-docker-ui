@@ -39,6 +39,8 @@ import {
 } from '../api/streamMonitor';
 import {
   STREAM_COLOR,
+  alignEpochs,
+  commonTimeSystem,
   inputLight,
   rtTimestamp,
   splitRelayLog,
@@ -362,10 +364,22 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   const overlaying = twoStreams && overlayOn;
   const primary = overlaying && posOf(selected).length === 0 && posOf(other).length > 0 ? other : selected;
   const secondary = primary.id === 'a' ? streamB : streamA;
-  const primaryEpochs = posOf(primary);
-  const secondaryEpochs = posOf(secondary);
-  const showOverlay = overlaying && primaryEpochs.length > 0 && secondaryEpochs.length > 0;
-  const secondaryTimeSystem = secondary.epochs[secondary.epochs.length - 1]?.time_sys ?? 'GPST';
+  const primaryPos = posOf(primary);
+  const secondaryPos = posOf(secondary);
+  const showOverlay = overlaying && primaryPos.length > 0 && secondaryPos.length > 0;
+  // One time system while overlaid, or the ENU charts would be seconds apart.
+  const overlayTimeSystem = useMemo(
+    () => (showOverlay ? commonTimeSystem([...primary.epochs, ...secondary.epochs]) : 'GPST'),
+    [showOverlay, primary.epochs, secondary.epochs],
+  );
+  const primaryEpochs = useMemo(
+    () => (showOverlay ? alignEpochs(primary.epochs, primaryPos, overlayTimeSystem) : primaryPos),
+    [showOverlay, primary.epochs, primaryPos, overlayTimeSystem],
+  );
+  const secondaryEpochs = useMemo(
+    () => (showOverlay ? alignEpochs(secondary.epochs, secondaryPos, overlayTimeSystem) : secondaryPos),
+    [showOverlay, secondary.epochs, secondaryPos, overlayTimeSystem],
+  );
   const positionOverlay = useMemo((): PositionOverlay | undefined => {
     if (!showOverlay) return undefined;
     return {
@@ -375,10 +389,10 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
         label: `Stream ${secondary.id.toUpperCase()}`,
         color: STREAM_COLOR[secondary.id],
         epochs: secondaryEpochs,
-        timeSystem: secondaryTimeSystem,
+        timeSystem: overlayTimeSystem,
       },
     };
-  }, [showOverlay, primary.id, secondary.id, secondaryEpochs, secondaryTimeSystem]);
+  }, [showOverlay, primary.id, secondary.id, secondaryEpochs, overlayTimeSystem]);
   // Another source, reference or overlay refits the views; epochs do not.
   const positionKey = [
     `${primary.id}:${primary.status?.started_at ?? ''}`,
@@ -551,7 +565,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                       variant="light"
                       checked={overlayOn}
                       onChange={setOverlayOn}
-                      title="Draw both streams on the 2D and Map views"
+                      title="Draw both streams on the 2D, ENU and Map views"
                     >
                       Overlay
                     </Chip>
@@ -581,7 +595,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                           epochs={primaryEpochs}
                           dataKey={positionKey}
                           maxHeight={chartHeight}
-                          timeSystem={primary.epochs[primary.epochs.length - 1]?.time_sys ?? 'GPST'}
+                          timeSystem={showOverlay ? overlayTimeSystem : primary.epochs[primary.epochs.length - 1]?.time_sys ?? 'GPST'}
                           emptyText={live ? 'Waiting for positions…' : 'No position data'}
                           views={positionViews}
                           clasSource={primary.clasSource}

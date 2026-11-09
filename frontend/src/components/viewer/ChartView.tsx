@@ -29,6 +29,20 @@ interface ChartViewProps {
   showMarkerLabels?: boolean;
   /** Statistics chip at the top-left of the plot. */
   showStats?: boolean;
+  /** One colour for every point of `data`; without it, by quality. */
+  color?: string;
+  /** Second solution under `data`, joined on time. Without `color`: by
+   *  quality, as rings. */
+  overlay?: { data: ENUEpoch[]; color?: string };
+  /** Names of `data` and the overlay, in the statistics and the tooltip. */
+  seriesLabels?: [string, string];
+}
+
+/** How one series is drawn; `q` has one value per x. */
+interface SeriesStyle {
+  q: (number | undefined)[];
+  color?: string;
+  ring: boolean;
 }
 
 /** A vertical line at a time (unix seconds), with an optional label. */
@@ -64,13 +78,13 @@ const METRIC_SHORT: Record<ChartMetric, string> = {
 /** uPlot plugin drawing dashed vertical marker lines (and labels at the
  *  top). Reads the markers through a ref, like the Q colours. */
 function markerPlugin(
-  markersRef: { current: { markers: ChartMarker[]; labels: boolean } },
+  markersRef: { current: { markers: ChartMarker[]; labels: boolean; below: number } },
   isDark: boolean,
 ): uPlot.Plugin {
   return {
     hooks: {
       draw: (u: uPlot) => {
-        const { markers, labels } = markersRef.current;
+        const { markers, labels, below } = markersRef.current;
         if (markers.length === 0) return;
         const ctx = u.ctx;
         const { left, top, width, height } = u.bbox;
@@ -90,8 +104,7 @@ function markerPlugin(
           ctx.moveTo(x, top);
           ctx.lineTo(x, top + height);
           ctx.stroke();
-          // Below the stats chip (top-left, about 18 px tall)
-          if (labels && m.label) ctx.fillText(m.label, x + 3 * px, top + 22 * px);
+          if (labels && m.label) ctx.fillText(m.label, x + 3 * px, top + below * px);
         }
         ctx.restore();
       },
@@ -99,34 +112,45 @@ function markerPlugin(
   };
 }
 
-/** uPlot plugin to draw Q-flag colored points. Reads Q values through a ref
- *  so setData() with new data does not need a new plugin (or chart). */
-function qColorPlugin(qValuesRef: { current: number[] }): uPlot.Plugin {
+/** uPlot plugin to draw the points: by Q flag or in one colour, the overlay
+ *  under `data`. Reads the styles through a ref so setData() with new data
+ *  does not need a new plugin (or chart). */
+function pointsPlugin(stylesRef: { current: SeriesStyle[] }): uPlot.Plugin {
   return {
     hooks: {
       drawSeries: (u: uPlot, seriesIdx: number) => {
         if (seriesIdx !== 1) return;
         const ctx = u.ctx;
         const xData = u.data[0];
-        const yData = u.data[seriesIdx];
 
         ctx.save();
         // Keep points inside the plot (a fixed y range can cut through data)
         ctx.beginPath();
         ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
         ctx.clip();
-        for (let i = 0; i < xData.length; i++) {
-          const x = u.valToPos(xData[i], 'x', true);
-          const v = yData[i];
-          if (v == null) continue;
-          const y = u.valToPos(v, 'y', true);
-          if (x < 0 || y < 0) continue;
+        for (let s = u.data.length - 1; s >= 1; s--) {
+          const yData = u.data[s];
+          const style = stylesRef.current[s - 1];
+          for (let i = 0; i < xData.length; i++) {
+            const x = u.valToPos(xData[i], 'x', true);
+            const v = yData[i];
+            if (v == null) continue;
+            const y = u.valToPos(v, 'y', true);
+            if (x < 0 || y < 0) continue;
 
-          const q = qValuesRef.current[i] ?? 5;
-          ctx.fillStyle = qualityColor(q);
-          ctx.beginPath();
-          ctx.arc(x, y, 2, 0, Math.PI * 2);
-          ctx.fill();
+            const color = style?.color ?? qualityColor(style?.q[i] ?? 5);
+            ctx.beginPath();
+            if (style?.ring) {
+              ctx.strokeStyle = color;
+              ctx.lineWidth = 1;
+              ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+              ctx.stroke();
+            } else {
+              ctx.fillStyle = color;
+              ctx.arc(x, y, 2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
         }
         ctx.restore();
       },
@@ -182,12 +206,15 @@ const blankTicks = (_u: uPlot, splits: number[]) => splits.map(() => '');
 /** uPlot plugin: a chip at the top-left of the plot with statistics of the
  *  visible (x-zoomed) data: mean and standard deviation, or mean and min for
  *  ns. Updated on x zoom and new data. */
-function statsChipPlugin(metric: ChartMetric, isDark: boolean): uPlot.Plugin {
+function statsChipPlugin(
+  metric: ChartMetric,
+  isDark: boolean,
+  labelsRef: { current: [string, string] | undefined },
+): uPlot.Plugin {
   let chip: HTMLDivElement | null = null;
-  const update = (u: uPlot) => {
-    if (!chip) return;
+  const stats = (u: uPlot, series: number): string | null => {
     const xs = u.data[0];
-    const ys = u.data[1];
+    const ys = u.data[series];
     const min = u.scales.x.min ?? -Infinity;
     const max = u.scales.x.max ?? Infinity;
     let n = 0, sum = 0, sum2 = 0, lo = Infinity;
@@ -199,19 +226,23 @@ function statsChipPlugin(metric: ChartMetric, isDark: boolean): uPlot.Plugin {
       sum2 += y * y;
       if (y < lo) lo = y;
     }
-    if (n === 0) {
-      chip.style.display = 'none';
-      return;
-    }
+    if (n === 0) return null;
     const mean = sum / n;
-    chip.style.display = 'block';
-    if (metric === 'ns') {
-      chip.textContent = `mean ${mean.toFixed(1)}  min ${lo}`;
-    } else {
-      const sd = Math.sqrt(Math.max(0, sum2 / n - mean * mean));
-      const m = Math.abs(mean) < 0.0005 ? 0 : mean; // no "-0.000"
-      chip.textContent = `mean ${m >= 0 ? '+' : ''}${m.toFixed(3)}  σ ${sd.toFixed(3)}`;
+    if (metric === 'ns') return `mean ${mean.toFixed(1)}  min ${lo}`;
+    const sd = Math.sqrt(Math.max(0, sum2 / n - mean * mean));
+    const m = Math.abs(mean) < 0.0005 ? 0 : mean; // no "-0.000"
+    return `mean ${m >= 0 ? '+' : ''}${m.toFixed(3)}  σ ${sd.toFixed(3)}`;
+  };
+  const update = (u: uPlot) => {
+    if (!chip) return;
+    const labels = u.data.length > 2 ? labelsRef.current : undefined;
+    const lines: string[] = [];
+    for (let s = 1; s < u.data.length; s++) {
+      const line = stats(u, s);
+      if (line) lines.push(labels ? `${labels[s - 1]}  ${line}` : line);
     }
+    chip.style.display = lines.length > 0 ? 'block' : 'none';
+    chip.textContent = lines.sort().join('\n'); // the same order for either selection
   };
   return {
     hooks: {
@@ -228,7 +259,7 @@ function statsChipPlugin(metric: ChartMetric, isDark: boolean): uPlot.Plugin {
           fontFamily: "'IBM Plex Mono', monospace",
           fontSize: '10px',
           lineHeight: '16px',
-          whiteSpace: 'nowrap',
+          whiteSpace: 'pre',
           color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',
           backgroundColor: isDark ? 'rgba(19,22,26,0.82)' : 'rgba(255,255,255,0.85)',
           border: isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(0,0,0,0.12)',
@@ -244,7 +275,11 @@ function statsChipPlugin(metric: ChartMetric, isDark: boolean): uPlot.Plugin {
 }
 
 /** uPlot plugin for floating tooltip near the data point */
-function tooltipPlugin(metricKey: ChartMetric, isDark: boolean): uPlot.Plugin {
+function tooltipPlugin(
+  metricKey: ChartMetric,
+  isDark: boolean,
+  labelsRef: { current: [string, string] | undefined },
+): uPlot.Plugin {
   let tip: HTMLDivElement | null = null;
 
   return {
@@ -275,11 +310,16 @@ function tooltipPlugin(metricKey: ChartMetric, isDark: boolean): uPlot.Plugin {
         }
 
         const xVal = u.data[0][idx];
-        const yVal = u.data[1][idx] as number;
-        if (xVal == null || yVal == null) {
+        const values: [number, number][] = [];
+        for (let s = 1; s < u.data.length; s++) {
+          const v = u.data[s][idx];
+          if (v != null) values.push([s, v]);
+        }
+        if (xVal == null || values.length === 0) {
           tip.style.display = 'none';
           return;
         }
+        const yVal = values[0][1];
 
         // Format time (the Date's UTC fields carry the file's own time system)
         const d = new Date(xVal * 1000);
@@ -287,9 +327,13 @@ function tooltipPlugin(metricKey: ChartMetric, isDark: boolean): uPlot.Plugin {
         const mm = String(d.getUTCMinutes()).padStart(2, '0');
         const ss = String(d.getUTCSeconds()).padStart(2, '0');
 
-        // Format value
-        const valStr = metricKey === 'ns' ? String(yVal) : yVal.toFixed(4);
-        tip.textContent = `${hh}:${mm}:${ss}  ${METRIC_SHORT[metricKey]}=${valStr}`;
+        // Format value(s)
+        const fmt = (v: number) => (metricKey === 'ns' ? String(v) : v.toFixed(4));
+        const labels = u.data.length > 2 ? labelsRef.current : undefined;
+        const text = labels
+          ? values.map(([s, v]) => `${labels[s - 1]} ${fmt(v)}`).sort().join('  ')
+          : `${METRIC_SHORT[metricKey]}=${fmt(yVal)}`;
+        tip.textContent = `${hh}:${mm}:${ss}  ${labels ? `${METRIC_SHORT[metricKey]}  ` : ''}${text}`;
         tip.style.display = 'block';
 
         // Position: near the data point, offset to top-right
@@ -322,6 +366,9 @@ export function ChartView({
   markers = NO_MARKERS,
   showMarkerLabels = false,
   showStats = true,
+  color,
+  overlay,
+  seriesLabels,
 }: ChartViewProps) {
   const { ref: containerRef, width } = useElementSize();
   const chartRef = useRef<HTMLDivElement>(null);
@@ -335,6 +382,18 @@ export function ChartView({
   // Prepare uPlot data arrays
   const plotData = useMemo(() => {
     if (data.length === 0) return null;
+    if (overlay && overlay.data.length > 0) {
+      // One x per time of either solution; uPlot leaves a gap for the other.
+      const byTime = new Map<number, [ENUEpoch?, ENUEpoch?]>();
+      data.forEach((e) => byTime.set(e.timeUnix, [e, undefined]));
+      overlay.data.forEach((e) => byTime.set(e.timeUnix, [byTime.get(e.timeUnix)?.[0], e]));
+      const xValues = Array.from(byTime.keys()).sort((a, b) => a - b);
+      const series = [0, 1].map((k) => ({
+        y: xValues.map((t) => byTime.get(t)?.[k]?.[metric] ?? null),
+        q: xValues.map((t) => byTime.get(t)?.[k]?.Q),
+      }));
+      return { xValues, series };
+    }
     const xValues = new Float64Array(data.length);
     // null (no height / ns / ratio) stays null: uPlot leaves a gap.
     const yValues: (number | null)[] = new Array(data.length);
@@ -346,22 +405,30 @@ export function ChartView({
       qValues.push(data[i].Q);
     }
 
-    return { xValues, yValues, qValues };
-  }, [data, metric]);
+    return { xValues: Array.from(xValues), series: [{ y: yValues, q: qValues }] };
+  }, [data, metric, overlay]);
+  const seriesCount = plotData?.series.length ?? 1;
 
   // Latest props for the effects below, so a resize or new data updates the
   // existing chart (setSize / setData) instead of rebuilding it.
   const plotDataRef = useRef(plotData);
-  const qValuesRef = useRef<number[]>([]);
-  const markersRef = useRef({ markers, labels: showMarkerLabels });
+  const stylesRef = useRef<SeriesStyle[]>([]);
+  const labelsRef = useRef(seriesLabels);
+  const markersRef = useRef({ markers, labels: showMarkerLabels, below: 22 });
   const sizeRef = useRef({ width, height });
   const rangesRef = useRef({ xRange, yRange });
   // Layout effects run before the effects below, so they always see these.
   useLayoutEffect(() => {
     onXRangeChangeRef.current = onXRangeChange;
     plotDataRef.current = plotData;
-    qValuesRef.current = plotData?.qValues ?? [];
-    markersRef.current = { markers, labels: showMarkerLabels };
+    stylesRef.current = (plotData?.series ?? []).map((s, k) => ({
+      q: s.q,
+      color: k === 0 ? color : overlay?.color,
+      ring: k === 1 && !overlay?.color,
+    }));
+    labelsRef.current = seriesLabels;
+    // Marker labels go below the stats chip (top-left, one line per series)
+    markersRef.current = { markers, labels: showMarkerLabels, below: seriesCount > 1 ? 38 : 22 };
     sizeRef.current = { width, height };
     rangesRef.current = { xRange, yRange };
   });
@@ -396,10 +463,10 @@ export function ChartView({
       // Ticks on UTC boundaries, matching the UTC-field formatting
       tzDate: (ts: number) => uPlot.tzDate(new Date(ts * 1e3), 'Etc/UTC'),
       plugins: [
-        qColorPlugin(qValuesRef),
+        pointsPlugin(stylesRef),
         markerPlugin(markersRef, isDark),
-        ...(showStats ? [statsChipPlugin(metric, isDark)] : []),
-        tooltipPlugin(metric, isDark),
+        ...(showStats ? [statsChipPlugin(metric, isDark, labelsRef)] : []),
+        tooltipPlugin(metric, isDark, labelsRef),
       ],
       legend: { show: false },
       cursor: {
@@ -471,17 +538,14 @@ export function ChartView({
       ],
       series: [
         {},
-        {
+        ...Array.from({ length: seriesCount }, () => ({
           stroke: 'transparent',
           points: { show: false },
-        },
+        })),
       ],
     };
 
-    const uplotData: uPlot.AlignedData = [
-      Array.from(plotData.xValues),
-      plotData.yValues,
-    ];
+    const uplotData: uPlot.AlignedData = [plotData.xValues, ...plotData.series.map((s) => s.y)];
 
     if (uplotRef.current) {
       uplotRef.current.destroy();
@@ -506,7 +570,7 @@ export function ChartView({
     };
     // Size, data and ranges come from refs and are applied by the effects
     // below, so they do not rebuild the chart.
-  }, [ready, isDark, metric, cursorSyncKey, showXLabels, ySymmetric, showStats]);
+  }, [ready, isDark, metric, cursorSyncKey, showXLabels, ySymmetric, showStats, seriesCount]);
 
   // Resize in place
   useEffect(() => {
@@ -518,15 +582,17 @@ export function ChartView({
   useEffect(() => {
     const u = uplotRef.current;
     if (!u || !plotData || shownDataRef.current === plotData) return;
-    u.setData([Array.from(plotData.xValues), plotData.yValues]);
+    // A rebuild for another number of series is on its way
+    if (u.data.length !== plotData.series.length + 1) return;
+    u.setData([plotData.xValues, ...plotData.series.map((s) => s.y)]);
     shownDataRef.current = plotData;
     applyRanges(u);
   }, [plotData]);
 
-  // New markers without new data (e.g. labels toggled) need a redraw.
+  // New markers or colours without new data need a redraw.
   useEffect(() => {
     uplotRef.current?.redraw(false, false);
-  }, [markers, showMarkerLabels]);
+  }, [markers, showMarkerLabels, color, overlay?.color]);
 
   // Apply shared X-range changes imperatively (from other charts' zoom)
   useEffect(() => {
@@ -551,16 +617,18 @@ export function ChartView({
       // Reset to auto: compute from the data in the visible x range
       const u = uplotRef.current;
       const xData = u.data[0];
-      const yData = u.data[1];
       const xMin = u.scales.x.min ?? -Infinity;
       const xMax = u.scales.x.max ?? Infinity;
       let min = Infinity,
         max = -Infinity;
-      for (let i = 0; i < yData.length; i++) {
-        const v = yData[i];
-        if (v == null || xData[i] < xMin || xData[i] > xMax) continue;
-        if (v < min) min = v;
-        if (v > max) max = v;
+      for (let s = 1; s < u.data.length; s++) {
+        const yData = u.data[s];
+        for (let i = 0; i < yData.length; i++) {
+          const v = yData[i];
+          if (v == null || xData[i] < xMin || xData[i] > xMax) continue;
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
       }
       if (min <= max) {
         if (metric === 'ns') {

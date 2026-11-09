@@ -96,3 +96,23 @@ export function inputLight(status: MonitorStatus | null, state: MonitorState, li
   if (state === 'starting') return { label: 'STARTING', color: 'var(--color-live)', dimmed: false };
   return { label: 'STOPPED', color: 'var(--color-single)', dimmed: true };
 }
+
+/** Seconds from a time system to GPST. GPST - UTC is 18 s since 2017. */
+const TO_GPST_S: Record<string, number> = { GPST: 0, UTC: 18, JST: 18 - 9 * 3600 };
+
+/** The time system two overlaid streams share: their own if they agree (no
+ *  leap second assumed then), otherwise GPST. */
+export function commonTimeSystem(epochs: MonitorEpoch[]): string {
+  const first = epochs[0]?.time_sys ?? 'GPST';
+  return epochs.every((e) => e.time_sys === first) ? first : 'GPST';
+}
+
+/** `pos` (one per `raw` epoch) on `timeSystem`, as `commonTimeSystem` gave it:
+ *  NMEA epochs are UTC, SBF and MRTKLIB .pos GPST, and a chart compares by time. */
+export function alignEpochs(raw: MonitorEpoch[], pos: PosEpoch[], timeSystem: string): PosEpoch[] {
+  return pos.map((p, i) => {
+    if (raw[i].time_sys === timeSystem) return p;
+    const timeUnix = p.timeUnix + (TO_GPST_S[raw[i].time_sys] ?? 0);
+    return { ...p, timeUnix, time: new Date(timeUnix * 1000) };
+  });
+}

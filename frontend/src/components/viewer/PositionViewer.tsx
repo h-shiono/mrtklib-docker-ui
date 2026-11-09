@@ -61,7 +61,7 @@ interface PositionViewerProps {
    *  data is known to be CLAS output: any other receiver puts its base
    *  station id there, which can look like a valid source. */
   clasSource?: boolean;
-  /** A second solution over the 2D and Map views, on the same reference. */
+  /** A second solution over the 2D, ENU and Map views, on the same reference. */
   overlay?: PositionOverlay;
 }
 
@@ -215,6 +215,10 @@ export function PositionViewer({
     if (overlayEpochs.length === 0 || !referencePos) return undefined;
     return { data: convertToENU(overlayEpochs, referencePos), color: otherColor };
   }, [overlayEpochs, referencePos, otherColor]);
+  const seriesLabels = useMemo(
+    (): [string, string] | undefined => (overlay ? [overlay.label, overlay.other.label] : undefined),
+    [overlay],
+  );
   const mapOverlay = useMemo(() => {
     if (!overlay) return undefined;
     return { data: overlay.other.epochs, label: overlay.other.label, timeSystem: overlay.other.timeSystem, color: otherColor };
@@ -311,6 +315,9 @@ export function PositionViewer({
                 markers={l6Markers}
                 showMarkerLabels={i === 0}
                 showStats={showEnuStats}
+                color={dataColor}
+                overlay={plotOverlay}
+                seriesLabels={seriesLabels}
               />
             </div>
           );
@@ -342,7 +349,7 @@ export function PositionViewer({
               ]}
             />
           )}
-          {overlay && shown.some((v) => v !== 'enu') && (
+          {overlay && (
             <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
               <Text size="xs" c="dimmed" style={{ fontSize: '10px' }}>Color</Text>
               <SegmentedControl
