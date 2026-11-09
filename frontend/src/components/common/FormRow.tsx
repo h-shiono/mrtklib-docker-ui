@@ -10,6 +10,7 @@ import {
   Textarea,
   TextInput,
 } from '@mantine/core';
+import { DateTimePicker } from '@mantine/dates';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH, FORM_ROW_HEIGHT } from '../../utils/formLayout';
 import { FONT_SIZE } from '../../utils/typography';
 import { ConfigNumberInput } from './ConfigNumberInput';
@@ -17,7 +18,7 @@ import { ConfigSelect } from './ConfigSelect';
 import { MaskedPathInput } from './MaskedPathInput';
 
 const LABELABLE = new Set<unknown>([
-  Autocomplete, ConfigNumberInput, ConfigSelect, MaskedPathInput,
+  Autocomplete, ConfigNumberInput, ConfigSelect, DateTimePicker, MaskedPathInput,
   NumberInput, PasswordInput, Select, Switch, Textarea, TextInput,
 ]);
 

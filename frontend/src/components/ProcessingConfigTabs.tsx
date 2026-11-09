@@ -889,7 +889,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                           : 'Signals…'}
                     </Button>
                     {useSignals && (
-                      <ActionIcon aria-label="Remove file"
+                      <ActionIcon aria-label="Clear signal override"
                         variant="subtle"
                         color="red"
                         size="sm"

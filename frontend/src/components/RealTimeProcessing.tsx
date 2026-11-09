@@ -787,7 +787,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                             />
                           </div>
                           {idx > 0 && (
-                            <ActionIcon aria-label="Remove file"
+                            <ActionIcon aria-label="Remove output stream"
                               variant="subtle"
                               color="red"
                               size="xs"
