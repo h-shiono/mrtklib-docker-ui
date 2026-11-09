@@ -30,6 +30,12 @@ const RING_FONT = '10px "IBM Plex Mono", monospace';
 const COMPASS_FONT = '500 11px "IBM Plex Sans", sans-serif';
 /** Rings closer than this would have overlapping labels. */
 const MIN_RING_SPACING_PX = 40;
+/** Width of the view, in metres: sub-millimetre has no meaning here, and past
+ *  these limits the coordinates run out of floating-point precision. */
+const MIN_VIEW_RANGE_M = 1e-3;
+const MAX_VIEW_RANGE_M = 1e8;
+/** More rings than ever fit the view; bounds the drawing loops. */
+const MAX_RINGS = 64;
 
 /**
  * Distance from the reference (the ENU origin) shown as concentric rings with
@@ -126,6 +132,7 @@ export function Plot2DView({ data, height, resetKey, color, overlay }: Plot2DVie
     const farthest = Math.hypot(Math.max(-minE, maxE), Math.max(-minN, maxN));
     const firstRing = Math.max(1, Math.ceil(nearest / step));
     const lastRing = Math.floor(farthest / step);
+    const ringCount = Math.min(MAX_RINGS, lastRing - firstRing + 1);
 
     // Rings, axes and points stay inside the plot area
     ctx.save();
@@ -137,9 +144,9 @@ export function Plot2DView({ data, height, resetKey, color, overlay }: Plot2DVie
     ctx.lineWidth = 1;
     ctx.setLineDash([2, 3]);
     const pxPerM = plotW / (maxE - minE);
-    for (let k = firstRing; k <= lastRing; k++) {
+    for (let i = 0; i < ringCount; i++) {
       ctx.beginPath();
-      ctx.arc(ox, oy, k * step * pxPerM, 0, Math.PI * 2);
+      ctx.arc(ox, oy, (firstRing + i) * step * pxPerM, 0, Math.PI * 2);
       ctx.stroke();
     }
     if (axisNVisible) {
@@ -184,8 +191,8 @@ export function Plot2DView({ data, height, resetKey, color, overlay }: Plot2DVie
     ctx.fillStyle = textColor;
     ctx.font = RING_FONT;
     ctx.textAlign = 'right';
-    for (let k = firstRing; k <= lastRing; k++) {
-      const r = k * step;
+    for (let i = 0; i < ringCount; i++) {
+      const r = (firstRing + i) * step;
       const x = toX(r * Math.cos(labelBearing));
       const y = toY(r * Math.sin(labelBearing));
       if (x < PADDING.left || x > right || y < PADDING.top || y > bottom) continue;
@@ -254,8 +261,9 @@ export function Plot2DView({ data, height, resetKey, color, overlay }: Plot2DVie
       const factor = e.deltaY > 0 ? 1.2 : 1 / 1.2;
       const rangeE = bounds.maxE - bounds.minE;
       const rangeN = bounds.maxN - bounds.minN;
-      const newRangeE = rangeE * factor;
-      const newRangeN = rangeN * factor;
+      const newRangeE = Math.min(MAX_VIEW_RANGE_M, Math.max(MIN_VIEW_RANGE_M, rangeE * factor));
+      if (newRangeE === rangeE) return; // at the limit
+      const newRangeN = newRangeE; // the view stays square
 
       // Zoom centered on mouse cursor position
       const centerE = bounds.minE + mx * rangeE;

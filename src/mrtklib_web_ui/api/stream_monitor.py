@@ -90,12 +90,15 @@ def _send_rows(client: _Client) -> None:
     """Queue the new rows of the client's selected message type."""
     if client.selected is None:
         return
-    log = _services[client.selected_stream].messages
+    service = _services[client.selected_stream]
+    log = service.messages
     reset = client.log is not log
     if reset:  # just selected, or a new session
         client.log = log
         client.sent_seq = 0
-    rows, client.sent_seq = log.rows(client.selected, client.sent_seq)
+    rows: list[dict[str, Any]] = []
+    if service.is_running:  # like `history`: pages clear a finished session
+        rows, client.sent_seq = log.rows(client.selected, client.sent_seq)
     if not rows and not reset:
         return
     msg = {
