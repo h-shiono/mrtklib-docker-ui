@@ -84,6 +84,10 @@ interface YRangeSettings {
 
 const DEFAULT_Y_RANGE: YRangeSettings = { auto: true, symmetric: true, min: 0, max: 0 };
 
+/** Where an xs Switch's label starts (track + label padding), to line a row
+ *  up under the labels. */
+const SWITCH_LABEL_OFFSET = 36;
+
 export function PositionViewer({
   epochs,
   dataKey,
@@ -313,7 +317,7 @@ export function PositionViewer({
               position="bottom-end"
               withArrow
               shadow="md"
-              width={300}
+              width={320}
             >
               <Popover.Target>
                 <ActionIcon
@@ -327,10 +331,9 @@ export function PositionViewer({
               </Popover.Target>
               <Popover.Dropdown>
                 <Stack gap="xs">
-                  <Text size="xs" fw={500}>ENU Y-Axis Range</Text>
                   <Switch
                     size="xs"
-                    label="Auto"
+                    label="ENU Y-Axis Range: Auto"
                     checked={enuYRange.auto}
                     onChange={(e) => {
                       const auto = e.currentTarget.checked;
@@ -349,7 +352,7 @@ export function PositionViewer({
                     }}
                     styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
                   />
-                  <Group gap={6} wrap="nowrap">
+                  <Group gap={6} wrap="nowrap" style={{ paddingLeft: SWITCH_LABEL_OFFSET }}>
                     {(['min', 'max'] as const).map((bound) => (
                       <Group key={bound} gap={4} wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
                         <Text
