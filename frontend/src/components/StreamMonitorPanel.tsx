@@ -47,11 +47,8 @@ import {
   toPosEpoch,
 } from '../utils/streamMonitor';
 import { DEFAULT_RAW_LOG, INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
-import { maskLogLine } from '../utils/maskPath';
 import { decodeClasSource, formatClasSource } from '../utils/clasSource';
-import { useFollowScroll } from '../hooks/useFollowScroll';
 import { MaskedPathInput } from './common/MaskedPathInput';
-import { JumpToLatest } from './common/JumpToLatest';
 import { StreamPathHelp } from './StreamPathHelp';
 import { RtMetricsRow } from './RtMetricsRow';
 import { StreamMonitorStatusRow } from './StreamMonitorStatusRow';
@@ -65,6 +62,8 @@ import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { MIN_PANEL_HEIGHT, PRIMARY_MIN_WIDTH } from '../utils/formLayout';
 import { WorkspaceTabBar } from './common/WorkspaceTabBar';
+import { LogView } from './common/LogView';
+import { useUnseenErrors } from '../hooks/useUnseenErrors';
 
 
 const NO_SATELLITES: MonitorSatellite[] = [];
@@ -378,8 +377,18 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   const satTime = sats?.time ? `${rtTimestamp(sats.time)} ${sats.time_sys}` : undefined;
 
   const relayLog = useMemo(() => splitRelayLog(logLines), [logLines]);
-  const solutionScroll = useFollowScroll(tab === 'solution', epochs);
-  const consoleScroll = useFollowScroll(tab === 'console', relayLog.console);
+  const solutionLines = useMemo(
+    () => epochs.map((e) => [
+                                  `${rtTimestamp(e.time)} ${e.time_sys}`,
+                                  e.lat.toFixed(8).padStart(13),
+                                  e.lon.toFixed(8).padStart(14),
+                                  (e.height != null ? e.height.toFixed(3) : '—').padStart(10),
+                                  `Q=${e.Q}`,
+                                  `ns=${e.ns ?? '—'}`,
+                                ].join('  ')),
+    [epochs],
+  );
+  const unseenErrors = useUnseenErrors(relayLog.console, tab === 'console');
 
   // The relay's status line is only current while it runs.
   const relayStatusLine = live ? relayLog.status : null;
@@ -491,7 +500,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                 tabs={[
                   { value: 'chart', label: 'Chart' },
                   { value: 'solution', label: 'Solution' },
-                  { value: 'console', label: 'Console' },
+                  { value: 'console', label: 'Console', alert: unseenErrors },
                   { value: 'message', label: 'Message' },
                 ]}
                 right={tab === 'chart' && (
@@ -550,62 +559,26 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                 </Tabs.Panel>
 
                 <Tabs.Panel value="solution" pt={PANEL_TOP}>
-                  <Box pos="relative">
-                    <ScrollArea
-                      h={chartHeight}
-                      {...solutionScroll.scrollProps}
-                      styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
-                    >
-                      <Text
-                        c={epochs.length > 0 ? 'var(--app-console-fg)' : 'dimmed'}
-                        fs={epochs.length > 0 ? undefined : 'italic'}
-                        style={{ fontFamily: MONO, whiteSpace: 'pre', fontSize: FONT_SIZE.label, lineHeight: 1.5 }}
-                      >
-                        {solutionScroll.shown.length > 0
-                          ? solutionScroll.shown
-                              .map((e) =>
-                                [
-                                  `${rtTimestamp(e.time)} ${e.time_sys}`,
-                                  e.lat.toFixed(8).padStart(13),
-                                  e.lon.toFixed(8).padStart(14),
-                                  (e.height != null ? e.height.toFixed(3) : '—').padStart(10),
-                                  `Q=${e.Q}`,
-                                  `ns=${e.ns ?? '—'}`,
-                                ].join('  '),
-                              )
-                              .join('\n')
-                          : 'No solution data yet.'}
-                      </Text>
-                    </ScrollArea>
-                    {solutionScroll.held && <JumpToLatest onClick={solutionScroll.resume} />}
-                  </Box>
+                  <LogView
+                    lines={solutionLines}
+                    height={chartHeight}
+                    active={tab === 'solution'}
+                    running={live}
+                    emptyText="No solution data yet."
+                  />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="console" pt={PANEL_TOP}>
-                  <Box pos="relative">
-                    <ScrollArea
-                      h={chartHeight}
-                      {...consoleScroll.scrollProps}
-                      styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
-                    >
-                      {consoleScroll.shown.length > 0 ? (
-                        consoleScroll.shown.map((line, i) => (
-                          <Text
-                            key={i}
-                            c="var(--app-console-fg)"
-                            style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
-                          >
-                            {maskLogLine(line)}
-                          </Text>
-                        ))
-                      ) : (
-                        <Text c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
-                          No log output yet.
-                        </Text>
-                      )}
-                    </ScrollArea>
-                    {consoleScroll.held && <JumpToLatest onClick={consoleScroll.resume} />}
-                  </Box>
+                  <LogView
+                    lines={relayLog.console}
+                    height={chartHeight}
+                    active={tab === 'console'}
+                    wrap
+                    severity
+                    running={live}
+                    startLabel="Start All"
+                    cap={500}
+                  />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="message" pt={PANEL_TOP}>

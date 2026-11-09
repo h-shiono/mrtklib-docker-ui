@@ -30,7 +30,6 @@ import {
   IconDownload,
   IconInfoCircle,
   IconTrash,
-  IconCopy,
   IconPlus,
 } from '@tabler/icons-react';
 import { PostProcessingConfiguration  } from './components';
@@ -45,12 +44,10 @@ import { StreamPathHelp } from './components/StreamPathHelp';
 import { ClasPipelinePanel } from './components/ClasPipelinePanel';
 import { StreamMonitorPanel } from './components/StreamMonitorPanel';
 import { MaskedPathInput } from './components/common/MaskedPathInput';
-import { maskLogLine } from './utils/maskPath';
 import { randomUUID } from './utils/uuid';
 import { GnssTimeConverter } from './components/tools/GnssTimeConverter';
 import { DataDownloader } from './components/tools/DataDownloader';
 import { ToolsSidebar } from './components/tools/ToolsSidebar';
-import { TraceLogView } from './components/common/TraceLogView';
 import { AiSettingsPanel } from './components/tools/AiSettingsPanel';
 import { configToBackend } from './utils/configToBackend';
 import { ObsViewerModal } from './components/obsViewer';
@@ -71,6 +68,8 @@ import { FORM_LABEL_GAP, MIN_PANEL_HEIGHT, SCREEN_HEIGHT } from './utils/formLay
 import { useElementSize, useLocalStorage } from '@mantine/hooks';
 import { WorkspaceTabBar } from './components/common/WorkspaceTabBar';
 import type { ViewMode } from './components/viewer';
+import { LogView } from './components/common/LogView';
+import { useUnseenErrors } from './hooks/useUnseenErrors';
 
 function ColorSchemeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -99,7 +98,6 @@ interface PostProcessingRightPanelProps {
   outputFile: string;
   /** The config writes the CLAS L6 source into the GGA station id. */
   clasSource: boolean;
-  onClearLog: () => void;
 }
 
 const PP_VIEWS: ViewMode[] = ['2d', 'enu', 'map'];
@@ -111,11 +109,9 @@ function PostProcessingRightPanel({
   logLines,
   outputFile,
   clasSource,
-  onClearLog,
 }: PostProcessingRightPanelProps) {
   const [rightTab, setRightTab] = useState<string | null>('chart');
   const [refreshKey, setRefreshKey] = useState(0);
-  const consoleViewportRef = useRef<HTMLDivElement>(null);
   const [prevStatus, setPrevStatus] = useState(processStatus);
   const { ref: contentRef, height: contentAreaHeight } = useElementSize();
   const [storedViews, setChartViews] = useLocalStorage<string[]>({
@@ -126,16 +122,7 @@ function PostProcessingRightPanel({
   const known = PP_VIEWS.filter((v) => Array.isArray(storedViews) && storedViews.includes(v));
   const shownViews = known.length > 0 ? known : DEFAULT_PP_VIEWS;
   const chartViews: string[] = shownViews;
-
-  // Auto-scroll console when new lines arrive
-  useEffect(() => {
-    if (rightTab === 'console' && consoleViewportRef.current) {
-      consoleViewportRef.current.scrollTo({
-        top: consoleViewportRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
-    }
-  }, [logLines, rightTab]);
+  const unseenErrors = useUnseenErrors(logLines, rightTab === 'console');
 
   // Auto-refresh chart when processing completes
   if (prevStatus !== processStatus) {
@@ -144,10 +131,6 @@ function PostProcessingRightPanel({
       setRefreshKey((k) => k + 1);
     }
   }
-
-  const handleCopyLog = useCallback(() => {
-    navigator.clipboard.writeText(logLines.join('\n'));
-  }, [logLines]);
 
   // Result summary strip content
   const renderSummaryStrip = () => {
@@ -246,7 +229,7 @@ function PostProcessingRightPanel({
           tabs={[
             { value: 'chart', label: 'Chart' },
             { value: 'solution', label: 'Solution' },
-            { value: 'console', label: 'Console' },
+            { value: 'console', label: 'Console', alert: unseenErrors },
             { value: 'trace', label: 'Trace' },
           ]}
           right={<>
@@ -258,28 +241,6 @@ function PostProcessingRightPanel({
                   <Chip value="map" size="xs" variant="light">Map</Chip>
                 </Group>
               </Chip.Group>
-            )}
-            {rightTab === 'console' && (
-              <>
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  onClick={handleCopyLog}
-                  title="Copy to clipboard"
-                >
-                  <IconCopy size={14} />
-                </ActionIcon>
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  onClick={onClearLog}
-                  title="Clear terminal"
-                >
-                  <IconTrash size={14} />
-                </ActionIcon>
-              </>
             )}
             {rightTab === 'solution' && (
               <ActionIcon
@@ -318,34 +279,16 @@ function PostProcessingRightPanel({
 
         {/* Console tab */}
         <Tabs.Panel value="console">
-          <ScrollArea
-            h={contentHeight}
-            viewportRef={consoleViewportRef}
-            styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
-          >
-            {logLines.length === 0 ? (
-              <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
-                Waiting for output...
-              </Text>
-            ) : (
-              logLines.map((line, index) => (
-                <Text
-                  key={index}
-                  size="xs"
-                  c="var(--app-console-fg)"
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: FONT_SIZE.label,
-                    lineHeight: 1.5,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all',
-                  }}
-                >
-                  {maskLogLine(line)}
-                </Text>
-              ))
-            )}
-          </ScrollArea>
+          <LogView
+            lines={logLines}
+            height={contentHeight}
+            active={rightTab === 'console'}
+            wrap
+            severity
+            running={processStatus === 'running'}
+            startLabel="Execute"
+            cap={500}
+          />
         </Tabs.Panel>
 
         {/* Trace tab */}
@@ -356,7 +299,7 @@ function PostProcessingRightPanel({
             maxHeight={contentHeight}
             fromEnd
             noun="trace file"
-            searchable
+            wrapToggle
           />
         </Tabs.Panel>
         </div>
@@ -378,21 +321,20 @@ function SolutionView({
   maxHeight,
   fromEnd = false,
   noun = 'solution file',
-  searchable = false,
+  wrapToggle = false,
 }: {
   outputFile: string;
   refreshKey: number;
   maxHeight: number;
   fromEnd?: boolean;
   noun?: string;
-  searchable?: boolean;
+  wrapToggle?: boolean;
 }) {
   // `path` is the server-resolved path (a relative entry resolves under /workspace).
   const [loaded, setContent] = useState<{ path: string; content: string; returned: number; total: number } | null>(null);
   const loadedContent = loaded?.content ?? null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
   const content = outputFile ? loadedContent : null;
   // Split once per load, so the search toolbar does not rescan on every render.
   const lines = useMemo(() => (content ? content.replace(/\n$/, '').split('\n') : []), [content]);
@@ -444,13 +386,6 @@ function SolutionView({
     return () => { cancelled = true; };
   }, [outputFile, refreshKey, fromEnd]);
 
-  // Auto-scroll to bottom on content change
-  useEffect(() => {
-    if (viewportRef.current) {
-      viewportRef.current.scrollTo({ top: viewportRef.current.scrollHeight });
-    }
-  }, [content]);
-
   const consoleBg = 'var(--app-console-bg)';
 
   if (loading) {
@@ -487,7 +422,7 @@ function SolutionView({
         <Group gap={6} wrap="nowrap" px={12} h={NOTE_H} style={{ backgroundColor: consoleBg }}>
           <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: FONT_SIZE.label }} truncate>
             Showing the {fromEnd ? 'last' : 'first'} {loaded.returned.toLocaleString()} of{' '}
-            {loaded.total.toLocaleString()} lines{searchable ? ' (search covers these only)' : ''}
+            {loaded.total.toLocaleString()} lines (search covers these only)
           </Text>
           {loaded.path.startsWith('/workspace/') && (
             <Button
@@ -504,31 +439,12 @@ function SolutionView({
           )}
         </Group>
       )}
-      {searchable ? (
-        <TraceLogView
-          lines={lines}
-          height={partial ? maxHeight - NOTE_H : maxHeight}
-          viewportRef={viewportRef}
-        />
-      ) : (
-        <ScrollArea
-          h={partial ? maxHeight - NOTE_H : maxHeight}
-          viewportRef={viewportRef}
-          styles={{ viewport: { backgroundColor: consoleBg, padding: '8px 12px' } }}
-        >
-          <Text
-            c="var(--app-console-fg)"
-            style={{
-              fontFamily: MONO,
-              whiteSpace: 'pre',
-              fontSize: FONT_SIZE.label,
-              lineHeight: 1.5,
-            }}
-          >
-            {content}
-          </Text>
-        </ScrollArea>
-      )}
+      <LogView
+        lines={lines}
+        height={partial ? maxHeight - NOTE_H : maxHeight}
+        live={false}
+        wrapToggle={wrapToggle}
+      />
     </>
   );
 }
@@ -781,7 +697,6 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
           logLines={logLines}
           outputFile={outputFile}
           clasSource={config.positioning.positioningMode === 'ppp-rtk' && config.output.clasNmeaSourceId}
-          onClearLog={() => setLogLines([])}
         />
       }
     />
@@ -948,15 +863,6 @@ function MultiStreamPanel() {
     processMapRef.current = map;
   }, [streams]);
 
-  const consoleViewportRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll console
-  const activeStream = streams.find((s) => s.id === activeStreamId);
-  useEffect(() => {
-    if (consoleViewportRef.current) {
-      consoleViewportRef.current.scrollTo({ top: consoleViewportRef.current.scrollHeight, behavior: 'smooth' });
-    }
-  }, [activeStream?.logLines]);
 
   // WebSocket
   useWebSocket({
@@ -1135,14 +1041,6 @@ function MultiStreamPanel() {
     }
   };
 
-  const handleCopyLog = useCallback(() => {
-    if (activeStream) navigator.clipboard.writeText(activeStream.logLines.join('\n'));
-  }, [activeStream]);
-
-  const handleClearLog = useCallback(() => {
-    if (activeStreamId) updateStream(activeStreamId, { logLines: [] });
-  }, [activeStreamId, updateStream]);
-
   const runningCount = streams.filter((s) => s.status === 'running').length;
 
   return (
@@ -1301,46 +1199,17 @@ function MultiStreamPanel() {
                   </Tabs.Tab>
                 ))}
               </Tabs.List>
-              <Group gap="xs" wrap="nowrap">
-                <ActionIcon variant="subtle" color="gray" size="sm" onClick={handleCopyLog} title="Copy to clipboard">
-                  <IconCopy size={14} />
-                </ActionIcon>
-                <ActionIcon variant="subtle" color="gray" size="sm" onClick={handleClearLog} title="Clear terminal">
-                  <IconTrash size={14} />
-                </ActionIcon>
-              </Group>
             </Group>
 
             {streams.map((stream) => (
               <Tabs.Panel key={stream.id} value={stream.id} style={{ flex: 1, minHeight: 0 }}>
-                <ScrollArea
-                  h="100%"
-                  viewportRef={stream.id === activeStreamId ? consoleViewportRef : undefined}
-                  styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
-                >
-                  {stream.logLines.length === 0 ? (
-                    <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
-                      Waiting for output...
-                    </Text>
-                  ) : (
-                    stream.logLines.map((line, index) => (
-                      <Text
-                        key={index}
-                        size="xs"
-                        c="var(--app-console-fg)"
-                        style={{
-                          fontFamily: MONO,
-                          fontSize: FONT_SIZE.label,
-                          lineHeight: 1.5,
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-all',
-                        }}
-                      >
-                        {maskLogLine(line)}
-                      </Text>
-                    ))
-                  )}
-                </ScrollArea>
+                <LogView
+                  lines={stream.logLines}
+                  wrap
+                  severity
+                  running={stream.status === 'running'}
+                  cap={MAX_RELAY_LOG_LINES}
+                />
               </Tabs.Panel>
             ))}
           </Tabs>

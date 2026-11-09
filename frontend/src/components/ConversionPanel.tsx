@@ -25,8 +25,6 @@ import dayjs from 'dayjs';
 import {
   IconPlayerPlay,
   IconPlayerStop,
-  IconCopy,
-  IconTrash,
   IconDownload,
   IconChevronDown,
   IconChevronRight,
@@ -46,6 +44,7 @@ import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
 import { SCREEN_HEIGHT } from '../utils/formLayout';
 import { SectionHeader } from './common/SectionHeader';
+import { LogView } from './common/LogView';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -310,7 +309,6 @@ export function ConversionPanel() {
   const hkOutput = hk.outputFile.trim() || hatanakaOutputPath(hk.inputFile, hk.direction, hk.gzipOutput);
   const [status, setStatus] = useState<ConvertStatus>('idle');
   const [logLines, setLogLines] = useState<string[]>([]);
-  const consoleRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   // Incremented by every start and by Stop. A start that waited for the
   // WebSocket checks it, so Stop during that wait cancels the start.
@@ -403,16 +401,6 @@ export function ConversionPanel() {
       setTimeout(() => setRightTab('preview'), 500);
     }
   }, [fetchPreview]);
-
-  // Auto-scroll console
-  useEffect(() => {
-    if (consoleRef.current) {
-      consoleRef.current.scrollTo({
-        top: consoleRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
-    }
-  }, [logLines]);
 
   // WebSocket for log streaming
   const connectWs = useCallback(() => {
@@ -726,14 +714,6 @@ export function ConversionPanel() {
     } catch {
       // ignore
     }
-  }, []);
-
-  const handleCopyLog = useCallback(() => {
-    navigator.clipboard.writeText(logLines.join('\n'));
-  }, [logLines]);
-
-  const handleClearLog = useCallback(() => {
-    setLogLines([]);
   }, []);
 
   // When conversion completes, try to fetch previews for output files
@@ -1271,20 +1251,7 @@ export function ConversionPanel() {
                 </UnstyledButton>
               </Group>
               <Group gap={4}>
-                {rightTab === 'console' ? (
-                  <>
-                    <Tooltip label="Copy">
-                      <ActionIcon aria-label="Copy" size="xs" variant="subtle" onClick={handleCopyLog}>
-                        <IconCopy size={12} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label="Clear">
-                      <ActionIcon aria-label="Clear" size="xs" variant="subtle" onClick={handleClearLog}>
-                        <IconTrash size={12} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </>
-                ) : rightTab === 'preview' && currentPreview ? (
+                {rightTab === 'preview' && currentPreview ? (
                   <Tooltip label="Download">
                     <ActionIcon aria-label="Download" size="xs" variant="subtle" onClick={handleDownloadPreview}>
                       <IconDownload size={12} />
@@ -1297,39 +1264,15 @@ export function ConversionPanel() {
             {/* Console body (shown when tab is 'console') */}
             {rightTab === 'console' && (
               <>
-                <ScrollArea
-                  style={{ flex: 1, minHeight: 0 }}
-                  viewportRef={consoleRef}
-                  styles={{
-                    viewport: {
-                      backgroundColor: 'var(--app-console-bg)',
-                      padding: '8px 12px',
-                    },
-                  }}
-                >
-                  {logLines.length === 0 ? (
-                    <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
-                      Waiting for output...
-                    </Text>
-                  ) : (
-                    logLines.map((line, i) => (
-                      <Text
-                        key={i}
-                        size="xs"
-                        c="var(--app-console-fg)"
-                        style={{
-                          fontFamily: MONO,
-                          fontSize: FONT_SIZE.label,
-                          lineHeight: 1.5,
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-all',
-                        }}
-                      >
-                        {line}
-                      </Text>
-                    ))
-                  )}
-                </ScrollArea>
+                <Box style={{ flex: 1, minHeight: 0, padding: '6px 8px 0' }}>
+                  <LogView
+                    lines={logLines}
+                    wrap
+                    severity
+                    running={status === 'converting'}
+                    startLabel="Convert"
+                  />
+                </Box>
 
                 {/* Command preview strip */}
                 <Box

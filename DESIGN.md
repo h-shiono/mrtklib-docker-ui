@@ -116,7 +116,7 @@ components:
 
 > **Status.** Adopted 2026-11-09 as the target for the interface. The code is
 > being migrated in stages; where it differs from this file, this file wins.
-> Not yet in code: `LogView`, the Run Ending behaviour, and `<label>` association on the Processing Configuration rows,
+> Not yet in code: the Run Ending behaviour, and `<label>` association on the Processing Configuration rows,
 > which match `FormRow` visually but do not use it yet.
 
 ## Overview
@@ -255,9 +255,9 @@ Precise and restrained.
 - **Config header:** one row: collapse, title, `?`, then the state badge (always shown, including idle), utility icons and, at the far right, the primary action.
 
 ### Console (`LogView`)
-The one log view, generalised from `common/TraceLogView.tsx`, used for Console, Solution and Trace on every screen and in Relay, Conversion and the CLAS pipeline.
+The one log view (`common/LogView`), used for Console, Solution and Trace on every screen and in Relay, Conversion and the CLAS pipeline.
 - **Surface:** `console-dark` and `console-light` by theme. It fills its panel.
-- **Toolbar:** in the tab bar's right slot: search with count and previous/next, matching-only, copy, download when a file exists, clear.
+- **Toolbar:** one row above the lines: search with count and previous/next, matching-only, then copy and download when a file exists. There is no clear: a new run starts its own log. It stays with the log rather than the tab bar, which has no room for it beside the tabs.
 - **Follow:** `useFollowScroll` everywhere, with "Paused · Jump to latest".
 - **Wrap:** Console wraps, Solution never wraps, Trace has a toggle.
 - **Severity:** `[ERROR]` is red with a 2px left rule, `[WARN]` is amber. A count dot on the tab reports errors arriving while another tab is open.

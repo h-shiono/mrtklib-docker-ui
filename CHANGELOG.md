@@ -32,6 +32,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   height, so charts have more room, also with two streams on a laptop.
   Satellites per constellation are shown as text (`G 8/10`), and the less
   urgent status details moved to tooltips.
+- Console, Solution and Trace use one log view on every screen, including
+  Stream Relay, Conversion and CLAS Pipeline: search and copy, following that
+  pauses while you read, `[ERROR]` and `[WARN]` in colour, and a count on
+  the Console tab for errors that arrive while another tab is open.
+
+### Removed
+- The clear-log buttons in Post-processing, Stream Relay and Conversion. A new
+  run starts its own log, and a cleared Stream Relay log came back on reload.
 
 ### Fixed
 - Observation QC: switching the SNR plot to Elevation without a NAV file could

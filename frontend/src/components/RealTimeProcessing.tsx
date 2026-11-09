@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import { useLocalStorage, useDisclosure, useElementSize } from '@mantine/hooks';
 import {
-  Box,
   Card,
   Stack,
   Select,
@@ -14,7 +13,6 @@ import {
   Button,
   ActionIcon,
   Tooltip,
-  ScrollArea,
   Tabs,
   Chip,
 } from '@mantine/core';
@@ -60,10 +58,6 @@ import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { RtMetricsRow } from './RtMetricsRow';
 import { RtInputStatusRow } from './RtInputStatusRow';
 import { MapView, type PosEpoch } from './viewer';
-import { maskLogLine } from '../utils/maskPath';
-import { useFollowScroll } from '../hooks/useFollowScroll';
-import { JumpToLatest } from './common/JumpToLatest';
-import { TraceLogView } from './common/TraceLogView';
 import { StatusBadge } from './common/StatusBadge';
 import { processTone } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
@@ -72,6 +66,8 @@ import { MIN_PANEL_HEIGHT } from '../utils/formLayout';
 import { SectionHeader } from './common/SectionHeader';
 import { WorkspaceTabBar } from './common/WorkspaceTabBar';
 import { PRIMARY_MIN_WIDTH } from '../utils/formLayout';
+import { LogView } from './common/LogView';
+import { useUnseenErrors } from '../hooks/useUnseenErrors';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -414,9 +410,11 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
   // Keep the Solution / Console / Trace panels at their latest line, and
   // hold them still while the user scrolls up to read.
-  const solutionScroll = useFollowScroll(monitorTab === 'solution', positionHistory);
-  const consoleScroll = useFollowScroll(monitorTab === 'console', logLines);
-  const traceScroll = useFollowScroll(monitorTab === 'trace', traceLines);
+  const unseenErrors = useUnseenErrors(logLines, monitorTab === 'console');
+  const solutionLines = useMemo(
+    () => positionHistory.map((p, i) => `${p.timestamp || i}  ${p.lat.toFixed(8)}  ${p.lon.toFixed(8)}  ${p.height.toFixed(3)}  Q=${p.quality}`),
+    [positionHistory],
+  );
 
   // Feed live status to the global bottom status bar (null clears it on stop).
   useEffect(() => {
@@ -837,7 +835,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                 tabs={[
                   { value: 'chart', label: 'Chart' },
                   { value: 'solution', label: 'Solution' },
-                  { value: 'console', label: 'Console' },
+                  { value: 'console', label: 'Console', alert: unseenErrors },
                   { value: 'trace', label: 'Trace' },
                 ]}
                 right={monitorTab === 'chart' && (
@@ -883,75 +881,40 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               </Tabs.Panel>
 
               <Tabs.Panel value="solution" pt={PANEL_TOP}>
-                <Box pos="relative">
-                  <ScrollArea
-                    h={panelHeight}
-                    {...solutionScroll.scrollProps}
-                    styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
-                  >
-                    <Text
-                      c={positionHistory.length > 0 ? 'var(--app-console-fg)' : 'dimmed'}
-                      fs={positionHistory.length > 0 ? undefined : 'italic'}
-                      style={{ fontFamily: MONO, whiteSpace: 'pre-wrap', fontSize: FONT_SIZE.label, lineHeight: 1.5, wordBreak: 'break-all' }}
-                    >
-                      {solutionScroll.shown.length > 0
-                        ? solutionScroll.shown.map((p, i) =>
-                            `${p.timestamp || i}  ${p.lat.toFixed(8)}  ${p.lon.toFixed(8)}  ${p.height.toFixed(3)}  Q=${p.quality}`
-                          ).join('\n')
-                        : 'No solution data yet.'}
-                    </Text>
-                  </ScrollArea>
-                  {solutionScroll.held && <JumpToLatest onClick={solutionScroll.resume} />}
-                </Box>
+                <LogView
+                  lines={solutionLines}
+                  height={panelHeight}
+                  active={monitorTab === 'solution'}
+                  running={isRunning}
+                  emptyText="No solution data yet."
+                />
               </Tabs.Panel>
 
               <Tabs.Panel value="console" pt={PANEL_TOP}>
-                <Box pos="relative">
-                  <ScrollArea
-                    h={panelHeight}
-                    {...consoleScroll.scrollProps}
-                    styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
-                  >
-                    {consoleScroll.shown.length > 0 ? (
-                      consoleScroll.shown.map((line, i) => (
-                        <Text
-                          key={i}
-                          size="xs"
-                          c="var(--app-console-fg)"
-                          style={{
-                            fontFamily: MONO,
-                            fontSize: FONT_SIZE.label,
-                            lineHeight: 1.5,
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-all',
-                          }}
-                        >
-                          {maskLogLine(line)}
-                        </Text>
-                      ))
-                    ) : (
-                      <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
-                        No log output yet.
-                      </Text>
-                    )}
-                  </ScrollArea>
-                  {consoleScroll.held && <JumpToLatest onClick={consoleScroll.resume} />}
-                </Box>
+                <LogView
+                  lines={logLines}
+                  height={panelHeight}
+                  active={monitorTab === 'console'}
+                  wrap
+                  severity
+                  running={isRunning}
+                  cap={500}
+                />
               </Tabs.Panel>
 
               <Tabs.Panel value="trace" pt={PANEL_TOP}>
-                {traceFile && (
-                  <Group gap={6} mb={4} wrap="nowrap">
-                    <Text
-                      size="xs"
-                      c="dimmed"
-                      truncate="start"
-                      title={traceFile}
-                      style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: FONT_SIZE.label }}
-                    >
+                <LogView
+                  lines={traceLines}
+                  height={panelHeight}
+                  active={monitorTab === 'trace'}
+                  wrap
+                  wrapToggle
+                  note={traceFile && (
+                    <Text c="dimmed" truncate="start" title={traceFile} style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
                       {traceFile}
                     </Text>
-                    {traceFile.startsWith('/workspace/') && (
+                  )}
+                  actions={traceFile && traceFile.startsWith('/workspace/') && (
                       <Button
                         variant="light"
                         leftSection={<IconDownload size={12} />}
@@ -964,16 +927,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                         Download
                       </Button>
                     )}
-                  </Group>
-                )}
-                <TraceLogView
-                  lines={traceScroll.shown}
-                  height={traceFile ? panelHeight - 22 : panelHeight}
-                  wrap
-                  {...traceScroll.scrollProps}
-                  onMatchSelect={traceScroll.hold}
-                  overlay={traceScroll.held && <JumpToLatest onClick={traceScroll.resume} />}
-                  placeholder={
+                  emptyText={
                     traceFile
                       ? 'Waiting for trace output...'
                       : config.output.debugTrace === 'off'
