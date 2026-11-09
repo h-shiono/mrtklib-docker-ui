@@ -1,4 +1,5 @@
-import { Box, Group, Stack, Text } from '@mantine/core';
+import type { ReactNode } from 'react';
+import { Box, Group, Text } from '@mantine/core';
 import type { PositionUpdate } from '../types/mrtkRunConfig';
 import type { Satellite } from '../types/satellite';
 import { isUsed } from '../utils/satellites';
@@ -7,9 +8,9 @@ import { STATUS_COLOR } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
 
 // ─── Real-time metrics row (console redesign Phase 4) ────────────────────────
-// Borderless at-a-glance metrics. Order: Time · Position(LLH) · Quality · Ratio
-// · Age · Satellites(per-system). All numerics in IBM Plex Mono.
-
+// At-a-glance metrics in two rows of fixed height, so the panels below do not
+// move as data arrives: Time, Quality, Ratio, Age, then Position and Satellites.
+// All numerics in IBM Plex Mono.
 
 // Constellation order + letter + color (matches the project's SYS_COLOR / Sky+SNR).
 const SYS_ORDER = ['GPS', 'GLONASS', 'Galileo', 'QZSS', 'BeiDou', 'SBAS', 'NavIC'];
@@ -49,14 +50,24 @@ export type MetricsPosition = Pick<PositionUpdate, 'timestamp' | 'lat' | 'lon' |
   age: number | null;
 };
 
-function Cell({ caption, children, minWidth }: { caption: string; children: React.ReactNode; minWidth: number }) {
+const TRUNCATE = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } as const;
+
+function Cell({ caption, children, grow = false, minWidth }: {
+  caption: string;
+  children: ReactNode;
+  /** Takes the row's remaining width and truncates. */
+  grow?: boolean;
+  minWidth?: number;
+}) {
   return (
-    <Box style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth }}>
+    <Box style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: grow ? 0 : minWidth, flex: grow ? '1 1 0' : '0 0 auto' }}>
       <Text component="span" style={CAP}>{caption}</Text>
       {children}
     </Box>
   );
 }
+
+const ROW = { display: 'flex', gap: 24, alignItems: 'flex-start', minWidth: 0 } as const;
 
 export function RtMetricsRow({
   lastPosition,
@@ -87,107 +98,70 @@ export function RtMetricsRow({
   const totalUsed = Object.values(counts).reduce((n, c) => n + c.used, 0);
   const totalVis = Object.values(counts).reduce((n, c) => n + c.total, 0);
 
+  const dataText = { fontFamily: MONO, fontSize: FONT_SIZE.data, fontWeight: 500, lineHeight: 1.25 } as const;
+  const sysSummary = sysList.map((sys) => `${SYS_META[sys].letter} ${counts[sys].used}/${counts[sys].total}`).join('  ');
+
   return (
-    <Box
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 30,
-        rowGap: 14,
-        padding: '14px 16px 10px',
-        alignItems: 'flex-start',
-        flexShrink: 0,
-      }}
-    >
-      {/* Time */}
-      <Cell caption={`Current time · ${timeSystem}`} minWidth={140}>
-        <Text component="span" style={{ ...NUM, fontSize: FONT_SIZE.data }}>
-          {lastPosition?.timestamp || DASH}
-        </Text>
-      </Cell>
-
-      {/* Position (LLH) — stacked Lat / Lon / Height */}
-      <Cell caption="Position · LLH" minWidth={196}>
-        <Stack gap={3} style={{ width: '100%' }}>
-          {([
-            ['Lat', lastPosition ? lastPosition.lat.toFixed(8) : DASH, ''],
-            ['Lon', lastPosition ? lastPosition.lon.toFixed(8) : DASH, ''],
-            ['Height', lastPosition?.height != null ? lastPosition.height.toFixed(3) : DASH, 'm'],
-          ] as const).map(([label, value, unit]) => (
-            <Group key={label} justify="space-between" wrap="nowrap" gap="sm">
-              <Text component="span" c="dimmed" style={{ fontSize: FONT_SIZE.label }}>{label}</Text>
-              <Text component="span" style={{ fontFamily: MONO, fontSize: FONT_SIZE.data, lineHeight: 1.25 }}>
-                {value}
-                {unit && <Text component="span" c="dimmed" style={{ fontSize: FONT_SIZE.label }}> {unit}</Text>}
-              </Text>
-            </Group>
-          ))}
-        </Stack>
-      </Cell>
-
-      {/* Quality */}
-      <Cell caption="Quality" minWidth={90}>
-        <Group gap={7} align="center" wrap="nowrap" style={{ lineHeight: 1 }}>
-          <Box
-            style={{
-              width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
-              background: q?.mark ?? STATUS_COLOR.off,
-            }}
-          />
-          <Text component="span" style={{ fontSize: FONT_SIZE.metric, fontWeight: 700, lineHeight: 1, color: q?.text ?? 'var(--mantine-color-dimmed)' }}>
-            {q?.label ?? DASH}
+    <Box style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 16px 6px', flexShrink: 0 }}>
+      <Box style={ROW}>
+        <Cell caption={`Current time · ${timeSystem}`} grow>
+          <Text component="span" title={lastPosition?.timestamp || undefined} style={{ ...dataText, lineHeight: '24px', ...TRUNCATE }}>
+            {lastPosition?.timestamp || DASH}
           </Text>
-        </Group>
-      </Cell>
+        </Cell>
 
-      {/* Ratio */}
-      <Cell caption="Ratio" minWidth={70}>
-        <Text component="span" style={NUM}>
-          {lastPosition?.ratio != null ? lastPosition.ratio.toFixed(2) : DASH}
-        </Text>
-      </Cell>
-
-      {/* Age */}
-      <Cell caption="Age" minWidth={70}>
-        <Text component="span" style={NUM}>
-          {lastPosition?.age != null ? lastPosition.age.toFixed(1) : DASH}
-          {lastPosition?.age != null && <Text component="span" c="dimmed" style={{ fontSize: FONT_SIZE.title }}>s</Text>}
-        </Text>
-      </Cell>
-
-      {/* Satellites — per-system used/total */}
-      <Cell caption="Satellites" minWidth={150}>
-        <Group gap={6} align="baseline" wrap="nowrap">
-          <Text component="span" style={NUM}>{totalVis ? totalUsed : DASH}</Text>
-          {totalVis > 0 && (
-            <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.body }}>
-              / {totalVis} used
+        <Cell caption="Quality" minWidth={104}>
+          <Group gap={7} align="center" wrap="nowrap" style={{ lineHeight: 1 }}>
+            <Box
+              style={{
+                width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
+                background: q?.mark ?? STATUS_COLOR.off,
+              }}
+            />
+            <Text component="span" style={{ fontSize: FONT_SIZE.metric, fontWeight: 700, lineHeight: 1, color: q?.text ?? 'var(--mantine-color-dimmed)' }}>
+              {q?.label ?? DASH}
             </Text>
-          )}
-        </Group>
-        {sysList.length > 0 && (
-          <Stack gap={3} mt={4}>
-            {sysList.map((sys) => {
-              const m = SYS_META[sys];
-              const { used, total } = counts[sys];
-              const pct = total > 0 ? (used / total) * 100 : 0;
-              return (
-                <Group key={sys} gap={7} wrap="nowrap" align="center">
-                  <Text component="span" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, color: m.color, width: 9, flexShrink: 0 }}>
-                    {m.letter}
-                  </Text>
-                  <Box style={{ width: 72, height: 4, borderRadius: 2, background: 'var(--mantine-color-default-border)', flexShrink: 0, position: 'relative' }}>
-                    <Box style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, background: m.color, borderRadius: 2 }} />
-                  </Box>
-                  <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
-                    {used}/{total}
-                  </Text>
-                </Group>
-              );
-            })}
-          </Stack>
-        )}
-      </Cell>
+          </Group>
+        </Cell>
+
+        <Cell caption="Ratio" minWidth={72}>
+          <Text component="span" style={NUM}>
+            {lastPosition?.ratio != null ? lastPosition.ratio.toFixed(2) : DASH}
+          </Text>
+        </Cell>
+
+        <Cell caption="Age" minWidth={60}>
+          <Text component="span" style={NUM}>
+            {lastPosition?.age != null ? lastPosition.age.toFixed(1) : DASH}
+            {lastPosition?.age != null && <Text component="span" c="dimmed" style={{ fontSize: FONT_SIZE.title }}>s</Text>}
+          </Text>
+        </Cell>
+      </Box>
+
+      <Box style={ROW}>
+        <Cell caption="Position · LLH">
+          <Group gap={12} wrap="nowrap" style={dataText}>
+            <span>{lastPosition ? lastPosition.lat.toFixed(8) : DASH}</span>
+            <span>{lastPosition ? lastPosition.lon.toFixed(8) : DASH}</span>
+            <span>
+              {lastPosition?.height != null ? lastPosition.height.toFixed(3) : DASH}
+              <Text component="span" c="dimmed" style={{ fontSize: FONT_SIZE.label }}> m</Text>
+            </span>
+          </Group>
+        </Cell>
+
+        <Cell caption="Satellites · used / visible" grow>
+          <Group gap={10} wrap="nowrap" title={sysSummary || undefined} style={{ ...dataText, overflow: 'hidden' }}>
+            <span style={{ flexShrink: 0 }}>{totalVis ? `${totalUsed}/${totalVis}` : DASH}</span>
+            {sysList.map((sys) => (
+              <span key={sys} style={{ fontSize: FONT_SIZE.label, fontWeight: 400, whiteSpace: 'nowrap' }}>
+                <span style={{ color: SYS_META[sys].color }}>{SYS_META[sys].letter}</span>
+                <Text component="span" inherit c="dimmed"> {counts[sys].used}/{counts[sys].total}</Text>
+              </span>
+            ))}
+          </Group>
+        </Cell>
+      </Box>
     </Box>
   );
 }

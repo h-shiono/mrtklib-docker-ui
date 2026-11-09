@@ -34,6 +34,9 @@ const CAP = {
   textTransform: 'uppercase',
   color: 'var(--mantine-color-dimmed)',
   lineHeight: 1.2,
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 } as const;
 
 function formatBps(bps: number): string {
@@ -54,20 +57,22 @@ export function StatusCap({ children }: { children: ReactNode }) {
 }
 
 /** Colored dot, state label and an optional rate. */
-export function StatusLight({ color, label, labelDimmed = false, rate }: {
+export function StatusLight({ color, label, labelDimmed = false, rate, rateColor = 'dimmed' }: {
   color: string;
   label: string;
   labelDimmed?: boolean;
+  /** A rate, or the cause when something is wrong. */
   rate?: string;
+  rateColor?: string;
 }) {
   return (
     <Group gap={7} align="center" wrap="nowrap" style={{ minWidth: 0 }}>
       <Box style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: color }} />
-      <Text component="span" style={{ fontSize: FONT_SIZE.body, fontWeight: 700, lineHeight: 1, color: labelDimmed ? 'var(--mantine-color-dimmed)' : color }}>
+      <Text component="span" style={{ flexShrink: 0, whiteSpace: 'nowrap', fontSize: FONT_SIZE.body, fontWeight: 700, lineHeight: 1, color: labelDimmed ? 'var(--mantine-color-dimmed)' : color }}>
         {label}
       </Text>
       {rate && (
-        <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, whiteSpace: 'nowrap' }}>
+        <Text component="span" c={rateColor} style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
           {rate}
         </Text>
       )}
@@ -75,17 +80,16 @@ export function StatusLight({ color, label, labelDimmed = false, rate }: {
   );
 }
 
-/** "Streaming status" footer of a live workspace (Real-Time, Stream Monitor).
- *  Kept mounted while idle so the panel layout does not jump on Start/Stop. */
-export function StatusFooter({ active, faded = false, note, cellGap = 30, children }: {
+/** Streaming status: one compact row pinned under the panels of a live
+ *  workspace (Real-Time, Stream Monitor), with the detail in tooltips. Kept
+ *  mounted while idle so the panel layout does not jump on Start/Stop. */
+export function StatusFooter({ active, faded = false, note, children }: {
   /** Show the cells; otherwise "Not running". */
   active: boolean;
   /** The figures are out of date. */
   faded?: boolean;
-  /** Warning after the title. */
+  /** Warning at the end of the row. */
   note?: string | null;
-  /** Space between cells. */
-  cellGap?: number;
   children: ReactNode;
 }) {
   return (
@@ -93,25 +97,29 @@ export function StatusFooter({ active, faded = false, note, cellGap = 30, childr
       style={{
         flexShrink: 0,
         minWidth: 0,
+        minHeight: 44,
         borderTop: '1px solid var(--mantine-color-default-border)',
-        padding: '8px 16px 4px',
+        padding: '6px 16px',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 16,
       }}
     >
-      <Text component="span" style={{ ...CAP, display: 'block', marginBottom: 6 }}>
-        Streaming status
-        {note && (
-          <Text component="span" inherit style={{ color: STATUS_COLOR.warn }}>
-            {` · ${note}`}
-          </Text>
-        )}
-      </Text>
       {active ? (
-        <Box style={{ display: 'flex', flexWrap: 'wrap', gap: cellGap, rowGap: 10, minWidth: 0, opacity: faded ? 0.45 : 1 }}>
+        <Box style={{ display: 'flex', gap: 16, flex: 1, minWidth: 0, opacity: faded ? 0.45 : 1 }}>
           {children}
         </Box>
       ) : (
-        <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
-          Not running
+        <Box style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+          <StatusCap>Streaming status</StatusCap>
+          <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, lineHeight: 1.2 }}>
+            Not running
+          </Text>
+        </Box>
+      )}
+      {note && (
+        <Text component="span" title={note} style={{ ...CAP, color: STATUS_COLOR.warn, maxWidth: '40%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {note}
         </Text>
       )}
     </Box>
@@ -121,9 +129,9 @@ export function StatusFooter({ active, faded = false, note, cellGap = 30, childr
 function StreamCell({ s }: { s: InputStreamStatus }) {
   const st = STATE[s.state] ?? STATE.off;
   const off = s.state === 'off';
-  // Error/warning: lead with the cause; otherwise show rtkrcv's message
-  // (the connected host/mountpoint).
-  const detail = s.hint ?? s.message;
+  // Something is wrong: the cause takes the rate's place. rtkrcv's message
+  // (the connected host/mountpoint) is otherwise in the tooltip.
+  const cause = off || s.state === 'receiving' ? null : s.hint ?? s.message;
 
   const tooltip = (
     <Stack gap={2} style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
@@ -131,26 +139,24 @@ function StreamCell({ s }: { s: InputStreamStatus }) {
       <span>in: {formatBytes(s.in_bytes)} · {formatBps(s.in_bps)}</span>
       {s.decoded !== null && <span>decoded: {s.decoded} · decode errors: {s.errors ?? 0}</span>}
       {s.last_error && <span>last error: {s.last_error}</span>}
+      {s.hint && <span>{s.hint}</span>}
       {s.message && <span>message: {s.message}</span>}
     </Stack>
   );
 
   return (
     <Tooltip label={tooltip} disabled={off} openDelay={300} multiline maw={420} withArrow>
-      <Box style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 160px', minWidth: 0 }}>
+      <Box style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: '1 1 0', minWidth: 0 }}>
         <StatusCap>
           {LABEL[s.name]}{!off && ` · ${s.type}`}
         </StatusCap>
-        <StatusLight color={st.color} label={st.label} labelDimmed={off} rate={off ? undefined : formatBps(s.in_bps)} />
-        {!off && detail && (
-          <Text
-            component="span"
-            c={s.state === 'error' ? STATUS_COLOR.error : 'dimmed'}
-            style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}
-          >
-            {detail}
-          </Text>
-        )}
+        <StatusLight
+          color={st.color}
+          label={st.label}
+          labelDimmed={off}
+          rate={off ? undefined : cause ?? formatBps(s.in_bps)}
+          rateColor={s.state === 'error' ? STATUS_COLOR.error : 'dimmed'}
+        />
       </Box>
     </Tooltip>
   );
