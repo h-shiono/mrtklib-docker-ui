@@ -1,6 +1,7 @@
 import { ActionIcon, Popover, Stack, Text, Code } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconQuestionMark } from '@tabler/icons-react';
+import { FONT_SIZE, MONO } from '../utils/typography';
 
 const STREAM_FORMATS = [
   { type: 'serial',  path: 'port[:brate[:bsize[:parity[:stopb[:fctr]]]]]', example: 'ttyUSB0:115200' },
@@ -26,19 +27,19 @@ export function StreamPathHelp() {
         <Stack gap={4}>
           <Text size="xs" fw={600} mb={2}>Stream Path Format</Text>
           <Text size="xs" c="dimmed" mb={4}>
-            Select a type, then enter the path portion after <Code style={{ fontSize: 10 }}>type://</Code>
+            Select a type, then enter the path portion after <Code style={{ fontSize: FONT_SIZE.label }}>type://</Code>
           </Text>
           {STREAM_FORMATS.map(({ type, path, note }) => (
             <div key={type} style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-              <Code style={{ fontSize: 10, flexShrink: 0, minWidth: 52 }}>{type}</Code>
-              <Text size="xs" style={{ fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", color: 'var(--mantine-color-dimmed)' }}>
+              <Code style={{ fontSize: FONT_SIZE.label, flexShrink: 0, minWidth: 52 }}>{type}</Code>
+              <Text size="xs" style={{ fontSize: FONT_SIZE.label, fontFamily: MONO, color: 'var(--mantine-color-dimmed)' }}>
                 {path}
-                {note && <Text span size="xs" c="yellow.6" ml={4} style={{ fontSize: 9 }}>({note})</Text>}
+                {note && <Text span size="xs" c="yellow.6" ml={4} style={{ fontSize: FONT_SIZE.label }}>({note})</Text>}
               </Text>
             </div>
           ))}
-          <Text size="xs" c="dimmed" mt={4} style={{ fontSize: 10 }}>
-            Example: Type=NTRIP, Path=<Code style={{ fontSize: 10 }}>user:pass@rtk2go.com:2101/MOUNT</Code>
+          <Text size="xs" c="dimmed" mt={4} style={{ fontSize: FONT_SIZE.label }}>
+            Example: Type=NTRIP, Path=<Code style={{ fontSize: FONT_SIZE.label }}>user:pass@rtk2go.com:2101/MOUNT</Code>
           </Text>
         </Stack>
       </Popover.Dropdown>

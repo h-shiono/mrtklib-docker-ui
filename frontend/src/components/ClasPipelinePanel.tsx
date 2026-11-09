@@ -34,6 +34,7 @@ import * as clasApi from '../api/clasPipeline';
 import { ClasFlowMeter, type FlowStats } from './ClasFlowMeter';
 import { PositionScatter, type PositionPoint } from './PositionScatter';
 import { StatusIndicator } from './StatusIndicator';
+import { FONT_SIZE } from '../utils/typography';
 
 const ROW_LABEL_WIDTH = 130;
 const MAX_POSITION_POINTS = 3600;
@@ -357,8 +358,8 @@ export function ClasPipelinePanel() {
                 placeholder="/workspace/clas/sbf_%Y%m%d_%h%M%S.sbf"
                 description="mrtk relay expands %Y %m %d %h %M %S at write time."
                 styles={{
-                  input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: '11px' },
-                  description: { fontSize: '10px' },
+                  input: { fontFamily: 'var(--mantine-font-family-monospace)' },
+                  description: { fontSize: FONT_SIZE.label },
                 }}
               />
             </FormRow>
@@ -477,7 +478,7 @@ export function ClasPipelinePanel() {
                   block
                   style={{
                     whiteSpace: 'pre-wrap',
-                    fontSize: '11px',
+                    fontSize: FONT_SIZE.label,
                     fontFamily: 'var(--mantine-font-family-monospace)',
                   }}
                 >
@@ -493,7 +494,7 @@ export function ClasPipelinePanel() {
                   block
                   style={{
                     whiteSpace: 'pre-wrap',
-                    fontSize: '11px',
+                    fontSize: FONT_SIZE.label,
                     fontFamily: 'var(--mantine-font-family-monospace)',
                   }}
                 >

@@ -5,11 +5,11 @@ import { maskLogLine } from '../utils/maskPath';
 import { STATUS_COLOR } from '../utils/status';
 import { inputLight } from '../utils/streamMonitor';
 import { StatusCap, StatusFooter, StatusLight } from './RtInputStatusRow';
+import { FONT_SIZE, MONO } from '../utils/typography';
 
 // ─── Streaming status of the Stream Monitor ──────────────────────────────────
 // Footer of the workspace, in the Real-Time "Streaming status" design.
 
-const MONO = "'IBM Plex Mono', monospace";
 
 const TRUNCATE = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 } as const;
 
@@ -35,7 +35,7 @@ function Cell({ cap, title, flex = '1 1 100px', children }: {
 
 function Value({ c, children }: { c?: string; children: ReactNode }) {
   return (
-    <Text component="span" c={c} style={{ fontFamily: MONO, fontSize: '12px', lineHeight: 1.2, ...TRUNCATE }}>
+    <Text component="span" c={c} style={{ fontFamily: MONO, fontSize: FONT_SIZE.body, lineHeight: 1.2, ...TRUNCATE }}>
       {children}
     </Text>
   );
@@ -43,7 +43,7 @@ function Value({ c, children }: { c?: string; children: ReactNode }) {
 
 function Detail({ c = 'dimmed', children }: { c?: string; children: ReactNode }) {
   return (
-    <Text component="span" c={c} style={{ fontFamily: MONO, fontSize: '10.5px', ...TRUNCATE }}>
+    <Text component="span" c={c} style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, ...TRUNCATE }}>
       {children}
     </Text>
   );
@@ -154,7 +154,7 @@ export function StreamMonitorStatusRow({
         c="dimmed"
         truncate="end"
         title={relayLine ? maskLogLine(relayLine) : undefined}
-        style={{ flexBasis: '100%', minWidth: 0, fontFamily: MONO, fontSize: '11px', minHeight: 17 }}
+        style={{ flexBasis: '100%', minWidth: 0, fontFamily: MONO, fontSize: FONT_SIZE.label, minHeight: 17 }}
       >
         {relayLine ? `relay  ${maskLogLine(relayLine)}` : ''}
       </Text>

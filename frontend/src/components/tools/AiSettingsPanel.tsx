@@ -83,7 +83,7 @@ export function AiSettingsPanel({ onSettingsSaved }: AiSettingsPanelProps) {
 
   return (
     <Stack gap="lg" style={{ maxWidth: 560 }}>
-      <Text size="lg" fw={600}>AI Settings</Text>
+      <Text size="sm" fw={500}>AI Settings</Text>
 
       {/* API Key + Model */}
       <Stack gap="sm">

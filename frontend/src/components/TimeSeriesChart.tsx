@@ -8,6 +8,7 @@ import {
   ResponsiveContainer, Legend, Area, ComposedChart,
 } from 'recharts';
 import { Text, useMantineColorScheme } from '@mantine/core';
+import { FONT_SIZE } from '../utils/typography';
 
 export interface TimeSeriesPoint {
   timestamp: string;
@@ -50,30 +51,30 @@ export function TimeSeriesChart({ points, maxPoints = 300 }: TimeSeriesChartProp
         <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#555' : '#ddd'} />
         <XAxis
           dataKey="time"
-          tick={{ fontSize: 9 }}
+          tick={{ fontSize: FONT_SIZE.caption }}
           interval="preserveStartEnd"
         />
         <YAxis
           yAxisId="left"
-          tick={{ fontSize: 9 }}
+          tick={{ fontSize: FONT_SIZE.caption }}
           domain={[0, 'auto']}
-          label={{ value: 'Q / NS', angle: -90, position: 'insideLeft', fontSize: 9 }}
+          label={{ value: 'Q / NS', angle: -90, position: 'insideLeft', fontSize: FONT_SIZE.label }}
         />
         <YAxis
           yAxisId="right"
           orientation="right"
-          tick={{ fontSize: 9 }}
+          tick={{ fontSize: FONT_SIZE.caption }}
           domain={[0, 'auto']}
-          label={{ value: 'Ratio', angle: 90, position: 'insideRight', fontSize: 9 }}
+          label={{ value: 'Ratio', angle: 90, position: 'insideRight', fontSize: FONT_SIZE.label }}
         />
         <Tooltip
           contentStyle={{
-            fontSize: '10px',
+            fontSize: FONT_SIZE.label,
             backgroundColor: isDark ? '#2c2e33' : '#fff',
             border: `1px solid ${isDark ? '#555' : '#ddd'}`,
           }}
         />
-        <Legend wrapperStyle={{ fontSize: '10px' }} />
+        <Legend wrapperStyle={{ fontSize: FONT_SIZE.label }} />
         <Line
           yAxisId="left"
           type="stepAfter"

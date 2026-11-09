@@ -53,6 +53,7 @@ import { ConfigSelect } from './common/ConfigSelect';
 import { useModeDependentDisable } from '../hooks/useModeDependentDisable';
 import { DOCS_BASE as OPTION_DOCS_BASE } from '../config/optionMeta';
 import { SECTION_SEARCH_TEXT } from '../config/sectionSearchIndex';
+import { FONT_SIZE } from '../utils/typography';
 
 // ─── Sub-components ────────────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ function StationPositionInput({
 
   const coordsDisabled = disabled || disableCoordinates;
   const antennaDisabled = disabled || disableAntenna;
-  const L = { width: 130, flexShrink: 0, fontSize: '11px' } as const;
+  const L = { width: 130, flexShrink: 0, fontSize: FONT_SIZE.label } as const;
 
   return (
     <Stack gap={6}>
@@ -172,7 +173,7 @@ function FileInputRow({
   return (
     <div>
       {label && (
-        <Text size="xs" fw={500} mb={4} style={{ fontSize: '10px' }}>
+        <Text size="xs" fw={500} mb={4} style={{ fontSize: FONT_SIZE.label }}>
           {label}
         </Text>
       )}
@@ -183,7 +184,7 @@ function FileInputRow({
           onChange={(e) => onChange(e.currentTarget.value)}
           placeholder={placeholder || 'Path to file'}
           styles={{
-            label: { fontSize: '10px' },
+            label: { fontSize: FONT_SIZE.label },
             root: { flex: 1 }
           }}
           style={{ flex: 1 }}
@@ -229,7 +230,7 @@ function SidebarItem({
           padding: '6px 9px',
           marginBottom: 2,
           borderRadius: 6,
-          fontSize: '12px',
+          fontSize: FONT_SIZE.body,
           backgroundColor: isActive ? 'var(--mantine-color-blue-light)' : 'transparent',
           color: isActive ? 'var(--mantine-color-blue-light-color)' : 'var(--mantine-color-dimmed)',
           fontWeight: isActive ? 600 : 400,
@@ -311,7 +312,7 @@ function SectionHeader({ title, anchor }: { title: string; anchor: string }) {
 // ─── Horizontal field helper ──────────────────────────────────────────────
 
 const LABEL_W = 130;
-const LABEL_STYLE = { width: LABEL_W, flexShrink: 0, fontSize: '11px' } as const;
+const LABEL_STYLE = { width: LABEL_W, flexShrink: 0, fontSize: FONT_SIZE.label } as const;
 const OPT_LABEL_STYLE = { width: LABEL_W, flexShrink: 0 } as const;
 
 // [ambiguity_resolution].systems bits (MRTKLIB SYS_*); GLONASS has no PPP-AR.
@@ -563,7 +564,6 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               value={sidebarFilter}
               onChange={(e) => setSidebarFilter(e.currentTarget.value)}
               leftSection={<IconSearch size={12} />}
-              styles={{ input: { fontSize: '11px' } }}
             />
           </Box>
           <ScrollArea style={{ flex: 1 }}>
@@ -577,7 +577,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 >
                   <Group gap={5} wrap="nowrap" style={{ padding: '9px 6px 5px', userSelect: 'none' }}>
                     {cat.icon}
-                    <Text fw={600} c="dimmed" style={{ fontSize: '10px', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    <Text fw={600} c="dimmed" style={{ fontSize: FONT_SIZE.caption, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                       {cat.label}
                     </Text>
                   </Group>
@@ -610,7 +610,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               {/* Time Range — DateTimePicker layout */}
               <SectionHeader title="Time Range" anchor="basic-strategy" />
               <Group wrap="nowrap" align="flex-start" gap="xs">
-                <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: '11px', paddingTop: 6 }}>Time Start</Text>
+                <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: FONT_SIZE.label, paddingTop: 6 }}>Time Start</Text>
                 <Checkbox
                   size="xs"
                   checked={config.time.startEnabled}
@@ -636,11 +636,10 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     }
                   }}
                   style={{ flex: 1 }}
-                  styles={{ input: { fontSize: '11px' } }}
                 />
               </Group>
               <Group wrap="nowrap" align="flex-start" gap="xs">
-                <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: '11px', paddingTop: 6 }}>Time End</Text>
+                <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: FONT_SIZE.label, paddingTop: 6 }}>Time End</Text>
                 <Checkbox
                   size="xs"
                   checked={config.time.endEnabled}
@@ -666,12 +665,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     }
                   }}
                   style={{ flex: 1 }}
-                  styles={{ input: { fontSize: '11px' } }}
                 />
               </Group>
-              <Text size="xs" c="dimmed" style={{ fontSize: '10px', paddingLeft: 130 }}>Input in GPS Time (GPST = UTC + 18 s)</Text>
+              <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label, paddingLeft: 130 }}>Input in GPS Time (GPST = UTC + 18 s)</Text>
               <Group wrap="nowrap" align="center" gap="xs">
-                <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: '11px' }}>Interval (0=all)</Text>
+                <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: FONT_SIZE.label }}>Interval (0=all)</Text>
                 <ConfigNumberInput
                   size="xs"
                   value={config.time.interval}
@@ -682,14 +680,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   suffix=" s"
                   hideControls
                   style={{ flex: 1 }}
-                  styles={{ input: { fontSize: '11px' } }}
                 />
               </Group>
 
               {/* Input Files */}
               <SectionHeader title="Input Files" anchor="basic-strategy" />
               <div>
-                <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Rover OBS *</Text>
+                <Text size="xs" style={{ fontSize: FONT_SIZE.label, marginBottom: '4px' }}>Rover OBS *</Text>
                 <Group gap="xs" wrap="nowrap">
                   <TextInput
                     size="xs"
@@ -705,7 +702,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
               </div>
               <div>
-                <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Navigation *</Text>
+                <Text size="xs" style={{ fontSize: FONT_SIZE.label, marginBottom: '4px' }}>Navigation *</Text>
                 <Group gap="xs" wrap="nowrap">
                   <TextInput
                     size="xs"
@@ -721,7 +718,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
               </div>
               <div>
-                <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }} c={!execution.needsBase ? 'dimmed' : undefined}>Base OBS</Text>
+                <Text size="xs" style={{ fontSize: FONT_SIZE.label, marginBottom: '4px' }} c={!execution.needsBase ? 'dimmed' : undefined}>Base OBS</Text>
                 <Group gap="xs" wrap="nowrap">
                   <TextInput
                     size="xs"
@@ -740,7 +737,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               {/* Correction Files */}
               <div>
                 <Group gap="xs" mb={4} justify="space-between">
-                  <Text size="xs" style={{ fontSize: '10px' }}>Corrections (CLK, SP3, FCB, IONEX, L6, HAS, B2b, SBS, etc.)</Text>
+                  <Text size="xs" style={{ fontSize: FONT_SIZE.label }}>Corrections (CLK, SP3, FCB, IONEX, L6, HAS, B2b, SBS, etc.)</Text>
                   <ActionIcon variant="light" size="xs" onClick={() => execution.onCorrectionFilesChange([...execution.correctionFiles, ''])}>
                     <IconPlus size={12} />
                   </ActionIcon>
@@ -777,7 +774,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Stack>
               </div>
               <div>
-                <Text size="xs" style={{ fontSize: '10px', marginBottom: '4px' }}>Output *</Text>
+                <Text size="xs" style={{ fontSize: FONT_SIZE.label, marginBottom: '4px' }}>Output *</Text>
                 <Group gap="xs" wrap="nowrap">
                   <TextInput
                     size="xs"
@@ -904,7 +901,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       style={{ flex: 1, minWidth: 0 }}
                     />
                     {useSignals && (
-                      <Text c="dimmed" fs="italic" style={{ fontSize: '9px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      <Text c="dimmed" fs="italic" style={{ fontSize: FONT_SIZE.label, whiteSpace: 'nowrap', flexShrink: 0 }}>
                         overridden
                       </Text>
                     )}
@@ -1110,7 +1107,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       })
                     }
                     disabled={!isPPP}
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                   <Switch
                     size="xs"
@@ -1126,7 +1123,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       })
                     }
                     disabled={!isPPP}
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                   <Switch
                     size="xs"
@@ -1142,7 +1139,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       })
                     }
                     disabled={!isPPP}
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                   <Switch
                     size="xs"
@@ -1158,7 +1155,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       })
                     }
                     disabled={!isPPP}
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                   <Switch
                     size="xs"
@@ -1173,7 +1170,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         },
                       })
                     }
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                 </Group>
               </Stack>
@@ -1209,23 +1206,23 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 <Group justify="space-between" gap="md" mt={6}>
                   <Switch size="xs" label="Partial AR" checked={config.positioning.corrections.partialAr}
                     onChange={(e) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, partialAr: e.currentTarget.checked } } })}
-                    styles={{ label: { fontSize: '10px' } }} />
+                    styles={{ label: { fontSize: FONT_SIZE.label } }} />
                   <Switch size="xs" label="Shapiro" checked={config.positioning.corrections.shapiroDelay} disabled={!isPPP}
                     onChange={(e) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, shapiroDelay: e.currentTarget.checked } } })}
-                    styles={{ label: { fontSize: '10px' } }} />
+                    styles={{ label: { fontSize: FONT_SIZE.label } }} />
                   <Switch size="xs" label="Excl QZS Ref" checked={config.positioning.corrections.excludeQzsRef}
                     onChange={(e) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, excludeQzsRef: e.currentTarget.checked } } })}
-                    styles={{ label: { fontSize: '10px' } }} />
+                    styles={{ label: { fontSize: FONT_SIZE.label } }} />
                   <Switch size="xs" label="No Phase Bias Adj" checked={config.positioning.corrections.noPhaseBiasAdj}
                     onChange={(e) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, noPhaseBiasAdj: e.currentTarget.checked } } })}
-                    styles={{ label: { fontSize: '10px' } }} />
+                    styles={{ label: { fontSize: FONT_SIZE.label } }} />
                 </Group>
               </Stack>
 
               {/* Group C: Satellite Selection */}
               <SectionHeader title="Satellite Selection" anchor="satellites" />
               <Stack gap={6}>
-                <Text size="xs" style={{ fontSize: '10px' }}>
+                <Text size="xs" style={{ fontSize: FONT_SIZE.label }}>
                   Constellations
                 </Text>
                 <Group justify="space-between" gap="md">
@@ -1245,7 +1242,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         },
                       })
                     }
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                   <Checkbox
                     size="xs"
@@ -1263,7 +1260,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         },
                       })
                     }
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                   <Checkbox
                     size="xs"
@@ -1281,7 +1278,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         },
                       })
                     }
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                   <Checkbox
                     size="xs"
@@ -1299,7 +1296,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         },
                       })
                     }
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                   <Checkbox
                     size="xs"
@@ -1317,7 +1314,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         },
                       })
                     }
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                   <Checkbox
                     size="xs"
@@ -1335,7 +1332,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         },
                       })
                     }
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                   <Checkbox
                     size="xs"
@@ -1353,7 +1350,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         },
                       })
                     }
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                   />
                 </Group>
 
@@ -1371,7 +1368,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       },
                     })
                   }
-                  styles={{ label: { fontSize: '10px' } }}
+                  styles={{ label: { fontSize: FONT_SIZE.label } }}
                 />
 
                 {/* BeiDou PRN reassignment (MRTKLIB v0.7.13 / v0.7.16): BDS-2 / GEO lists on one row */}
@@ -2454,13 +2451,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <Group wrap="nowrap" align="center" gap="md" justify="space-between" style={{ flex: 1, minWidth: 0 }}>
                     <Switch size="xs" label="Header" checked={config.output.outputHeader}
                       onChange={(e) => handleConfigChange({ ...config, output: { ...config.output, outputHeader: e.currentTarget.checked } })}
-                      disabled={isSolNMEA} styles={{ label: { fontSize: '10px' } }} />
+                      disabled={isSolNMEA} styles={{ label: { fontSize: FONT_SIZE.label } }} />
                     <Switch size="xs" label="Options" checked={config.output.outputProcessingOptions}
                       onChange={(e) => handleConfigChange({ ...config, output: { ...config.output, outputProcessingOptions: e.currentTarget.checked } })}
-                      disabled={isSolNMEA} styles={{ label: { fontSize: '10px' } }} />
+                      disabled={isSolNMEA} styles={{ label: { fontSize: FONT_SIZE.label } }} />
                     <Switch size="xs" label="Velocity" checked={config.output.outputVelocity}
                       onChange={(e) => handleConfigChange({ ...config, output: { ...config.output, outputVelocity: e.currentTarget.checked } })}
-                      styles={{ label: { fontSize: '10px' } }} />
+                      styles={{ label: { fontSize: FONT_SIZE.label } }} />
                   </Group>
                 </Group>
 
@@ -2605,7 +2602,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       disabled={!isStaticMode} style={{ flex: 1, minWidth: 0 }} />
                     <Switch size="xs" label="Single" title="Single on Outage" checked={config.output.outputSingleOnOutage}
                       onChange={(e) => handleConfigChange({ ...config, output: { ...config.output, outputSingleOnOutage: e.currentTarget.checked } })}
-                      disabled={isSingle} styles={{ label: { fontSize: '10px' } }} style={{ flexShrink: 0 }} />
+                      disabled={isSingle} styles={{ label: { fontSize: FONT_SIZE.label } }} style={{ flexShrink: 0 }} />
                   </Group>
                 </Group>
 
@@ -2691,7 +2688,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                   {(corrections.clas?.length ?? 0) > 0 && (
                     <>
-                      <Text size="xs" fw={500} style={{ fontSize: '10px' }}>CLAS PPP-RTK</Text>
+                      <Text size="xs" fw={500} style={{ fontSize: FONT_SIZE.label }}>CLAS PPP-RTK</Text>
                       <Group gap={4} wrap="wrap">
                         {corrections.clas.map((f) => (
                           <Button
@@ -2720,7 +2717,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   )}
                   {(corrections.madoca?.length ?? 0) > 0 && (
                     <>
-                      <Text size="xs" fw={500} style={{ fontSize: '10px' }}>MADOCA PPP</Text>
+                      <Text size="xs" fw={500} style={{ fontSize: FONT_SIZE.label }}>MADOCA PPP</Text>
                       <Group gap={4} wrap="wrap">
                         {corrections.madoca.map((f) => (
                           <Button
@@ -3316,7 +3313,7 @@ export function TomlDrawer({ config, opened, onClose, streams }: { config: MrtkP
         borderRadius: '4px',
         backgroundColor: 'var(--mantine-color-body)',
       }}>
-        <pre style={{ margin: 0, padding: '8px', fontSize: '11px', lineHeight: 1.5 }}>
+        <pre style={{ margin: 0, padding: '8px', fontSize: FONT_SIZE.label, lineHeight: 1.5 }}>
           {tomlPreview.split('\n').map((line, i) => {
             // Comment
             if (line.trimStart().startsWith('#')) {

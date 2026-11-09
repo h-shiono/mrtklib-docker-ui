@@ -147,7 +147,7 @@ export function PostProcessingConfiguration({
         <Group justify="space-between">
           <Group gap="xs">
             {onCollapse && <ConfigCollapseButton onClick={onCollapse} />}
-            <Title order={6} size="xs">Processing Configuration</Title>
+            <Title order={6} size="sm">Processing Configuration</Title>
           </Group>
           <Group gap="xs">
             {processStatus !== 'idle' && (

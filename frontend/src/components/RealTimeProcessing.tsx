@@ -66,6 +66,7 @@ import { JumpToLatest } from './common/JumpToLatest';
 import { TraceLogView } from './common/TraceLogView';
 import { StatusBadge } from './common/StatusBadge';
 import { processTone } from '../utils/status';
+import { FONT_SIZE, MONO } from '../utils/typography';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -94,7 +95,7 @@ const OUTPUT_FORMATS: { value: StreamFormat; label: string }[] = [
   { value: 'nmea', label: 'NMEA' },
 ];
 
-const LABEL_STYLE = { width: 90, flexShrink: 0, fontSize: '11px' } as const;
+const LABEL_STYLE = { width: 90, flexShrink: 0, fontSize: FONT_SIZE.label } as const;
 
 // Switch rows: match the xs input height of the neighboring Select/TextInput
 // rows. --input-height-xs is scoped to Mantine's Input, so use its value.
@@ -140,7 +141,7 @@ function StreamEditor({
             off: '',
           } as Record<string, string>)[stream.type] || 'e.g. host:port'}
           disabled={isOff} style={{ flex: 1 }}
-          styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }} />
+          styles={{ input: { fontFamily: MONO } }} />
       </Group>
       <Group wrap="nowrap" align="center" gap="xs">
         <Text size="xs" c="dimmed" style={LABEL_STYLE}>Format</Text>
@@ -256,7 +257,7 @@ function RawLogEditor({
           <div>
             <Switch size="xs" label="Time tag" checked={timetag} disabled={!enabled}
               onChange={(e) => onChange({ ...log, type: 'file', path: composeRawLogPath(base, e.currentTarget.checked) })}
-              styles={{ label: { fontSize: '11px' } }} />
+              styles={{ label: { fontSize: FONT_SIZE.label } }} />
           </div>
         </Tooltip>
       </Group>
@@ -267,7 +268,7 @@ function RawLogEditor({
           placeholder={defaultRawLogBase(input, inputStream.format)}
           disabled={!enabled}
           style={{ flex: 1, minWidth: 0 }}
-          styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }} />
+          styles={{ input: { fontFamily: MONO } }} />
       </Group>
     </>
   );
@@ -660,7 +661,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
             <Group justify="space-between">
               <Group gap="xs">
                 {onToggleConfig && <ConfigCollapseButton onClick={onToggleConfig} />}
-                <Title order={6} size="xs">Processing Configuration</Title>
+                <Title order={6} size="sm">Processing Configuration</Title>
               </Group>
               <Group gap="xs">
                 {runStatus !== 'idle' && (
@@ -834,10 +835,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
             <Tabs value={monitorTab} onChange={setMonitorTab} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <Group justify="space-between" align="center" gap={0}>
                 <Tabs.List>
-                  <Tabs.Tab value="chart" style={{ fontSize: 11 }}>Chart</Tabs.Tab>
-                  <Tabs.Tab value="solution" style={{ fontSize: 11 }}>Solution</Tabs.Tab>
-                  <Tabs.Tab value="console" style={{ fontSize: 11 }}>Console</Tabs.Tab>
-                  <Tabs.Tab value="trace" style={{ fontSize: 11 }}>Trace</Tabs.Tab>
+                  <Tabs.Tab value="chart" style={{ fontSize: FONT_SIZE.label }}>Chart</Tabs.Tab>
+                  <Tabs.Tab value="solution" style={{ fontSize: FONT_SIZE.label }}>Solution</Tabs.Tab>
+                  <Tabs.Tab value="console" style={{ fontSize: FONT_SIZE.label }}>Console</Tabs.Tab>
+                  <Tabs.Tab value="trace" style={{ fontSize: FONT_SIZE.label }}>Trace</Tabs.Tab>
                 </Tabs.List>
                 {/* Multi-select: show one or more charts side by side */}
                 <Chip.Group
@@ -889,7 +890,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                     <Text
                       c={positionHistory.length > 0 ? 'var(--app-console-fg)' : 'dimmed'}
                       fs={positionHistory.length > 0 ? undefined : 'italic'}
-                      style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5, wordBreak: 'break-all' }}
+                      style={{ fontFamily: MONO, whiteSpace: 'pre-wrap', fontSize: FONT_SIZE.label, lineHeight: 1.5, wordBreak: 'break-all' }}
                     >
                       {solutionScroll.shown.length > 0
                         ? solutionScroll.shown.map((p, i) =>
@@ -916,8 +917,8 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                           size="xs"
                           c="var(--app-console-fg)"
                           style={{
-                            fontFamily: "'IBM Plex Mono', monospace",
-                            fontSize: '11px',
+                            fontFamily: MONO,
+                            fontSize: FONT_SIZE.label,
                             lineHeight: 1.5,
                             whiteSpace: 'pre-wrap',
                             wordBreak: 'break-all',
@@ -927,7 +928,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                         </Text>
                       ))
                     ) : (
-                      <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
+                      <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
                         No log output yet.
                       </Text>
                     )}
@@ -944,7 +945,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                       c="dimmed"
                       truncate="start"
                       title={traceFile}
-                      style={{ flex: 1, minWidth: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}
+                      style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: FONT_SIZE.label }}
                     >
                       {traceFile}
                     </Text>

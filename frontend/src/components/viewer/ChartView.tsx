@@ -5,6 +5,7 @@ import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import type { ENUEpoch, ChartMetric } from './types';
 import { qualityColor } from '../../utils/quality';
+import { FONT_SIZE, MONO } from '../../utils/typography';
 
 interface ChartViewProps {
   data: ENUEpoch[];
@@ -256,8 +257,8 @@ function statsChipPlugin(
           pointerEvents: 'none',
           padding: '0 6px',
           borderRadius: '3px',
-          fontFamily: "'IBM Plex Mono', monospace",
-          fontSize: '10px',
+          fontFamily: MONO,
+          fontSize: `${FONT_SIZE.label}px`,
           lineHeight: '16px',
           whiteSpace: 'pre',
           color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',

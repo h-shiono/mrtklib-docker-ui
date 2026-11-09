@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { ActionIcon, Box, Checkbox, Group, ScrollArea, Text, TextInput } from '@mantine/core';
 import { IconChevronDown, IconChevronUp, IconSearch, IconX } from '@tabler/icons-react';
+import { FONT_SIZE, MONO } from '../../utils/typography';
 
-const MONO = "'IBM Plex Mono', monospace";
 const CONSOLE_BG = 'var(--app-console-bg)';
 const TOOLBAR_H = 30;
 const MARK_BG = 'rgba(250, 176, 5, 0.35)';
@@ -177,7 +177,7 @@ export function TraceLogView({
 
   const textStyle = {
     fontFamily: MONO,
-    fontSize: '11px',
+    fontSize: FONT_SIZE.label,
     lineHeight: 1.5,
     whiteSpace: wrap ? 'pre-wrap' : 'pre',
     wordBreak: wrap ? 'break-all' : undefined,
@@ -246,13 +246,13 @@ export function TraceLogView({
               </ActionIcon>
             ) : null
           }
-          styles={{ input: { fontFamily: MONO, fontSize: '11px' } }}
+          styles={{ input: { fontFamily: MONO } }}
           style={{ width: 240, minWidth: 0, flexShrink: 1 }}
         />
         <Text
           size="xs"
           c={q && matches.length === 0 ? 'red.5' : 'dimmed'}
-          style={{ fontFamily: MONO, fontSize: '11px', whiteSpace: 'nowrap', minWidth: 64 }}
+          style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, whiteSpace: 'nowrap', minWidth: 64 }}
         >
           {q ? `${cur >= 0 ? cur + 1 : '–'} / ${matches.length}` : ''}
         </Text>
@@ -286,7 +286,7 @@ export function TraceLogView({
             keepBottom();
             setMatchOnly(e.currentTarget.checked);
           }}
-          styles={{ label: { fontSize: '11px', paddingLeft: 6, whiteSpace: 'nowrap' } }}
+          styles={{ label: { fontSize: FONT_SIZE.label, paddingLeft: 6, whiteSpace: 'nowrap' } }}
         />
         {note && <Box style={{ flex: 1, minWidth: 0 }}>{note}</Box>}
       </Group>

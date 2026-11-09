@@ -2,12 +2,12 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Box, Group, Stack, Text, Tooltip } from '@mantine/core';
 import type { InputStreamState, InputStreamStatus } from '../types/mrtkRunConfig';
 import { STATUS_COLOR } from '../utils/status';
+import { FONT_SIZE, MONO } from '../utils/typography';
 
 // ─── Streaming status (footer of the RT workspace) ───────────────────────────
 // Rover / Base / Correction connection state, so a run that keeps going with a
 // dead input (e.g. an NTRIP mountpoint that does not exist) is visible at once.
 
-const MONO = "'IBM Plex Mono', monospace";
 
 const LABEL: Record<InputStreamStatus['name'], string> = {
   rover: 'Rover',
@@ -29,7 +29,7 @@ const STALE_MS = 10_000;
 
 const CAP = {
   fontFamily: MONO,
-  fontSize: '9.5px',
+  fontSize: FONT_SIZE.caption,
   letterSpacing: '0.09em',
   textTransform: 'uppercase',
   color: 'var(--mantine-color-dimmed)',
@@ -63,11 +63,11 @@ export function StatusLight({ color, label, labelDimmed = false, rate }: {
   return (
     <Group gap={7} align="center" wrap="nowrap" style={{ minWidth: 0 }}>
       <Box style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: color }} />
-      <Text component="span" style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1, color: labelDimmed ? 'var(--mantine-color-dimmed)' : color }}>
+      <Text component="span" style={{ fontSize: FONT_SIZE.body, fontWeight: 700, lineHeight: 1, color: labelDimmed ? 'var(--mantine-color-dimmed)' : color }}>
         {label}
       </Text>
       {rate && (
-        <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: '11px', whiteSpace: 'nowrap' }}>
+        <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, whiteSpace: 'nowrap' }}>
           {rate}
         </Text>
       )}
@@ -110,7 +110,7 @@ export function StatusFooter({ active, faded = false, note, cellGap = 30, childr
           {children}
         </Box>
       ) : (
-        <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: '11px' }}>
+        <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
           Not running
         </Text>
       )}
@@ -126,7 +126,7 @@ function StreamCell({ s }: { s: InputStreamStatus }) {
   const detail = s.hint ?? s.message;
 
   const tooltip = (
-    <Stack gap={2} style={{ fontFamily: MONO, fontSize: 11 }}>
+    <Stack gap={2} style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
       <span>type: {s.type} · format: {s.format}</span>
       <span>in: {formatBytes(s.in_bytes)} · {formatBps(s.in_bps)}</span>
       {s.decoded !== null && <span>decoded: {s.decoded} · decode errors: {s.errors ?? 0}</span>}
@@ -146,7 +146,7 @@ function StreamCell({ s }: { s: InputStreamStatus }) {
           <Text
             component="span"
             c={s.state === 'error' ? STATUS_COLOR.error : 'dimmed'}
-            style={{ fontFamily: MONO, fontSize: '10.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}
+            style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}
           >
             {detail}
           </Text>

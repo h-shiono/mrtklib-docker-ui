@@ -26,6 +26,7 @@ import {
   IconHistory,
   IconRefresh,
 } from '@tabler/icons-react';
+import { FONT_SIZE, MONO } from '../../utils/typography';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -133,7 +134,6 @@ const AC_OPTIONS = [
   { value: 'ESA', label: 'ESA' },
 ];
 
-const MONO_FONT = 'IBM Plex Mono, monospace';
 
 // ── Component ────────────────────────────────────────────────────────────
 
@@ -630,7 +630,7 @@ export function DataDownloader() {
             label="Destination directory"
             value={qzssDestDir}
             onChange={(e) => setQzssDestDir(e.currentTarget.value)}
-            styles={{ input: { fontFamily: MONO_FONT } }}
+            styles={{ input: { fontFamily: MONO } }}
           />
 
           <Group gap="sm" justify="space-between">
@@ -709,7 +709,7 @@ export function DataDownloader() {
             label="Destination directory"
             value={igsDestDir}
             onChange={(e) => setIgsDestDir(e.currentTarget.value)}
-            styles={{ input: { fontFamily: MONO_FONT } }}
+            styles={{ input: { fontFamily: MONO } }}
           />
 
           {!earthdataConfigured && (
@@ -777,7 +777,7 @@ export function DataDownloader() {
             label="Destination directory"
             value={gsiDestDir}
             onChange={(e) => setGsiDestDir(e.currentTarget.value)}
-            styles={{ input: { fontFamily: MONO_FONT } }}
+            styles={{ input: { fontFamily: MONO } }}
           />
 
           {!gsiConfigured && (
@@ -848,10 +848,10 @@ export function DataDownloader() {
                     <Table.Td style={{ textAlign: 'center' }}>
                       {statusIcon(entry.status)}
                     </Table.Td>
-                    <Table.Td style={{ fontFamily: MONO_FONT }}>
+                    <Table.Td style={{ fontFamily: MONO }}>
                       {entry.filename}
                     </Table.Td>
-                    <Table.Td style={{ fontFamily: MONO_FONT }}>
+                    <Table.Td style={{ fontFamily: MONO }}>
                       {entry.size_bytes > 0 ? formatBytes(entry.size_bytes) : '-'}
                     </Table.Td>
                     <Table.Td>
@@ -863,7 +863,7 @@ export function DataDownloader() {
                         {entry.status}
                       </Badge>
                     </Table.Td>
-                    <Table.Td style={{ fontFamily: MONO_FONT, fontSize: 11 }}>
+                    <Table.Td style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
                       {new Date(entry.timestamp).toLocaleString()}
                     </Table.Td>
                   </Table.Tr>

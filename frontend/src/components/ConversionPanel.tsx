@@ -41,6 +41,7 @@ import { ComboLabel } from './common/OptionLabel';
 import { StatusBadge } from './common/StatusBadge';
 import { processTone } from '../utils/status';
 import { hatanakaOutputPath, type HatanakaDirection } from '../utils/hatanakaNames';
+import { FONT_SIZE, MONO } from '../utils/typography';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -196,7 +197,7 @@ const TRACE_LEVELS = [
   { value: '5', label: '5' },
 ];
 
-const LABEL_STYLE = { width: 130, flexShrink: 0, fontSize: '11px' } as const;
+const LABEL_STYLE = { width: 130, flexShrink: 0, fontSize: FONT_SIZE.label } as const;
 
 // ─── Sidebar components ─────────────────────────────────────────────────────
 
@@ -208,14 +209,14 @@ function SidebarGroup({ label, icon, children }: { label: string; icon: React.Re
         style={{
           textTransform: 'uppercase',
           letterSpacing: '0.08em',
-          fontSize: '10px',
+          fontSize: FONT_SIZE.caption,
           padding: '12px 8px 4px',
           userSelect: 'none',
           color: 'var(--mantine-color-dimmed)',
         }}
       >
         {icon}
-        <Text size="xs" fw={600} c="dimmed" style={{ fontSize: '10px' }}>{label}</Text>
+        <Text size="xs" fw={600} c="dimmed" style={{ fontSize: FONT_SIZE.caption }}>{label}</Text>
       </Group>
       {children}
     </>
@@ -237,7 +238,7 @@ function SidebarItem({ label, icon, active, onClick }: {
         gap: 8,
         width: '100%',
         padding: '6px 8px',
-        fontSize: '11px',
+        fontSize: FONT_SIZE.label,
         borderLeft: active ? '2px solid var(--mantine-primary-color-filled)' : '2px solid transparent',
         backgroundColor: active ? 'var(--mantine-color-default-hover)' : undefined,
         color: active ? 'var(--mantine-color-text)' : 'var(--mantine-color-dimmed)',
@@ -862,7 +863,7 @@ export function ConversionPanel() {
                       onChange={e => setHk(prev => ({ ...prev, inputFile: e.currentTarget.value }))}
                       placeholder={hk.direction === 'compress' ? '/data/site0010.24o' : '/data/site0010.24d.gz'}
                       style={{ flex: 1 }}
-                      styles={{ input: { fontFamily: "'IBM Plex Mono', monospace" } }}
+                      styles={{ input: { fontFamily: MONO } }}
                     />
                     <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('hk:inputFile', 'data')}>
                       <IconFolder size={16} />
@@ -877,14 +878,14 @@ export function ConversionPanel() {
                       onChange={e => setHk(prev => ({ ...prev, outputFile: e.currentTarget.value }))}
                       placeholder={hatanakaOutputPath(hk.inputFile, hk.direction, hk.gzipOutput) || '/workspace/...'}
                       style={{ flex: 1 }}
-                      styles={{ input: { fontFamily: "'IBM Plex Mono', monospace" } }}
+                      styles={{ input: { fontFamily: MONO } }}
                     />
                     <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('hk:outputFile', 'workspace')}>
                       <IconFolder size={16} />
                     </ActionIcon>
                   </Group>
                 </FieldRow>
-                <Text size="xs" c="dimmed" style={{ fontSize: '10px', paddingLeft: 136 }}>
+                <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label, paddingLeft: 136 }}>
                   Leave empty for the default name. Output goes under /workspace; a .gz input is decompressed on the fly.
                 </Text>
 
@@ -892,21 +893,21 @@ export function ConversionPanel() {
                 <Switch
                   size="xs"
                   label="gzip output (.gz)"
-                  styles={{ label: { fontSize: '10px' } }}
+                  styles={{ label: { fontSize: FONT_SIZE.label } }}
                   checked={hk.gzipOutput}
                   onChange={e => setHk(prev => ({ ...prev, gzipOutput: e.currentTarget.checked }))}
                 />
                 <Switch
                   size="xs"
                   label="Skip strange epochs (-s)"
-                  styles={{ label: { fontSize: '10px' } }}
+                  styles={{ label: { fontSize: FONT_SIZE.label } }}
                   checked={hk.skipStrange}
                   onChange={e => setHk(prev => ({ ...prev, skipStrange: e.currentTarget.checked }))}
                 />
                 <Switch
                   size="xs"
                   label="Overwrite an existing output file"
-                  styles={{ label: { fontSize: '10px' } }}
+                  styles={{ label: { fontSize: FONT_SIZE.label } }}
                   checked={hk.overwrite}
                   onChange={e => setHk(prev => ({ ...prev, overwrite: e.currentTarget.checked }))}
                 />
@@ -1030,7 +1031,6 @@ export function ConversionPanel() {
                     value={form.timeStart ? dayjs(form.timeStart, 'YYYY/MM/DD HH:mm:ss').toDate() : null}
                     onChange={date => setForm(prev => ({ ...prev, timeStart: date ? dayjs(date).format('YYYY/MM/DD HH:mm:ss') : '' }))}
                     style={{ flex: 1 }}
-                    styles={{ input: { fontSize: '11px' } }}
                   />
                 </FieldRow>
                 <FieldRow label="Time End">
@@ -1043,7 +1043,6 @@ export function ConversionPanel() {
                     value={form.timeEnd ? dayjs(form.timeEnd, 'YYYY/MM/DD HH:mm:ss').toDate() : null}
                     onChange={date => setForm(prev => ({ ...prev, timeEnd: date ? dayjs(date).format('YYYY/MM/DD HH:mm:ss') : '' }))}
                     style={{ flex: 1 }}
-                    styles={{ input: { fontSize: '11px' } }}
                   />
                 </FieldRow>
                 <FieldRow label="RTCM Ref Time">
@@ -1056,7 +1055,6 @@ export function ConversionPanel() {
                     value={form.rtcmRefTime ? dayjs(form.rtcmRefTime, 'YYYY/MM/DD HH:mm:ss').toDate() : null}
                     onChange={date => setForm(prev => ({ ...prev, rtcmRefTime: date ? dayjs(date).format('YYYY/MM/DD HH:mm:ss') : '' }))}
                     style={{ flex: 1 }}
-                    styles={{ input: { fontSize: '11px' } }}
                   />
                 </FieldRow>
                 <Group wrap="nowrap" align="center" gap="xs">
@@ -1115,42 +1113,42 @@ export function ConversionPanel() {
                   <Switch
                     size="xs"
                     label="Include Doppler"
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                     checked={form.includeDoppler}
                     onChange={e => setForm(prev => ({ ...prev, includeDoppler: e.currentTarget.checked }))}
                   />
                   <Switch
                     size="xs"
                     label="Include SNR"
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                     checked={form.includeSnr}
                     onChange={e => setForm(prev => ({ ...prev, includeSnr: e.currentTarget.checked }))}
                   />
                   <Switch
                     size="xs"
                     label="Iono Correction"
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                     checked={form.ionoCorrection}
                     onChange={e => setForm(prev => ({ ...prev, ionoCorrection: e.currentTarget.checked }))}
                   />
                   <Switch
                     size="xs"
                     label="Time Correction"
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                     checked={form.timeCorrection}
                     onChange={e => setForm(prev => ({ ...prev, timeCorrection: e.currentTarget.checked }))}
                   />
                   <Switch
                     size="xs"
                     label="Leap Seconds"
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                     checked={form.leapSeconds}
                     onChange={e => setForm(prev => ({ ...prev, leapSeconds: e.currentTarget.checked }))}
                   />
                   <Switch
                     size="xs"
                     label="Half-cycle Corr"
-                    styles={{ label: { fontSize: '10px' } }}
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
                     checked={form.halfCycleCorr}
                     onChange={e => setForm(prev => ({ ...prev, halfCycleCorr: e.currentTarget.checked }))}
                   />
@@ -1251,7 +1249,7 @@ export function ConversionPanel() {
                   onClick={() => setRightTab('console')}
                   style={{
                     padding: '2px 10px',
-                    fontSize: 12,
+                    fontSize: FONT_SIZE.body,
                     fontWeight: rightTab === 'console' ? 600 : 400,
                     color: rightTab === 'console' ? 'var(--mantine-color-text)' : 'var(--mantine-color-dimmed)',
                     borderBottom: rightTab === 'console' ? '2px solid var(--mantine-primary-color-filled)' : '2px solid transparent',
@@ -1263,7 +1261,7 @@ export function ConversionPanel() {
                   onClick={() => { if (previewEnabled) setRightTab('preview'); }}
                   style={{
                     padding: '2px 10px',
-                    fontSize: 12,
+                    fontSize: FONT_SIZE.body,
                     fontWeight: rightTab === 'preview' ? 600 : 400,
                     color: !previewEnabled ? 'var(--mantine-color-dimmed)' : rightTab === 'preview' ? 'var(--mantine-color-text)' : 'var(--mantine-color-dimmed)',
                     borderBottom: rightTab === 'preview' ? '2px solid var(--mantine-primary-color-filled)' : '2px solid transparent',
@@ -1315,7 +1313,7 @@ export function ConversionPanel() {
                   }}
                 >
                   {logLines.length === 0 ? (
-                    <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
+                    <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
                       Waiting for output...
                     </Text>
                   ) : (
@@ -1325,8 +1323,8 @@ export function ConversionPanel() {
                         size="xs"
                         c="var(--app-console-fg)"
                         style={{
-                          fontFamily: "'IBM Plex Mono', monospace",
-                          fontSize: '11px',
+                          fontFamily: MONO,
+                          fontSize: FONT_SIZE.label,
                           lineHeight: 1.5,
                           whiteSpace: 'pre-wrap',
                           wordBreak: 'break-all',
@@ -1348,13 +1346,13 @@ export function ConversionPanel() {
                   }}
                 >
                   <Group gap={6} wrap="nowrap">
-                    <Text size="xs" c="dimmed" style={{ flexShrink: 0, fontSize: '10px' }}>Command Preview</Text>
+                    <Text size="xs" c="dimmed" style={{ flexShrink: 0, fontSize: FONT_SIZE.label }}>Command Preview</Text>
                     <Text
                       size="xs"
                       c="var(--app-console-fg)"
                       style={{
-                        fontFamily: "'IBM Plex Mono', monospace",
-                        fontSize: '9px',
+                        fontFamily: MONO,
+                        fontSize: FONT_SIZE.label,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -1392,8 +1390,8 @@ export function ConversionPanel() {
                 ) : currentPreview ? (
                   <>
                     {/* Info bar */}
-                    <Box px="sm" py={4} style={{ borderBottom: '0.5px solid var(--mantine-color-default-border)', fontSize: 11, color: 'var(--mantine-color-dimmed)' }}>
-                      <Text size="xs" c="dimmed" style={{ fontSize: 11 }}>
+                    <Box px="sm" py={4} style={{ borderBottom: '0.5px solid var(--mantine-color-default-border)', fontSize: FONT_SIZE.label, color: 'var(--mantine-color-dimmed)' }}>
+                      <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label }}>
                         {currentPreview.filename} — RINEX {currentPreview.rinexType} — {currentPreview.totalLines.toLocaleString()} lines
                         <span style={{ marginLeft: 8 }}>
                           Showing header ({currentPreview.headerLines} lines) + first 5 epochs
@@ -1404,8 +1402,8 @@ export function ConversionPanel() {
                     {/* RINEX content */}
                     <ScrollArea style={{ flex: 1, minHeight: 0 }}>
                       <Code block style={{
-                        fontFamily: "'IBM Plex Mono', monospace",
-                        fontSize: 11,
+                        fontFamily: MONO,
+                        fontSize: FONT_SIZE.label,
                         lineHeight: 1.5,
                         whiteSpace: 'pre',
                         background: 'transparent',
@@ -1420,7 +1418,7 @@ export function ConversionPanel() {
                     {currentPreview.truncated && (
                       <Box style={{
                         padding: '6px 12px',
-                        fontSize: 10,
+                        fontSize: FONT_SIZE.label,
                         color: 'var(--mantine-color-dimmed)',
                         borderTop: '0.5px solid var(--mantine-color-default-border)',
                         fontStyle: 'italic',

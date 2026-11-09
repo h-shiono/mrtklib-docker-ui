@@ -10,6 +10,7 @@ import { useLocalStorage } from '@mantine/hooks';
 import { bandGroupsIn, bandSnr, hasBandSnr, hasSkyPosition, isUsed } from '../utils/satellites';
 import type { Satellite } from '../types/satellite';
 import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
+import { FONT_SIZE, MONO } from '../utils/typography';
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
 
@@ -206,7 +207,7 @@ function SnrBarChart({ satellites }: { satellites: ShownSatellite[] }) {
           scales: {
             x: {
               ticks: {
-                font: { family: "'IBM Plex Mono'", size: 9 },
+                font: { family: "'IBM Plex Mono'", size: FONT_SIZE.caption },
                 maxRotation: 60,
                 minRotation: 45,
                 color: '#868e96',
@@ -219,12 +220,12 @@ function SnrBarChart({ satellites }: { satellites: ShownSatellite[] }) {
               title: {
                 display: true,
                 text: 'SNR (dBHz)',
-                font: { size: 9 },
+                font: { size: FONT_SIZE.label },
                 color: '#868e96',
               },
               ticks: {
                 stepSize: 10,
-                font: { size: 9 },
+                font: { size: FONT_SIZE.caption },
                 color: '#868e96',
               },
               grid: {
@@ -330,7 +331,7 @@ export function SkySnrPanel({ satellites, updateTime }: SkySnrPanelProps) {
           onChange={setFreqFilter}
           data={bandOptions}
         />
-        <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", color: 'var(--mantine-color-dimmed)' }}>
+        <span style={{ marginLeft: 'auto', fontSize: FONT_SIZE.label, fontFamily: MONO, color: 'var(--mantine-color-dimmed)' }}>
           {usedCount}/{filtered.length} sats used{updateTime ? ` \u00b7 ${updateTime}` : ''}
         </span>
       </div>
@@ -346,7 +347,7 @@ export function SkySnrPanel({ satellites, updateTime }: SkySnrPanelProps) {
               color={SYS_COLOR[sys] || SYS_COLOR.Unknown}
               checked={!hiddenSystems.includes(sys)}
               onChange={(on) => toggleSystem(sys, on)}
-              styles={{ label: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 10 } }}
+              styles={{ label: { fontFamily: MONO, fontSize: FONT_SIZE.label } }}
             >
               {sys} {n}
             </Chip>

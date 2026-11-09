@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-09T10:08:50Z",
+  "generatedAt": "2026-11-09T10:34:37Z",
   "title": "Design System: MRTKLIB Web UI",
   "extensions": {
     "colorMeta": {
@@ -703,7 +703,7 @@
       },
       {
         "name": "The Caption Floor Rule",
-        "body": "10px is for uppercase captions and nothing else. Anything a person reads as a sentence or a field name is at least 11px.",
+        "body": "10px is for uppercase captions and chart tick labels, and nothing else. Anything a person reads as a sentence or a field name is at least 11px.",
         "section": "typography"
       },
       {

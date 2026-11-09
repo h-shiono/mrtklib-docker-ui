@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import type { PosEpoch } from './types';
 import { qualityColor, qualityLabel } from '../../utils/quality';
 import { decodeClasSource, formatClasSource } from '../../utils/clasSource';
+import { FONT_SIZE } from '../../utils/typography';
 
 /** Tooltip line for the CLAS L6 source (#144); nothing without one. */
 function clasSourceLine(refid: number | null | undefined) {
@@ -146,7 +147,7 @@ export function MapView({
       }}
     >
       <Tooltip>
-        <div style={{ fontSize: '11px', lineHeight: 1.4 }}>
+        <div style={{ fontSize: FONT_SIZE.label, lineHeight: 1.4 }}>
           {stream && <div>{stream}</div>}
           <div><b>{epoch.time.toISOString().replace('T', ' ').replace('Z', '')} {timeLabel}</b></div>
           <div>Q={epoch.Q} ({qualityLabel(epoch.Q)})</div>
