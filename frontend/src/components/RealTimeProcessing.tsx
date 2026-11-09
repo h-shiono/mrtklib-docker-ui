@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { useLocalStorage, useDisclosure, useElementSize } from '@mantine/hooks';
 import {
   Card,
@@ -55,7 +55,7 @@ import type { Satellite } from '../types/satellite';
 import { TimeSeriesChart, type TimeSeriesPoint } from './TimeSeriesChart';
 import { MaskedPathInput } from './common/MaskedPathInput';
 import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
-import { RtMetricsRow } from './RtMetricsRow';
+import { ENDED_OPACITY, RtMetricsRow } from './RtMetricsRow';
 import { RtInputStatusRow } from './RtInputStatusRow';
 import { MapView, type PosEpoch } from './viewer';
 import { StatusBadge } from './common/StatusBadge';
@@ -352,6 +352,17 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   // A ref so the WebSocket onmessage closure (created once with empty deps)
   // never reads a stale value.
   const startingRef = useRef(false);
+  // A run that has ended stays on screen, dimmed, until the next one starts.
+  const [ended, setEndedState] = useState<{ at: string; exitCode: number | null } | null>(null);
+  const endedRef = useRef(ended);
+  const setEnded = useCallback((value: typeof ended) => {
+    endedRef.current = value;
+    setEndedState(value);
+  }, []);
+  const runStatusRef = useRef(runStatus);
+  useLayoutEffect(() => {
+    runStatusRef.current = runStatus;
+  });
   const [lastPosition, setLastPosition] = useState<PositionUpdate | null>(null);
   const [positionHistory, setPositionHistory] = useState<PositionPoint[]>([]);
   const [timeSeriesHistory, setTimeSeriesHistory] = useState<TimeSeriesPoint[]>([]);
@@ -419,7 +430,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   // Feed live status to the global bottom status bar (null clears it on stop).
   useEffect(() => {
     if (!onLiveStatus) return;
-    if (!lastPosition) {
+    if (!lastPosition || ended) {
       onLiveStatus(null);
       return;
     }
@@ -433,7 +444,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       age: lastPosition.age,
       satsVisible: satellites.length,
     });
-  }, [lastPosition, satellites, onLiveStatus]);
+  }, [lastPosition, ended, satellites, onLiveStatus]);
 
   // Build backend-compatible streams config
   const buildStreamsPayload = useCallback(() => ({
@@ -450,6 +461,23 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   // WebSocket for real-time updates. Connected for the component's whole
   // lifetime (not per run) and re-established on drop, so a reloaded page or a
   // reconnected SSH tunnel reattaches to a run the backend is still doing.
+  const endSession = useCallback((exitCode: number | null) => {
+    if (!endedRef.current) {
+      setEnded({ at: new Date().toLocaleTimeString('en-GB', { hour12: false }), exitCode });
+    }
+    setRunStatus(exitCode ? 'exited' : 'stopped');
+    setInputStreams([]);
+  }, [setEnded]);
+
+  const clearSession = useCallback(() => {
+    setEnded(null);
+    setLastPosition(null);
+    setPositionHistory([]);
+    setTimeSeriesHistory([]);
+    setSatellites([]);
+    setInputStreams([]);
+  }, [setEnded]);
+
   const connectWs = useCallback(() => {
     if (wsRef.current || unmountedRef.current) return;
     const ws = mrtkRunApi.connectWs();
@@ -466,13 +494,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           setTraceLines(Array.isArray(msg.traces) ? (msg.traces as string[]) : []);
           setTraceFile(typeof msg.trace_file === 'string' ? msg.trace_file : null);
           const positions = (Array.isArray(msg.positions) ? msg.positions : []) as PositionUpdate[];
-          if (positions.length === 0) {
-            setLastPosition(null);
-            setPositionHistory([]);
-            setTimeSeriesHistory([]);
-            setSatellites([]);
-            setInputStreams([]);
-          } else {
+          // Empty: nothing new to show. A run that ended while we were away is
+          // ended by the status that follows, and stays on screen.
+          if (positions.length > 0) {
+            setEnded(null);
             const pts = positions.map((p) => ({
               timestamp: p.timestamp || '',
               lat: p.lat,
@@ -499,24 +524,19 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           // what flipped the button back to Start the moment solutions appeared.
           if (msg.running === true) {
             // Positive confirmation the managed process is up (e.g. WS reconnect
-            // while a run is active).
+            // while a run is active). Started from another tab: the last
+            // session goes, as on a local Start.
+            if (endedRef.current) clearSession();
             setRunStatus('running');
           } else if (msg.running === false) {
-            // Only return to idle on a genuine process exit, or when no start is
-            // in flight (stale "not running" sent right on WS connect during
-            // startup must be ignored so the button stays on Stop). Outside
-            // startup, a connect-time "not running" means the run ended while
-            // this client was disconnected.
-            if (msg.exited || !startingRef.current) {
-              // Same as a local Stop: drop the dead run's position so the map,
-              // charts and global status bar stop showing it as live (covers a
-              // process exit and a Stop issued from another tab).
-              setRunStatus('idle');
-              setLastPosition(null);
-              setPositionHistory([]);
-              setTimeSeriesHistory([]);
-              setSatellites([]);
-              setInputStreams([]);
+            // A genuine exit carries `exited`. Without it this is the status
+            // sent on connect, which ends a run we believed was live (it ended
+            // while this client was disconnected) and must not disturb a start
+            // in flight or a page that was idle.
+            if (msg.exited) {
+              endSession(typeof msg.exit_code === 'number' ? msg.exit_code : null);
+            } else if (!startingRef.current && (runStatusRef.current === 'running' || runStatusRef.current === 'stopping')) {
+              endSession(null);
             }
           }
           if (msg.lat !== undefined) {
@@ -575,7 +595,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
         connectWs();
       }, 2000);
     };
-  }, []);
+  }, [clearSession, endSession, setEnded]);
 
   useEffect(() => {
     unmountedRef.current = false;
@@ -592,6 +612,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
   const handleStart = async () => {
     startingRef.current = true;
+    clearSession();
     setRunStatus('starting');
     setLogLines(prev => [...prev, '[INFO] Starting mrtk run -s ...']);
     setTraceLines([]);
@@ -634,11 +655,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
     setLogLines(prev => [...prev, '[INFO] Stopping ...']);
     try {
       await mrtkRunApi.stop();
-      setRunStatus('idle');
-      setLastPosition(null);
-      setPositionHistory([]);
-      setTimeSeriesHistory([]);
-      setInputStreams([]);
+      endSession(null);
       setLogLines(prev => [...prev, '[INFO] Stopped']);
     } catch (err) {
       setRunStatus('error');
@@ -660,7 +677,9 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                 <Title order={6} size="sm">Processing Configuration</Title>
               </Group>
               <Group gap="xs">
-                <StatusBadge tone={processTone(runStatus)}>{runStatus}</StatusBadge>
+                <StatusBadge tone={processTone(runStatus)}>
+                  {runStatus === 'exited' ? `exited (code ${ended?.exitCode})` : runStatus}
+                </StatusBadge>
                 <Tooltip label="Presets">
                   <ActionIcon aria-label="Presets" variant="light" color="gray" size={30} onClick={openPresets}>
                     <IconBookmark size={16} />
@@ -721,14 +740,14 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                     e.target.value = '';
                   }}
                 />
-                {!isRunning ? (
+                {runStatus !== 'running' && runStatus !== 'stopping' ? (
                   <Button size="xs" miw={PRIMARY_MIN_WIDTH} color="green" leftSection={<IconPlayerPlay size={14} />}
-                    onClick={handleStart} disabled={streams.input.rover.type === 'off'}>
+                    onClick={handleStart} loading={runStatus === 'starting'} disabled={streams.input.rover.type === 'off'}>
                     Start
                   </Button>
                 ) : (
                   <Button size="xs" miw={PRIMARY_MIN_WIDTH} color="red" leftSection={<IconPlayerStop size={14} />}
-                    onClick={handleStop}>
+                    onClick={handleStop} loading={runStatus === 'stopping'}>
                     Stop
                   </Button>
                 )}
@@ -827,7 +846,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           <Stack gap={6} style={{ flex: 1, minHeight: 0 }}>
 
             {/* 1. Metrics row (Time · Position · Quality · Ratio · Age · Satellites) */}
-            <RtMetricsRow lastPosition={lastPosition} satellites={satellites} />
+            <RtMetricsRow lastPosition={lastPosition} satellites={satellites} endedAt={lastPosition ? ended?.at ?? null : null} />
 
             {/* 3. Tab bar + 4. Chart area */}
             <Tabs value={monitorTab} onChange={setMonitorTab} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -856,7 +875,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
               <div ref={panelsRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
               <Tabs.Panel value="chart" pt={PANEL_TOP}>
-                <div style={{ display: 'flex', gap: 10, height: panelHeight, minHeight: 0 }}>
+                <div style={{ display: 'flex', gap: 10, height: panelHeight, minHeight: 0, opacity: ended ? ENDED_OPACITY : 1 }}>
                   {chartViews.includes('scatter') && (
                     <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
                       <PositionScatter fit points={positionHistory} maxPoints={MAX_HISTORY} />

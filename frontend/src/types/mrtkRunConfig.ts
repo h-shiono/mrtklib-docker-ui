@@ -112,4 +112,4 @@ export interface InputStreamStatus {
   hint: string | null;    // human-readable cause
 }
 
-export type RunStatus ='idle' | 'starting' | 'running' | 'stopping' | 'stopped' | 'error';
+export type RunStatus ='idle' | 'starting' | 'running' | 'stopping' | 'stopped' | 'exited' | 'error';
