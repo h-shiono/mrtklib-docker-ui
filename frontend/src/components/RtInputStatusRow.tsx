@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Box, Group, Stack, Text, Tooltip } from '@mantine/core';
 import type { InputStreamState, InputStreamStatus } from '../types/mrtkRunConfig';
 
@@ -47,6 +47,76 @@ function formatBytes(n: number): string {
   return `${n} B`;
 }
 
+/** Small uppercase caption of a status cell. */
+export function StatusCap({ children }: { children: ReactNode }) {
+  return <Text component="span" style={CAP}>{children}</Text>;
+}
+
+/** Colored dot, state label and an optional rate. */
+export function StatusLight({ color, label, labelDimmed = false, rate }: {
+  color: string;
+  label: string;
+  labelDimmed?: boolean;
+  rate?: string;
+}) {
+  return (
+    <Group gap={7} align="center" wrap="nowrap" style={{ minWidth: 0 }}>
+      <Box style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: color }} />
+      <Text component="span" style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1, color: labelDimmed ? 'var(--mantine-color-dimmed)' : color }}>
+        {label}
+      </Text>
+      {rate && (
+        <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: '11px', whiteSpace: 'nowrap' }}>
+          {rate}
+        </Text>
+      )}
+    </Group>
+  );
+}
+
+/** "Streaming status" footer of a live workspace (Real-Time, Stream Monitor).
+ *  Kept mounted while idle so the panel layout does not jump on Start/Stop. */
+export function StatusFooter({ active, faded = false, note, cellGap = 30, children }: {
+  /** Show the cells; otherwise "Not running". */
+  active: boolean;
+  /** The figures are out of date. */
+  faded?: boolean;
+  /** Warning after the title. */
+  note?: string | null;
+  /** Space between cells. */
+  cellGap?: number;
+  children: ReactNode;
+}) {
+  return (
+    <Box
+      style={{
+        flexShrink: 0,
+        minWidth: 0,
+        borderTop: '1px solid var(--mantine-color-default-border)',
+        padding: '8px 16px 4px',
+      }}
+    >
+      <Text component="span" style={{ ...CAP, display: 'block', marginBottom: 6 }}>
+        Streaming status
+        {note && (
+          <Text component="span" inherit style={{ color: 'var(--color-float)' }}>
+            {` · ${note}`}
+          </Text>
+        )}
+      </Text>
+      {active ? (
+        <Box style={{ display: 'flex', flexWrap: 'wrap', gap: cellGap, rowGap: 10, minWidth: 0, opacity: faded ? 0.45 : 1 }}>
+          {children}
+        </Box>
+      ) : (
+        <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: '11px' }}>
+          Not running
+        </Text>
+      )}
+    </Box>
+  );
+}
+
 function StreamCell({ s }: { s: InputStreamStatus }) {
   const st = STATE[s.state] ?? STATE.off;
   const off = s.state === 'off';
@@ -67,20 +137,10 @@ function StreamCell({ s }: { s: InputStreamStatus }) {
   return (
     <Tooltip label={tooltip} disabled={off} openDelay={300} multiline maw={420} withArrow>
       <Box style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 160px', minWidth: 0 }}>
-        <Text component="span" style={CAP}>
+        <StatusCap>
           {LABEL[s.name]}{!off && ` · ${s.type}`}
-        </Text>
-        <Group gap={7} align="center" wrap="nowrap" style={{ minWidth: 0 }}>
-          <Box style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: st.color }} />
-          <Text component="span" style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1, color: off ? 'var(--mantine-color-dimmed)' : st.color }}>
-            {st.label}
-          </Text>
-          {!off && (
-            <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: '11px', whiteSpace: 'nowrap' }}>
-              {formatBps(s.in_bps)}
-            </Text>
-          )}
-        </Group>
+        </StatusCap>
+        <StatusLight color={st.color} label={st.label} labelDimmed={off} rate={off ? undefined : formatBps(s.in_bps)} />
         {!off && detail && (
           <Text
             component="span"
@@ -108,33 +168,9 @@ export function RtInputStatusRow({ streams, updatedAt }: { streams: InputStreamS
   const ageS = Math.max(0, Math.round((now - updatedAt) / 1000));
   const stale = live && now - updatedAt > STALE_MS;
 
-  // Kept mounted while idle so the panel layout does not jump on Start/Stop.
   return (
-    <Box
-      style={{
-        flexShrink: 0,
-        minWidth: 0,
-        borderTop: '1px solid var(--mantine-color-default-border)',
-        padding: '8px 16px 4px',
-      }}
-    >
-      <Text component="span" style={{ ...CAP, display: 'block', marginBottom: 6 }}>
-        Streaming status
-        {stale && (
-          <Text component="span" inherit style={{ color: 'var(--color-float)' }}>
-            {` · no update for ${ageS} s`}
-          </Text>
-        )}
-      </Text>
-      {live ? (
-        <Box style={{ display: 'flex', flexWrap: 'wrap', gap: 30, rowGap: 10, minWidth: 0, opacity: stale ? 0.45 : 1 }}>
-          {streams.map((s) => <StreamCell key={s.name} s={s} />)}
-        </Box>
-      ) : (
-        <Text component="span" c="dimmed" style={{ fontFamily: MONO, fontSize: '11px' }}>
-          Not running
-        </Text>
-      )}
-    </Box>
+    <StatusFooter active={live} faded={stale} note={stale ? `no update for ${ageS} s` : null}>
+      {streams.map((s) => <StreamCell key={s.name} s={s} />)}
+    </StatusFooter>
   );
 }

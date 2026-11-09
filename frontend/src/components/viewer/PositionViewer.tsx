@@ -11,6 +11,7 @@ import {
   ActionIcon,
   Box,
   Switch,
+  Divider,
 } from '@mantine/core';
 import { IconSettings, IconAdjustments, IconZoomReset } from '@tabler/icons-react';
 import {
@@ -81,7 +82,11 @@ interface YRangeSettings {
   max: number;
 }
 
-const DEFAULT_Y_RANGE: YRangeSettings = { auto: true, symmetric: false, min: 0, max: 0 };
+const DEFAULT_Y_RANGE: YRangeSettings = { auto: true, symmetric: true, min: 0, max: 0 };
+
+/** Where an xs Switch's label starts (track + label padding), to line a row
+ *  up under the labels. */
+const SWITCH_LABEL_OFFSET = 36;
 
 export function PositionViewer({
   epochs,
@@ -117,6 +122,7 @@ export function PositionViewer({
   // Unified Y-axis range for ENU charts (ns is always auto)
   const [enuYRange, setEnuYRange] = useState<YRangeSettings>({ ...DEFAULT_Y_RANGE });
   const [yAxisPopoverOpened, setYAxisPopoverOpened] = useState(false);
+  const [showEnuStats, setShowEnuStats] = useState(true);
 
   const handleXRangeChange = setXRange;
 
@@ -250,6 +256,7 @@ export function PositionViewer({
                 showXLabels={last}
                 markers={l6Markers}
                 showMarkerLabels={i === 0}
+                showStats={showEnuStats}
               />
             </div>
           );
@@ -310,7 +317,7 @@ export function PositionViewer({
               position="bottom-end"
               withArrow
               shadow="md"
-              width={300}
+              width={320}
             >
               <Popover.Target>
                 <ActionIcon
@@ -324,51 +331,60 @@ export function PositionViewer({
               </Popover.Target>
               <Popover.Dropdown>
                 <Stack gap="xs">
-                  <Group justify="space-between">
-                    <Text size="xs" fw={500}>ENU Y-Axis Range</Text>
-                    <Switch
-                      size="xs"
-                      label="Auto"
-                      checked={enuYRange.auto}
-                      onChange={(e) =>
-                        setEnuYRange((prev) => ({ ...prev, auto: e.currentTarget.checked }))
-                      }
-                      styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
-                    />
+                  <Switch
+                    size="xs"
+                    label="ENU Y-Axis Range: Auto"
+                    checked={enuYRange.auto}
+                    onChange={(e) => {
+                      const auto = e.currentTarget.checked;
+                      setEnuYRange((prev) => ({ ...prev, auto }));
+                    }}
+                    styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
+                  />
+                  <Switch
+                    size="xs"
+                    label="Symmetric about 0"
+                    checked={enuYRange.symmetric}
+                    disabled={!enuYRange.auto}
+                    onChange={(e) => {
+                      const symmetric = e.currentTarget.checked;
+                      setEnuYRange((prev) => ({ ...prev, symmetric }));
+                    }}
+                    styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
+                  />
+                  <Group gap={6} wrap="nowrap" style={{ paddingLeft: SWITCH_LABEL_OFFSET }}>
+                    {(['min', 'max'] as const).map((bound) => (
+                      <Group key={bound} gap={4} wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+                        <Text
+                          c={enuYRange.auto ? 'dimmed' : undefined}
+                          style={{ fontSize: '10px', flexShrink: 0 }}
+                        >
+                          {bound === 'min' ? 'Min (m)' : 'Max (m)'}
+                        </Text>
+                        <NumberInput
+                          size="xs"
+                          aria-label={bound === 'min' ? 'Min (m)' : 'Max (m)'}
+                          value={enuYRange[bound]}
+                          disabled={enuYRange.auto}
+                          onChange={(v) => setEnuYRange((prev) => ({ ...prev, [bound]: Number(v) }))}
+                          decimalScale={4}
+                          hideControls
+                          styles={{
+                            root: { flex: 1, minWidth: 0 },
+                            input: { fontFamily: 'var(--mantine-font-family-monospace)' },
+                          }}
+                        />
+                      </Group>
+                    ))}
                   </Group>
-                  {enuYRange.auto && (
-                    <Switch
-                      size="xs"
-                      label="Symmetric about 0"
-                      checked={enuYRange.symmetric}
-                      onChange={(e) =>
-                        setEnuYRange((prev) => ({ ...prev, symmetric: e.currentTarget.checked }))
-                      }
-                      styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
-                    />
-                  )}
-                  {!enuYRange.auto && (
-                    <Group gap={4}>
-                      <NumberInput
-                        size="xs"
-                        label="Min (m)"
-                        value={enuYRange.min}
-                        onChange={(v) => setEnuYRange((prev) => ({ ...prev, min: Number(v) }))}
-                        decimalScale={4}
-                        hideControls
-                        styles={{ root: { flex: 1 }, label: { fontSize: '10px' } }}
-                      />
-                      <NumberInput
-                        size="xs"
-                        label="Max (m)"
-                        value={enuYRange.max}
-                        onChange={(v) => setEnuYRange((prev) => ({ ...prev, max: Number(v) }))}
-                        decimalScale={4}
-                        hideControls
-                        styles={{ root: { flex: 1 }, label: { fontSize: '10px' } }}
-                      />
-                    </Group>
-                  )}
+                  <Divider />
+                  <Switch
+                    size="xs"
+                    label="Show statistics"
+                    checked={showEnuStats}
+                    onChange={(e) => setShowEnuStats(e.currentTarget.checked)}
+                    styles={{ label: { fontSize: '10px', paddingLeft: 4 } }}
+                  />
                 </Stack>
               </Popover.Dropdown>
             </Popover>

@@ -17,7 +17,6 @@ import {
   Card,
   Chip,
   Code,
-  Grid,
   Group,
   Popover,
   ScrollArea,
@@ -29,7 +28,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { useDisclosure, useLocalStorage } from '@mantine/hooks';
+import { useDisclosure, useElementSize, useLocalStorage } from '@mantine/hooks';
 import { IconPlayerPlay, IconPlayerStop, IconQuestionMark } from '@tabler/icons-react';
 import {
   streamMonitorApi,
@@ -58,6 +57,8 @@ import { MaskedPathInput } from './common/MaskedPathInput';
 import { JumpToLatest } from './common/JumpToLatest';
 import { StreamPathHelp } from './StreamPathHelp';
 import { RtMetricsRow } from './RtMetricsRow';
+import { StreamMonitorStatusRow } from './StreamMonitorStatusRow';
+import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { SkySnrPanel } from './SkySnrPanel';
 import { StreamMessagePanel } from './StreamMessagePanel';
 import { PositionViewer, type ViewMode } from './viewer';
@@ -68,9 +69,14 @@ const MONO = "'IBM Plex Mono', monospace";
 const MAX_EPOCHS = 3600;
 const MAX_LOG_LINES = 500;
 const NO_SATELLITES: MonitorSatellite[] = [];
-/** Height of the chart / text area. The page has no tall sibling to stretch
- *  against, and the viewer takes a pixel height (lessons L02). */
-const CHART_HEIGHT = 460;
+/** The workspace fills the window under the header (lessons L02: the config
+ *  column has no tall content to stretch against). */
+const WORKSPACE_MIN_HEIGHT = 'calc(100vh - 114px)';
+/** Smallest chart / text area, enough for a legible Sky / SNR panel. The
+ *  viewer takes a pixel height, so the area is measured. */
+const MIN_CHART_HEIGHT = 420;
+/** Padding above each tab panel. */
+const PANEL_TOP = 6;
 
 const INPUT_TYPES: { value: MonitorInputType; label: string; placeholder: string }[] = [
   { value: 'serial', label: 'Serial', placeholder: 'ttyACM0:115200' },
@@ -146,20 +152,6 @@ function Row({ label, children, minHeight }: {
   );
 }
 
-function Mono({ children, c }: { children: React.ReactNode; c?: string }) {
-  return (
-    <Text size="sm" c={c} truncate="end" style={{ fontFamily: MONO, fontSize: 12 }}>
-      {children}
-    </Text>
-  );
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KiB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MiB`;
-}
-
 /** Keep at most one relay status line (the newest): they arrive every few
  *  seconds and would push everything else out of the buffer. */
 function appendLog(prev: string[], line: string): string[] {
@@ -167,7 +159,10 @@ function appendLog(prev: string[], line: string): string[] {
   return [...base.slice(-(MAX_LOG_LINES - 1)), line];
 }
 
-export function StreamMonitorPanel() {
+export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
+  configOpen?: boolean;
+  onToggleConfig?: () => void;
+}) {
   // ── form (persisted; separate keys so an old stored shape cannot break it, L28)
   const [inputType, setInputType] = useLocalStorage<string>({
     key: 'mrtk-stream-monitor-input-type',
@@ -215,6 +210,8 @@ export function StreamMonitorPanel() {
   const [wsOpen, setWsOpen] = useState(false);
 
   const [tab, setTab] = useState<string | null>('chart');
+  const { ref: panelsRef, height: panelsHeight } = useElementSize();
+  const chartHeight = Math.max(MIN_CHART_HEIGHT, panelsHeight - PANEL_TOP);
   // Chart views, side by side; kept per browser. A stored value from an
   // older layout (e.g. 'position') is dropped (L28).
   const [storedViews, setChartViews] = useLocalStorage<string[]>({
@@ -419,24 +416,27 @@ export function StreamMonitorPanel() {
   const consoleScroll = useFollowScroll(tab === 'console', relayLog.console);
 
   const state: MonitorState = submitting && !running ? 'starting' : status?.state ?? 'idle';
-  const msgCounts = Object.entries(status?.msg_counts ?? {}).sort((a, b) => b[1] - a[1]);
-  // Unknown bytes are normal at the start (the stream is joined mid-frame);
-  // bad checksums and decode errors are not.
-  const framingIssues = status ? status.bad_frames + status.decode_errors : 0;
   // The relay's status line is only current while it runs.
   const relayStatusLine = live ? relayLog.status : null;
 
   return (
-    <Stack gap="sm">
-      <Grid gutter="sm" align="stretch">
-        {/* Input */}
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder p="md" h="100%">
-            <Group justify="space-between" mb="xs">
-              <Group gap={6} wrap="nowrap">
-                <Title order={5}>Stream Monitor</Title>
-                <MonitorHelp />
-              </Group>
+    <ConsoleFrame
+      configOpen={configOpen}
+      onToggleConfig={onToggleConfig ?? (() => {})}
+      config={
+        <Card withBorder p="xs" h="100%">
+          <Group justify="space-between" mb="xs" wrap="nowrap">
+            <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+              {onToggleConfig && <ConfigCollapseButton onClick={onToggleConfig} />}
+              <Title order={6} size="xs">Stream Monitor</Title>
+              <MonitorHelp />
+            </Group>
+            <Group gap="xs" wrap="nowrap">
+              {state !== 'idle' && (
+                <Badge color={STATE_COLOR[state]} variant="dot" size="sm">
+                  {state}
+                </Badge>
+              )}
               {!running ? (
                 <Button
                   size="xs"
@@ -460,313 +460,225 @@ export function StreamMonitorPanel() {
                 </Button>
               )}
             </Group>
-            <Row label="Input type">
+          </Group>
+          <Row label="Input type">
+            <Select
+              size="xs"
+              value={typeMeta.value}
+              onChange={(v) => v && setInputType(v)}
+              data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
+              allowDeselect={false}
+              disabled={busy}
+            />
+          </Row>
+          <Row label="Path">
+            <Group gap={6} wrap="nowrap">
+              <Box style={{ flex: 1, minWidth: 0 }}>
+                <MaskedPathInput
+                  size="xs"
+                  value={inputPath}
+                  onChange={setInputPath}
+                  placeholder={typeMeta.placeholder}
+                  disabled={busy}
+                  styles={{ input: { fontFamily: MONO } }}
+                />
+              </Box>
+              <StreamPathHelp />
+            </Group>
+          </Row>
+          {isFile && (
+            <Row label="Playback">
               <Select
                 size="xs"
-                value={typeMeta.value}
-                onChange={(v) => v && setInputType(v)}
-                data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
+                value={fileSpeed}
+                onChange={(v) => v && setFileSpeed(v)}
+                data={FILE_SPEEDS}
                 allowDeselect={false}
                 disabled={busy}
               />
             </Row>
-            <Row label="Path">
-              <Group gap={6} wrap="nowrap">
-                <Box style={{ flex: 1, minWidth: 0 }}>
-                  <MaskedPathInput
-                    size="xs"
-                    value={inputPath}
-                    onChange={setInputPath}
-                    placeholder={typeMeta.placeholder}
-                    disabled={busy}
-                    styles={{ input: { fontFamily: MONO } }}
-                  />
-                </Box>
-                <StreamPathHelp />
-              </Group>
-            </Row>
-            {isFile && (
-              <Row label="Playback">
-                <Select
-                  size="xs"
-                  value={fileSpeed}
-                  onChange={(v) => v && setFileSpeed(v)}
-                  data={FILE_SPEEDS}
-                  allowDeselect={false}
-                  disabled={busy}
-                />
-              </Row>
-            )}
-            {!isFile && (
-              <Row label="Save raw stream" minHeight={30}>
-                <Switch
-                  size="xs"
-                  checked={saveRaw}
-                  onChange={(e) => setSaveRaw(e.currentTarget.checked)}
-                  disabled={busy}
-                />
-              </Row>
-            )}
-            {!isFile && saveRaw && (
-              <Row label="Raw log file">
-                <TextInput
-                  size="xs"
-                  value={rawLog}
-                  onChange={(e) => setRawLog(e.currentTarget.value)}
-                  placeholder={DEFAULT_RAW_LOG}
-                  disabled={busy}
-                  styles={{ input: { fontFamily: MONO } }}
-                />
-              </Row>
-            )}
-            <Row label="CLAS L6 source" minHeight={30}>
+          )}
+          {!isFile && (
+            <Row label="Save raw stream" minHeight={30}>
               <Switch
                 size="xs"
-                checked={clasSource}
-                onChange={(e) => setClasSource(e.currentTarget.checked)}
-                title="Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there."
+                checked={saveRaw}
+                onChange={(e) => setSaveRaw(e.currentTarget.checked)}
+                disabled={busy}
               />
             </Row>
-            {requestError && (
-              <Text size="sm" c="red" mt={4}>
-                {requestError}
-              </Text>
-            )}
-          </Card>
-        </Grid.Col>
+          )}
+          {!isFile && saveRaw && (
+            <Row label="Raw log file">
+              <TextInput
+                size="xs"
+                value={rawLog}
+                onChange={(e) => setRawLog(e.currentTarget.value)}
+                placeholder={DEFAULT_RAW_LOG}
+                disabled={busy}
+                styles={{ input: { fontFamily: MONO } }}
+              />
+            </Row>
+          )}
+          <Row label="CLAS L6 source" minHeight={30}>
+            <Switch
+              size="xs"
+              checked={clasSource}
+              onChange={(e) => setClasSource(e.currentTarget.checked)}
+              title="Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there."
+            />
+          </Row>
+          {requestError && (
+            <Text size="sm" c="red" mt={4}>
+              {requestError}
+            </Text>
+          )}
+        </Card>
+      }
+      workspace={
+        <Card withBorder p="xs" style={{ display: 'flex', flexDirection: 'column', minHeight: WORKSPACE_MIN_HEIGHT }}>
+          <Stack gap={6} style={{ flex: '1 1 auto', minHeight: 0 }}>
+            <RtMetricsRow
+              lastPosition={metricsPosition}
+              satellites={satellites}
+              timeSystem={last?.time_sys ?? 'GPST'}
+            />
 
-        {/* Stream status */}
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder p="md" h="100%">
-            <Title order={5} mb="xs">Stream</Title>
-            <Row label="State">
-              <Group gap="xs" wrap="nowrap">
-                <Badge color={STATE_COLOR[state]} variant="dot" size="sm">
-                  {state}
-                </Badge>
-                {status && !wsOpen ? (
-                  <Text size="xs" c="orange">connection to the server lost · reconnecting</Text>
-                ) : (
-                  live && status && (
-                    status.file ? (
-                      <Text size="xs" c={status.file.eof ? 'dimmed' : 'green'}>
-                        {status.file.eof ? 'end of file' : 'reading'}
-                      </Text>
-                    ) : (
-                      // `connected` is the backend's link to the relay, not the
-                      // relay's input: judge the input by the bytes arriving.
-                      <Text size="xs" c={status.bytes_per_sec > 0 ? 'green' : 'orange'}>
-                        {status.bytes_per_sec > 0 ? 'receiving' : status.connected ? 'no data' : 'starting relay'}
-                      </Text>
-                    )
-                  )
-                )}
+            <Tabs value={tab} onChange={setTab} style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <Group justify="space-between" align="center" gap={0}>
+                <Tabs.List>
+                  <Tabs.Tab value="chart" style={{ fontSize: 11 }}>Chart</Tabs.Tab>
+                  <Tabs.Tab value="solution" style={{ fontSize: 11 }}>Solution</Tabs.Tab>
+                  <Tabs.Tab value="console" style={{ fontSize: 11 }}>Console</Tabs.Tab>
+                  <Tabs.Tab value="message" style={{ fontSize: 11 }}>Message</Tabs.Tab>
+                </Tabs.List>
+                <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
+                  <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
+                    <Chip value="2d" size="xs" variant="light">2D</Chip>
+                    <Chip value="enu" size="xs" variant="light">ENU</Chip>
+                    <Chip value="map" size="xs" variant="light">Map</Chip>
+                    <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
+                  </Group>
+                </Chip.Group>
               </Group>
-            </Row>
-            {state === 'error' && status?.error_message && (
-              <Row label="Error">
-                <Text size="sm" c="red">{status.error_message}</Text>
-              </Row>
-            )}
-            <Row label="Input">
-              <Mono>{status?.input ? maskLogLine(status.input) : '—'}</Mono>
-            </Row>
-            {status?.raw_log && (
-              <Row label="Raw log">
-                <Mono>{status.raw_log}</Mono>
-              </Row>
-            )}
-            {status?.file ? (
-              <Row label="Read">
-                <Mono>
-                  {`${formatBytes(status.file.read)} of ${formatBytes(status.file.size)}`
-                    + ` (${status.file.size > 0 ? Math.floor((status.file.read / status.file.size) * 100) : 100}%)`
-                    + ` · ${status.file.speed ? `${status.file.speed}× real time` : 'all at once'}`}
-                </Mono>
-              </Row>
-            ) : (
-              <Row label="Data rate">
-                <Mono>
-                  {status && live
-                    ? `${formatBytes(status.bytes_per_sec)}/s · ${formatBytes(status.bytes_total)} total`
-                    : '—'}
-                </Mono>
-              </Row>
-            )}
-            <Row label="Position from">
-              <Mono>{status?.epoch_source ?? '—'}</Mono>
-            </Row>
-            <Row label="Satellites from">
-              <Mono>{status?.satellite_source ?? '—'}</Mono>
-            </Row>
-            {lastL6 && (
-              // CLAS: the GGA station id of `mrtk run` NMEA output (#144)
-              <Row label="L6 source">
-                <Mono>{`${formatClasSource(lastL6)} (${String(last?.refid).padStart(4, '0')})`}</Mono>
-              </Row>
-            )}
-            {lastStationId && (
-              <Row label="Station ID">
-                <Mono>{lastStationId}</Mono>
-              </Row>
-            )}
-            <Row label="Messages">
-              <Mono>
-                {msgCounts.length > 0
-                  ? msgCounts.map(([k, n]) => `${k} ${n}`).join(' · ')
-                  : '—'}
-              </Mono>
-            </Row>
-            <Row label="Undecoded">
-              <Mono c={framingIssues > 0 ? 'orange' : undefined}>
-                {status
-                  ? `${formatBytes(status.unknown_bytes)} unknown · ${status.bad_frames} bad frames · ${status.decode_errors} decode errors`
-                  : '—'}
-              </Mono>
-            </Row>
-          </Card>
-        </Grid.Col>
-      </Grid>
 
-      {/* Workspace */}
-      <Card withBorder p="xs">
-        <Stack gap={6}>
-          <RtMetricsRow
-            lastPosition={metricsPosition}
-            satellites={satellites}
-            timeSystem={last?.time_sys ?? 'GPST'}
-          />
-
-          <Tabs value={tab} onChange={setTab}>
-            <Group justify="space-between" align="center" gap={0}>
-              <Tabs.List>
-                <Tabs.Tab value="chart" style={{ fontSize: 11 }}>Chart</Tabs.Tab>
-                <Tabs.Tab value="solution" style={{ fontSize: 11 }}>Solution</Tabs.Tab>
-                <Tabs.Tab value="console" style={{ fontSize: 11 }}>Console</Tabs.Tab>
-                <Tabs.Tab value="message" style={{ fontSize: 11 }}>Message</Tabs.Tab>
-              </Tabs.List>
-              <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
-                <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
-                  <Chip value="2d" size="xs" variant="light">2D</Chip>
-                  <Chip value="enu" size="xs" variant="light">ENU</Chip>
-                  <Chip value="map" size="xs" variant="light">Map</Chip>
-                  <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
-                </Group>
-              </Chip.Group>
-            </Group>
-
-            <Tabs.Panel value="chart" pt={6}>
-              <div style={{ display: 'flex', gap: 10, height: CHART_HEIGHT, minHeight: 0 }}>
-                {positionViews.length > 0 && (
-                  // One share of the width per view
-                  <div style={{ flex: positionViews.length, minWidth: 0, minHeight: 0 }}>
-                    {/* The PP Result Viewer's views over the live epochs,
-                        sharing reference and legend; a new session
-                        (started_at) resets zoom and map. */}
-                    <PositionViewer
-                      epochs={posEpochs}
-                      dataKey={status?.started_at ?? ''}
-                      maxHeight={CHART_HEIGHT}
-                      timeSystem={last?.time_sys ?? 'GPST'}
-                      emptyText={live ? 'Waiting for positions…' : 'No position data'}
-                      views={positionViews}
-                      clasSource={clasSource}
-                    />
+              {/* A fixed basis, not its content: the measured height must not feed back. */}
+              <div ref={panelsRef} style={{ flex: `1 1 ${MIN_CHART_HEIGHT + PANEL_TOP}px`, minHeight: 0, overflow: 'hidden' }}>
+                <Tabs.Panel value="chart" pt={PANEL_TOP}>
+                  <div style={{ display: 'flex', gap: 10, height: chartHeight, minHeight: 0 }}>
+                    {positionViews.length > 0 && (
+                      // One share of the width per view
+                      <div style={{ flex: positionViews.length, minWidth: 0, minHeight: 0 }}>
+                        {/* The PP Result Viewer's views over the live epochs,
+                            sharing reference and legend; a new session
+                            (started_at) resets zoom and map. */}
+                        <PositionViewer
+                          epochs={posEpochs}
+                          dataKey={status?.started_at ?? ''}
+                          maxHeight={chartHeight}
+                          timeSystem={last?.time_sys ?? 'GPST'}
+                          emptyText={live ? 'Waiting for positions…' : 'No position data'}
+                          views={positionViews}
+                          clasSource={clasSource}
+                        />
+                      </div>
+                    )}
+                    {chartViews.includes('skysnr') && (
+                      <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                        <SkySnrPanel satellites={satellites} updateTime={satTime} />
+                      </div>
+                    )}
                   </div>
-                )}
-                {chartViews.includes('skysnr') && (
-                  <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                    <SkySnrPanel satellites={satellites} updateTime={satTime} />
-                  </div>
-                )}
-              </div>
-            </Tabs.Panel>
+                </Tabs.Panel>
 
-            <Tabs.Panel value="solution" pt={6}>
-              <Box pos="relative">
-                <ScrollArea
-                  h={CHART_HEIGHT}
-                  {...solutionScroll.scrollProps}
-                  styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-                >
-                  <Text
-                    c={epochs.length > 0 ? 'gray.4' : 'dimmed'}
-                    fs={epochs.length > 0 ? undefined : 'italic'}
-                    style={{ fontFamily: MONO, whiteSpace: 'pre', fontSize: '11px', lineHeight: 1.5 }}
-                  >
-                    {solutionScroll.shown.length > 0
-                      ? solutionScroll.shown
-                          .map((e) =>
-                            [
-                              `${rtTimestamp(e.time)} ${e.time_sys}`,
-                              e.lat.toFixed(8).padStart(13),
-                              e.lon.toFixed(8).padStart(14),
-                              (e.height != null ? e.height.toFixed(3) : '—').padStart(10),
-                              `Q=${e.Q}`,
-                              `ns=${e.ns ?? '—'}`,
-                            ].join('  '),
-                          )
-                          .join('\n')
-                      : 'No solution data yet.'}
-                  </Text>
-                </ScrollArea>
-                {solutionScroll.held && <JumpToLatest onClick={solutionScroll.resume} />}
-              </Box>
-            </Tabs.Panel>
-
-            <Tabs.Panel value="console" pt={6}>
-              <Box pos="relative">
-                <ScrollArea
-                  h={CHART_HEIGHT}
-                  {...consoleScroll.scrollProps}
-                  styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-                >
-                  {consoleScroll.shown.length > 0 ? (
-                    consoleScroll.shown.map((line, i) => (
+                <Tabs.Panel value="solution" pt={PANEL_TOP}>
+                  <Box pos="relative">
+                    <ScrollArea
+                      h={chartHeight}
+                      {...solutionScroll.scrollProps}
+                      styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
+                    >
                       <Text
-                        key={i}
-                        c="gray.4"
-                        style={{ fontFamily: MONO, fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+                        c={epochs.length > 0 ? 'gray.4' : 'dimmed'}
+                        fs={epochs.length > 0 ? undefined : 'italic'}
+                        style={{ fontFamily: MONO, whiteSpace: 'pre', fontSize: '11px', lineHeight: 1.5 }}
                       >
-                        {maskLogLine(line)}
+                        {solutionScroll.shown.length > 0
+                          ? solutionScroll.shown
+                              .map((e) =>
+                                [
+                                  `${rtTimestamp(e.time)} ${e.time_sys}`,
+                                  e.lat.toFixed(8).padStart(13),
+                                  e.lon.toFixed(8).padStart(14),
+                                  (e.height != null ? e.height.toFixed(3) : '—').padStart(10),
+                                  `Q=${e.Q}`,
+                                  `ns=${e.ns ?? '—'}`,
+                                ].join('  '),
+                              )
+                              .join('\n')
+                          : 'No solution data yet.'}
                       </Text>
-                    ))
-                  ) : (
-                    <Text c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: '11px' }}>
-                      No log output yet.
-                    </Text>
+                    </ScrollArea>
+                    {solutionScroll.held && <JumpToLatest onClick={solutionScroll.resume} />}
+                  </Box>
+                </Tabs.Panel>
+
+                <Tabs.Panel value="console" pt={PANEL_TOP}>
+                  <Box pos="relative">
+                    <ScrollArea
+                      h={chartHeight}
+                      {...consoleScroll.scrollProps}
+                      styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
+                    >
+                      {consoleScroll.shown.length > 0 ? (
+                        consoleScroll.shown.map((line, i) => (
+                          <Text
+                            key={i}
+                            c="gray.4"
+                            style={{ fontFamily: MONO, fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+                          >
+                            {maskLogLine(line)}
+                          </Text>
+                        ))
+                      ) : (
+                        <Text c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: '11px' }}>
+                          No log output yet.
+                        </Text>
+                      )}
+                    </ScrollArea>
+                    {consoleScroll.held && <JumpToLatest onClick={consoleScroll.resume} />}
+                  </Box>
+                </Tabs.Panel>
+
+                <Tabs.Panel value="message" pt={PANEL_TOP}>
+                  {tab === 'message' && (
+                    <StreamMessagePanel
+                      types={messageTypes}
+                      rows={messageRows}
+                      selected={messageLabel}
+                      onSelect={handleSelectMessage}
+                      now={messageNow}
+                      showAge={!status?.file}
+                      height={chartHeight}
+                    />
                   )}
-                </ScrollArea>
-                {consoleScroll.held && <JumpToLatest onClick={consoleScroll.resume} />}
-              </Box>
-            </Tabs.Panel>
+                </Tabs.Panel>
+              </div>
+            </Tabs>
 
-            <Tabs.Panel value="message" pt={6}>
-              {tab === 'message' && (
-                <StreamMessagePanel
-                  types={messageTypes}
-                  rows={messageRows}
-                  selected={messageLabel}
-                  onSelect={handleSelectMessage}
-                  now={messageNow}
-                  showAge={!status?.file}
-                  height={CHART_HEIGHT}
-                />
-              )}
-            </Tabs.Panel>
-          </Tabs>
-
-          {/* Latest mrtk relay status line (kept out of the console) */}
-          <Text
-            c="dimmed"
-            truncate="end"
-            title={relayStatusLine ? maskLogLine(relayStatusLine) : undefined}
-            style={{ fontFamily: MONO, fontSize: '11px', padding: '0 4px', minHeight: 17 }}
-          >
-            {relayStatusLine ? `relay  ${maskLogLine(relayStatusLine)}` : ''}
-          </Text>
-        </Stack>
-      </Card>
-    </Stack>
+            {/* Streaming status (same footer as Real-Time) */}
+            <StreamMonitorStatusRow
+              status={status}
+              state={state}
+              live={live}
+              wsOpen={wsOpen}
+              l6Source={lastL6 ? `${formatClasSource(lastL6)} (${String(last?.refid).padStart(4, '0')})` : null}
+              stationId={lastStationId}
+              relayLine={relayStatusLine}
+            />
+          </Stack>
+        </Card>
+      }
+    />
   );
 }

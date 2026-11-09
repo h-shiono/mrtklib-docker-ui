@@ -1650,7 +1650,7 @@ function App() {
           <StreamRelayView />
         </div>
         <div style={{ display: activeTab === 'stream-monitor' ? undefined : 'none' }}>
-          <StreamMonitorPanel />
+          <StreamMonitorPanel configOpen={configOpen} onToggleConfig={toggleConfig} />
         </div>
         <div style={{ display: activeTab === 'conversion' ? undefined : 'none' }}>
           <ConversionPanel />
