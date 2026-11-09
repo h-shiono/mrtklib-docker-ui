@@ -569,6 +569,17 @@ def test_message_rows_come_from_the_selected_stream(relay, client):
     _stop_both(client)
 
 
+def test_a_stopped_session_replays_no_message_rows(relay, client):
+    _start(client, "a")
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        label = _receive_until(ws, lambda m: m["type"] == "messages" and m["types"])["types"][0]["label"]
+        client.post("/api/stream-monitor/stop")
+        _receive_until(ws, lambda m: m["type"] == "status" and m.get("exited"))
+        ws.send_text(json.dumps({"type": "select_message", "label": label}))
+        rows = _receive_until(ws, lambda m: m["type"] == "message_rows")
+        assert rows["reset"] and rows["rows"] == []
+
+
 def test_two_streams_get_different_raw_logs(tmp_path):
     raw = str(tmp_path / "mon_%Y.raw")
     now = datetime(2026, 11, 9, 4, 0, 0, tzinfo=timezone.utc)
