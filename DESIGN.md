@@ -116,8 +116,9 @@ components:
 
 > **Status.** Adopted 2026-11-09 as the target for the interface. The code is
 > being migrated in stages; where it differs from this file, this file wins.
-> Not yet in code: `LogView`, `FormRow`, the shared workspace skeleton and the
-> Run Ending behaviour.
+> Not yet in code: `LogView`, the shared workspace skeleton, the Run Ending
+> behaviour, and `<label>` association on the Processing Configuration rows,
+> which match `FormRow` visually but do not use it yet.
 
 ## Overview
 

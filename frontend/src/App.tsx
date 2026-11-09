@@ -68,6 +68,8 @@ import type { InputStream, OutputStream, StreamType } from './types/streamConfig
 import type { BuilderConfig } from './types/streamConfig';
 import { generateRelayArgs, parseRelayArgs } from './utils/streamArgs';
 import { FONT_SIZE, MONO } from './utils/typography';
+import { FormRow } from './components/common/FormRow';
+import { FORM_LABEL_GAP } from './utils/formLayout';
 
 function ColorSchemeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -1278,65 +1280,51 @@ function MultiStreamPanel() {
                     </Group>
 
                     {/* Input */}
-                    <Box>
-                      <Group gap={4} mb={2}><Text size="xs" fw={500}>Input</Text><StreamPathHelp /></Group>
-                      <Group gap="xs" grow>
+                    <FormRow label={<Group gap={4} wrap="nowrap">Input<StreamPathHelp /></Group>}>
+                      <Group gap={FORM_LABEL_GAP} wrap="nowrap">
                         <Select
-                          size="xs"
                           value={stream.input.type}
                           onChange={(v) => handleInputTypeChange(stream.id, v as StreamType)}
                           data={STREAM_TYPE_OPTIONS}
-                          style={{ maxWidth: 120 }}
+                          style={{ width: 120, flexShrink: 0 }}
                         />
                         <MaskedPathInput
-                          size="xs"
                           value={stream.input.path}
                           onChange={(v) => handleInputPathChange(stream.id, v)}
                           placeholder={PATH_PLACEHOLDER_FOR_TYPE[stream.input.type]}
                           styles={{ input: { fontFamily: MONO } }}
+                          style={{ flex: 1, minWidth: 0 }}
                         />
                       </Group>
-                    </Box>
+                    </FormRow>
 
                     {/* Outputs */}
-                    <Box>
-                      <Group justify="space-between" mb={2}>
-                        <Group gap={4}><Text size="xs" fw={500}>Outputs</Text><StreamPathHelp /></Group>
-                        <ActionIcon variant="light" color="blue" size="xs" onClick={() => handleAddOutput(stream.id)}>
-                          <IconPlus size={10} />
-                        </ActionIcon>
-                      </Group>
-                      <Stack gap={4}>
+                    <FormRow
+                      label={<Group gap={4} wrap="nowrap">Outputs<StreamPathHelp /></Group>}
+                      align="flex-start"
+                      trailing={<ActionIcon variant="light" color="blue" size="xs" onClick={() => handleAddOutput(stream.id)}> <IconPlus size={10} /> </ActionIcon>}
+                    >
+                      <Stack gap={6}>
                         {stream.outputs.map((output) => (
-                          <Group key={output.id} gap="xs" grow wrap="nowrap">
+                          <Group key={output.id} gap={FORM_LABEL_GAP} wrap="nowrap">
                             <Select
-                              size="xs"
                               value={output.type}
                               onChange={(v) => handleOutputTypeChange(stream.id, output.id, v as StreamType)}
                               data={STREAM_TYPE_OPTIONS}
-                              style={{ maxWidth: 120, flexShrink: 0 }}
+                              style={{ width: 120, flexShrink: 0 }}
                             />
                             <MaskedPathInput
-                              size="xs"
                               value={output.path}
                               onChange={(v) => handleOutputPathChange(stream.id, output.id, v)}
                               placeholder={PATH_PLACEHOLDER_FOR_TYPE[output.type]}
                               styles={{ input: { fontFamily: MONO } }}
+                              style={{ flex: 1, minWidth: 0 }}
                             />
-                            <ActionIcon
-                              variant="subtle"
-                              color="red"
-                              size="xs"
-                              onClick={() => handleRemoveOutput(stream.id, output.id)}
-                              disabled={stream.outputs.length <= 1}
-                              style={{ flexShrink: 0 }}
-                            >
-                              <IconTrash size={10} />
-                            </ActionIcon>
+                            <ActionIcon variant="subtle" color="red" size="xs" onClick={() => handleRemoveOutput(stream.id, output.id)} disabled={stream.outputs.length <= 1} style={{ flexShrink: 0 }} > <IconTrash size={10} /> </ActionIcon>
                           </Group>
                         ))}
                       </Stack>
-                    </Box>
+                    </FormRow>
                   </Stack>
                 </Card>
               ))}

@@ -61,6 +61,7 @@ import { StatusBadge } from './common/StatusBadge';
 import { processTone, STATUS_COLOR } from '../utils/status';
 import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
 import { FONT_SIZE, MONO } from '../utils/typography';
+import { FormRow } from './common/FormRow';
 
 
 const NO_SATELLITES: MonitorSatellite[] = [];
@@ -112,29 +113,12 @@ function MonitorHelp() {
 }
 
 /** Label-left / input-right row (project form convention). */
-function Row({ label, children, minHeight }: {
-  label: string;
-  children: React.ReactNode;
-  /** Form rows whose control is shorter than an input (a switch) take the
-   *  input height, so every form row has the same pitch. */
-  minHeight?: number;
-}) {
-  return (
-    <Group justify="space-between" align="center" mb={6} wrap="nowrap" style={{ minHeight }}>
-      <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: FONT_SIZE.label }}>
-        {label}
-      </Text>
-      <Box style={{ flex: 1, minWidth: 0 }}>{children}</Box>
-    </Group>
-  );
-}
-
 /** The settings of one stream. `pacing`: a file may be replayed paced (one
  *  stream only: files with different start times cannot be aligned, #171). */
 function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
   return (
-    <>
-      <Row label="Input type">
+    <Stack gap={6}>
+      <FormRow label="Input type">
         <Select
           size="xs"
           value={s.typeMeta.value}
@@ -143,8 +127,8 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
           allowDeselect={false}
           disabled={s.busy}
         />
-      </Row>
-      <Row label="Path">
+      </FormRow>
+      <FormRow label="Path">
         <Group gap={6} wrap="nowrap">
           <Box style={{ flex: 1, minWidth: 0 }}>
             <MaskedPathInput
@@ -158,9 +142,9 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
           </Box>
           <StreamPathHelp />
         </Group>
-      </Row>
+      </FormRow>
       {s.isFile && (
-        <Row label="Playback">
+        <FormRow label="Playback">
           <Select
             size="xs"
             value={pacing ? s.fileSpeed : '0'}
@@ -170,20 +154,20 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
             disabled={s.busy || !pacing}
             title={pacing ? undefined : 'With two streams, files are read all at once'}
           />
-        </Row>
+        </FormRow>
       )}
       {!s.isFile && (
-        <Row label="Save raw stream" minHeight={30}>
+        <FormRow label="Save raw stream">
           <Switch
             size="xs"
             checked={s.saveRaw}
             onChange={(e) => s.setSaveRaw(e.currentTarget.checked)}
             disabled={s.busy}
           />
-        </Row>
+        </FormRow>
       )}
       {!s.isFile && s.saveRaw && (
-        <Row label="Raw log file">
+        <FormRow label="Raw log file">
           <TextInput
             size="xs"
             value={s.rawLog}
@@ -192,22 +176,22 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
             disabled={s.busy}
             styles={{ input: { fontFamily: MONO } }}
           />
-        </Row>
+        </FormRow>
       )}
-      <Row label="CLAS L6 source" minHeight={30}>
+      <FormRow label="CLAS L6 source">
         <Switch
           size="xs"
           checked={s.clasSource}
           onChange={(e) => s.setClasSource(e.currentTarget.checked)}
           title="Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there."
         />
-      </Row>
+      </FormRow>
       {s.requestError && (
         <Text size="sm" c={STATUS_COLOR.error} mt={4}>
           {s.requestError}
         </Text>
       )}
-    </>
+    </Stack>
   );
 }
 

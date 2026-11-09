@@ -35,8 +35,9 @@ import { ClasFlowMeter, type FlowStats } from './ClasFlowMeter';
 import { PositionScatter, type PositionPoint } from './PositionScatter';
 import { StatusIndicator } from './StatusIndicator';
 import { FONT_SIZE } from '../utils/typography';
+import { FormRow } from './common/FormRow';
+import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
 
-const ROW_LABEL_WIDTH = 130;
 const MAX_POSITION_POINTS = 3600;
 const MAX_LOG_LINES = 500;
 const RECEIVER_REQUEST_URL =
@@ -44,17 +45,6 @@ const RECEIVER_REQUEST_URL =
 
 const RELAY_PROCESS_ID = 'clas-relay';
 const CSSR_PROCESS_ID = 'clas-cssr2rtcm3';
-
-function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <Group justify="space-between" align="center" mb={6} wrap="nowrap">
-      <Text size="sm" c="dimmed" style={{ width: ROW_LABEL_WIDTH, flexShrink: 0 }}>
-        {label}
-      </Text>
-      <Box style={{ flex: 1, minWidth: 0 }}>{children}</Box>
-    </Group>
-  );
-}
 
 export function ClasPipelinePanel() {
   // --- Reference data ---
@@ -263,7 +253,7 @@ export function ClasPipelinePanel() {
       {/* Left column: form + status + actions */}
       <Grid.Col span={{ base: 12, md: 6 }}>
       <Card withBorder p="md" h="100%">
-        <Stack gap="xs">
+        <Stack gap={6}>
           <Title order={5}>CLAS Pipeline</Title>
           <Text size="xs" c="dimmed">
             Wraps <Code>mrtk relay</Code> and <Code>mrtk cssr2rtcm3</Code> into
@@ -279,7 +269,6 @@ export function ClasPipelinePanel() {
           {/* Receiver picker */}
           <FormRow label="Receiver">
             <Select
-              size="sm"
               value={receiverId}
               onChange={(v) => v && setReceiverId(v)}
               data={receiverOptions}
@@ -288,11 +277,11 @@ export function ClasPipelinePanel() {
             />
           </FormRow>
           {selectedReceiver && (
-            <Text size="xs" c="dimmed" pl={ROW_LABEL_WIDTH + 8}>
+            <Text size="xs" c="dimmed" pl={FORM_LABEL_WIDTH + FORM_LABEL_GAP}>
               {selectedReceiver.notes}
             </Text>
           )}
-          <Text size="xs" pl={ROW_LABEL_WIDTH + 8}>
+          <Text size="xs" pl={FORM_LABEL_WIDTH + FORM_LABEL_GAP}>
             <Anchor href={RECEIVER_REQUEST_URL} target="_blank" rel="noreferrer">
               Don&apos;t see your receiver? Request one →
             </Anchor>
@@ -305,7 +294,6 @@ export function ClasPipelinePanel() {
             <Group gap="xs" wrap="nowrap" style={{ width: '100%' }}>
               <Box style={{ flex: 1, minWidth: 0 }}>
                 <Autocomplete
-                  size="sm"
                   value={inputDevice}
                   onChange={setInputDevice}
                   data={portOptions}
@@ -327,7 +315,6 @@ export function ClasPipelinePanel() {
           </FormRow>
           <FormRow label="Baud rate">
             <NumberInput
-              size="sm"
               value={inputBaud}
               onChange={(v) => setInputBaud(typeof v === 'number' ? v : 115200)}
               min={1200}
@@ -351,7 +338,6 @@ export function ClasPipelinePanel() {
           {recordSbf && (
             <FormRow label="SBF file path">
               <TextInput
-                size="sm"
                 value={sbfRecordPath}
                 onChange={(e) => setSbfRecordPath(e.currentTarget.value)}
                 disabled={isRunning}
@@ -377,7 +363,6 @@ export function ClasPipelinePanel() {
           {showAdvanced && (
             <FormRow label="Bridge TCP port">
               <NumberInput
-                size="sm"
                 value={bridgePort}
                 onChange={(v) => setBridgePort(typeof v === 'number' ? v : 9870)}
                 min={1025}

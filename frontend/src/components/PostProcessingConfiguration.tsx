@@ -163,35 +163,35 @@ export function PostProcessingConfiguration({
               </Button>
             )}
             <Tooltip label="Presets">
-              <ActionIcon variant="light" color="gray" size="lg" onClick={openPresets}>
+              <ActionIcon aria-label="Presets" variant="light" color="gray" size={30} onClick={openPresets}>
                 <IconBookmark size={16} />
               </ActionIcon>
             </Tooltip>
             {aiConfigured ? (
               <Tooltip label="Config Assistant">
-                <ActionIcon variant="light" color="gray" size="lg" onClick={openAssistant}>
+                <ActionIcon aria-label="Config Assistant" variant="light" color="gray" size={30} onClick={openAssistant}>
                   <IconSparkles size={16} />
                 </ActionIcon>
               </Tooltip>
             ) : (
               <Tooltip label="Configure API key in Tools → AI Settings">
-                <ActionIcon variant="light" color="gray" size="lg" onClick={onNavigateToAiSettings}>
+                <ActionIcon aria-label="Configure API key in Tools → AI Settings" variant="light" color="gray" size={30} onClick={onNavigateToAiSettings}>
                   <IconSparkles size={16} />
                 </ActionIcon>
               </Tooltip>
             )}
             <Tooltip label="Import TOML">
-              <ActionIcon variant="light" color="gray" size="lg" onClick={() => importFileRef.current?.click()}>
+              <ActionIcon aria-label="Import TOML" variant="light" color="gray" size={30} onClick={() => importFileRef.current?.click()}>
                 <IconUpload size={16} />
               </ActionIcon>
             </Tooltip>
             <Tooltip label="TOML Preview">
-              <ActionIcon variant="light" color="gray" size="lg" onClick={openToml}>
+              <ActionIcon aria-label="TOML Preview" variant="light" color="gray" size={30} onClick={openToml}>
                 <IconCode size={16} />
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Download TOML">
-              <ActionIcon variant="light" color="gray" size="lg" onClick={onExportConf} disabled={processStatus === 'running'}>
+              <ActionIcon aria-label="Download TOML" variant="light" color="gray" size={30} onClick={onExportConf} disabled={processStatus === 'running'}>
                 <IconDownload size={16} />
               </ActionIcon>
             </Tooltip>
