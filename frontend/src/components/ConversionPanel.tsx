@@ -42,6 +42,8 @@ import { StatusBadge } from './common/StatusBadge';
 import { processTone } from '../utils/status';
 import { hatanakaOutputPath, type HatanakaDirection } from '../utils/hatanakaNames';
 import { FONT_SIZE, MONO } from '../utils/typography';
+import { FormRow } from './common/FormRow';
+import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -197,7 +199,7 @@ const TRACE_LEVELS = [
   { value: '5', label: '5' },
 ];
 
-const LABEL_STYLE = { width: 130, flexShrink: 0, fontSize: FONT_SIZE.label } as const;
+const LABEL_STYLE = { width: FORM_LABEL_WIDTH, flexShrink: 0, fontSize: FONT_SIZE.label } as const;
 
 // ─── Sidebar components ─────────────────────────────────────────────────────
 
@@ -284,15 +286,6 @@ function CollapsibleSection({ label, children, defaultOpen = false }: {
 }
 
 // ─── Field row helper ───────────────────────────────────────────────────────
-
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <Group wrap="nowrap" align="center" gap="xs">
-      <Text size="xs" c="dimmed" style={LABEL_STYLE}>{label}</Text>
-      <Box style={{ flex: 1, minWidth: 0 }}>{children}</Box>
-    </Group>
-  );
-}
 
 // Split a space-joined "A B C" string into 3 parts (for X/Y/Z, H/E/N inputs).
 function xyz(s: string): [string, string, string] {
@@ -839,9 +832,9 @@ export function ConversionPanel() {
           {/* Form (55%) */}
           <ScrollArea style={{ width: '55%', flexShrink: 0 }}>
             {tool === 'hatanaka' && (
-              <Stack gap={10} p="md">
+              <Stack gap={6} p="md">
                 <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.06em' }}>Operation</Text>
-                <FieldRow label="Direction">
+                <FormRow label="Direction">
                   <SegmentedControl
                     size="xs"
                     fullWidth
@@ -852,10 +845,10 @@ export function ConversionPanel() {
                       { value: 'compress', label: 'Compress (RINEX → CRX)' },
                     ]}
                   />
-                </FieldRow>
+                </FormRow>
 
                 <Text size="xs" fw={700} tt="uppercase" c="dimmed" mt={6} style={{ letterSpacing: '0.06em' }}>Files</Text>
-                <FieldRow label="Input File">
+                <FormRow label="Input File">
                   <Group wrap="nowrap" gap={4}>
                     <TextInput
                       size="xs"
@@ -865,12 +858,12 @@ export function ConversionPanel() {
                       style={{ flex: 1 }}
                       styles={{ input: { fontFamily: MONO } }}
                     />
-                    <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('hk:inputFile', 'data')}>
+                    <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('hk:inputFile', 'data')}>
                       <IconFolder size={16} />
                     </ActionIcon>
                   </Group>
-                </FieldRow>
-                <FieldRow label="Output File">
+                </FormRow>
+                <FormRow label="Output File">
                   <Group wrap="nowrap" gap={4}>
                     <TextInput
                       size="xs"
@@ -880,11 +873,11 @@ export function ConversionPanel() {
                       style={{ flex: 1 }}
                       styles={{ input: { fontFamily: MONO } }}
                     />
-                    <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('hk:outputFile', 'workspace')}>
+                    <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('hk:outputFile', 'workspace')}>
                       <IconFolder size={16} />
                     </ActionIcon>
                   </Group>
-                </FieldRow>
+                </FormRow>
                 <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label, paddingLeft: 136 }}>
                   Leave empty for the default name. Output goes under /workspace; a .gz input is decompressed on the fly.
                 </Text>
@@ -912,7 +905,7 @@ export function ConversionPanel() {
                   onChange={e => setHk(prev => ({ ...prev, overwrite: e.currentTarget.checked }))}
                 />
                 {hk.direction === 'compress' && (
-                  <FieldRow label="Reset Every (epochs)">
+                  <FormRow label="Reset Every (epochs)">
                     <NumberInput
                       size="xs"
                       min={1}
@@ -922,14 +915,14 @@ export function ConversionPanel() {
                       value={hk.resetEpochs}
                       onChange={v => setHk(prev => ({ ...prev, resetEpochs: typeof v === 'number' ? v : '' }))}
                     />
-                  </FieldRow>
+                  </FormRow>
                 )}
               </Stack>
             )}
-            <Stack gap={10} p="md" style={tool === 'convbin' ? undefined : { display: 'none' }}>
+            <Stack gap={6} p="md" style={tool === 'convbin' ? undefined : { display: 'none' }}>
               {/* Input Section */}
               <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.06em' }}>Input</Text>
-              <FieldRow label="Raw File">
+              <FormRow label="Raw File">
                 <Group wrap="nowrap" gap={4}>
                   <TextInput
                     size="xs"
@@ -938,31 +931,31 @@ export function ConversionPanel() {
                     placeholder="/data/raw/receiver.ubx"
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('rawFile', 'data')}>
+                  <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('rawFile', 'data')}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
-              </FieldRow>
-              <FieldRow label="Receiver Format">
+              </FormRow>
+              <FormRow label="Receiver Format">
                 <Select
                   size="xs"
                   value={form.receiverFormat}
                   onChange={v => setForm(prev => ({ ...prev, receiverFormat: v || '' }))}
                   data={RECEIVER_FORMATS}
                 />
-              </FieldRow>
-              <FieldRow label="Receiver Options">
+              </FormRow>
+              <FormRow label="Receiver Options">
                 <TextInput
                   size="xs"
                   value={form.receiverOptions}
                   onChange={e => setForm(prev => ({ ...prev, receiverOptions: e.currentTarget.value }))}
                   placeholder="-ephall -tadj=1"
                 />
-              </FieldRow>
+              </FormRow>
 
               {/* Output Section */}
               <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.06em', marginTop: 8 }}>Output</Text>
-              <FieldRow label="Observation File">
+              <FormRow label="Observation File">
                 <Group wrap="nowrap" gap={4}>
                   <TextInput
                     size="xs"
@@ -971,12 +964,12 @@ export function ConversionPanel() {
                     placeholder="auto-generated"
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('observationFile', 'workspace')}>
+                  <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('observationFile', 'workspace')}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
-              </FieldRow>
-              <FieldRow label="Navigation File">
+              </FormRow>
+              <FormRow label="Navigation File">
                 <Group wrap="nowrap" gap={4}>
                   <TextInput
                     size="xs"
@@ -985,20 +978,20 @@ export function ConversionPanel() {
                     placeholder="auto-generated"
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('navigationFile', 'workspace')}>
+                  <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('navigationFile', 'workspace')}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
-              </FieldRow>
-              <FieldRow label="RINEX Version">
+              </FormRow>
+              <FormRow label="RINEX Version">
                 <Select
                   size="xs"
                   value={form.rinexVersion}
                   onChange={v => setForm(prev => ({ ...prev, rinexVersion: v || '3.04' }))}
                   data={RINEX_VERSIONS}
                 />
-              </FieldRow>
-              <FieldRow label="Output Directory">
+              </FormRow>
+              <FormRow label="Output Directory">
                 <Group wrap="nowrap" gap={4}>
                   <TextInput
                     size="xs"
@@ -1006,22 +999,22 @@ export function ConversionPanel() {
                     onChange={e => setForm(prev => ({ ...prev, outputDirectory: e.currentTarget.value }))}
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('outputDirectory', 'workspace', true)}>
+                  <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('outputDirectory', 'workspace', true)}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
-              </FieldRow>
-              <FieldRow label="Station ID">
+              </FormRow>
+              <FormRow label="Station ID">
                 <TextInput
                   size="xs"
                   value={form.stationId}
                   onChange={e => setForm(prev => ({ ...prev, stationId: e.currentTarget.value }))}
                 />
-              </FieldRow>
+              </FormRow>
 
               {/* Time Range (collapsible) */}
               <CollapsibleSection label="Time Range">
-                <FieldRow label="Time Start">
+                <FormRow label="Time Start">
                   <DateTimePicker
                     size="xs"
                     valueFormat="YYYY/MM/DD HH:mm:ss"
@@ -1032,8 +1025,8 @@ export function ConversionPanel() {
                     onChange={date => setForm(prev => ({ ...prev, timeStart: date ? dayjs(date).format('YYYY/MM/DD HH:mm:ss') : '' }))}
                     style={{ flex: 1 }}
                   />
-                </FieldRow>
-                <FieldRow label="Time End">
+                </FormRow>
+                <FormRow label="Time End">
                   <DateTimePicker
                     size="xs"
                     valueFormat="YYYY/MM/DD HH:mm:ss"
@@ -1044,8 +1037,8 @@ export function ConversionPanel() {
                     onChange={date => setForm(prev => ({ ...prev, timeEnd: date ? dayjs(date).format('YYYY/MM/DD HH:mm:ss') : '' }))}
                     style={{ flex: 1 }}
                   />
-                </FieldRow>
-                <FieldRow label="RTCM Ref Time">
+                </FormRow>
+                <FormRow label="RTCM Ref Time">
                   <DateTimePicker
                     size="xs"
                     valueFormat="YYYY/MM/DD HH:mm:ss"
@@ -1056,8 +1049,8 @@ export function ConversionPanel() {
                     onChange={date => setForm(prev => ({ ...prev, rtcmRefTime: date ? dayjs(date).format('YYYY/MM/DD HH:mm:ss') : '' }))}
                     style={{ flex: 1 }}
                   />
-                </FieldRow>
-                <Group wrap="nowrap" align="center" gap="xs">
+                </FormRow>
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Interval / Tol / Span" style={LABEL_STYLE}
                     fields={[{ name: 'Interval (s)' }, { name: 'Epoch Tolerance (s)' }, { name: 'Time Span (s)' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -1100,7 +1093,7 @@ export function ConversionPanel() {
 
               {/* Signal Options (collapsible) */}
               <CollapsibleSection label="Signal Options">
-                <FieldRow label="Frequencies">
+                <FormRow label="Frequencies">
                   <NumberInput
                     size="xs"
                     value={form.frequencies}
@@ -1108,7 +1101,7 @@ export function ConversionPanel() {
                     min={1}
                     max={7}
                   />
-                </FieldRow>
+                </FormRow>
                 <Group justify="space-between" gap="md" align="center" mih={30}>
                   <Switch
                     size="xs"
@@ -1153,29 +1146,29 @@ export function ConversionPanel() {
                     onChange={e => setForm(prev => ({ ...prev, halfCycleCorr: e.currentTarget.checked }))}
                   />
                 </Group>
-                <FieldRow label="Exclude Satellites">
+                <FormRow label="Exclude Satellites">
                   <TextInput
                     size="xs"
                     value={form.excludeSatellites}
                     onChange={e => setForm(prev => ({ ...prev, excludeSatellites: e.currentTarget.value }))}
                     placeholder="G04 G05 R09"
                   />
-                </FieldRow>
-                <FieldRow label="Signal Mask">
+                </FormRow>
+                <FormRow label="Signal Mask">
                   <TextInput
                     size="xs"
                     value={form.signalMask}
                     onChange={e => setForm(prev => ({ ...prev, signalMask: e.currentTarget.value }))}
                   />
-                </FieldRow>
+                </FormRow>
               </CollapsibleSection>
 
               {/* RINEX Header (collapsible) */}
               <CollapsibleSection label="RINEX Header">
-                <FieldRow label="Comment">
+                <FormRow label="Comment">
                   <TextInput size="xs" value={form.comment} onChange={e => setForm(prev => ({ ...prev, comment: e.currentTarget.value }))} />
-                </FieldRow>
-                <Group wrap="nowrap" align="center" gap="xs">
+                </FormRow>
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Marker" style={LABEL_STYLE}
                     fields={[{ name: 'Name' }, { name: 'Number' }, { name: 'Type' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -1184,10 +1177,10 @@ export function ConversionPanel() {
                     <TextInput size="xs" title="Marker Type" aria-label="Marker Type" placeholder="Type" value={form.markerType} onChange={e => setForm(prev => ({ ...prev, markerType: e.currentTarget.value }))} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
-                <FieldRow label="Observer/Agency">
+                <FormRow label="Observer/Agency">
                   <TextInput size="xs" value={form.observerAgency} onChange={e => setForm(prev => ({ ...prev, observerAgency: e.currentTarget.value }))} />
-                </FieldRow>
-                <Group wrap="nowrap" align="center" gap="xs">
+                </FormRow>
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Receiver / Antenna" style={LABEL_STYLE}
                     fields={[{ name: 'Receiver' }, { name: 'Antenna' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -1195,7 +1188,7 @@ export function ConversionPanel() {
                     <TextInput size="xs" title="Antenna" aria-label="Antenna" placeholder="Antenna" value={form.antenna} onChange={e => setForm(prev => ({ ...prev, antenna: e.currentTarget.value }))} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Approx Position" style={LABEL_STYLE}
                     fields={[{ name: 'X (m)' }, { name: 'Y (m)' }, { name: 'Z (m)' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -1204,7 +1197,7 @@ export function ConversionPanel() {
                     <TextInput size="xs" title="Z" aria-label="Z" placeholder="Z" value={xyz(form.approxPosition)[2]} onChange={e => setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 2, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Antenna Delta" style={LABEL_STYLE}
                     fields={[{ name: 'H (m)' }, { name: 'E (m)' }, { name: 'N (m)' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -1217,14 +1210,14 @@ export function ConversionPanel() {
 
               {/* Debug (collapsible) */}
               <CollapsibleSection label="Debug">
-                <FieldRow label="Trace Level">
+                <FormRow label="Trace Level">
                   <Select
                     size="xs"
                     value={form.traceLevel}
                     onChange={v => setForm(prev => ({ ...prev, traceLevel: v || '0' }))}
                     data={TRACE_LEVELS}
                   />
-                </FieldRow>
+                </FormRow>
               </CollapsibleSection>
             </Stack>
           </ScrollArea>
@@ -1279,19 +1272,19 @@ export function ConversionPanel() {
                 {rightTab === 'console' ? (
                   <>
                     <Tooltip label="Copy">
-                      <ActionIcon size="xs" variant="subtle" onClick={handleCopyLog}>
+                      <ActionIcon aria-label="Copy" size="xs" variant="subtle" onClick={handleCopyLog}>
                         <IconCopy size={12} />
                       </ActionIcon>
                     </Tooltip>
                     <Tooltip label="Clear">
-                      <ActionIcon size="xs" variant="subtle" onClick={handleClearLog}>
+                      <ActionIcon aria-label="Clear" size="xs" variant="subtle" onClick={handleClearLog}>
                         <IconTrash size={12} />
                       </ActionIcon>
                     </Tooltip>
                   </>
                 ) : rightTab === 'preview' && currentPreview ? (
                   <Tooltip label="Download">
-                    <ActionIcon size="xs" variant="subtle" onClick={handleDownloadPreview}>
+                    <ActionIcon aria-label="Download" size="xs" variant="subtle" onClick={handleDownloadPreview}>
                       <IconDownload size={12} />
                     </ActionIcon>
                   </Tooltip>

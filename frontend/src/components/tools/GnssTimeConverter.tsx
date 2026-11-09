@@ -110,7 +110,6 @@ export function GnssTimeConverter() {
               </Button>
             </Group>
             <DateTimePicker
-              size="sm"
               valueFormat="YYYY/MM/DD HH:mm:ss"
               placeholder="Select date and time (GPST)"
               clearable
@@ -136,7 +135,6 @@ export function GnssTimeConverter() {
             <Title order={6} size="sm">GPS Week / ToW</Title>
             <Group grow gap="xs">
               <NumberInput
-                size="sm"
                 label="GPS Week"
                 leftSection={<IconClock size={14} />}
                 value={wt?.week ?? ''}
@@ -146,7 +144,6 @@ export function GnssTimeConverter() {
                 hideControls
               />
               <NumberInput
-                size="sm"
                 label="Time of Week (s)"
                 value={wt ? Math.round(wt.tow * 1000) / 1000 : ''}
                 onChange={handleGpsTowChange}
@@ -166,7 +163,6 @@ export function GnssTimeConverter() {
             <Title order={6} size="sm">Day of Year (GPST)</Title>
             <Group grow gap="xs">
               <NumberInput
-                size="sm"
                 label="Year"
                 value={doy?.year ?? ''}
                 onChange={handleDoyYearChange}
@@ -176,7 +172,6 @@ export function GnssTimeConverter() {
                 hideControls
               />
               <NumberInput
-                size="sm"
                 label="DoY"
                 value={doy?.doy ?? ''}
                 onChange={handleDoyDoyChange}
@@ -186,7 +181,6 @@ export function GnssTimeConverter() {
                 hideControls
               />
               <NumberInput
-                size="sm"
                 label="Hour"
                 value={doy?.hour ?? ''}
                 onChange={handleDoyHourChange}
@@ -196,7 +190,7 @@ export function GnssTimeConverter() {
                 hideControls
               />
               <div>
-                <Text size="sm" fw={500} mb={5}>Session</Text>
+                <Text size="xs" fw={500} mb={5}>Session</Text>
                 <Badge size="lg" variant="light" color="gray" fullWidth>
                   {doy ? hourToSession(doy.hour) : '—'}
                 </Badge>

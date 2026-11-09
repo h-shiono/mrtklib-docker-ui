@@ -16,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   reports a state, so browse buttons and toolbar icons are neutral.
 - Text uses one size scale on every screen. Labels and help text below 11 px
   grew to 11 px; only uppercase captions and chart tick labels stay at 10 px.
+- Forms share one layout: labels on the left at the same width, every field
+  and small button 30 px tall. Post-processing Input and Data Files and the
+  Stream Relay streams move to it, and paths use the monospace font.
+- Stream Monitor shows every stream as a card like Stream Relay, also with one
+  stream, and streams are named Stream 1 and Stream 2 instead of A and B.
 
 ### Fixed
 - Observation QC: switching the SNR plot to Elevation without a NAV file could

@@ -83,16 +83,13 @@ Console / Trace sub-tabs). The config panels use a section rail + form
 layout like VS Code Settings. Tools uses `ToolsSidebar` + panel.
 
 ### Form layout convention
-All config panels use **label-left / input-right** (130px label width):
+All config panels use **label-left / input-right** through the shared
+`FormRow` (130px label, 30px field), inside a `<Stack gap={6}>`. Inputs take
+their size from the theme, so do not set `size`. See `DESIGN.md`.
 ```tsx
-<Group justify="space-between" align="center" mb={6}>
-  <Text size="sm" c="dimmed" style={{ width: 130, flexShrink: 0 }}>
-    Label
-  </Text>
-  <Box style={{ flex: 1 }}>
-    <Select ... />
-  </Box>
-</Group>
+<FormRow label="Label" trailing={<ActionIcon size={30} ... />}>
+  <Select ... />
+</FormRow>
 ```
 
 ### Section headers

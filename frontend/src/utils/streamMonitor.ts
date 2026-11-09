@@ -79,6 +79,11 @@ export function splitRelayLog(lines: string[]): { console: string[]; status: str
   return { console: out, status };
 }
 
+/** Name shown for a stream; the ids stay a / b in the API and saved settings. */
+export function streamLabel(id: MonitorStreamId): string {
+  return `Stream ${id === 'a' ? 1 : 2}`;
+}
+
 /** State of the input. `connected` is the backend's link to the relay, not
  *  the relay's input: the input is judged by the bytes arriving. */
 export function inputLight(status: MonitorStatus | null, state: MonitorState, live: boolean) {

@@ -28,7 +28,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useDisclosure, useElementSize, useLocalStorage } from '@mantine/hooks';
-import { IconPlayerPlay, IconPlayerStop, IconPlus, IconQuestionMark, IconTrash } from '@tabler/icons-react';
+import { IconPlayerPlay, IconPlayerStop, IconPlus, IconQuestionMark } from '@tabler/icons-react';
 import {
   streamMonitorApi,
   type MonitorMessage,
@@ -42,6 +42,7 @@ import {
   inputLight,
   rtTimestamp,
   splitRelayLog,
+  streamLabel,
   toMetricsPosition,
   toPosEpoch,
 } from '../utils/streamMonitor';
@@ -57,10 +58,11 @@ import { StreamMonitorStatusRow } from './StreamMonitorStatusRow';
 import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { SkySnrPanel } from './SkySnrPanel';
 import { StreamMessagePanel } from './StreamMessagePanel';
-import { StatusBadge } from './common/StatusBadge';
+import { StreamCardHeader } from './common/StreamCardHeader';
 import { processTone, STATUS_COLOR } from '../utils/status';
 import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
 import { FONT_SIZE, MONO } from '../utils/typography';
+import { FormRow } from './common/FormRow';
 
 
 const NO_SATELLITES: MonitorSatellite[] = [];
@@ -112,29 +114,12 @@ function MonitorHelp() {
 }
 
 /** Label-left / input-right row (project form convention). */
-function Row({ label, children, minHeight }: {
-  label: string;
-  children: React.ReactNode;
-  /** Form rows whose control is shorter than an input (a switch) take the
-   *  input height, so every form row has the same pitch. */
-  minHeight?: number;
-}) {
-  return (
-    <Group justify="space-between" align="center" mb={6} wrap="nowrap" style={{ minHeight }}>
-      <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: FONT_SIZE.label }}>
-        {label}
-      </Text>
-      <Box style={{ flex: 1, minWidth: 0 }}>{children}</Box>
-    </Group>
-  );
-}
-
 /** The settings of one stream. `pacing`: a file may be replayed paced (one
  *  stream only: files with different start times cannot be aligned, #171). */
 function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
   return (
-    <>
-      <Row label="Input type">
+    <Stack gap={6}>
+      <FormRow label="Input type">
         <Select
           size="xs"
           value={s.typeMeta.value}
@@ -143,8 +128,8 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
           allowDeselect={false}
           disabled={s.busy}
         />
-      </Row>
-      <Row label="Path">
+      </FormRow>
+      <FormRow label="Path">
         <Group gap={6} wrap="nowrap">
           <Box style={{ flex: 1, minWidth: 0 }}>
             <MaskedPathInput
@@ -158,9 +143,9 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
           </Box>
           <StreamPathHelp />
         </Group>
-      </Row>
+      </FormRow>
       {s.isFile && (
-        <Row label="Playback">
+        <FormRow label="Playback">
           <Select
             size="xs"
             value={pacing ? s.fileSpeed : '0'}
@@ -170,20 +155,20 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
             disabled={s.busy || !pacing}
             title={pacing ? undefined : 'With two streams, files are read all at once'}
           />
-        </Row>
+        </FormRow>
       )}
       {!s.isFile && (
-        <Row label="Save raw stream" minHeight={30}>
+        <FormRow label="Save raw stream">
           <Switch
             size="xs"
             checked={s.saveRaw}
             onChange={(e) => s.setSaveRaw(e.currentTarget.checked)}
             disabled={s.busy}
           />
-        </Row>
+        </FormRow>
       )}
       {!s.isFile && s.saveRaw && (
-        <Row label="Raw log file">
+        <FormRow label="Raw log file">
           <TextInput
             size="xs"
             value={s.rawLog}
@@ -192,22 +177,22 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
             disabled={s.busy}
             styles={{ input: { fontFamily: MONO } }}
           />
-        </Row>
+        </FormRow>
       )}
-      <Row label="CLAS L6 source" minHeight={30}>
+      <FormRow label="CLAS L6 source">
         <Switch
           size="xs"
           checked={s.clasSource}
           onChange={(e) => s.setClasSource(e.currentTarget.checked)}
           title="Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there."
         />
-      </Row>
+      </FormRow>
       {s.requestError && (
         <Text size="sm" c={STATUS_COLOR.error} mt={4}>
           {s.requestError}
         </Text>
       )}
-    </>
+    </Stack>
   );
 }
 
@@ -217,7 +202,7 @@ function StreamName({ s }: { s: MonitorStream }) {
   return (
     <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
       <Box style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: light.color }} />
-      <Text size="xs" fw={600} style={{ whiteSpace: 'nowrap' }}>Stream {s.id.toUpperCase()}</Text>
+      <Text size="xs" fw={600} style={{ whiteSpace: 'nowrap' }}>{streamLabel(s.id)}</Text>
       <Text c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, whiteSpace: 'nowrap' }}>{light.label}</Text>
     </Group>
   );
@@ -375,10 +360,10 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   const positionOverlay = useMemo((): PositionOverlay | undefined => {
     if (!showOverlay) return undefined;
     return {
-      label: `Stream ${primary.id.toUpperCase()}`,
+      label: streamLabel(primary.id),
       color: STREAM_COLOR[primary.id],
       other: {
-        label: `Stream ${secondary.id.toUpperCase()}`,
+        label: streamLabel(secondary.id),
         color: STREAM_COLOR[secondary.id],
         epochs: secondaryEpochs,
         timeSystem: overlayTimeSystem,
@@ -425,9 +410,6 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
               >
                 Add Stream
               </Button>
-              {!twoStreams && state !== 'idle' && (
-                <StatusBadge tone={processTone(state)}>{state}</StatusBadge>
-              )}
               {anyRunning ? (
                 <Button
                   size="xs"
@@ -436,7 +418,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                   onClick={handleStopAll}
                   loading={!twoStreams && submitting}
                 >
-                  {twoStreams ? 'Stop All' : 'Stop'}
+                  Stop All
                 </Button>
               ) : (
                 <Button
@@ -447,79 +429,43 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                   loading={!twoStreams && submitting}
                   disabled={startable.length === 0}
                 >
-                  {twoStreams ? 'Start All' : 'Start'}
+                  Start All
                 </Button>
               )}
             </Group>
           </Group>
-          {twoStreams ? (
-            <Stack gap="xs">
-              {streams.map((s) => (
-                <Card
-                  key={s.id}
-                  withBorder
-                  p="xs"
-                  onClick={() => setSelectedId(s.id)}
-                  style={{ borderColor: selected.id === s.id ? 'var(--mantine-color-blue-5)' : undefined }}
-                >
-                  <Group justify="space-between" wrap="nowrap" mb={6}>
-                    <StreamName s={s} />
-                    <Group gap={4} wrap="nowrap">
-                      {s.state !== 'idle' && (
-                        <StatusBadge tone={processTone(s.state)} size="xs">{s.state}</StatusBadge>
-                      )}
-                      {s.running ? (
-                        <ActionIcon
-                          variant="light"
-                          color="red"
-                          size="xs"
-                          onClick={() => void s.stop()}
-                          loading={s.submitting}
-                          title={`Stop stream ${s.id.toUpperCase()}`}
-                          aria-label={`Stop stream ${s.id.toUpperCase()}`}
-                        >
-                          <IconPlayerStop size={12} />
-                        </ActionIcon>
-                      ) : (
-                        <ActionIcon
-                          variant="light"
-                          color="green"
-                          size="xs"
-                          onClick={() => void s.start(false)}
-                          loading={s.submitting}
-                          disabled={!s.inputPath.trim()}
-                          title={`Start stream ${s.id.toUpperCase()}`}
-                          aria-label={`Start stream ${s.id.toUpperCase()}`}
-                        >
-                          <IconPlayerPlay size={12} />
-                        </ActionIcon>
-                      )}
-                      {s.id === 'b' && (
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          size="xs"
-                          onClick={(e) => {
-                            e.stopPropagation(); // the card would select this stream again
-                            setSecondAdded(false);
-                            setSelectedId('a');
-                          }}
-                          disabled={s.busy}
-                          title="Remove stream"
-                          aria-label="Remove stream"
-                        >
-                          <IconTrash size={12} />
-                        </ActionIcon>
-                      )}
-                    </Group>
-                  </Group>
-                  <StreamForm s={s} pacing={false} />
-                </Card>
-              ))}
-            </Stack>
-          ) : (
-            <StreamForm s={streamA} pacing />
-          )}
+          <Stack gap="xs">
+            {streams.map((s) => (
+              <Card
+                key={s.id}
+                withBorder
+                p="xs"
+                onClick={() => setSelectedId(s.id)}
+                style={{ borderColor: selected.id === s.id ? 'var(--mantine-color-blue-5)' : undefined }}
+              >
+                <Stack gap="xs">
+                  <StreamCardHeader
+                    name={streamLabel(s.id)}
+                    dotColor={inputLight(s.status, s.state, s.live).color}
+                    tone={processTone(s.state)}
+                    status={s.state}
+                    running={s.running}
+                    loading={s.submitting}
+                    startDisabled={!s.inputPath.trim()}
+                    removeDisabled={s.id === 'a' || s.busy}
+                    onStart={() => void s.start(!twoStreams)}
+                    onStop={() => void s.stop()}
+                    onRemove={(e) => {
+                      e.stopPropagation(); // the card would select this stream again
+                      setSecondAdded(false);
+                      setSelectedId('a');
+                    }}
+                  />
+                  <StreamForm s={s} pacing={!twoStreams} />
+                </Stack>
+              </Card>
+            ))}
+          </Stack>
         </Card>
       }
       workspace={

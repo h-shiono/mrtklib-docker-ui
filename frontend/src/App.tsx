@@ -68,6 +68,9 @@ import type { InputStream, OutputStream, StreamType } from './types/streamConfig
 import type { BuilderConfig } from './types/streamConfig';
 import { generateRelayArgs, parseRelayArgs } from './utils/streamArgs';
 import { FONT_SIZE, MONO } from './utils/typography';
+import { FormRow } from './components/common/FormRow';
+import { StreamCardHeader } from './components/common/StreamCardHeader';
+import { FORM_LABEL_GAP } from './utils/formLayout';
 
 function ColorSchemeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -1219,124 +1222,66 @@ function MultiStreamPanel() {
               {streams.map((stream) => (
                 <Card key={stream.id} withBorder p="xs" style={{ borderColor: activeStreamId === stream.id ? 'var(--mantine-color-blue-5)' : undefined }}>
                   <Stack gap="xs">
-                    {/* Stream header row */}
-                    <Group justify="space-between">
-                      <Group gap="xs">
-                        <Box
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            backgroundColor: statusDotColor(stream.status),
-                            flexShrink: 0,
-                          }}
-                        />
-                        <Text size="xs" fw={600}>{stream.name}</Text>
-                        <Badge
-                          size="xs"
-                          variant="light"
-                          color={stream.status === 'running' ? 'green' : stream.status === 'error' ? 'red' : 'gray'}
-                        >
-                          {stream.status === 'running' ? 'Running' : stream.status === 'error' ? 'Error' : 'Idle'}
-                        </Badge>
-                      </Group>
-                      <Group gap={4}>
-                        {stream.status === 'running' ? (
-                          <ActionIcon
-                            variant="light"
-                            color="red"
-                            size="xs"
-                            onClick={() => handleStopStream(stream.id)}
-                            loading={loadingIds.has(stream.id)}
-                            title="Stop"
-                          >
-                            <IconPlayerStop size={12} />
-                          </ActionIcon>
-                        ) : (
-                          <ActionIcon
-                            variant="light"
-                            color="green"
-                            size="xs"
-                            onClick={() => handleStartStream(stream.id)}
-                            loading={loadingIds.has(stream.id)}
-                            title="Start"
-                          >
-                            <IconPlayerPlay size={12} />
-                          </ActionIcon>
-                        )}
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          size="xs"
-                          onClick={() => handleRemoveStream(stream.id)}
-                          disabled={streams.length <= 1 || stream.status === 'running'}
-                          title="Remove stream"
-                        >
-                          <IconTrash size={12} />
-                        </ActionIcon>
-                      </Group>
-                    </Group>
+                    <StreamCardHeader
+                      name={stream.name}
+                      dotColor={statusDotColor(stream.status)}
+                      tone={stream.status === 'running' ? 'ok' : stream.status === 'error' ? 'error' : 'off'}
+                      status={stream.status === 'running' ? 'Running' : stream.status === 'error' ? 'Error' : 'Idle'}
+                      running={stream.status === 'running'}
+                      loading={loadingIds.has(stream.id)}
+                      removeDisabled={streams.length <= 1 || stream.status === 'running'}
+                      onStart={() => handleStartStream(stream.id)}
+                      onStop={() => handleStopStream(stream.id)}
+                      onRemove={() => handleRemoveStream(stream.id)}
+                    />
+
 
                     {/* Input */}
-                    <Box>
-                      <Group gap={4} mb={2}><Text size="xs" fw={500}>Input</Text><StreamPathHelp /></Group>
-                      <Group gap="xs" grow>
+                    <FormRow label={<Group gap={4} wrap="nowrap">Input<StreamPathHelp /></Group>}>
+                      <Group gap={FORM_LABEL_GAP} wrap="nowrap">
                         <Select
-                          size="xs"
                           value={stream.input.type}
                           onChange={(v) => handleInputTypeChange(stream.id, v as StreamType)}
                           data={STREAM_TYPE_OPTIONS}
-                          style={{ maxWidth: 120 }}
+                          style={{ width: 120, flexShrink: 0 }}
                         />
                         <MaskedPathInput
-                          size="xs"
                           value={stream.input.path}
                           onChange={(v) => handleInputPathChange(stream.id, v)}
                           placeholder={PATH_PLACEHOLDER_FOR_TYPE[stream.input.type]}
                           styles={{ input: { fontFamily: MONO } }}
+                          style={{ flex: 1, minWidth: 0 }}
                         />
                       </Group>
-                    </Box>
+                    </FormRow>
 
                     {/* Outputs */}
-                    <Box>
-                      <Group justify="space-between" mb={2}>
-                        <Group gap={4}><Text size="xs" fw={500}>Outputs</Text><StreamPathHelp /></Group>
-                        <ActionIcon variant="light" color="blue" size="xs" onClick={() => handleAddOutput(stream.id)}>
-                          <IconPlus size={10} />
-                        </ActionIcon>
-                      </Group>
-                      <Stack gap={4}>
+                    <FormRow
+                      label={<Group gap={4} wrap="nowrap">Outputs<StreamPathHelp /></Group>}
+                      align="flex-start"
+                      trailing={<ActionIcon variant="light" color="blue" size="xs" onClick={() => handleAddOutput(stream.id)}> <IconPlus size={10} /> </ActionIcon>}
+                    >
+                      <Stack gap={6}>
                         {stream.outputs.map((output) => (
-                          <Group key={output.id} gap="xs" grow wrap="nowrap">
+                          <Group key={output.id} gap={FORM_LABEL_GAP} wrap="nowrap">
                             <Select
-                              size="xs"
                               value={output.type}
                               onChange={(v) => handleOutputTypeChange(stream.id, output.id, v as StreamType)}
                               data={STREAM_TYPE_OPTIONS}
-                              style={{ maxWidth: 120, flexShrink: 0 }}
+                              style={{ width: 120, flexShrink: 0 }}
                             />
                             <MaskedPathInput
-                              size="xs"
                               value={output.path}
                               onChange={(v) => handleOutputPathChange(stream.id, output.id, v)}
                               placeholder={PATH_PLACEHOLDER_FOR_TYPE[output.type]}
                               styles={{ input: { fontFamily: MONO } }}
+                              style={{ flex: 1, minWidth: 0 }}
                             />
-                            <ActionIcon
-                              variant="subtle"
-                              color="red"
-                              size="xs"
-                              onClick={() => handleRemoveOutput(stream.id, output.id)}
-                              disabled={stream.outputs.length <= 1}
-                              style={{ flexShrink: 0 }}
-                            >
-                              <IconTrash size={10} />
-                            </ActionIcon>
+                            <ActionIcon variant="subtle" color="red" size="xs" onClick={() => handleRemoveOutput(stream.id, output.id)} disabled={stream.outputs.length <= 1} style={{ flexShrink: 0 }} > <IconTrash size={10} /> </ActionIcon>
                           </Group>
                         ))}
                       </Stack>
-                    </Box>
+                    </FormRow>
                   </Stack>
                 </Card>
               ))}

@@ -53,7 +53,9 @@ import { ConfigSelect } from './common/ConfigSelect';
 import { useModeDependentDisable } from '../hooks/useModeDependentDisable';
 import { DOCS_BASE as OPTION_DOCS_BASE } from '../config/optionMeta';
 import { SECTION_SEARCH_TEXT } from '../config/sectionSearchIndex';
-import { FONT_SIZE } from '../utils/typography';
+import { FONT_SIZE, MONO } from '../utils/typography';
+import { FormRow } from './common/FormRow';
+import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
 
 // ─── Sub-components ────────────────────────────────────────────────────────
 
@@ -83,7 +85,7 @@ function StationPositionInput({
 
   return (
     <Stack gap={6}>
-      <Group wrap="nowrap" align="center" gap="xs">
+      <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
         <Text size="xs" c="dimmed" style={L}>Position Type</Text>
         <ConfigSelect
           size="xs"
@@ -99,7 +101,7 @@ function StationPositionInput({
           style={{ flex: 1 }}
         />
       </Group>
-      <Group wrap="nowrap" align="center" gap="xs">
+      <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
         <ComboLabel label={value.mode === 'xyz' ? 'X / Y / Z (m)' : 'Lat / Lon / Hgt'} style={L}
           fields={[{ name: coordLabels[0] }, { name: coordLabels[1] }, { name: coordLabels[2] }]} />
         <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -124,7 +126,7 @@ function StationPositionInput({
         />
       </Group>
       {value.antennaTypeEnabled && (
-        <Group wrap="nowrap" align="center" gap="xs">
+        <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
           <Text size="xs" c="dimmed" style={L}>Antenna Name</Text>
           <TextInput
             size="xs"
@@ -136,7 +138,7 @@ function StationPositionInput({
           />
         </Group>
       )}
-      <Group wrap="nowrap" align="center" gap="xs">
+      <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
         <ComboLabel label="Delta E/N/U (m)" style={L}
           fields={[{ name: 'Delta-E (m)' }, { name: 'Delta-N (m)' }, { name: 'Delta-U (m)' }]} />
         <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -171,34 +173,21 @@ function FileInputRow({
   onBrowse,
 }: FileInputRowProps) {
   return (
-    <div>
-      {label && (
-        <Text size="xs" fw={500} mb={4} style={{ fontSize: FONT_SIZE.label }}>
-          {label}
-        </Text>
-      )}
-      <Group gap="xs" wrap="nowrap">
-        <TextInput
-          size="xs"
-          value={value}
-          onChange={(e) => onChange(e.currentTarget.value)}
-          placeholder={placeholder || 'Path to file'}
-          styles={{
-            label: { fontSize: FONT_SIZE.label },
-            root: { flex: 1 }
-          }}
-          style={{ flex: 1 }}
-        />
-        <ActionIcon
-          variant="light"
-          color="gray"
-          size="lg"
-          onClick={onBrowse}
-        >
+    <FormRow
+      label={label}
+      trailing={
+        <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={onBrowse}>
           <IconFolder size={16} />
         </ActionIcon>
-      </Group>
-    </div>
+      }
+    >
+      <TextInput
+        value={value}
+        onChange={(e) => onChange(e.currentTarget.value)}
+        placeholder={placeholder || 'Path to file'}
+        styles={{ input: { fontFamily: MONO } }}
+      />
+    </FormRow>
   );
 }
 
@@ -311,7 +300,7 @@ function SectionHeader({ title, anchor }: { title: string; anchor: string }) {
 
 // ─── Horizontal field helper ──────────────────────────────────────────────
 
-const LABEL_W = 130;
+const LABEL_W = FORM_LABEL_WIDTH;
 const LABEL_STYLE = { width: LABEL_W, flexShrink: 0, fontSize: FONT_SIZE.label } as const;
 const OPT_LABEL_STYLE = { width: LABEL_W, flexShrink: 0 } as const;
 
@@ -668,7 +657,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 />
               </Group>
               <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label, paddingLeft: 130 }}>Input in GPS Time (GPST = UTC + 18 s)</Text>
-              <Group wrap="nowrap" align="center" gap="xs">
+              <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                 <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: FONT_SIZE.label }}>Interval (0=all)</Text>
                 <ConfigNumberInput
                   size="xs"
@@ -685,68 +674,44 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
               {/* Input Files */}
               <SectionHeader title="Input Files" anchor="basic-strategy" />
-              <div>
-                <Text size="xs" style={{ fontSize: FONT_SIZE.label, marginBottom: '4px' }}>Rover OBS *</Text>
-                <Group gap="xs" wrap="nowrap">
+              <Stack gap={6}>
+              <FormRow label="Rover OBS *" trailing={<ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser(execution.onRoverFileChange, 'data')}> <IconFolder size={16} /> </ActionIcon>}>
                   <TextInput
-                    size="xs"
                     placeholder="/data/rover.obs"
                     value={execution.roverFile}
                     onChange={(e) => execution.onRoverFileChange(e.currentTarget.value)}
                     leftSection={<IconFile size={12} />}
-                    style={{ flex: 1 }}
+                    styles={{ input: { fontFamily: MONO } }}
                   />
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser(execution.onRoverFileChange, 'data')}>
-                    <IconFolder size={16} />
-                  </ActionIcon>
-                </Group>
-              </div>
-              <div>
-                <Text size="xs" style={{ fontSize: FONT_SIZE.label, marginBottom: '4px' }}>Navigation *</Text>
-                <Group gap="xs" wrap="nowrap">
+                </FormRow>
+              <FormRow label="Navigation *" trailing={<ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser(execution.onNavFileChange, 'data')}> <IconFolder size={16} /> </ActionIcon>}>
                   <TextInput
-                    size="xs"
                     placeholder="/data/nav.nav"
                     value={execution.navFile}
                     onChange={(e) => execution.onNavFileChange(e.currentTarget.value)}
                     leftSection={<IconFile size={12} />}
-                    style={{ flex: 1 }}
+                    styles={{ input: { fontFamily: MONO } }}
                   />
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser(execution.onNavFileChange, 'data')}>
-                    <IconFolder size={16} />
-                  </ActionIcon>
-                </Group>
-              </div>
-              <div>
-                <Text size="xs" style={{ fontSize: FONT_SIZE.label, marginBottom: '4px' }} c={!execution.needsBase ? 'dimmed' : undefined}>Base OBS</Text>
-                <Group gap="xs" wrap="nowrap">
+                </FormRow>
+              <FormRow label="Base OBS" trailing={<ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser(execution.onBaseFileChange, 'data')} disabled={!execution.needsBase}> <IconFolder size={16} /> </ActionIcon>}>
                   <TextInput
-                    size="xs"
                     placeholder="/data/base.obs"
                     value={execution.baseFile}
                     onChange={(e) => execution.onBaseFileChange(e.currentTarget.value)}
                     leftSection={<IconFile size={12} />}
-                    style={{ flex: 1 }}
+                    styles={{ input: { fontFamily: MONO } }}
                     disabled={!execution.needsBase}
                   />
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser(execution.onBaseFileChange, 'data')} disabled={!execution.needsBase}>
-                    <IconFolder size={16} />
-                  </ActionIcon>
-                </Group>
-              </div>
+                </FormRow>
               {/* Correction Files */}
-              <div>
-                <Group gap="xs" mb={4} justify="space-between">
-                  <Text size="xs" style={{ fontSize: FONT_SIZE.label }}>Corrections (CLK, SP3, FCB, IONEX, L6, HAS, B2b, SBS, etc.)</Text>
-                  <ActionIcon variant="light" size="xs" onClick={() => execution.onCorrectionFilesChange([...execution.correctionFiles, ''])}>
-                    <IconPlus size={12} />
-                  </ActionIcon>
-                </Group>
-                <Stack gap={4}>
+              <FormRow
+                label="Corrections (CLK, SP3, FCB, IONEX, L6, HAS, B2b, SBS, etc.)"
+                align="flex-start"
+              >
+                <Stack gap={6}>
                   {execution.correctionFiles.map((cf, idx) => (
-                    <Group key={idx} gap="xs" wrap="nowrap">
+                    <Group key={idx} gap={FORM_LABEL_GAP} wrap="nowrap">
                       <TextInput
-                        size="xs"
                         placeholder={`/data/correction${idx + 1}`}
                         value={cf}
                         onChange={(e) => {
@@ -755,40 +720,45 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                           execution.onCorrectionFilesChange(next);
                         }}
                         leftSection={<IconFile size={12} />}
+                        rightSectionPointerEvents="all"
+                        rightSection={execution.correctionFiles.length > 1 ? (
+                          <Tooltip label="Remove file">
+                            <ActionIcon aria-label="Remove file" variant="subtle" color="gray" size={22} onClick={() => execution.onCorrectionFilesChange(execution.correctionFiles.filter((_, i) => i !== idx))}>
+                              <IconX size={14} />
+                            </ActionIcon>
+                          </Tooltip>
+                        ) : undefined}
+                        styles={{ input: { fontFamily: MONO } }}
                         style={{ flex: 1 }}
                       />
-                      <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser((path) => {
+                      <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser((path) => {
                         const next = [...execution.correctionFiles];
                         next[idx] = path;
                         execution.onCorrectionFilesChange(next);
                       }, 'data')}>
                         <IconFolder size={16} />
                       </ActionIcon>
-                      {execution.correctionFiles.length > 1 && (
-                        <ActionIcon variant="subtle" color="red" size="lg" onClick={() => execution.onCorrectionFilesChange(execution.correctionFiles.filter((_, i) => i !== idx))}>
-                          <IconX size={14} />
-                        </ActionIcon>
-                      )}
                     </Group>
                   ))}
+                  <Group justify="flex-end">
+                    <Tooltip label="Add file">
+                      <ActionIcon aria-label="Add file" variant="light" color="gray" size={30} onClick={() => execution.onCorrectionFilesChange([...execution.correctionFiles, ''])}>
+                        <IconPlus size={14} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
                 </Stack>
-              </div>
-              <div>
-                <Text size="xs" style={{ fontSize: FONT_SIZE.label, marginBottom: '4px' }}>Output *</Text>
-                <Group gap="xs" wrap="nowrap">
+              </FormRow>
+              <FormRow label="Output *" trailing={<ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser(execution.onOutputFileChange)}> <IconFolder size={16} /> </ActionIcon>}>
                   <TextInput
-                    size="xs"
                     placeholder="/workspace/output.pos"
                     value={execution.outputFile}
                     onChange={(e) => execution.onOutputFileChange(e.currentTarget.value)}
                     leftSection={<IconFile size={12} />}
-                    style={{ flex: 1 }}
+                    styles={{ input: { fontFamily: MONO } }}
                   />
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser(execution.onOutputFileChange)}>
-                    <IconFolder size={16} />
-                  </ActionIcon>
-                </Group>
-              </div>
+                </FormRow>
+              </Stack>
               {/* Temporarily disabled until QC moves to MRTKLIB QC (backend returns
                   503). data-disabled, not disabled, so the tooltip still shows. */}
               <Tooltip label="Temporarily disabled — QC Preview will return with MRTKLIB QC integration">
@@ -805,7 +775,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               {/* Group A: Basic Strategy */}
               <SectionHeader title="Basic Strategy" anchor="basic-strategy" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="positioning.mode" style={OPT_LABEL_STYLE} />
                   <ConfigSelect
                     size="xs"
@@ -841,7 +811,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     style={{ flex: 1 }}
                   />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="positioning.correction" style={OPT_LABEL_STYLE} />
                   <ConfigSelect
                     size="xs"
@@ -857,7 +827,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     style={{ flex: 1 }}
                   />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="positioning.solution_type" style={OPT_LABEL_STYLE} />
                   <ConfigSelect
                     size="xs"
@@ -878,7 +848,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   />
                 </Group>
                 {/* Freq. / Signals — Frequency primary, Signals an advanced override */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Freq. / Signals</Text>
                   <Group wrap="nowrap" align="center" gap={6} style={{ flex: 1, minWidth: 0 }}>
                     <ConfigSelect
@@ -919,7 +889,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                           : 'Signals…'}
                     </Button>
                     {useSignals && (
-                      <ActionIcon
+                      <ActionIcon aria-label="Clear signal override"
                         variant="subtle"
                         color="red"
                         size="sm"
@@ -958,7 +928,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               {/* Group B: Masks & Environment */}
               <SectionHeader title="Masks & Environment" anchor="masks" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="positioning.elevation_mask" style={OPT_LABEL_STYLE} />
                   <ConfigNumberInput
                     size="xs"
@@ -979,7 +949,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   />
                 </Group>
 
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>SNR Mask</Text>
                   <Button
                     size="xs"
@@ -991,7 +961,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Button>
                 </Group>
 
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="atmosphere.ionosphere" style={OPT_LABEL_STYLE} />
                   <ConfigSelect
                     size="xs"
@@ -1018,7 +988,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   />
                 </Group>
 
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="atmosphere.troposphere" style={OPT_LABEL_STYLE} />
                   <ConfigSelect
                     size="xs"
@@ -1043,7 +1013,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   />
                 </Group>
 
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="positioning.satellite_ephemeris" style={OPT_LABEL_STYLE} />
                   <ConfigSelect
                     size="xs"
@@ -1068,7 +1038,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   />
                 </Group>
 
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Earth Tides</Text>
                   <ConfigSelect
                     size="xs"
@@ -1178,14 +1148,14 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               {/* Corrections ([positioning.corrections] — bias / frequency / model options) */}
               <SectionHeader title="Corrections" anchor="corrections" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Iono Compensation</Text>
                   <ConfigSelect size="xs" value={config.positioning.corrections.ionoCompensation}
                     onChange={(value) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, ionoCompensation: value } } })}
                     data={[{ value: 'off', label: 'OFF' }, { value: 'ssr', label: 'SSR' }, { value: 'meas', label: 'Measured' }]}
                     style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="GPS / QZS Freq" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'GPS' }, { name: 'QZS' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -1197,7 +1167,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       data={['l1', 'l1+l2', 'l1+l5', 'l1+l2+l5', 'l1+l5(l2)']} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>SNR Fixed (dB-Hz)</Text>
                   <ConfigNumberInput size="xs" value={config.positioning.corrections.snrFixed}
                     onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, corrections: { ...config.positioning.corrections, snrFixed: v } } })}
@@ -1372,7 +1342,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 />
 
                 {/* BeiDou PRN reassignment (MRTKLIB v0.7.13 / v0.7.16): BDS-2 / GEO lists on one row */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="BDS-2 / GEO Sats" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'BDS-2', metaKey: 'positioning.bds2_sats' },
@@ -1419,28 +1389,28 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
             <Stack gap="xs">
               <SectionHeader title="CLAS PPP-RTK/VRS" anchor="clas-ppk" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Grid Radius (m)</Text>
                   <ConfigNumberInput size="xs"
                     value={config.positioning.clas.gridSelectionRadius}
                     onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, gridSelectionRadius: v } } })}
                     min={0} hideControls disabled={!isClasMode} style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Receiver Type</Text>
                   <TextInput size="xs"
                     value={config.positioning.clas.receiverType}
                     onChange={(e) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, receiverType: e.currentTarget.value } } })}
                     placeholder="e.g. Trimble NetR9" disabled={!isClasMode} style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Enhanced SPP Seed</Text>
                   <ConfigSelect size="xs" value={config.positioning.clas.enhancedSppSeed}
                     onChange={(value) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, enhancedSppSeed: value } } })}
                     data={[{ value: 'off', label: 'OFF' }, { value: 'cn0+tdcp', label: 'C/N0 + TDCP' }, { value: 'cn0+tdcp+robust', label: 'C/N0 + TDCP + Robust' }]}
                     disabled={!isClasMode} style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="ar.thresholds.alpha" style={OPT_LABEL_STYLE} />
                   <ConfigSelect size="xs" value={config.ambiguityResolution.thresholds.alpha}
                     onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, alpha: value}}})}
@@ -1451,7 +1421,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
               <SectionHeader title="CLAS Ambiguities" anchor="clas-amb" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Phase Shift</Text>
                   <ConfigSelect size="xs" value={config.receiver.phaseShift} disabled={!isClasMode}
                     onChange={(value) => handleConfigChange({ ...config, receiver: { ...config.receiver, phaseShift: value } })}
@@ -1463,7 +1433,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <Switch size="xs" checked={config.receiver.isb} disabled={!isClasMode}
                     onChange={(e) => handleConfigChange({ ...config, receiver: { ...config.receiver, isb: e.currentTarget.checked } })} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Reference Type</Text>
                   <TextInput size="xs" value={config.receiver.referenceType} disabled={!isClasMode}
                     onChange={(e) => handleConfigChange({ ...config, receiver: { ...config.receiver, referenceType: e.currentTarget.value } })}
@@ -1473,25 +1443,25 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
               <SectionHeader title="CLAS Resilience" anchor="clas-res" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Max Obs Loss (%)</Text>
                   <ConfigNumberInput size="xs" value={config.server.maxObsLoss ?? 90} disabled={!isClasMode}
                     onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, maxObsLoss: v } })}
                     min={0} max={100} decimalScale={1} hideControls style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Float Count</Text>
                   <ConfigNumberInput size="xs" value={config.server.floatCount ?? 15} disabled={!isClasMode}
                     onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, floatCount: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>L6 Merge</Text>
                   <ConfigNumberInput size="xs" value={config.positioning.clas.l6Merge} disabled={!isClasMode}
                     onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, l6Merge: v } } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Reset Interval</Text>
                   <ConfigNumberInput size="xs" value={config.positioning.clas.resetInterval} disabled={!isClasMode}
                     onChange={(v) => handleConfigChange({ ...config, positioning: { ...config.positioning, clas: { ...config.positioning.clas, resetInterval: v } } })}
@@ -1507,7 +1477,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     disabled={!isAdaptiveMode}
                     onChange={(e) => handleConfigChange({...config, adaptiveFilter: {...config.adaptiveFilter, enabled: e.currentTarget.checked}})} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Iono Forget / Gain" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'Forget', metaKey: 'adaptive.iono_forgetting' }, { name: 'Gain' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -1519,7 +1489,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       disabled={!isAdaptiveMode} decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="PVA Forget / Gain" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'Forget', metaKey: 'adaptive.pva_forgetting' }, { name: 'Gain' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -1541,7 +1511,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               {/* Ambiguity Resolution */}
               <SectionHeader title="AR Mode" anchor="ar-mode" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="ar.mode" style={OPT_LABEL_STYLE} />
                   <ConfigSelect
                     size="xs"
@@ -1564,7 +1534,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   />
                 </Group>
                 {/* Per-system AR — GPS / GLO / BDS / QZS on one row */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="AR GPS/GLO/BDS/QZS" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'GPS', metaKey: 'ar.gps_ar' },
@@ -1592,7 +1562,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
                 {/* PPP-AR constellations ([ambiguity_resolution].systems bitmask) */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="ar.systems" style={OPT_LABEL_STYLE} />
                   <Group wrap="nowrap" align="center" gap="sm" style={{ flex: 1, minWidth: 0 }}>
                     {AR_SYSTEM_BITS.map(({ label, bit }) => (
@@ -1615,7 +1585,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     ))}
                   </Group>
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="ar.bds3_igso_sats" style={OPT_LABEL_STYLE} />
                   <TextInput
                     size="xs"
@@ -1635,7 +1605,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               {/* AR Thresholds */}
               <SectionHeader title="Thresholds" anchor="ar-thresholds" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="ar.thresholds.ratio" style={OPT_LABEL_STYLE} />
                   <ConfigNumberInput
                     size="xs"
@@ -1656,7 +1626,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   />
                 </Group>
                 {/* Elevation Mask: AR / Hold on one row */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Elev. Mask AR/Hold (°)" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'AR', metaKey: 'ar.thresholds.elevation_mask' },
@@ -1676,7 +1646,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
                 {/* Ratio 1 / 5 / 6 (v0.7.6: ratio2/3/4 removed) */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Ratio 1 / 5 / 6" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Ratio 1', metaKey: 'ar.thresholds.ratio1' },
@@ -1699,7 +1669,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
                 {/* Max PDOP AR/Hold (v0.7.6) */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Max PDOP AR/Hold" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'AR' }, { name: 'Hold' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -1714,7 +1684,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
                 {/* Reference DOP (v0.7.6) */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Reference DOP</Text>
                   <ConfigSelect size="xs" value={config.ambiguityResolution.thresholds.referenceDop}
                     onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, thresholds: {...config.ambiguityResolution.thresholds, referenceDop: value}}})}
@@ -1727,7 +1697,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <Divider my={4} />
               <Stack gap={6}>
                 {/* Lock Count + Min Fix Epochs on one row */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Lock Cnt / Min Fix Eps" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Lock Count', metaKey: 'ar.counters.lock_count' },
@@ -1745,7 +1715,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
                 {/* Max Iterations + Outage Reset Count on one row */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Max Iter / Out Cnt" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Max Iterations', metaKey: 'ar.counters.max_iterations' },
@@ -1767,7 +1737,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               {/* Slip Detection */}
               <SectionHeader title="Cycle Slip Detection" anchor="ar-cycleslip" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="slip.threshold" style={OPT_LABEL_STYLE} />
                   <ConfigNumberInput
                     size="xs"
@@ -1791,7 +1761,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <SectionHeader title="Partial AR" anchor="partial-ar" />
               <Stack gap={6}>
                 {/* Min Ambiguities + Max Excluded Sats */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Min Amb / Max Excl" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Min Ambiguities', metaKey: 'ar.partial_ar.min_ambiguities' },
@@ -1809,7 +1779,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
                 {/* Min Fix / Drop / Hold Pairs */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Min Pairs Fix/Drop/Hold" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Fix', metaKey: 'ar.partial_ar.min_fix_sats' },
@@ -1842,7 +1812,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               {/* Hold */}
               <SectionHeader title="Hold" anchor="ar-hold" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Variance</Text>
                   <ConfigNumberInput size="xs" value={config.ambiguityResolution.hold.variance}
                     onChange={(value) => handleConfigChange({...config, ambiguityResolution: {...config.ambiguityResolution, hold: {...config.ambiguityResolution.hold, variance: value}}})}
@@ -1857,7 +1827,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
             <Stack gap="xs">
               <SectionHeader title="Iterations" anchor="kf-iterations" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Iterations</Text>
                   <ConfigNumberInput size="xs" value={config.kalmanFilter.iterations}
                     onChange={(value) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, iterations: value}})}
@@ -1869,7 +1839,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <SectionHeader title="Measurement Error" anchor="kf-measurement" />
               <Stack gap={6}>
                 {/* Code/Phase Ratio L1/L2/L5 */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Code/Phase Ratio L1/L2/L5" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'L1', metaKey: 'kf.meas.code_phase_ratio_L1' },
@@ -1890,7 +1860,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
 
                 {/* Phase Error Base / Elevation / Baseline */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Phase Error Base/Elev/BL" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Base', metaKey: 'kf.meas.phase' },
@@ -1912,7 +1882,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
 
                 {/* Doppler / URA Ratio */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Doppler / URA Ratio" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Doppler' },
@@ -1929,7 +1899,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
                 {/* SNR Max / Error (v0.7.6) */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="SNR Max / Error" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'SNR Max' }, { name: 'SNR Error' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -1942,7 +1912,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
                 {/* Iono / Tropo estimation error (v0.7.6) */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Iono / Tropo Error (m)" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'Iono' }, { name: 'Tropo' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -1960,7 +1930,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <SectionHeader title="Process Noise" anchor="kf-process" />
               <Stack gap={6}>
                 {/* Accel Noise Horizontal / Vertical */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Accel Noise Hor/Ver" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Horizontal', metaKey: 'kf.pn.accel_h' },
@@ -1979,7 +1949,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
 
                 {/* Phase Bias / Iono / ZTD */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="PB / Iono / ZTD" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Phase Bias' },
@@ -1999,7 +1969,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
 
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="kf.pn.clock_stability" style={OPT_LABEL_STYLE} />
                   <TextInput
                     size="xs"
@@ -2023,7 +1993,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     style={{ flex: 1 }}
                   />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="kf.pn.iono_max" style={OPT_LABEL_STYLE} />
                   <ConfigNumberInput size="xs" value={config.kalmanFilter.processNoise.ionoMax}
                     disabled={modeDisabled('kf.pn.iono_max')}
@@ -2031,7 +2001,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     decimalScale={4} hideControls style={{flex:1}} />
                 </Group>
                 {/* Position H / V */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Position H/V (m)" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Horizontal' },
@@ -2046,20 +2016,20 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       decimalScale={4} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="kf.pn.position" style={OPT_LABEL_STYLE} />
                   <ConfigNumberInput size="xs" value={config.kalmanFilter.processNoise.position}
                     onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, position: v}}})}
                     decimalScale={4} hideControls style={{flex:1}} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="kf.pn.ifb" style={OPT_LABEL_STYLE} />
                   <ConfigNumberInput size="xs" value={config.kalmanFilter.processNoise.ifb}
                     disabled={modeDisabled('kf.pn.ifb')}
                     onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, ifb: v}}})}
                     decimalScale={4} hideControls style={{flex:1}} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Iono Time Const</Text>
                   <ConfigNumberInput size="xs" value={config.kalmanFilter.processNoise.ionoTimeConst}
                     onChange={(v) => handleConfigChange({...config, kalmanFilter: {...config.kalmanFilter, processNoise: {...config.kalmanFilter.processNoise, ionoTimeConst: v}}})}
@@ -2071,7 +2041,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <SectionHeader title="Initial Std. Deviation" anchor="kf-initial-std" />
               <Stack gap={6}>
                 {/* Initial Std: Bias / Iono / Trop */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Bias / Iono / Trop" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Bias' },
@@ -2096,7 +2066,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <SectionHeader title="Rejection Criteria" anchor="rejection" />
               <Stack gap={6}>
                 {/* Innovation Threshold + L1/L2 Residual */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Innov Thr / Res L1/L2" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Innovation Threshold', metaKey: 'rejection.innovation' },
@@ -2112,7 +2082,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
                 {/* Dispersive + Non-Dispersive Residual */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Disp / Non-Disp Res" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Dispersive Residual', metaKey: 'rejection.dispersive' },
@@ -2128,7 +2098,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
                 {/* Hold + Fix Chi-Square */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Chi-Square Hold/Fix" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Hold Chi-Square' },
@@ -2144,7 +2114,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
                 {/* Max GDOP + Pseudorange Diff + Pos Error Count */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Max GDOP / PRdiff / PosErr" style={OPT_LABEL_STYLE}
                     fields={[
                       { name: 'Max GDOP', metaKey: 'rejection.gdop' },
@@ -2164,7 +2134,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
                 {/* SPP residual / min sats (v0.7.6) */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="SPP Res / Min Sats" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'SPP Residual' }, { name: 'SPP Min Sats' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -2190,7 +2160,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <Switch size="xs" checked={config.receiver.ignoreChiError}
                     onChange={(e) => handleConfigChange({ ...config, receiver: { ...config.receiver, ignoreChiError: e.currentTarget.checked } })} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Robust / K0 / K1" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'Robust' }, { name: 'K0' }, { name: 'K1' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -2206,7 +2176,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       disabled={(config.positioning.robust ?? 'off') === 'off'} decimalScale={2} hideControls style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="TDCP / Jump (m)" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'TDCP' }, { name: 'Jump' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -2224,13 +2194,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
               <SectionHeader title="Relative Positioning" anchor="relative" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Max Age (s)</Text>
                   <ConfigNumberInput size="xs" value={config.receiver.maxAge}
                     onChange={(value) => handleConfigChange({ ...config, receiver: { ...config.receiver, maxAge: value } })}
                     min={0} decimalScale={1} hideControls disabled={!isRelativeMode} style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Baseline Len / Sigma (m)" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'Length' }, { name: 'Sigma' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -2251,7 +2221,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
               <SectionHeader title="Signal Selection" anchor="signals" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="GPS / QZS / GAL" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'GPS' }, { name: 'QZSS' }, { name: 'Galileo' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -2266,7 +2236,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       data={['E1/E5a', 'E1/E5b', 'E1/E6', 'E1/E5a/E5b/E6', 'E1/E5a/E6/E5b']} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="BDS-2 / BDS-3" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'BDS-2' }, { name: 'BDS-3' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -2287,7 +2257,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
             <Stack gap="xs">
               <SectionHeader title="PPP" anchor="ppp" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Sat Clock / Phase / Uncorr Bias" style={OPT_LABEL_STYLE}
                     fields={[{ name: 'Clock' }, { name: 'Phase' }, { name: 'Uncorr' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -2307,13 +2277,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   <Switch size="xs" checked={config.receiver.clockJump} disabled={!isPPP}
                     onChange={(e) => handleConfigChange({ ...config, receiver: { ...config.receiver, clockJump: e.currentTarget.checked } })} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Max Bias dt</Text>
                   <ConfigNumberInput size="xs" value={config.receiver.maxBiasDt} disabled={!isPPP}
                     onChange={(value) => handleConfigChange({ ...config, receiver: { ...config.receiver, maxBiasDt: value } })}
                     hideControls style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>PPP Options</Text>
                   <TextInput size="xs" value={config.server.pppOption ?? ''} disabled={!isPPP}
                     onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, pppOption: e.currentTarget.value } })}
@@ -2359,7 +2329,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 }
                 disabled={isSingle}
               />
-              <Group wrap="nowrap" align="center" gap="xs">
+              <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                 <Text size="xs" c="dimmed" style={LABEL_STYLE}>Max Avg Epochs</Text>
                 <ConfigNumberInput
                   size="xs"
@@ -2421,7 +2391,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <SectionHeader title="Solution Output" anchor="output-solution" />
               {/* Group A: Format Configuration */}
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Solution Format</Text>
                   <ConfigSelect
                     size="xs"
@@ -2461,7 +2431,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   </Group>
                 </Group>
 
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Time Format</Text>
                   <ConfigSelect
                     size="xs"
@@ -2482,7 +2452,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     style={{ flex: 1 }}
                   />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}># of Decimals</Text>
                   <ConfigNumberInput
                     size="xs"
@@ -2501,7 +2471,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   />
                 </Group>
 
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Lat/Lon Format</Text>
                   <ConfigSelect
                     size="xs"
@@ -2521,7 +2491,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   />
                 </Group>
 
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Field Separator</Text>
                   <TextInput
                     size="xs"
@@ -2541,7 +2511,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               {/* Group B: Height & Geoid (datum removed in v0.7.6) */}
               <Divider my={4} />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Height</Text>
                   <ConfigSelect
                     size="xs"
@@ -2561,7 +2531,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   />
                 </Group>
 
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Geoid Model</Text>
                   <ConfigSelect
                     size="xs"
@@ -2607,7 +2577,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
 
                 {/* NMEA RMC/GGA + GSA/GSV intervals on one row */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA RMC/GGA · GSA/GSV (s)</Text>
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
                     <ConfigNumberInput size="xs" title="NMEA RMC/GGA interval (s)" aria-label="NMEA RMC/GGA (s)" value={config.output.nmeaIntervalRmcGga}
@@ -2627,7 +2597,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
 
                 {/* Sol Status + Debug Trace on one row */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Sol Status / Debug Trace</Text>
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
                     <ConfigSelect size="xs" title="Solution Status" aria-label="Sol Status" value={config.output.outputSolutionStatus}
@@ -2653,7 +2623,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 </Group>
 
                 {/* [output] max_solution_std — 0 = no limit */}
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <OptionLabel metaKey="output.max_solution_std" style={OPT_LABEL_STYLE} />
                   <ConfigNumberInput size="xs" aria-label="Max solution std (m)" value={config.output.maxSolutionStd}
                     onChange={(value) => handleConfigChange({
@@ -2764,6 +2734,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               )}
 
               <SectionHeader title="Auxiliary Files" anchor="files-aux" />
+              <Stack gap={6}>
               <FileInputRow
                 label="Satellite Antenna PCV File (ANTEX)"
                 value={config.files.satelliteAtx}
@@ -2964,6 +2935,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 onChange={(val) => handleConfigChange({ ...config, files: { ...config.files, cmdFile3: val } })}
                 onBrowse={() => openFileBrowser((path) => handleConfigChange({ ...config, files: { ...config.files, cmdFile3: path } }))}
               />
+              </Stack>
             </Stack>
           )}
 
@@ -2972,25 +2944,25 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
             <Stack gap="xs">
               <SectionHeader title="Input Decoding" anchor="input-options" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>RINEX Option 1</Text>
                   <TextInput size="xs" value={config.server.rinexOption1 ?? ''}
                     onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, rinexOption1: e.currentTarget.value } })}
                     placeholder="e.g. -GL2X" style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>RINEX Option 2</Text>
                   <TextInput size="xs" value={config.server.rinexOption2 ?? ''}
                     onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, rinexOption2: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>RTCM Options</Text>
                   <TextInput size="xs" value={config.server.rtcmOption ?? ''}
                     onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, rtcmOption: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>SBAS Satellite</Text>
                   <TextInput size="xs" value={config.server.sbasSatellite ?? '0'}
                     onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, sbasSatellite: e.currentTarget.value } })}
@@ -3005,61 +2977,61 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
             <Stack gap="xs">
               <SectionHeader title="Server Options" anchor="server-options" />
               <Stack gap={6}>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Cycle (ms)</Text>
                   <ConfigNumberInput size="xs" value={config.server.cycleMs ?? 10}
                     onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, cycleMs: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Timeout (ms)</Text>
                   <ConfigNumberInput size="xs" value={config.server.timeoutMs ?? 10000}
                     onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, timeoutMs: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Reconnect (ms)</Text>
                   <ConfigNumberInput size="xs" value={config.server.reconnectMs ?? 10000}
                     onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, reconnectMs: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Cycle (ms)</Text>
                   <ConfigNumberInput size="xs" value={config.server.nmeaCycleMs ?? 5000}
                     onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, nmeaCycleMs: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Buffer Size</Text>
                   <ConfigNumberInput size="xs" value={config.server.bufferSize ?? 32768}
                     onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, bufferSize: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Nav Msg Select</Text>
                   <TextInput size="xs" value={config.server.navMsgSelect ?? 'all'}
                     onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, navMsgSelect: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Proxy</Text>
                   <TextInput size="xs" value={config.server.proxy ?? ''}
                     onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, proxy: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Swap Margin (s)</Text>
                   <ConfigNumberInput size="xs" value={config.server.swapMargin ?? 30}
                     onChange={(v) => handleConfigChange({ ...config, server: { ...config.server, swapMargin: v } })}
                     min={0} hideControls style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Start Cmd</Text>
                   <TextInput size="xs" value={config.server.startCmd ?? ''}
                     onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, startCmd: e.currentTarget.value } })}
                     style={{ flex: 1 }} />
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Stop Cmd</Text>
                   <TextInput size="xs" value={config.server.stopCmd ?? ''}
                     onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, stopCmd: e.currentTarget.value } })}

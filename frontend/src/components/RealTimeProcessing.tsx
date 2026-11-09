@@ -67,6 +67,7 @@ import { TraceLogView } from './common/TraceLogView';
 import { StatusBadge } from './common/StatusBadge';
 import { processTone } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
+import { FormRow } from './common/FormRow';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -95,12 +96,6 @@ const OUTPUT_FORMATS: { value: StreamFormat; label: string }[] = [
   { value: 'nmea', label: 'NMEA' },
 ];
 
-const LABEL_STYLE = { width: 90, flexShrink: 0, fontSize: FONT_SIZE.label } as const;
-
-// Switch rows: match the xs input height of the neighboring Select/TextInput
-// rows. --input-height-xs is scoped to Mantine's Input, so use its value.
-const SWITCH_ROW_STYLE = { minHeight: 'calc(1.875rem * var(--mantine-scale))' } as const;
-
 function StreamEditor({
   label,
   stream,
@@ -120,16 +115,14 @@ function StreamEditor({
   const baseStream = stream as BaseStreamConfig;
 
   return (
-    <Stack gap={4}>
+    <Stack gap={6}>
       <Text size="xs" fw={600} mb={2}>{label}</Text>
-      <Group wrap="nowrap" align="center" gap="xs">
-        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Type</Text>
+      <FormRow label="Type">
         <Select size="xs" value={stream.type}
           onChange={(v) => onChange({ ...stream, type: v as StreamType })}
           data={STREAM_TYPES} style={{ flex: 1 }} />
-      </Group>
-      <Group wrap="nowrap" align="center" gap="xs">
-        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Path</Text>
+      </FormRow>
+      <FormRow label="Path">
         <MaskedPathInput size="xs" value={stream.path}
           onChange={(v) => onChange({ ...stream, path: v })}
           placeholder={isOff ? '' : ({
@@ -142,32 +135,28 @@ function StreamEditor({
           } as Record<string, string>)[stream.type] || 'e.g. host:port'}
           disabled={isOff} style={{ flex: 1 }}
           styles={{ input: { fontFamily: MONO } }} />
-      </Group>
-      <Group wrap="nowrap" align="center" gap="xs">
-        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Format</Text>
+      </FormRow>
+      <FormRow label="Format">
         <Select size="xs" value={stream.format}
           onChange={(v) => onChange({ ...stream, format: v as StreamFormat })}
           data={formats} disabled={isOff} style={{ flex: 1 }} />
-      </Group>
+      </FormRow>
       {showNmea && !isOff && (
         <>
-          <Group wrap="nowrap" align="center" gap="xs" style={SWITCH_ROW_STYLE}>
-            <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Req.</Text>
+          <FormRow label="NMEA Req.">
             <Switch size="xs" checked={baseStream.nmeareq ?? false}
               onChange={(e) => onChange({ ...baseStream, nmeareq: e.currentTarget.checked })} />
-          </Group>
-          <Group wrap="nowrap" align="center" gap="xs">
-            <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Lat</Text>
+          </FormRow>
+          <FormRow label="NMEA Lat">
             <NumberInput size="xs" value={baseStream.nmealat ?? 0}
               onChange={(v) => onChange({ ...baseStream, nmealat: Number(v) })}
               decimalScale={6} disabled={!baseStream.nmeareq} style={{ flex: 1 }} />
-          </Group>
-          <Group wrap="nowrap" align="center" gap="xs">
-            <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Lon</Text>
+          </FormRow>
+          <FormRow label="NMEA Lon">
             <NumberInput size="xs" value={baseStream.nmealon ?? 0}
               onChange={(v) => onChange({ ...baseStream, nmealon: Number(v) })}
               decimalScale={6} disabled={!baseStream.nmeareq} style={{ flex: 1 }} />
-          </Group>
+          </FormRow>
         </>
       )}
       {footer}
@@ -242,34 +231,34 @@ function RawLogEditor({
 
   return (
     <>
-      <Group wrap="nowrap" align="center" gap="xs" style={SWITCH_ROW_STYLE}>
-        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Save Raw</Text>
-        <Switch size="xs" checked={enabled}
-          disabled={!enabled && inputStream.type === 'off'}
-          onChange={(e) => onChange(e.currentTarget.checked
-            ? {
-                type: 'file',
-                path: composeRawLogPath(base || defaultRawLogBase(input, inputStream.format), timetag),
-                format: '',
-              }
-            : { ...log, type: 'off' })} />
-        <Tooltip label="Write a .tag file so the log can be replayed in real time (file::T)" openDelay={300}>
-          <div>
-            <Switch size="xs" label="Time tag" checked={timetag} disabled={!enabled}
-              onChange={(e) => onChange({ ...log, type: 'file', path: composeRawLogPath(base, e.currentTarget.checked) })}
-              styles={{ label: { fontSize: FONT_SIZE.label } }} />
-          </div>
-        </Tooltip>
-      </Group>
-      <Group wrap="nowrap" align="center" gap="xs">
-        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Raw Path</Text>
+      <FormRow label="Save Raw">
+        <Group gap="xs" wrap="nowrap">
+          <Switch size="xs" checked={enabled}
+            disabled={!enabled && inputStream.type === 'off'}
+            onChange={(e) => onChange(e.currentTarget.checked
+              ? {
+                  type: 'file',
+                  path: composeRawLogPath(base || defaultRawLogBase(input, inputStream.format), timetag),
+                  format: '',
+                }
+              : { ...log, type: 'off' })} />
+          <Tooltip label="Write a .tag file so the log can be replayed in real time (file::T)" openDelay={300}>
+            <div>
+              <Switch size="xs" label="Time tag" checked={timetag} disabled={!enabled}
+                onChange={(e) => onChange({ ...log, type: 'file', path: composeRawLogPath(base, e.currentTarget.checked) })}
+                styles={{ label: { fontSize: FONT_SIZE.label } }} />
+            </div>
+          </Tooltip>
+        </Group>
+      </FormRow>
+      <FormRow label="Raw Path">
         <TextInput size="xs" value={enabled ? base : ''}
           onChange={(e) => onChange({ ...log, type: 'file', path: composeRawLogPath(e.currentTarget.value, timetag) })}
           placeholder={defaultRawLogBase(input, inputStream.format)}
           disabled={!enabled}
           style={{ flex: 1, minWidth: 0 }}
           styles={{ input: { fontFamily: MONO } }} />
-      </Group>
+      </FormRow>
     </>
   );
 }
@@ -679,35 +668,35 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                   </Button>
                 )}
                 <Tooltip label="Presets">
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={openPresets}>
+                  <ActionIcon aria-label="Presets" variant="light" color="gray" size={30} onClick={openPresets}>
                     <IconBookmark size={16} />
                   </ActionIcon>
                 </Tooltip>
                 {aiConfigured ? (
                   <Tooltip label="Config Assistant">
-                    <ActionIcon variant="light" color="gray" size="lg" onClick={openAssistant}>
+                    <ActionIcon aria-label="Config Assistant" variant="light" color="gray" size={30} onClick={openAssistant}>
                       <IconSparkles size={16} />
                     </ActionIcon>
                   </Tooltip>
                 ) : (
                   <Tooltip label="Configure API key in Tools → AI Settings">
-                    <ActionIcon variant="light" color="gray" size="lg" onClick={onNavigateToAiSettings}>
+                    <ActionIcon aria-label="Configure API key in Tools → AI Settings" variant="light" color="gray" size={30} onClick={onNavigateToAiSettings}>
                       <IconSparkles size={16} />
                     </ActionIcon>
                   </Tooltip>
                 )}
                 <Tooltip label="Import TOML">
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => importFileRef.current?.click()}>
+                  <ActionIcon aria-label="Import TOML" variant="light" color="gray" size={30} onClick={() => importFileRef.current?.click()}>
                     <IconUpload size={16} />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label="TOML Preview">
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={openToml}>
+                  <ActionIcon aria-label="TOML Preview" variant="light" color="gray" size={30} onClick={openToml}>
                     <IconCode size={16} />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label="Download TOML">
-                  <ActionIcon variant="light" color="gray" size="lg" disabled={isRunning} onClick={async () => {
+                  <ActionIcon aria-label="Download TOML" variant="light" color="gray" size={30} disabled={isRunning} onClick={async () => {
                     try {
                       const backendCfg = configToBackend(config);
                       const payload = { config: backendCfg, streams: buildStreamsPayload() };
@@ -781,7 +770,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                         <Group gap={4}><Text size="xs" fw={600}>Output Streams</Text><StreamPathHelp /></Group>
                         {outputLogCount < OUTPUT_LOG_SLOTS.length && (
                           <Tooltip label="Add output stream" openDelay={300}>
-                            <ActionIcon size="xs" variant="light" onClick={() => setShowOutput2(true)}>
+                            <ActionIcon aria-label="Add output stream" size="xs" variant="light" onClick={() => setShowOutput2(true)}>
                               <IconPlus size={12} />
                             </ActionIcon>
                           </Tooltip>
@@ -798,7 +787,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                             />
                           </div>
                           {idx > 0 && (
-                            <ActionIcon
+                            <ActionIcon aria-label="Remove output stream"
                               variant="subtle"
                               color="red"
                               size="xs"

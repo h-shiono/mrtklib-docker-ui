@@ -49,6 +49,15 @@ export const theme = createTheme({
     Paper: { defaultProps: { radius: 'md', withBorder: true } },
     Card: { defaultProps: { radius: 'md', withBorder: true } },
     Code: { styles: { root: { fontFamily: "'IBM Plex Mono', monospace" } } },
+    // Every field is 30px (DESIGN.md "Inputs / Fields").
+    Autocomplete: { defaultProps: { size: 'xs' } },
+    DateTimePicker: { defaultProps: { size: 'xs' } },
+    MultiSelect: { defaultProps: { size: 'xs' } },
+    NumberInput: { defaultProps: { size: 'xs' } },
+    PasswordInput: { defaultProps: { size: 'xs' } },
+    Select: { defaultProps: { size: 'xs' } },
+    Textarea: { defaultProps: { size: 'xs' } },
+    TextInput: { defaultProps: { size: 'xs' } },
   },
 });
 
