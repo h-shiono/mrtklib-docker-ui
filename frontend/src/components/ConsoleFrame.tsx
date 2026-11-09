@@ -3,6 +3,7 @@ import { ActionIcon, Box, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { FONT_SIZE } from '../utils/typography';
+import { SCREEN_HEIGHT } from '../utils/formLayout';
 
 // ─── Console redesign Phase 3: collapsible 1:1 Config | Workspace frame ───────
 // The left Config column collapses to a 50px rail; the right Workspace fills the
@@ -91,7 +92,7 @@ export function ConsoleFrame({ configOpen, onToggleConfig, config, workspace }: 
   }
 
   return (
-    <Box style={{ display: 'flex', gap: 'var(--mantine-spacing-md)', alignItems: 'stretch', minWidth: 0 }}>
+    <Box style={{ display: 'flex', gap: 'var(--mantine-spacing-md)', alignItems: 'stretch', minWidth: 0, height: SCREEN_HEIGHT }}>
       {/* Config column — stays mounted when collapsed so state survives. */}
       <Box
         style={{
@@ -99,6 +100,7 @@ export function ConsoleFrame({ configOpen, onToggleConfig, config, workspace }: 
           flexShrink: configOpen ? 1 : 0,
           flexBasis: configOpen ? 0 : 50,
           minWidth: 0,
+          minHeight: 0,
           alignSelf: 'stretch',
         }}
       >
@@ -107,7 +109,7 @@ export function ConsoleFrame({ configOpen, onToggleConfig, config, workspace }: 
       </Box>
 
       {/* Workspace column */}
-      <Box style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 }}>{workspace}</Box>
+      <Box style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>{workspace}</Box>
     </Box>
   );
 }

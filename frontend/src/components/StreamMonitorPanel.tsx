@@ -63,15 +63,10 @@ import { processTone, STATUS_COLOR } from '../utils/status';
 import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
+import { MIN_PANEL_HEIGHT } from '../utils/formLayout';
 
 
 const NO_SATELLITES: MonitorSatellite[] = [];
-/** The workspace fills the window under the header (lessons L02: the config
- *  column has no tall content to stretch against). */
-const WORKSPACE_MIN_HEIGHT = 'calc(100vh - 114px)';
-/** Smallest chart / text area, enough for a legible Sky / SNR panel. The
- *  viewer takes a pixel height, so the area is measured. */
-const MIN_CHART_HEIGHT = 420;
 /** Padding above each tab panel. */
 const PANEL_TOP = 6;
 
@@ -245,7 +240,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
 
   const [tab, setTab] = useState<string | null>('chart');
   const { ref: panelsRef, height: panelsHeight } = useElementSize();
-  const chartHeight = Math.max(MIN_CHART_HEIGHT, panelsHeight - PANEL_TOP);
+  const chartHeight = Math.max(MIN_PANEL_HEIGHT, panelsHeight - PANEL_TOP);
   // Chart views, side by side; kept per browser. A stored value from an
   // older layout (e.g. 'position') is dropped (L28).
   const [storedViews, setChartViews] = useLocalStorage<string[]>({
@@ -393,7 +388,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
       configOpen={configOpen}
       onToggleConfig={onToggleConfig ?? (() => {})}
       config={
-        <Card withBorder p="xs" h="100%">
+        <Card withBorder p="xs" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <Group justify="space-between" mb="xs" wrap="nowrap">
             <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
               {onToggleConfig && <ConfigCollapseButton onClick={onToggleConfig} />}
@@ -434,6 +429,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
               )}
             </Group>
           </Group>
+          <ScrollArea style={{ flex: 1, minHeight: 0 }} offsetScrollbars>
           <Stack gap="xs">
             {streams.map((s) => (
               <Card
@@ -466,10 +462,11 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
               </Card>
             ))}
           </Stack>
+          </ScrollArea>
         </Card>
       }
       workspace={
-        <Card withBorder p="xs" style={{ display: 'flex', flexDirection: 'column', minHeight: WORKSPACE_MIN_HEIGHT }}>
+        <Card withBorder p="xs" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
           <Stack gap={6} style={{ flex: '1 1 auto', minHeight: 0 }}>
             {/* One selector for every per-stream view (#171) */}
             {twoStreams && (
@@ -518,7 +515,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
               </Group>
 
               {/* A fixed basis, not its content: the measured height must not feed back. */}
-              <div ref={panelsRef} style={{ flex: `1 1 ${MIN_CHART_HEIGHT + PANEL_TOP}px`, minHeight: 0, overflow: 'hidden' }}>
+              <div ref={panelsRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                 <Tabs.Panel value="chart" pt={PANEL_TOP}>
                   <div style={{ display: 'flex', gap: 10, height: chartHeight, minHeight: 0 }}>
                     {positionViews.length > 0 && (

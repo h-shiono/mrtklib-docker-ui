@@ -21,6 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   Stream Relay streams move to it, and paths use the monospace font.
 - Stream Monitor shows every stream as a card like Stream Relay, also with one
   stream, and streams are named Stream 1 and Stream 2 instead of A and B.
+- Every screen fits the window and scrolls inside its columns. Charts and
+  consoles fill the space, and changing a setting no longer moves the
+  workspace, so the Streaming status stays on screen on a laptop.
 
 ### Fixed
 - Observation QC: switching the SNR plot to Elevation without a NAV file could

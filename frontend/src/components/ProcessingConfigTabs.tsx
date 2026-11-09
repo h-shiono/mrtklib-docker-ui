@@ -534,7 +534,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
   return (
     <>
-      <Group gap={0} align="stretch" wrap="nowrap" style={{ minHeight: 400 }}>
+      <Group gap={0} align="stretch" wrap="nowrap" style={{ flex: 1, minHeight: 0 }}>
         {/* Left category rail */}
         <Box
           style={{

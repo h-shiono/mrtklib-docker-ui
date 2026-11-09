@@ -68,6 +68,7 @@ import { StatusBadge } from './common/StatusBadge';
 import { processTone } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
+import { MIN_PANEL_HEIGHT } from '../utils/formLayout';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -95,6 +96,9 @@ const OUTPUT_FORMATS: { value: StreamFormat; label: string }[] = [
   { value: '', label: '(none)' },
   { value: 'nmea', label: 'NMEA' },
 ];
+
+/** Padding above each tab panel. */
+const PANEL_TOP = 6;
 
 function StreamEditor({
   label,
@@ -369,6 +373,8 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const MAX_TRACE_LINES = 1000;
 
   // Measured height for the live map (leaflet needs an explicit pixel height).
+  const { ref: panelsRef, height: panelsHeight } = useElementSize();
+  const panelHeight = Math.max(MIN_PANEL_HEIGHT, panelsHeight - PANEL_TOP);
   const { ref: mapWrapRef, height: mapHeight } = useElementSize();
 
   // Adapt the RT position history to the viewer's PosEpoch shape so the
@@ -645,8 +651,8 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       configOpen={configOpen}
       onToggleConfig={onToggleConfig ?? (() => {})}
       config={
-        <Card withBorder p="xs">
-          <Stack gap={4}>
+        <Card withBorder p="xs" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <Stack gap={4} style={{ flex: 1, minHeight: 0 }}>
             <Group justify="space-between">
               <Group gap="xs">
                 {onToggleConfig && <ConfigCollapseButton onClick={onToggleConfig} />}
@@ -844,8 +850,9 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                 </Chip.Group>
               </Group>
 
-              <Tabs.Panel value="chart" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
-                <div style={{ display: 'flex', gap: 10, height: '100%', minHeight: 0 }}>
+              <div ref={panelsRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              <Tabs.Panel value="chart" pt={PANEL_TOP}>
+                <div style={{ display: 'flex', gap: 10, height: panelHeight, minHeight: 0 }}>
                   {chartViews.includes('scatter') && (
                     <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
                       <PositionScatter points={positionHistory} maxPoints={MAX_HISTORY} />
@@ -869,10 +876,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                 </div>
               </Tabs.Panel>
 
-              <Tabs.Panel value="solution" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
+              <Tabs.Panel value="solution" pt={PANEL_TOP}>
                 <Box pos="relative">
                   <ScrollArea
-                    h={300}
+                    h={panelHeight}
                     {...solutionScroll.scrollProps}
                     styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
                   >
@@ -892,10 +899,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                 </Box>
               </Tabs.Panel>
 
-              <Tabs.Panel value="console" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
+              <Tabs.Panel value="console" pt={PANEL_TOP}>
                 <Box pos="relative">
                   <ScrollArea
-                    h={300}
+                    h={panelHeight}
                     {...consoleScroll.scrollProps}
                     styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
                   >
@@ -926,7 +933,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                 </Box>
               </Tabs.Panel>
 
-              <Tabs.Panel value="trace" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
+              <Tabs.Panel value="trace" pt={PANEL_TOP}>
                 {traceFile && (
                   <Group gap={6} mb={4} wrap="nowrap">
                     <Text
@@ -955,7 +962,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                 )}
                 <TraceLogView
                   lines={traceScroll.shown}
-                  height={traceFile ? 278 : 300}
+                  height={traceFile ? panelHeight - 22 : panelHeight}
                   wrap
                   {...traceScroll.scrollProps}
                   onMatchSelect={traceScroll.hold}
@@ -971,6 +978,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                   }
                 />
               </Tabs.Panel>
+            </div>
             </Tabs>
 
             {/* 5. Streaming status (Rover · Base · Correction) */}
