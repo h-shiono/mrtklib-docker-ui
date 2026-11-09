@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.7-alpha] - 2026-11-09
+
+No action is needed to upgrade from 0.4.6-alpha.
+
+### Added
+- Stream Monitor: two streams at once (#171). **Add Stream** adds a
+  second one, with **Start All / Stop All** and a small Start/Stop per
+  stream. One selector above the views chooses the stream for the
+  metrics, Solution, Console, Message, Sky / SNR and Streaming status.
+- Stream Monitor: **Overlay** (next to the 2D / ENU / Map chips, on by
+  default, kept in the browser) draws both streams on the 2D, ENU and
+  Map views to compare them. Both use the selected stream's reference,
+  so a bias between them shows. **Color** switches between one colour
+  per stream and solution quality, where the other stream is drawn as
+  rings. The legend, ENU statistics and tooltips are per stream. Streams
+  on different time systems are brought to GPST while overlaid (UTC
+  + 18 s). With two streams a file is read all at once.
+- Stream Monitor: **Message** tab (#136). Every message type in the
+  stream with count, rate, size and age; click one to see its latest
+  frames (one row per satellite and signal for navigation data), and a
+  frame for its hex dump or text.
+- ENU charts: **Show statistics** turns the mean / standard deviation
+  chips on and off.
+- 2D plot: a **Reset zoom** button shows while zoomed or panned (#45).
+
+### Changed
+- 2D plot (Result Viewer, Stream Monitor): the distance from the
+  reference is shown as range rings with N/E/S/W axes, centered on the
+  reference, instead of an E/N grid. Wheel zoom, drag and double-click
+  reset work as before.
+- ENU charts: **Symmetric about 0** is on by default. The options keep
+  a fixed layout: Min / Max stay on one row and grey out under Auto.
+- Stream Monitor: same layout as Real-Time, with collapsible settings
+  on the left and the views on the right. The state badge sits next to
+  Start/Stop, and the receive status moved to a **Streaming status**
+  footer under the plots. The chart area fills the window.
+
 ## [0.4.6-alpha] - 2026-11-08
 
 No action is needed to upgrade from 0.4.5-alpha. The Result Viewer's SBAS,

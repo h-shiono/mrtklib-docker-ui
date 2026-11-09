@@ -11,7 +11,7 @@ GNSS positioning capabilities. No compilation required — just
 ![React](https://img.shields.io/badge/react-19-blue.svg)
 ![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.17-green.svg)
 
-> **Status**: v0.4.6-alpha — core features are functional.
+> **Status**: v0.4.7-alpha — core features are functional.
 > Known limitations are listed in [Known Issues](#known-issues).
 
 ![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
@@ -30,7 +30,7 @@ GNSS positioning capabilities. No compilation required — just
   MADOCA PPP, VRS-RTK
 - PPP correction sources: IGS, IGS-RTS, MADOCA, Galileo HAS,
   BeiDou PPP-B2b, SouthPAN PVS
-- Result visualization: 2D E/N scatter, interactive basemap (Leaflet),
+- Result visualization: 2D plot with range rings around the reference, interactive basemap (Leaflet),
   and position / quality charts — reads **LLH, XYZ-ECEF, and NMEA-0183**
   solution outputs (auto-detected)
 - CLAS PPP-RTK: the L6 source of the corrections (L6 PRN and facility,
@@ -109,6 +109,11 @@ GNSS positioning capabilities. No compilation required — just
   epochs arrive), sky plot + SNR
   per band (L1 / L2 / L5 / L6) with per-constellation toggles, solution
   list, relay log
+- Two streams at once: overlay them on 2D / ENU / Map on one reference
+  to compare two receivers or solutions, coloured by stream or by
+  quality; one selector switches the per-stream views
+- Message tab: every message type with count, rate, size and age, and
+  the latest frames of the selected type as a hex dump or text
 - Stream health: data rate, message counts, undecoded bytes / bad
   frames
 - Optional raw log of the received bytes under `/workspace`
@@ -149,10 +154,10 @@ Images are published for both `linux/amd64` and `linux/arm64`
 1. **Pull the image**
    ```bash
    # Docker Hub
-   docker pull hatognss/mrtklib-docker-ui:0.4.6-alpha
+   docker pull hatognss/mrtklib-docker-ui:0.4.7-alpha
 
    # or GitHub Container Registry
-   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.6-alpha
+   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.7-alpha
    ```
 
 2. **Prepare host directories**
@@ -168,7 +173,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
      -e PUID="$(id -u)" -e PGID="$(id -g)" \
-     hatognss/mrtklib-docker-ui:0.4.6-alpha
+     hatognss/mrtklib-docker-ui:0.4.7-alpha
    ```
 
 4. **Open the UI** at <http://localhost:8080>
@@ -388,7 +393,8 @@ surface orphan state in its UI.
 | **v0.4.3-alpha** | Config form fix: a cleared number field keeps its value instead of becoming 0, and re-clicking a dropdown option no longer clears it |
 | **v0.4.4-alpha** | MRTKLIB 0.7.17: SouthPAN PVS and BeiDou PPP-B2b correction sources, BeiDou PRN options (BDS-2 / GEO / IGSO), CLAS NMEA source id, Real-Time presets for PPP-B2b / Galileo HAS / SouthPAN PVS |
 | **v0.4.5-alpha** | Stream Monitor: live decode of a receiver or stream (NMEA, SBF, UBX, solution text) with the Real-Time views; Stream Server renamed Stream Relay |
-| **v0.4.6-alpha** (current) | Stream Monitor: Result Viewer views (2D / ENU / Map) live, per-band SNR, constellation toggles, file playback; one quality colour table; CLAS L6 source (PRN / facility) marked in the Result Viewer and Stream Monitor |
+| **v0.4.6-alpha** | Stream Monitor: Result Viewer views (2D / ENU / Map) live, per-band SNR, constellation toggles, file playback; one quality colour table; CLAS L6 source (PRN / facility) marked in the Result Viewer and Stream Monitor |
+| **v0.4.7-alpha** (current) | Stream Monitor: two streams with overlaid 2D / ENU / Map, Message tab, Real-Time style layout; 2D plot with range rings around the reference; ENU chart options |
 
 ---
 
@@ -407,6 +413,8 @@ Bug reports and feedback are very welcome — please
 - **Stream Monitor**: checked with u-blox F9 (RXM-RAWX + SFRBX +
   NMEA) and Septentrio mosaic-G5 (SBF) streams and files; UBX NAV-PVT /
   NAV-SAT and other receivers are not yet tested with real data
+- **Stream Monitor, two streams**: two relays were checked together
+  through the API; the page and the overlay not yet against live streams
 - **CLAS L6 source**: checked with MRTKLIB's handover test output
   (`mrtk post` NMEA); not yet with a live `mrtk run` NMEA stream
 - **Data Downloader**: QZSS L6D/L6E endpoints implemented;
