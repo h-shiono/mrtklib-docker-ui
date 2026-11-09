@@ -14,7 +14,6 @@ import {
   Button,
   ActionIcon,
   Tooltip,
-  Badge,
   ScrollArea,
   Tabs,
   Chip,
@@ -65,6 +64,8 @@ import { maskLogLine } from '../utils/maskPath';
 import { useFollowScroll } from '../hooks/useFollowScroll';
 import { JumpToLatest } from './common/JumpToLatest';
 import { TraceLogView } from './common/TraceLogView';
+import { StatusBadge } from './common/StatusBadge';
+import { processTone } from '../utils/status';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -663,9 +664,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               </Group>
               <Group gap="xs">
                 {runStatus !== 'idle' && (
-                  <Badge color={isRunning ? 'green' : runStatus === 'error' ? 'red' : 'gray'} variant="dot" size="sm">
-                    {runStatus}
-                  </Badge>
+                  <StatusBadge tone={processTone(runStatus)}>{runStatus}</StatusBadge>
                 )}
                 {!isRunning ? (
                   <Button size="xs" color="green" leftSection={<IconPlayerPlay size={14} />}
@@ -685,7 +684,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                 </Tooltip>
                 {aiConfigured ? (
                   <Tooltip label="Config Assistant">
-                    <ActionIcon variant="light" color="yellow" size="lg" onClick={openAssistant}>
+                    <ActionIcon variant="light" color="gray" size="lg" onClick={openAssistant}>
                       <IconSparkles size={16} />
                     </ActionIcon>
                   </Tooltip>
@@ -707,7 +706,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label="Download TOML">
-                  <ActionIcon variant="light" color="blue" size="lg" disabled={isRunning} onClick={async () => {
+                  <ActionIcon variant="light" color="gray" size="lg" disabled={isRunning} onClick={async () => {
                     try {
                       const backendCfg = configToBackend(config);
                       const payload = { config: backendCfg, streams: buildStreamsPayload() };
@@ -885,10 +884,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                   <ScrollArea
                     h={300}
                     {...solutionScroll.scrollProps}
-                    styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
+                    styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
                   >
                     <Text
-                      c={positionHistory.length > 0 ? 'gray.4' : 'dimmed'}
+                      c={positionHistory.length > 0 ? 'var(--app-console-fg)' : 'dimmed'}
                       fs={positionHistory.length > 0 ? undefined : 'italic'}
                       style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5, wordBreak: 'break-all' }}
                     >
@@ -908,14 +907,14 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                   <ScrollArea
                     h={300}
                     {...consoleScroll.scrollProps}
-                    styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
+                    styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
                   >
                     {consoleScroll.shown.length > 0 ? (
                       consoleScroll.shown.map((line, i) => (
                         <Text
                           key={i}
                           size="xs"
-                          c="gray.4"
+                          c="var(--app-console-fg)"
                           style={{
                             fontFamily: "'IBM Plex Mono', monospace",
                             fontSize: '11px',

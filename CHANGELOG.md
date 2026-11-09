@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed
+- Colours follow a single design policy (`DESIGN.md`). Filled buttons,
+  placeholders, field outlines and off switches are readable in both themes,
+  and the light theme, including the console, is usable in bright surroundings.
+- A process or stream state has one colour on every screen: grey when off,
+  blue when starting, green when running or finished, amber for a warning,
+  red for an error (shown with an icon). Colour outside controls now only
+  reports a state, so browse buttons and toolbar icons are neutral.
+
 ## [0.4.7-alpha] - 2026-11-09
 
 No action is needed to upgrade from 0.4.6-alpha.

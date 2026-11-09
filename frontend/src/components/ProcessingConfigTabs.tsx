@@ -189,8 +189,8 @@ function FileInputRow({
           style={{ flex: 1 }}
         />
         <ActionIcon
-          variant="filled"
-          color="blue"
+          variant="light"
+          color="gray"
           size="lg"
           onClick={onBrowse}
         >
@@ -699,7 +699,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     leftSection={<IconFile size={12} />}
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser(execution.onRoverFileChange, 'data')}>
+                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser(execution.onRoverFileChange, 'data')}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
@@ -715,7 +715,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     leftSection={<IconFile size={12} />}
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser(execution.onNavFileChange, 'data')}>
+                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser(execution.onNavFileChange, 'data')}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
@@ -732,7 +732,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     style={{ flex: 1 }}
                     disabled={!execution.needsBase}
                   />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser(execution.onBaseFileChange, 'data')} disabled={!execution.needsBase}>
+                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser(execution.onBaseFileChange, 'data')} disabled={!execution.needsBase}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
@@ -760,7 +760,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         leftSection={<IconFile size={12} />}
                         style={{ flex: 1 }}
                       />
-                      <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser((path) => {
+                      <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser((path) => {
                         const next = [...execution.correctionFiles];
                         next[idx] = path;
                         execution.onCorrectionFilesChange(next);
@@ -787,7 +787,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     leftSection={<IconFile size={12} />}
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser(execution.onOutputFileChange)}>
+                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser(execution.onOutputFileChange)}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>

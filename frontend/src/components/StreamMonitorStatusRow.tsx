@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Box, Text } from '@mantine/core';
 import type { MonitorState, MonitorStatus } from '../api/streamMonitor';
 import { maskLogLine } from '../utils/maskPath';
+import { STATUS_COLOR } from '../utils/status';
 import { inputLight } from '../utils/streamMonitor';
 import { StatusCap, StatusFooter, StatusLight } from './RtInputStatusRow';
 
@@ -98,7 +99,7 @@ export function StreamMonitorStatusRow({
           labelDimmed={light.dimmed}
           rate={live && status && !file ? `${formatBytes(status.bytes_per_sec)}/s` : undefined}
         />
-        <Detail c={error ? 'red.4' : undefined}>{error ?? input}</Detail>
+        <Detail c={error ? STATUS_COLOR.error : undefined}>{error ?? input}</Detail>
       </Cell>
 
       {file ? (
@@ -139,11 +140,11 @@ export function StreamMonitorStatusRow({
         cap="Undecoded"
         title={status ? `${status.bad_frames} bad frames · ${status.decode_errors} decode errors` : undefined}
       >
-        <Value c={framingIssues > 0 ? 'orange' : undefined}>
+        <Value c={framingIssues > 0 ? STATUS_COLOR.warn : undefined}>
           {status ? `${formatBytes(status.unknown_bytes)} unknown` : '—'}
         </Value>
         {status && (
-          <Detail c={framingIssues > 0 ? 'orange' : undefined}>
+          <Detail c={framingIssues > 0 ? STATUS_COLOR.warn : undefined}>
             {`${status.bad_frames} bad · ${status.decode_errors} errors`}
           </Detail>
         )}

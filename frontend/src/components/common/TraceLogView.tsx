@@ -3,7 +3,7 @@ import { ActionIcon, Box, Checkbox, Group, ScrollArea, Text, TextInput } from '@
 import { IconChevronDown, IconChevronUp, IconSearch, IconX } from '@tabler/icons-react';
 
 const MONO = "'IBM Plex Mono', monospace";
-const CONSOLE_BG = 'var(--mantine-color-dark-8, #1a1b1e)';
+const CONSOLE_BG = 'var(--app-console-bg)';
 const TOOLBAR_H = 30;
 const MARK_BG = 'rgba(250, 176, 5, 0.35)';
 const MARK_CURRENT_BG = 'var(--mantine-color-yellow-5)';
@@ -192,7 +192,7 @@ export function TraceLogView({
     );
   } else if (!q) {
     body = (
-      <Text c="gray.4" style={textStyle}>
+      <Text c="var(--app-console-fg)" style={textStyle}>
         {lines.join('\n')}
       </Text>
     );
@@ -204,7 +204,7 @@ export function TraceLogView({
       </div>
     );
     body = (
-      <Box c="gray.4" style={textStyle}>
+      <Box c="var(--app-console-fg)" style={textStyle}>
         {shown ? shown.map(render) : lines.map((_, i) => render(i))}
         {shown && shown.length === 0 && (
           <Text c="dimmed" fs="italic" style={textStyle}>No matching lines</Text>

@@ -31,6 +31,34 @@ export function qualityColor(q: number): string {
   return QUALITY_COLOR[q] ?? UNKNOWN_QUALITY_COLOR;
 }
 
+/** The marks read as text on dark surfaces, except DGPS, which is too faint. */
+export const QUALITY_TEXT_DARK: Record<number, string> = {
+  ...QUALITY_COLOR,
+  4: '#9ca3ab',
+};
+
+/** Darkened for text on light surfaces (at least 4.5:1 on white). */
+export const QUALITY_TEXT_LIGHT: Record<number, string> = {
+  1: '#15803d',
+  2: '#b45309',
+  3: '#7e22ce',
+  4: '#4b5563',
+  5: '#dc2626',
+  6: '#2563eb',
+  7: '#0e7490',
+};
+
+/** CSS variables behind qualityTextColor, set per colour scheme by the theme. */
+export function qualityTextVariables(table: Record<number, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(table).map(([q, color]) => [`--quality-text-${q}`, color]));
+}
+
+/** Colour for a quality shown as text. DOM only: canvas and Leaflet marks use
+ *  qualityColor, which is a real colour rather than a CSS variable. */
+export function qualityTextColor(q: number): string {
+  return q in QUALITY_COLOR ? `var(--quality-text-${q})` : 'var(--mantine-color-dimmed)';
+}
+
 export function qualityLabel(q: number): string {
   return QUALITY_LABEL[q] ?? `Q=${q}`;
 }

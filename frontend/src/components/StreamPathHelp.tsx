@@ -18,9 +18,7 @@ export function StreamPathHelp() {
   return (
     <Popover opened={opened} onClose={close} position="bottom-start" width={440} shadow="md" withArrow>
       <Popover.Target>
-        <ActionIcon size={14} variant="subtle" radius="xl" onClick={toggle}
-          style={{ opacity: 0.5 }}
-        >
+        <ActionIcon size={14} variant="subtle" color="gray" radius="xl" onClick={toggle}>
           <IconQuestionMark size={10} />
         </ActionIcon>
       </Popover.Target>
