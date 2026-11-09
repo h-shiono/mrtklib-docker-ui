@@ -197,6 +197,39 @@ def _receive_until(ws, pred, limit=200):
     raise AssertionError("message not received")
 
 
+def test_message_tab_counters_and_selected_rows(relay, client):
+    r = client.post(
+        "/api/stream-monitor/start",
+        json={"input": {"type": "tcpcli", "path": "localhost:9001"}},
+    )
+    assert r.status_code == 200
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        assert "messages" in json.loads(ws.receive_text())  # history
+        types = _receive_until(
+            ws, lambda m: m["type"] == "messages" and m["types"]
+        )["types"]
+        label = types[0]["label"]
+        assert types[0]["count"] > 0 and types[0]["kind"] == "nmea"
+
+        # Nothing per frame until the page selects a type.
+        ws.send_text(json.dumps({"type": "select_message", "label": label}))
+        first = _receive_until(ws, lambda m: m["type"] == "message_rows")
+        assert first["reset"] and first["label"] == label
+        assert first["rows"][0]["data"].startswith("$")
+
+        # Later ticks only carry what changed.
+        seen = first["rows"][-1]["seq"]
+        later = _receive_until(ws, lambda m: m["type"] == "message_rows")
+        assert not later["reset"] and all(row["seq"] > seen for row in later["rows"])
+
+        # Malformed client messages are ignored, the socket stays open.
+        ws.send_text("not json")
+        ws.send_text(json.dumps({"type": "select_message", "label": 5}))
+        ws.send_text(json.dumps({"type": "select_message", "label": None}))
+        _receive_until(ws, lambda m: m["type"] == "status")
+    client.post("/api/stream-monitor/stop")
+
+
 def test_session_streams_epochs_satellites_and_status(relay, client):
     r = client.post(
         "/api/stream-monitor/start",

@@ -8,7 +8,7 @@
  * session for every open page.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionIcon,
   Badge,
@@ -36,6 +36,8 @@ import {
   type MonitorEpoch,
   type MonitorInputType,
   type MonitorMessage,
+  type MonitorMessageRow,
+  type MonitorMessageType,
   type MonitorSatellite,
   type MonitorSatellites,
   type MonitorState,
@@ -48,6 +50,7 @@ import {
   toMetricsPosition,
   toPosEpoch,
 } from '../utils/streamMonitor';
+import { mergeMessageRows } from '../utils/streamMessages';
 import { maskLogLine } from '../utils/maskPath';
 import { decodeClasSource, formatClasSource } from '../utils/clasSource';
 import { useFollowScroll } from '../hooks/useFollowScroll';
@@ -56,6 +59,7 @@ import { JumpToLatest } from './common/JumpToLatest';
 import { StreamPathHelp } from './StreamPathHelp';
 import { RtMetricsRow } from './RtMetricsRow';
 import { SkySnrPanel } from './SkySnrPanel';
+import { StreamMessagePanel } from './StreamMessagePanel';
 import { PositionViewer, type ViewMode } from './viewer';
 
 const MONO = "'IBM Plex Mono', monospace";
@@ -200,6 +204,11 @@ export function StreamMonitorPanel() {
   const [epochs, setEpochs] = useState<MonitorEpoch[]>([]);
   const [sats, setSats] = useState<MonitorSatellites | null>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
+  // Message tab (#136): counters of every type, rows of the selected one.
+  const [messageTypes, setMessageTypes] = useState<MonitorMessageType[]>([]);
+  const [messageNow, setMessageNow] = useState(0);
+  const [messageLabel, setMessageLabel] = useState<string | null>(null);
+  const [messageRows, setMessageRows] = useState<MonitorMessageRow[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   // The page's WebSocket is open. While it is not, the last status is stale.
@@ -217,6 +226,13 @@ export function StreamMonitorPanel() {
     return known.length > 0 ? known : DEFAULT_VIEWS;
   }, [storedViews]);
   const positionViews = POSITION_VIEWS.filter((v) => chartViews.includes(v));
+
+  // What the backend streams rows for: only while the tab is open.
+  const subscribedLabel = tab === 'message' ? messageLabel : null;
+  const subscribedLabelRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    subscribedLabelRef.current = subscribedLabel;
+  });
 
   const wsRef = useRef<WebSocket | null>(null);
   const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -237,6 +253,8 @@ export function StreamMonitorPanel() {
   const clearData = useCallback(() => {
     setEpochs([]);
     setSats(null);
+    setMessageTypes([]);
+    setMessageRows([]);
   }, []);
 
   const connectWs = useCallback(() => {
@@ -260,6 +278,8 @@ export function StreamMonitorPanel() {
           // Authoritative: empty when no session is running.
           setEpochs((msg.epochs ?? []).slice(-MAX_EPOCHS));
           setSats(msg.satellites ?? null);
+          setMessageTypes(msg.messages?.types ?? []);
+          setMessageNow(msg.messages?.now ?? 0);
           setLogLines((msg.logs ?? []).reduce(appendLog, [] as string[]));
           sessionRef.current = undefined;
           break;
@@ -289,6 +309,16 @@ export function StreamMonitorPanel() {
         case 'log':
           setLogLines((prev) => appendLog(prev, msg.message));
           break;
+        case 'messages':
+          setMessageTypes(msg.types);
+          setMessageNow(msg.now);
+          break;
+        case 'message_rows':
+          // Rows of the previous selection may still be on their way.
+          if (msg.label === subscribedLabelRef.current) {
+            setMessageRows((prev) => mergeMessageRows(prev, msg.rows, msg.reset));
+          }
+          break;
       }
     };
 
@@ -317,6 +347,20 @@ export function StreamMonitorPanel() {
       ws?.close();
     };
   }, [connectWs]);
+
+  // Tell the backend what to send; again after a reconnect, which starts
+  // a new client there.
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!wsOpen || ws?.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'select_message', label: subscribedLabel }));
+  }, [subscribedLabel, wsOpen]);
+
+  const handleSelectMessage = (label: string) => {
+    if (label === messageLabel) return;
+    setMessageLabel(label);
+    setMessageRows([]);
+  };
 
   const running = !!status?.running;
   const busy = running || submitting;
@@ -599,6 +643,7 @@ export function StreamMonitorPanel() {
                 <Tabs.Tab value="chart" style={{ fontSize: 11 }}>Chart</Tabs.Tab>
                 <Tabs.Tab value="solution" style={{ fontSize: 11 }}>Solution</Tabs.Tab>
                 <Tabs.Tab value="console" style={{ fontSize: 11 }}>Console</Tabs.Tab>
+                <Tabs.Tab value="message" style={{ fontSize: 11 }}>Message</Tabs.Tab>
               </Tabs.List>
               <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
                 <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
@@ -694,6 +739,20 @@ export function StreamMonitorPanel() {
                 </ScrollArea>
                 {consoleScroll.held && <JumpToLatest onClick={consoleScroll.resume} />}
               </Box>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="message" pt={6}>
+              {tab === 'message' && (
+                <StreamMessagePanel
+                  types={messageTypes}
+                  rows={messageRows}
+                  selected={messageLabel}
+                  onSelect={handleSelectMessage}
+                  now={messageNow}
+                  showAge={!status?.file}
+                  height={CHART_HEIGHT}
+                />
+              )}
             </Tabs.Panel>
           </Tabs>
 

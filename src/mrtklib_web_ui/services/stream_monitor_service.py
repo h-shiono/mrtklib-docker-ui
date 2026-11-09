@@ -35,6 +35,7 @@ from mrtklib_web_ui.services.mask_credentials import mask_log_line
 from mrtklib_web_ui.services.mrtk_run_service import gpst_now, number_file_stream_path
 from mrtklib_web_ui.services.process_manager import process_manager
 from mrtklib_web_ui.services.stream_decoders import Epoch, Event, Satellites, StreamDecoder
+from mrtklib_web_ui.services.stream_decoders.messages import MessageLog
 
 logger = logging.getLogger(__name__)
 
@@ -172,9 +173,11 @@ class StreamMonitorService:
 
     def __init__(self) -> None:
         self._broadcast: Callable[[dict], Awaitable[None]] | None = None
+        self._on_tick: Callable[[], None] | None = None
         self._lock = asyncio.Lock()
         self._state = MonitorState()
-        self._decoder = StreamDecoder()
+        self.messages = MessageLog()  # the Message tab; replaced per session
+        self._decoder = StreamDecoder(on_frame=self.messages.add)
         self._reader: asyncio.Task | None = None
         self._ticker: asyncio.Task | None = None
         self._run = 0  # bumped per start; stale tasks / logs check it
@@ -194,6 +197,10 @@ class StreamMonitorService:
     def set_broadcast(self, cb: Callable[[dict], Awaitable[None]]) -> None:
         self._broadcast = cb
 
+    def set_on_tick(self, cb: Callable[[], None]) -> None:
+        """Called once per tick, after the broadcasts (per-client messages)."""
+        self._on_tick = cb
+
     @property
     def is_running(self) -> bool:
         return self.state in ("starting", "running")
@@ -206,7 +213,8 @@ class StreamMonitorService:
             raise RuntimeError("Stream Monitor is already running")
         self._run += 1
         self._state = MonitorState()
-        self._decoder = StreamDecoder()
+        self.messages = MessageLog()
+        self._decoder = StreamDecoder(on_frame=self.messages.add)
         self.state = "starting"
         self.error_message = None
         self.started_at = datetime.now()
@@ -387,6 +395,10 @@ class StreamMonitorService:
             self._bytes_at_tick = total
             await self._send_updates()
             await self._send(self.status_message())
+            self.messages.tick()
+            await self._send(self.messages_message())
+            if self._on_tick is not None:
+                self._on_tick()
             if self.file is not None:
                 continue  # no relay; the session ends on Stop
             info = await process_manager.get_status(RELAY_PID)
@@ -431,6 +443,17 @@ class StreamMonitorService:
             **self._decoder.stats(),
         }
 
+    def messages_message(self) -> dict[str, Any]:
+        """Per-type counters for the Message tab."""
+        divisor: float | None = 1.0
+        if self.file is not None:
+            divisor = self.file["speed"]  # None: read at once, no meaningful rate
+        return {
+            "type": "messages",
+            "now": self.messages.now(),
+            "types": self.messages.summary(divisor),
+        }
+
     def history_message(self) -> dict[str, Any]:
         """Replay for a client that (re)connects; data only while running (L17)."""
         running = self.is_running
@@ -438,6 +461,7 @@ class StreamMonitorService:
             "type": "history",
             "epochs": list(self._state.history) if running else [],
             "satellites": self._state.satellites if running else None,
+            "messages": self.messages_message() if running else None,
             "logs": list(self._file_log) if self.file is not None
             else process_manager.get_log(RELAY_PID),
         }

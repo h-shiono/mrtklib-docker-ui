@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from mrtklib_web_ui.api.mrtk_relay import _stream_file_path, _validate_relay_args
+from mrtklib_web_ui.services.stream_decoders.messages import MessageLog
 from mrtklib_web_ui.services.stream_monitor_service import (
     INPUT_SCHEMES,
     build_relay_args,
@@ -32,6 +33,7 @@ router = APIRouter()
 # fills its queue and is dropped, so it cannot hold up the other clients, the
 # session ticker or the relay log callback (process_manager awaits it).
 CLIENT_QUEUE_MAX = 256
+MAX_SELECT_LABEL = 64
 
 
 class _Client:
@@ -39,6 +41,11 @@ class _Client:
         self.ws = ws
         self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=CLIENT_QUEUE_MAX)
         self.task: asyncio.Task | None = None
+        # The message type this page shows in its Message tab (#136), and
+        # how far it has been sent. `log` tells when a new session began.
+        self.selected: str | None = None
+        self.sent_seq = 0
+        self.log: MessageLog | None = None
 
     async def run(self) -> None:
         while True:
@@ -75,7 +82,49 @@ async def _broadcast(msg: dict[str, Any]) -> None:
             _drop(client, close=True)
 
 
+def _send_rows(client: _Client) -> None:
+    """Queue the new rows of the client's selected message type."""
+    if client.selected is None:
+        return
+    log = _service.messages
+    reset = client.log is not log
+    if reset:  # just selected, or a new session
+        client.log = log
+        client.sent_seq = 0
+    rows, client.sent_seq = log.rows(client.selected, client.sent_seq)
+    if not rows and not reset:
+        return
+    msg = {"type": "message_rows", "label": client.selected, "reset": reset, "rows": rows}
+    try:
+        client.queue.put_nowait(json.dumps(msg))
+    except asyncio.QueueFull:
+        logger.warning("Stream Monitor: dropping a WebSocket client that stopped reading")
+        _drop(client, close=True)
+
+
+def _send_all_rows() -> None:
+    for client in list(_clients):
+        _send_rows(client)
+
+
+def _handle_client_message(client: _Client, text: str) -> None:
+    """`{"type": "select_message", "label": str | null}` from a page."""
+    try:
+        msg = json.loads(text)
+    except ValueError:
+        return
+    if not isinstance(msg, dict) or msg.get("type") != "select_message":
+        return
+    label = msg.get("label")
+    if label is not None and (not isinstance(label, str) or len(label) > MAX_SELECT_LABEL):
+        return
+    client.selected = label
+    client.log = None  # the next rows are a full replay
+    _send_rows(client)
+
+
 _service.set_broadcast(_broadcast)
+_service.set_on_tick(_send_all_rows)
 
 
 class InputStream(BaseModel):
@@ -164,6 +213,11 @@ async def websocket_monitor(websocket: WebSocket) -> None:
     - {"type": "epochs", "epochs": [Epoch, ...]} thinned to 1 Hz
     - {"type": "satellites", "time": ..., "time_sys": ..., "satellites": [...]}
     - {"type": "log", "message": "..."} mrtk relay output (credentials masked)
+    - {"type": "messages", "now": ..., "types": [...]} per-type counters, each second
+    - {"type": "message_rows", "label": ..., "reset": bool, "rows": [...]} to the
+      page that selected this type; `reset` replaces what it had
+
+    Sent by clients: {"type": "select_message", "label": str | null}
     """
     await websocket.accept()
     client = _Client(websocket)
@@ -175,8 +229,9 @@ async def websocket_monitor(websocket: WebSocket) -> None:
     try:
         while True:
             try:
-                await websocket.receive_text()
+                text = await websocket.receive_text()
             except (WebSocketDisconnect, RuntimeError):  # RuntimeError: closed by _drop
                 break
+            _handle_client_message(client, text)
     finally:
         _drop(client)

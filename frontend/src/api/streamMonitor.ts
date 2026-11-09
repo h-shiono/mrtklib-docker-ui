@@ -88,9 +88,50 @@ export interface MonitorStatus {
   exited?: boolean;
 }
 
+/** One message type's counters (Message tab, #136). */
+export interface MonitorMessageType {
+  label: string;
+  kind: string;
+  count: number;
+  bytes: number;
+  /** Size of the last frame. */
+  length: number;
+  /** Per second; null when a file is read all at once. */
+  rate: number | null;
+  /** Server time of the last frame, seconds. */
+  last: number;
+}
+
+/** A frame of the selected message type. */
+export interface MonitorMessageRow {
+  seq: number;
+  /** Satellite and signal for navigation data, else null. */
+  key: string | null;
+  t: number;
+  length: number;
+  summary: string | null;
+  /** Start of the content in hex; null for a text frame. */
+  preview: string | null;
+  /** The whole frame in hex, or the line of a text frame. */
+  data: string;
+}
+
+export interface MonitorMessageCounters {
+  now: number;
+  types: MonitorMessageType[];
+}
+
 export type MonitorMessage =
   | MonitorStatus
-  | { type: 'history'; epochs: MonitorEpoch[]; satellites: MonitorSatellites | null; logs: string[] }
+  | {
+      type: 'history';
+      epochs: MonitorEpoch[];
+      satellites: MonitorSatellites | null;
+      messages: MonitorMessageCounters | null;
+      logs: string[];
+    }
+  | ({ type: 'messages' } & MonitorMessageCounters)
+  | { type: 'message_rows'; label: string; reset: boolean; rows: MonitorMessageRow[] }
   | { type: 'epochs'; epochs: MonitorEpoch[] }
   | ({ type: 'satellites' } & MonitorSatellites)
   | { type: 'log'; message: string };
