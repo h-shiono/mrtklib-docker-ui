@@ -46,7 +46,7 @@ export function TimeSeriesChart({ points, maxPoints = 300 }: TimeSeriesChartProp
   }
 
   return (
-    <ResponsiveContainer width="100%" height={200}>
+    <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#555' : '#ddd'} />
         <XAxis

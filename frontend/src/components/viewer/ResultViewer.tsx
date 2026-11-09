@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Stack, Text, Loader } from '@mantine/core';
 import { readFile } from '../../api/files';
 import { parsePosFile } from './posParser';
-import { PositionViewer } from './PositionViewer';
+import { PositionViewer, type ViewMode } from './PositionViewer';
 import type { PosEpoch, ReferencePosition } from './types';
 
 /** A solution file (.pos / NMEA) in the position views. */
@@ -10,6 +10,7 @@ interface ResultViewerProps {
   filePath: string | null;
   maxHeight: number;
   refreshKey?: number;
+  views: ViewMode[];
   /** The file is CLAS output: read the GGA station id as the L6 source. */
   clasSource?: boolean;
 }
@@ -29,6 +30,7 @@ export function ResultViewer({
   filePath,
   maxHeight,
   refreshKey = 0,
+  views,
   clasSource = false,
 }: ResultViewerProps) {
   // The last load result, tagged with the file/refresh it belongs to. Values
@@ -120,6 +122,7 @@ export function ResultViewer({
       epochs={epochs}
       dataKey={loadKey}
       maxHeight={maxHeight}
+      views={views}
       timeSystem={timeSystem}
       headerRefPos={headerRefPos}
       notice={notice}

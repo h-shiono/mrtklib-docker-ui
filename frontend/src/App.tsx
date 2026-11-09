@@ -8,6 +8,7 @@ import {
   Group,
   ScrollArea,
   SegmentedControl,
+  Chip,
   Stack,
   Tabs,
   Text,
@@ -28,12 +29,8 @@ import {
   IconRefresh,
   IconDownload,
   IconInfoCircle,
-  IconChartDots,
-  IconFileText,
-  IconTerminal2,
   IconTrash,
   IconCopy,
-  IconBug,
   IconPlus,
 } from '@tabler/icons-react';
 import { PostProcessingConfiguration  } from './components';
@@ -71,7 +68,9 @@ import { FONT_SIZE, MONO } from './utils/typography';
 import { FormRow } from './components/common/FormRow';
 import { StreamCardHeader } from './components/common/StreamCardHeader';
 import { FORM_LABEL_GAP, MIN_PANEL_HEIGHT, SCREEN_HEIGHT } from './utils/formLayout';
-import { useElementSize } from '@mantine/hooks';
+import { useElementSize, useLocalStorage } from '@mantine/hooks';
+import { WorkspaceTabBar } from './components/common/WorkspaceTabBar';
+import type { ViewMode } from './components/viewer';
 
 function ColorSchemeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -103,6 +102,9 @@ interface PostProcessingRightPanelProps {
   onClearLog: () => void;
 }
 
+const PP_VIEWS: ViewMode[] = ['2d', 'enu', 'map'];
+const DEFAULT_PP_VIEWS: ViewMode[] = ['2d'];
+
 function PostProcessingRightPanel({
   processStatus,
   progress,
@@ -116,6 +118,14 @@ function PostProcessingRightPanel({
   const consoleViewportRef = useRef<HTMLDivElement>(null);
   const [prevStatus, setPrevStatus] = useState(processStatus);
   const { ref: contentRef, height: contentAreaHeight } = useElementSize();
+  const [storedViews, setChartViews] = useLocalStorage<string[]>({
+    key: 'mrtk-pp-chart-views',
+    defaultValue: DEFAULT_PP_VIEWS,
+  });
+  // A stored value may be stale or hand-edited (L28); at least one view shows.
+  const known = PP_VIEWS.filter((v) => Array.isArray(storedViews) && storedViews.includes(v));
+  const shownViews = known.length > 0 ? known : DEFAULT_PP_VIEWS;
+  const chartViews: string[] = shownViews;
 
   // Auto-scroll console when new lines arrive
   useEffect(() => {
@@ -231,49 +241,24 @@ function PostProcessingRightPanel({
         keepMounted={false}
         style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
       >
-        <Group
-          justify="space-between"
-          wrap="nowrap"
+        <WorkspaceTabBar
           px="sm"
-          style={{
-            backgroundColor: 'var(--app-surface)',
-            borderBottom: '1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-6))',
-            flexShrink: 0,
-          }}
-        >
-          <Tabs.List style={{ borderBottom: 'none', flexWrap: 'nowrap' }}>
-            <Tabs.Tab
-              value="chart"
-              leftSection={<IconChartDots size={13} />}
-              style={{ fontSize: FONT_SIZE.label, padding: '6px 10px' }}
-            >
-              Chart
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="solution"
-              leftSection={<IconFileText size={13} />}
-              style={{ fontSize: FONT_SIZE.label, padding: '6px 10px' }}
-            >
-              Solution
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="console"
-              leftSection={<IconTerminal2 size={13} />}
-              style={{ fontSize: FONT_SIZE.label, padding: '6px 10px' }}
-            >
-              Console
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="trace"
-              leftSection={<IconBug size={13} />}
-              style={{ fontSize: FONT_SIZE.label, padding: '6px 10px' }}
-            >
-              Trace
-            </Tabs.Tab>
-          </Tabs.List>
-
-          {/* Action buttons for active tab */}
-          <Group gap="xs" wrap="nowrap">
+          tabs={[
+            { value: 'chart', label: 'Chart' },
+            { value: 'solution', label: 'Solution' },
+            { value: 'console', label: 'Console' },
+            { value: 'trace', label: 'Trace' },
+          ]}
+          right={<>
+            {rightTab === 'chart' && (
+              <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
+                <Group gap={6} wrap="nowrap">
+                  <Chip value="2d" size="xs" variant="light">2D</Chip>
+                  <Chip value="enu" size="xs" variant="light">ENU</Chip>
+                  <Chip value="map" size="xs" variant="light">Map</Chip>
+                </Group>
+              </Chip.Group>
+            )}
             {rightTab === 'console' && (
               <>
                 <ActionIcon
@@ -307,8 +292,8 @@ function PostProcessingRightPanel({
                 <IconRefresh size={14} />
               </ActionIcon>
             )}
-          </Group>
-        </Group>
+          </>}
+        />
 
         {/* Chart tab */}
         <div ref={contentRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
@@ -317,6 +302,7 @@ function PostProcessingRightPanel({
             filePath={outputFile}
             maxHeight={contentHeight}
             refreshKey={refreshKey}
+            views={shownViews}
             clasSource={clasSource}
           />
         </Tabs.Panel>
@@ -376,24 +362,6 @@ function PostProcessingRightPanel({
         </div>
       </Tabs>
 
-      {/* 4. Fix rate gauge bar (always visible) */}
-      <Box
-        px="sm"
-        py={4}
-        style={{
-          borderTop: '1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5))',
-          flexShrink: 0,
-          height: 32,
-          display: 'flex',
-          alignItems: 'center',
-        }}
-      >
-        <Group justify="center" style={{ width: '100%' }}>
-          <Text size="xs" c="dimmed">
-            Fix: --- | Float: --- | Single: ---
-          </Text>
-        </Group>
-      </Box>
     </Card>
   );
 }

@@ -29,6 +29,7 @@ import { ConfigCollapseButton } from './ConsoleFrame';
 import { StatusBadge } from './common/StatusBadge';
 import { processTone, type ProcessState } from '../utils/status';
 import { tomlToConfig } from '../utils/tomlImport';
+import { PRIMARY_MIN_WIDTH } from '../utils/formLayout';
 
 interface PostProcessingConfigurationProps {
   onConfigChange: (config: MrtkPostConfig) => void;
@@ -150,18 +151,7 @@ export function PostProcessingConfiguration({
             <Title order={6} size="sm">Processing Configuration</Title>
           </Group>
           <Group gap="xs">
-            {processStatus !== 'idle' && (
-              <StatusBadge tone={processTone(processStatus)}>{processStatus}</StatusBadge>
-            )}
-            {processStatus === 'running' ? (
-              <Button size="xs" color="red" leftSection={<IconPlayerStop size={12} />} onClick={onStop} loading={isLoading}>
-                Stop
-              </Button>
-            ) : (
-              <Button size="xs" color="green" leftSection={<IconPlayerPlay size={12} />} onClick={handleExecute} loading={isLoading}>
-                Execute
-              </Button>
-            )}
+            <StatusBadge tone={processTone(processStatus)}>{processStatus}</StatusBadge>
             <Tooltip label="Presets">
               <ActionIcon aria-label="Presets" variant="light" color="gray" size={30} onClick={openPresets}>
                 <IconBookmark size={16} />
@@ -206,6 +196,15 @@ export function PostProcessingConfiguration({
                 e.target.value = '';
               }}
             />
+            {processStatus === 'running' ? (
+              <Button size="xs" miw={PRIMARY_MIN_WIDTH} color="red" leftSection={<IconPlayerStop size={12} />} onClick={onStop} loading={isLoading}>
+                Stop
+              </Button>
+            ) : (
+              <Button size="xs" miw={PRIMARY_MIN_WIDTH} color="green" leftSection={<IconPlayerPlay size={12} />} onClick={handleExecute} loading={isLoading}>
+                Execute
+              </Button>
+            )}
           </Group>
         </Group>
 

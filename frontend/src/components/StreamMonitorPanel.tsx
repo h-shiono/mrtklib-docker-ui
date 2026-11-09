@@ -63,7 +63,8 @@ import { processTone, STATUS_COLOR } from '../utils/status';
 import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
-import { MIN_PANEL_HEIGHT } from '../utils/formLayout';
+import { MIN_PANEL_HEIGHT, PRIMARY_MIN_WIDTH } from '../utils/formLayout';
+import { WorkspaceTabBar } from './common/WorkspaceTabBar';
 
 
 const NO_SATELLITES: MonitorSatellite[] = [];
@@ -408,6 +409,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
               {anyRunning ? (
                 <Button
                   size="xs"
+                  miw={PRIMARY_MIN_WIDTH}
                   color="red"
                   leftSection={<IconPlayerStop size={14} />}
                   onClick={handleStopAll}
@@ -418,6 +420,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
               ) : (
                 <Button
                   size="xs"
+                  miw={PRIMARY_MIN_WIDTH}
                   color="green"
                   leftSection={<IconPlayerPlay size={14} />}
                   onClick={handleStartAll}
@@ -484,14 +487,15 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
             />
 
             <Tabs value={tab} onChange={setTab} style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <Group justify="space-between" align="center" gap={0}>
-                <Tabs.List>
-                  <Tabs.Tab value="chart" style={{ fontSize: FONT_SIZE.label }}>Chart</Tabs.Tab>
-                  <Tabs.Tab value="solution" style={{ fontSize: FONT_SIZE.label }}>Solution</Tabs.Tab>
-                  <Tabs.Tab value="console" style={{ fontSize: FONT_SIZE.label }}>Console</Tabs.Tab>
-                  <Tabs.Tab value="message" style={{ fontSize: FONT_SIZE.label }}>Message</Tabs.Tab>
-                </Tabs.List>
-                <Group gap={6} wrap="nowrap">
+              <WorkspaceTabBar
+                tabs={[
+                  { value: 'chart', label: 'Chart' },
+                  { value: 'solution', label: 'Solution' },
+                  { value: 'console', label: 'Console' },
+                  { value: 'message', label: 'Message' },
+                ]}
+                right={tab === 'chart' && (
+                  <>
                   {twoStreams && (
                     <Chip
                       size="xs"
@@ -504,15 +508,16 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                     </Chip>
                   )}
                   <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
-                    <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
+                    <Group gap={6} wrap="nowrap">
                       <Chip value="2d" size="xs" variant="light">2D</Chip>
                       <Chip value="enu" size="xs" variant="light">ENU</Chip>
                       <Chip value="map" size="xs" variant="light">Map</Chip>
                       <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
                     </Group>
                   </Chip.Group>
-                </Group>
-              </Group>
+                  </>
+                )}
+              />
 
               {/* A fixed basis, not its content: the measured height must not feed back. */}
               <div ref={panelsRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>

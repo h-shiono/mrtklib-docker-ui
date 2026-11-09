@@ -69,6 +69,9 @@ import { processTone } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { MIN_PANEL_HEIGHT } from '../utils/formLayout';
+import { SectionHeader } from './common/SectionHeader';
+import { WorkspaceTabBar } from './common/WorkspaceTabBar';
+import { PRIMARY_MIN_WIDTH } from '../utils/formLayout';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -659,20 +662,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                 <Title order={6} size="sm">Processing Configuration</Title>
               </Group>
               <Group gap="xs">
-                {runStatus !== 'idle' && (
-                  <StatusBadge tone={processTone(runStatus)}>{runStatus}</StatusBadge>
-                )}
-                {!isRunning ? (
-                  <Button size="xs" color="green" leftSection={<IconPlayerPlay size={14} />}
-                    onClick={handleStart} disabled={streams.input.rover.type === 'off'}>
-                    Start
-                  </Button>
-                ) : (
-                  <Button size="xs" color="red" leftSection={<IconPlayerStop size={14} />}
-                    onClick={handleStop}>
-                    Stop
-                  </Button>
-                )}
+                <StatusBadge tone={processTone(runStatus)}>{runStatus}</StatusBadge>
                 <Tooltip label="Presets">
                   <ActionIcon aria-label="Presets" variant="light" color="gray" size={30} onClick={openPresets}>
                     <IconBookmark size={16} />
@@ -733,6 +723,17 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                     e.target.value = '';
                   }}
                 />
+                {!isRunning ? (
+                  <Button size="xs" miw={PRIMARY_MIN_WIDTH} color="green" leftSection={<IconPlayerPlay size={14} />}
+                    onClick={handleStart} disabled={streams.input.rover.type === 'off'}>
+                    Start
+                  </Button>
+                ) : (
+                  <Button size="xs" miw={PRIMARY_MIN_WIDTH} color="red" leftSection={<IconPlayerStop size={14} />}
+                    onClick={handleStop}>
+                    Stop
+                  </Button>
+                )}
               </Group>
             </Group>
 
@@ -746,7 +747,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                   label: 'I/O Streams',
                   content: (
                     <Stack gap="xs">
-                      <Group gap={4}><Text size="xs" fw={600}>Input Streams</Text><StreamPathHelp /></Group>
+                      <SectionHeader title="Input Streams" help={<StreamPathHelp />} />
                       <StreamEditor label="Rover" stream={streams.input.rover}
                         onChange={(s) => setStreams({
                           ...streams,
@@ -772,16 +773,20 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                         footer={<RawLogEditor input="correction" inputStream={streams.input.correction} log={streams.log.stream3}
                           onChange={(l) => setStreams({ ...streams, log: { ...streams.log, stream3: l } })} />} />
 
-                      <Group justify="space-between" mt="xs">
-                        <Group gap={4}><Text size="xs" fw={600}>Output Streams</Text><StreamPathHelp /></Group>
-                        {outputLogCount < OUTPUT_LOG_SLOTS.length && (
+                      <SectionHeader
+                        title="Output Streams"
+                        mt={6}
+                        help={<>
+                          <StreamPathHelp />
+                          {outputLogCount < OUTPUT_LOG_SLOTS.length && (
                           <Tooltip label="Add output stream" openDelay={300}>
                             <ActionIcon aria-label="Add output stream" size="xs" variant="light" onClick={() => setShowOutput2(true)}>
                               <IconPlus size={12} />
                             </ActionIcon>
                           </Tooltip>
                         )}
-                      </Group>
+                        </>}
+                      />
                       {OUTPUT_LOG_SLOTS.slice(0, outputLogCount).map((slot, idx) => (
                         <Group key={slot.key} wrap="nowrap" align="flex-start" gap={4}>
                           <div style={{ flex: 1 }}>
@@ -828,34 +833,35 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
             {/* 3. Tab bar + 4. Chart area */}
             <Tabs value={monitorTab} onChange={setMonitorTab} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <Group justify="space-between" align="center" gap={0}>
-                <Tabs.List>
-                  <Tabs.Tab value="chart" style={{ fontSize: FONT_SIZE.label }}>Chart</Tabs.Tab>
-                  <Tabs.Tab value="solution" style={{ fontSize: FONT_SIZE.label }}>Solution</Tabs.Tab>
-                  <Tabs.Tab value="console" style={{ fontSize: FONT_SIZE.label }}>Console</Tabs.Tab>
-                  <Tabs.Tab value="trace" style={{ fontSize: FONT_SIZE.label }}>Trace</Tabs.Tab>
-                </Tabs.List>
-                {/* Multi-select: show one or more charts side by side */}
+              <WorkspaceTabBar
+                tabs={[
+                  { value: 'chart', label: 'Chart' },
+                  { value: 'solution', label: 'Solution' },
+                  { value: 'console', label: 'Console' },
+                  { value: 'trace', label: 'Trace' },
+                ]}
+                right={monitorTab === 'chart' && (
                 <Chip.Group
                   multiple
                   value={chartViews}
                   onChange={(v) => { if (v.length) setChartViews(v); }}
                 >
-                  <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
+                  <Group gap={6} wrap="nowrap">
                     <Chip value="scatter" size="xs" variant="light">2D</Chip>
                     <Chip value="map" size="xs" variant="light">Map</Chip>
                     <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
                     <Chip value="series" size="xs" variant="light">Time series</Chip>
                   </Group>
                 </Chip.Group>
-              </Group>
+                )}
+              />
 
               <div ref={panelsRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
               <Tabs.Panel value="chart" pt={PANEL_TOP}>
                 <div style={{ display: 'flex', gap: 10, height: panelHeight, minHeight: 0 }}>
                   {chartViews.includes('scatter') && (
                     <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                      <PositionScatter points={positionHistory} maxPoints={MAX_HISTORY} />
+                      <PositionScatter fit points={positionHistory} maxPoints={MAX_HISTORY} />
                     </div>
                   )}
                   {chartViews.includes('map') && (

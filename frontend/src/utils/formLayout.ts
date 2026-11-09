@@ -11,3 +11,6 @@ export const FORM_LABEL_WIDTH = 130;
 export const FORM_LABEL_GAP = 8;
 /** Height of an xs input, which every row reserves so that rows keep one pitch. */
 export const FORM_ROW_HEIGHT = 30;
+
+/** Start and Stop keep one width, so the toolbar does not move. */
+export const PRIMARY_MIN_WIDTH = 96;

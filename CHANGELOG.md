@@ -24,6 +24,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Every screen fits the window and scrolls inside its columns. Charts and
   consoles fill the space, and changing a setting no longer moves the
   workspace, so the Streaming status stays on screen on a laptop.
+- Real-time, Post-processing and Stream Monitor share one tab bar and toolbar
+  order, with Start, Stop or Execute at the far right. Chart views are chips
+  shown only on the Chart tab, so Post-processing can show 2D, ENU and Map side
+  by side. The empty Fix / Float / Single bar in Post-processing is gone.
 
 ### Fixed
 - Observation QC: switching the SNR plot to Elevation without a NAV file could

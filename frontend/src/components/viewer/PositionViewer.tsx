@@ -54,10 +54,9 @@ interface PositionViewerProps {
   notice?: string | null;
   /** Shown instead of the views while there are no epochs. */
   emptyText?: string;
-  /** Views to show side by side, chosen outside (Stream Monitor chips).
-   *  Without it, one view at a time with a 2D / ENU / Map switch (PP). The
-   *  reference, y range and Q legend are shared by all views shown. */
-  views?: ViewMode[];
+  /** Views to show side by side, chosen outside by chips. The reference,
+   *  y range and Q legend are shared by all views shown. */
+  views: ViewMode[];
   /** Read the GGA station id as the CLAS L6 source (#144). Only when the
    *  data is known to be CLAS output: any other receiver puts its base
    *  station id there, which can look like a valid source. */
@@ -143,7 +142,6 @@ export function PositionViewer({
   clasSource = false,
   overlay,
 }: PositionViewerProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>('2d');
   const [refMode, setRefMode] = useState<ReferenceMode>('mean');
   const [manualLat, setManualLat] = useState<number>(0);
   const [manualLon, setManualLon] = useState<number>(0);
@@ -255,7 +253,7 @@ export function PositionViewer({
   const controlBarHeight = 32;
   const legendHeight = overlay ? 44 : 28;
   const vizHeight = maxHeight - controlBarHeight - legendHeight;
-  const shown: ViewMode[] = views ?? [viewMode];
+  const shown = views;
   const showsEnu = shown.includes('enu');
 
   if (epochs.length === 0) {
@@ -337,19 +335,6 @@ export function PositionViewer({
         style={{ height: controlBarHeight, flexShrink: 0 }}
       >
         <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-          {!views && (
-            <SegmentedControl
-              size="xs"
-              style={{ flexShrink: 0 }}
-              value={viewMode}
-              onChange={(v) => setViewMode(v as ViewMode)}
-              data={[
-                { label: '2D', value: '2d' },
-                { label: 'ENU', value: 'enu' },
-                { label: 'Map', value: 'map' },
-              ]}
-            />
-          )}
           {overlay && (
             <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
               <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label }}>Color</Text>
