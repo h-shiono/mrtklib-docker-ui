@@ -40,5 +40,6 @@ const PROCESS_TONE: Record<ProcessState, StatusTone> = {
 };
 
 export function processTone(state: ProcessState): StatusTone {
-  return PROCESS_TONE[state];
+  // The state comes from the backend, which may add one this UI does not know.
+  return PROCESS_TONE[state] ?? 'off';
 }

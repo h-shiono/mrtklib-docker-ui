@@ -33,7 +33,7 @@ import { useWebSocket, type LogMessage } from '../hooks';
 import * as clasApi from '../api/clasPipeline';
 import { ClasFlowMeter, type FlowStats } from './ClasFlowMeter';
 import { PositionScatter, type PositionPoint } from './PositionScatter';
-import { StatusIndicator, type ProcessStatus } from './StatusIndicator';
+import { StatusIndicator } from './StatusIndicator';
 
 const ROW_LABEL_WIDTH = 130;
 const MAX_POSITION_POINTS = 3600;
@@ -43,22 +43,6 @@ const RECEIVER_REQUEST_URL =
 
 const RELAY_PROCESS_ID = 'clas-relay';
 const CSSR_PROCESS_ID = 'clas-cssr2rtcm3';
-
-function pipelineToProcessStatus(state: clasApi.PipelineStatus['state']): ProcessStatus {
-  switch (state) {
-    case 'running':
-      return 'running';
-    case 'starting':
-    case 'stopping':
-      return 'running';
-    case 'error':
-      return 'error';
-    case 'stopped':
-      return 'success';
-    default:
-      return 'idle';
-  }
-}
 
 function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -409,7 +393,7 @@ export function ClasPipelinePanel() {
           <Group justify="space-between">
             <Group gap="md">
               <StatusIndicator
-                status={pipelineToProcessStatus(pipelineStatus.state)}
+                status={pipelineStatus.state}
                 label={pipelineStatus.state}
               />
               <Badge size="sm" variant="light" color="gray">

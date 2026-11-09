@@ -887,7 +887,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                     styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
                   >
                     <Text
-                      c={positionHistory.length > 0 ? 'gray.4' : 'dimmed'}
+                      c={positionHistory.length > 0 ? 'var(--app-console-fg)' : 'dimmed'}
                       fs={positionHistory.length > 0 ? undefined : 'italic'}
                       style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5, wordBreak: 'break-all' }}
                     >

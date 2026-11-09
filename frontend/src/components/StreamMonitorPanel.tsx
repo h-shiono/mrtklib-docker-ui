@@ -609,7 +609,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                       styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
                     >
                       <Text
-                        c={epochs.length > 0 ? 'gray.4' : 'dimmed'}
+                        c={epochs.length > 0 ? 'var(--app-console-fg)' : 'dimmed'}
                         fs={epochs.length > 0 ? undefined : 'italic'}
                         style={{ fontFamily: MONO, whiteSpace: 'pre', fontSize: '11px', lineHeight: 1.5 }}
                       >

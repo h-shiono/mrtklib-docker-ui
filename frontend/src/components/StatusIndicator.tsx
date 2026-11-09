@@ -1,23 +1,18 @@
 import { Group, Text, Box } from '@mantine/core';
-import { STATUS_COLOR } from '../utils/status';
+import { processTone, STATUS_COLOR, type ProcessState } from '../utils/status';
 
 export type ProcessStatus = 'idle' | 'running' | 'success' | 'error';
 
 interface StatusIndicatorProps {
-  status: ProcessStatus;
-  label?: string;
+  status: ProcessState;
+  label: string;
 }
 
-const statusConfig: Record<ProcessStatus, { color: string; label: string; pulse: boolean }> = {
-  idle: { color: STATUS_COLOR.off, label: 'Idle', pulse: false },
-  running: { color: STATUS_COLOR.ok, label: 'Running', pulse: true },
-  success: { color: STATUS_COLOR.ok, label: 'Completed', pulse: false },
-  error: { color: STATUS_COLOR.error, label: 'Error', pulse: false },
-};
+const isActive = (status: ProcessState) =>
+  status === 'running' || status === 'starting' || status === 'stopping';
 
 export function StatusIndicator({ status, label }: StatusIndicatorProps) {
-  const config = statusConfig[status];
-  const displayLabel = label || config.label;
+  const color = STATUS_COLOR[processTone(status)];
 
   return (
     <Group gap="xs">
@@ -26,12 +21,12 @@ export function StatusIndicator({ status, label }: StatusIndicatorProps) {
         h={12}
         style={{
           borderRadius: '50%',
-          backgroundColor: config.color,
-          animation: config.pulse ? 'pulse 1.5s ease-in-out infinite' : 'none',
+          backgroundColor: color,
+          animation: isActive(status) ? 'pulse 1.5s ease-in-out infinite' : 'none',
         }}
       />
-      <Text size="sm" fw={500} c={config.color}>
-        {displayLabel}
+      <Text size="sm" fw={500} c={color}>
+        {label}
       </Text>
       <style>
         {`
