@@ -1,6 +1,7 @@
-import { useRef, useEffect, useCallback, useMemo } from 'react';
-import { useMantineColorScheme } from '@mantine/core';
+import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
+import { ActionIcon, useMantineColorScheme } from '@mantine/core';
 import { useElementSize } from '@mantine/hooks';
+import { IconZoomReset } from '@tabler/icons-react';
 import type { ENUEpoch } from './types';
 import { qualityColor } from '../../utils/quality';
 
@@ -10,6 +11,10 @@ interface Plot2DViewProps {
   /** Zoom / pan is reset when this changes (another source or reference);
    *  without it, whenever `data` changes. Live epochs keep the same key. */
   resetKey?: string;
+  /** One colour for every point of `data`; without it, by quality. */
+  color?: string;
+  /** Second solution, under `data`. Without `color`: by quality, as rings. */
+  overlay?: { data: ENUEpoch[]; color?: string };
 }
 
 interface Bounds {
@@ -19,9 +24,25 @@ interface Bounds {
   maxN: number;
 }
 
-const PADDING = { top: 10, right: 10, bottom: 30, left: 50 };
+const PADDING = { top: 20, right: 20, bottom: 20, left: 20 };
 
-export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
+const RING_FONT = '10px "IBM Plex Mono", monospace';
+const COMPASS_FONT = '500 11px "IBM Plex Sans", sans-serif';
+/** Rings closer than this would have overlapping labels. */
+const MIN_RING_SPACING_PX = 40;
+/** Width of the view, in metres: sub-millimetre has no meaning here, and past
+ *  these limits the coordinates run out of floating-point precision. */
+const MIN_VIEW_RANGE_M = 1e-3;
+const MAX_VIEW_RANGE_M = 1e8;
+/** More rings than ever fit the view; bounds the drawing loops. */
+const MAX_RINGS = 64;
+
+/**
+ * Distance from the reference (the ENU origin) shown as concentric rings with
+ * N/E/S/W axes. The default view is centered on the reference and fits every
+ * epoch; zooming or panning redraws the rings for the visible area.
+ */
+export function Plot2DView({ data, height, resetKey, color, overlay }: Plot2DViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { ref: containerRef, width: containerWidth } = useElementSize();
   const { colorScheme } = useMantineColorScheme();
@@ -38,35 +59,29 @@ export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
     bounds: Bounds;
   } | null>(null);
 
-  // Compute natural bounds from data (memoized)
+  // Default view: a square centered on the reference, reaching the farthest
+  // epoch. Equal ranges on a square plot keep the rings circular.
   const naturalBounds = useMemo((): Bounds | null => {
     if (data.length === 0) return null;
-    let minE = Infinity,
-      maxE = -Infinity,
-      minN = Infinity,
-      maxN = -Infinity;
-    for (const epoch of data) {
-      if (epoch.e < minE) minE = epoch.e;
-      if (epoch.e > maxE) maxE = epoch.e;
-      if (epoch.n < minN) minN = epoch.n;
-      if (epoch.n > maxN) maxN = epoch.n;
+    let farthest = 0;
+    for (const epoch of [...data, ...(overlay?.data ?? [])]) {
+      const d = Math.hypot(epoch.e, epoch.n);
+      if (d > farthest) farthest = d;
     }
-    const rangeE = maxE - minE || 1;
-    const rangeN = maxN - minN || 1;
-    const padFrac = 0.1;
-    return {
-      minE: minE - rangeE * padFrac,
-      maxE: maxE + rangeE * padFrac,
-      minN: minN - rangeN * padFrac,
-      maxN: maxN + rangeN * padFrac,
-    };
-  }, [data]);
+    const half = Math.max(farthest * 1.1, 0.01);
+    return { minE: -half, maxE: half, minN: -half, maxN: half };
+  }, [data, overlay]);
 
   // Reset zoom for new data, or only for a new source when keyed
   const resetDep = resetKey ?? data;
   useEffect(() => {
     viewRef.current = null;
   }, [resetDep]);
+
+  // Whether the reset button shows: tagged with the source it was zoomed
+  // for, so a new source hides it without a state update in the effect above.
+  const [zoomedFor, setZoomedFor] = useState<unknown>(null);
+  const zoomed = zoomedFor !== null && zoomedFor === resetDep;
 
   // Core draw function — reads zoom state from viewRef
   const draw = useCallback(() => {
@@ -84,119 +99,141 @@ export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
     ctx.scale(dpr, dpr);
 
     const textColor = isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.7)';
-    const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
+    const ringColor = isDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.3)';
     const bgColor = isDark ? '#1a1b1e' : '#ffffff';
-    const axisColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.25)';
 
     ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, size, size);
 
-    // Use zoom bounds if set, otherwise natural bounds with aspect-ratio adjustment
-    let { minE, maxE, minN, maxN } = viewRef.current || naturalBounds;
+    const { minE, maxE, minN, maxN } = viewRef.current || naturalBounds;
 
     const plotW = size - PADDING.left - PADDING.right;
     const plotH = size - PADDING.top - PADDING.bottom;
-
-    // When using natural bounds (no zoom), enforce equal aspect ratio
-    if (!viewRef.current) {
-      const scaleE = plotW / (maxE - minE);
-      const scaleN = plotH / (maxN - minN);
-      const scale = Math.min(scaleE, scaleN);
-      const actualRangeE = plotW / scale;
-      const actualRangeN = plotH / scale;
-      const centerE = (minE + maxE) / 2;
-      const centerN = (minN + maxN) / 2;
-      minE = centerE - actualRangeE / 2;
-      maxE = centerE + actualRangeE / 2;
-      minN = centerN - actualRangeN / 2;
-      maxN = centerN + actualRangeN / 2;
-    }
+    const right = PADDING.left + plotW;
+    const bottom = PADDING.top + plotH;
 
     // Coordinate transforms
     const toX = (e: number) => PADDING.left + ((e - minE) / (maxE - minE)) * plotW;
     const toY = (n: number) => PADDING.top + plotH - ((n - minN) / (maxN - minN)) * plotH;
+    const ox = toX(0);
+    const oy = toY(0);
+    const axisEVisible = minN <= 0 && maxN >= 0;
+    const axisNVisible = minE <= 0 && maxE >= 0;
 
-    // Grid lines
-    ctx.strokeStyle = gridColor;
-    ctx.lineWidth = 1;
-    const gridCount = 5;
-
-    ctx.font = '10px monospace';
-    ctx.fillStyle = textColor;
-    ctx.textAlign = 'center';
-
-    for (let i = 0; i <= gridCount; i++) {
-      const val = minE + ((maxE - minE) * i) / gridCount;
-      const x = toX(val);
-      ctx.beginPath();
-      ctx.moveTo(x, PADDING.top);
-      ctx.lineTo(x, PADDING.top + plotH);
-      ctx.stroke();
-      ctx.fillText(formatAxisValue(val), x, size - 5);
+    // Rings crossing the visible area
+    const halfRange = (maxE - minE) / 2;
+    const mPerPx = (maxE - minE) / plotW;
+    let step = ringStep(halfRange / 4);
+    // A wider 1/2/5 step when the labels would touch, keeping a ring in view
+    while (step < MIN_RING_SPACING_PX * mPerPx && ringStep(step * 2.2) <= halfRange) {
+      step = ringStep(step * 2.2);
     }
+    const nearest = Math.hypot(Math.max(minE, Math.min(maxE, 0)), Math.max(minN, Math.min(maxN, 0)));
+    const farthest = Math.hypot(Math.max(-minE, maxE), Math.max(-minN, maxN));
+    const firstRing = Math.max(1, Math.ceil(nearest / step));
+    const lastRing = Math.floor(farthest / step);
+    const ringCount = Math.min(MAX_RINGS, lastRing - firstRing + 1);
 
-    ctx.textAlign = 'right';
-    for (let i = 0; i <= gridCount; i++) {
-      const val = minN + ((maxN - minN) * i) / gridCount;
-      const y = toY(val);
-      ctx.beginPath();
-      ctx.moveTo(PADDING.left, y);
-      ctx.lineTo(PADDING.left + plotW, y);
-      ctx.stroke();
-      ctx.fillText(formatAxisValue(val), PADDING.left - 4, y + 3);
-    }
-
-    // Plot border
-    ctx.strokeStyle = axisColor;
-    ctx.strokeRect(PADDING.left, PADDING.top, plotW, plotH);
-
-    // Origin crosshair at (0,0)
-    if (minE <= 0 && maxE >= 0 && minN <= 0 && maxN >= 0) {
-      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)';
-      ctx.setLineDash([4, 4]);
-      const ox = toX(0);
-      const oy = toY(0);
-      ctx.beginPath();
-      ctx.moveTo(ox, PADDING.top);
-      ctx.lineTo(ox, PADDING.top + plotH);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(PADDING.left, oy);
-      ctx.lineTo(PADDING.left + plotW, oy);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
-    // Data points (clip to plot area)
+    // Rings, axes and points stay inside the plot area
     ctx.save();
     ctx.beginPath();
     ctx.rect(PADDING.left, PADDING.top, plotW, plotH);
     ctx.clip();
-    for (const epoch of data) {
-      const x = toX(epoch.e);
-      const y = toY(epoch.n);
-      ctx.fillStyle = qualityColor(epoch.Q);
+
+    ctx.strokeStyle = ringColor;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    const pxPerM = plotW / (maxE - minE);
+    for (let i = 0; i < ringCount; i++) {
       ctx.beginPath();
-      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.arc(ox, oy, (firstRing + i) * step * pxPerM, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (axisNVisible) {
+      ctx.beginPath();
+      ctx.moveTo(ox, PADDING.top);
+      ctx.lineTo(ox, bottom);
+      ctx.stroke();
+    }
+    if (axisEVisible) {
+      ctx.beginPath();
+      ctx.moveTo(PADDING.left, oy);
+      ctx.lineTo(right, oy);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // The overlay first: the selected stream stays on top
+    for (const epoch of overlay?.data ?? []) {
+      ctx.beginPath();
+      ctx.arc(toX(epoch.e), toY(epoch.n), overlay?.color ? 2 : 2.5, 0, Math.PI * 2);
+      if (overlay?.color) {
+        ctx.fillStyle = overlay.color;
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = qualityColor(epoch.Q);
+        ctx.stroke();
+      }
+    }
+    for (const epoch of data) {
+      ctx.fillStyle = color ?? qualityColor(epoch.Q);
+      ctx.beginPath();
+      ctx.arc(toX(epoch.e), toY(epoch.n), 2, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
 
-    // Axis labels
+    // Ring labels along the east axis; when it is off-screen or the plot is
+    // panned past the reference, along the bearing to the view center so
+    // they stay visible.
+    const onEastAxis = axisEVisible && maxE >= -minE;
+    const labelBearing = onEastAxis ? 0 : Math.atan2((minN + maxN) / 2, (minE + maxE) / 2);
     ctx.fillStyle = textColor;
-    ctx.font = '11px sans-serif';
+    ctx.font = RING_FONT;
+    ctx.textAlign = 'right';
+    for (let i = 0; i < ringCount; i++) {
+      const r = (firstRing + i) * step;
+      const x = toX(r * Math.cos(labelBearing));
+      const y = toY(r * Math.sin(labelBearing));
+      if (x < PADDING.left || x > right || y < PADDING.top || y > bottom) continue;
+      const label = formatRing(r, step);
+      // A label cut off by the canvas edge would misread ("0.015m" as "015m")
+      if (x - 3 - ctx.measureText(label).width < 0) continue;
+      ctx.fillText(label, x - 3, y + 11);
+    }
+
+    // Compass letters where the axes meet the plot edge
+    ctx.font = COMPASS_FONT;
     ctx.textAlign = 'center';
-    ctx.fillText('East (m)', PADDING.left + plotW / 2, size - 1);
+    if (axisNVisible) {
+      ctx.fillText('N', ox, PADDING.top - 6);
+      ctx.fillText('S', ox, bottom + 14);
+    }
+    if (axisEVisible) {
+      ctx.textAlign = 'left';
+      ctx.fillText('E', right + 5, oy + 4);
+      ctx.textAlign = 'right';
+      ctx.fillText('W', PADDING.left - 5, oy + 4);
+    }
+  }, [data, overlay, color, naturalBounds, size, isDark]);
 
-    ctx.save();
-    ctx.translate(12, PADDING.top + plotH / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText('North (m)', 0, 0);
-    ctx.restore();
-  }, [data, naturalBounds, size, isDark]);
-
-  // Draw on dependency change
+  // Draw on dependency change. Canvas text does not wait for web fonts:
+  // redraw once IBM Plex has loaded, or the first draw keeps the fallback.
   useEffect(() => {
+    draw();
+    if (!document.fonts || document.fonts.check(RING_FONT)) return;
+    let current = true;
+    document.fonts.load(RING_FONT).then(() => {
+      if (current) draw();
+    }).catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [draw]);
+
+  const resetView = useCallback(() => {
+    viewRef.current = null;
+    setZoomedFor(null);
     draw();
   }, [draw]);
 
@@ -208,24 +245,7 @@ export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
     const plotW = size - PADDING.left - PADDING.right;
     const plotH = size - PADDING.top - PADDING.bottom;
 
-    const getEffectiveBounds = (): Bounds => {
-      if (viewRef.current) return viewRef.current;
-      // Compute aspect-ratio adjusted natural bounds (same logic as draw)
-      const { minE, maxE, minN, maxN } = naturalBounds;
-      const scaleE = plotW / (maxE - minE);
-      const scaleN = plotH / (maxN - minN);
-      const scale = Math.min(scaleE, scaleN);
-      const actualRangeE = plotW / scale;
-      const actualRangeN = plotH / scale;
-      const centerE = (minE + maxE) / 2;
-      const centerN = (minN + maxN) / 2;
-      return {
-        minE: centerE - actualRangeE / 2,
-        maxE: centerE + actualRangeE / 2,
-        minN: centerN - actualRangeN / 2,
-        maxN: centerN + actualRangeN / 2,
-      };
-    };
+    const getEffectiveBounds = (): Bounds => viewRef.current ?? naturalBounds;
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -241,8 +261,9 @@ export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
       const factor = e.deltaY > 0 ? 1.2 : 1 / 1.2;
       const rangeE = bounds.maxE - bounds.minE;
       const rangeN = bounds.maxN - bounds.minN;
-      const newRangeE = rangeE * factor;
-      const newRangeN = rangeN * factor;
+      const newRangeE = Math.min(MAX_VIEW_RANGE_M, Math.max(MIN_VIEW_RANGE_M, rangeE * factor));
+      if (newRangeE === rangeE) return; // at the limit
+      const newRangeN = newRangeE; // the view stays square
 
       // Zoom centered on mouse cursor position
       const centerE = bounds.minE + mx * rangeE;
@@ -254,6 +275,7 @@ export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
         minN: centerN - my * newRangeN,
         maxN: centerN + (1 - my) * newRangeN,
       };
+      setZoomedFor(resetDep);
       draw();
     };
 
@@ -278,6 +300,7 @@ export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
         minN: bounds.minN + dy, // inverted: canvas Y goes down, North goes up
         maxN: bounds.maxN + dy,
       };
+      setZoomedFor(resetDep);
       draw();
     };
 
@@ -288,10 +311,7 @@ export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
       }
     };
 
-    const handleDblClick = () => {
-      viewRef.current = null;
-      draw();
-    };
+    const handleDblClick = resetView;
 
     canvas.style.cursor = 'grab';
     canvas.addEventListener('wheel', handleWheel, { passive: false });
@@ -307,19 +327,40 @@ export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [naturalBounds, size, draw]);
+  }, [naturalBounds, size, draw, resetView, resetDep]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height, display: 'flex', justifyContent: 'center' }}>
+    <div
+      ref={containerRef}
+      style={{ position: 'relative', width: '100%', height, display: 'flex', justifyContent: 'center' }}
+    >
       <canvas ref={canvasRef} style={{ display: 'block' }} />
+      {zoomed && (
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="xs"
+          onClick={resetView}
+          title="Reset zoom"
+          aria-label="Reset zoom"
+          style={{ position: 'absolute', top: 4, right: 8 }}
+        >
+          <IconZoomReset size={14} />
+        </ActionIcon>
+      )}
     </div>
   );
 }
 
-/** Format axis values: use meters with appropriate precision */
-function formatAxisValue(val: number): string {
-  const abs = Math.abs(val);
-  if (abs >= 100) return val.toFixed(0);
-  if (abs >= 1) return val.toFixed(1);
-  return val.toFixed(3);
+/** Nearest 1/2/5 x 10^k to `rough`. */
+function ringStep(rough: number): number {
+  const pow = 10 ** Math.floor(Math.log10(rough));
+  const m = rough / pow;
+  return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * pow;
+}
+
+/** Ring radius in metres, with the decimals its step needs. */
+function formatRing(r: number, step: number): string {
+  const dec = Math.min(6, Math.max(0, -Math.floor(Math.log10(step) + 1e-9)));
+  return `${r.toFixed(dec)}m`;
 }

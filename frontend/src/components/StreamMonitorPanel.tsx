@@ -3,12 +3,11 @@
  * `mrtk relay`, decode it in the backend and show positions and satellites
  * with the Real-Time views (unchanged, fed through utils/streamMonitor.ts).
  *
- * WebSocket per lessons L17: opened on mount and reconnected on drop; the
- * `history` message on connect is authoritative; `exited: true` ends a
- * session for every open page.
+ * WebSocket per lessons L17: opened on mount and reconnected on drop; each
+ * of the (up to two, #171) streams gets its own messages.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionIcon,
   Badge,
@@ -17,10 +16,10 @@ import {
   Card,
   Chip,
   Code,
-  Grid,
   Group,
   Popover,
   ScrollArea,
+  SegmentedControl,
   Select,
   Stack,
   Switch,
@@ -29,25 +28,26 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { useDisclosure, useLocalStorage } from '@mantine/hooks';
-import { IconPlayerPlay, IconPlayerStop, IconQuestionMark } from '@tabler/icons-react';
+import { useDisclosure, useElementSize, useLocalStorage } from '@mantine/hooks';
+import { IconPlayerPlay, IconPlayerStop, IconPlus, IconQuestionMark, IconTrash } from '@tabler/icons-react';
 import {
   streamMonitorApi,
-  type MonitorEpoch,
-  type MonitorInputType,
   type MonitorMessage,
   type MonitorSatellite,
-  type MonitorSatellites,
   type MonitorState,
-  type MonitorStatus,
+  type MonitorStreamId,
 } from '../api/streamMonitor';
 import {
-  isRelayStatusLine,
+  STREAM_COLOR,
+  alignEpochs,
+  commonTimeSystem,
+  inputLight,
   rtTimestamp,
   splitRelayLog,
   toMetricsPosition,
   toPosEpoch,
 } from '../utils/streamMonitor';
+import { DEFAULT_RAW_LOG, INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
 import { maskLogLine } from '../utils/maskPath';
 import { decodeClasSource, formatClasSource } from '../utils/clasSource';
 import { useFollowScroll } from '../hooks/useFollowScroll';
@@ -55,33 +55,28 @@ import { MaskedPathInput } from './common/MaskedPathInput';
 import { JumpToLatest } from './common/JumpToLatest';
 import { StreamPathHelp } from './StreamPathHelp';
 import { RtMetricsRow } from './RtMetricsRow';
+import { StreamMonitorStatusRow } from './StreamMonitorStatusRow';
+import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { SkySnrPanel } from './SkySnrPanel';
-import { PositionViewer, type ViewMode } from './viewer';
+import { StreamMessagePanel } from './StreamMessagePanel';
+import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
 
 const MONO = "'IBM Plex Mono', monospace";
 
-/** Same cap as the backend history (HISTORY_EPOCHS, 1 Hz → one hour). */
-const MAX_EPOCHS = 3600;
-const MAX_LOG_LINES = 500;
 const NO_SATELLITES: MonitorSatellite[] = [];
-/** Height of the chart / text area. The page has no tall sibling to stretch
- *  against, and the viewer takes a pixel height (lessons L02). */
-const CHART_HEIGHT = 460;
-
-const INPUT_TYPES: { value: MonitorInputType; label: string; placeholder: string }[] = [
-  { value: 'serial', label: 'Serial', placeholder: 'ttyACM0:115200' },
-  { value: 'tcpcli', label: 'TCP Client', placeholder: '192.168.1.100:9001' },
-  { value: 'tcpsvr', label: 'TCP Server', placeholder: ':9001' },
-  { value: 'ntripcli', label: 'NTRIP Client', placeholder: 'user:pass@caster:2101/MOUNT' },
-  { value: 'file', label: 'File', placeholder: '/data/rover.sbf' },
-];
+/** The workspace fills the window under the header (lessons L02: the config
+ *  column has no tall content to stretch against). */
+const WORKSPACE_MIN_HEIGHT = 'calc(100vh - 114px)';
+/** Smallest chart / text area, enough for a legible Sky / SNR panel. The
+ *  viewer takes a pixel height, so the area is measured. */
+const MIN_CHART_HEIGHT = 420;
+/** Padding above each tab panel. */
+const PANEL_TOP = 6;
 
 /** Chart views in display order: the viewer's (2D / ENU / Map) and Sky / SNR. */
 const POSITION_VIEWS: ViewMode[] = ['2d', 'enu', 'map'];
 const CHART_VIEWS: string[] = [...POSITION_VIEWS, 'skysnr'];
 const DEFAULT_VIEWS = ['2d', 'skysnr'];
-
-const DEFAULT_RAW_LOG = '/workspace/rtlog/monitor_%Y%m%d%h%M.raw';
 
 /** File input playback (#161): '0' = the whole file at once, else × real
  *  time paced by the epoch times in the file. */
@@ -142,70 +137,138 @@ function Row({ label, children, minHeight }: {
   );
 }
 
-function Mono({ children, c }: { children: React.ReactNode; c?: string }) {
+/** The settings of one stream. `pacing`: a file may be replayed paced (one
+ *  stream only: files with different start times cannot be aligned, #171). */
+function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
   return (
-    <Text size="sm" c={c} truncate="end" style={{ fontFamily: MONO, fontSize: 12 }}>
-      {children}
-    </Text>
+    <>
+      <Row label="Input type">
+        <Select
+          size="xs"
+          value={s.typeMeta.value}
+          onChange={(v) => v && s.setInputType(v)}
+          data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
+          allowDeselect={false}
+          disabled={s.busy}
+        />
+      </Row>
+      <Row label="Path">
+        <Group gap={6} wrap="nowrap">
+          <Box style={{ flex: 1, minWidth: 0 }}>
+            <MaskedPathInput
+              size="xs"
+              value={s.inputPath}
+              onChange={s.setInputPath}
+              placeholder={s.typeMeta.placeholder}
+              disabled={s.busy}
+              styles={{ input: { fontFamily: MONO } }}
+            />
+          </Box>
+          <StreamPathHelp />
+        </Group>
+      </Row>
+      {s.isFile && (
+        <Row label="Playback">
+          <Select
+            size="xs"
+            value={pacing ? s.fileSpeed : '0'}
+            onChange={(v) => v && s.setFileSpeed(v)}
+            data={FILE_SPEEDS}
+            allowDeselect={false}
+            disabled={s.busy || !pacing}
+            title={pacing ? undefined : 'With two streams, files are read all at once'}
+          />
+        </Row>
+      )}
+      {!s.isFile && (
+        <Row label="Save raw stream" minHeight={30}>
+          <Switch
+            size="xs"
+            checked={s.saveRaw}
+            onChange={(e) => s.setSaveRaw(e.currentTarget.checked)}
+            disabled={s.busy}
+          />
+        </Row>
+      )}
+      {!s.isFile && s.saveRaw && (
+        <Row label="Raw log file">
+          <TextInput
+            size="xs"
+            value={s.rawLog}
+            onChange={(e) => s.setRawLog(e.currentTarget.value)}
+            placeholder={DEFAULT_RAW_LOG}
+            disabled={s.busy}
+            styles={{ input: { fontFamily: MONO } }}
+          />
+        </Row>
+      )}
+      <Row label="CLAS L6 source" minHeight={30}>
+        <Switch
+          size="xs"
+          checked={s.clasSource}
+          onChange={(e) => s.setClasSource(e.currentTarget.checked)}
+          title="Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there."
+        />
+      </Row>
+      {s.requestError && (
+        <Text size="sm" c="red" mt={4}>
+          {s.requestError}
+        </Text>
+      )}
+    </>
   );
 }
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KiB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MiB`;
+/** Dot, name and state of a stream, for its card and the selector. */
+function StreamName({ s }: { s: MonitorStream }) {
+  const light = inputLight(s.status, s.state, s.live);
+  return (
+    <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+      <Box style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: light.color }} />
+      <Text size="xs" fw={600} style={{ whiteSpace: 'nowrap' }}>Stream {s.id.toUpperCase()}</Text>
+      <Text c="dimmed" style={{ fontFamily: MONO, fontSize: 10, whiteSpace: 'nowrap' }}>{light.label}</Text>
+    </Group>
+  );
 }
 
-/** Keep at most one relay status line (the newest): they arrive every few
- *  seconds and would push everything else out of the buffer. */
-function appendLog(prev: string[], line: string): string[] {
-  const base = isRelayStatusLine(line) ? prev.filter((l) => !isRelayStatusLine(l)) : prev;
-  return [...base.slice(-(MAX_LOG_LINES - 1)), line];
-}
-
-export function StreamMonitorPanel() {
-  // ── form (persisted; separate keys so an old stored shape cannot break it, L28)
-  const [inputType, setInputType] = useLocalStorage<string>({
-    key: 'mrtk-stream-monitor-input-type',
-    defaultValue: 'tcpcli',
-  });
-  const [inputPath, setInputPath] = useLocalStorage<string>({
-    key: 'mrtk-stream-monitor-input-path',
-    defaultValue: '',
-  });
-  const [saveRaw, setSaveRaw] = useLocalStorage<boolean>({
-    key: 'mrtk-stream-monitor-save-raw',
-    defaultValue: false,
-  });
-  const [rawLog, setRawLog] = useLocalStorage<string>({
-    key: 'mrtk-stream-monitor-raw-log',
-    defaultValue: DEFAULT_RAW_LOG,
-  });
-  const [fileSpeed, setFileSpeed] = useLocalStorage<string>({
-    key: 'mrtk-stream-monitor-file-speed',
-    defaultValue: '0',
-  });
-  // Read the GGA station id as the CLAS L6 source (#144). Off by default:
-  // only `mrtk run` CLAS output puts the source there; any other receiver
-  // puts its base station id, which can look like a valid source.
-  const [clasSource, setClasSource] = useLocalStorage<boolean>({
-    key: 'mrtk-stream-monitor-clas-source',
-    defaultValue: false,
-  });
-  const typeMeta = INPUT_TYPES.find((t) => t.value === inputType) ?? INPUT_TYPES[1];
-  const isFile = typeMeta.value === 'file';
-
-  // ── session data
-  const [status, setStatus] = useState<MonitorStatus | null>(null);
-  const [epochs, setEpochs] = useState<MonitorEpoch[]>([]);
-  const [sats, setSats] = useState<MonitorSatellites | null>(null);
-  const [logLines, setLogLines] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [requestError, setRequestError] = useState<string | null>(null);
+export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
+  configOpen?: boolean;
+  onToggleConfig?: () => void;
+}) {
   // The page's WebSocket is open. While it is not, the last status is stale.
   const [wsOpen, setWsOpen] = useState(false);
+  const streamA = useMonitorStream('a', wsOpen);
+  const streamB = useMonitorStream('b', wsOpen);
+  const onMessageA = streamA.handleMessage;
+  const onMessageB = streamB.handleMessage;
+
+  // The second stream is shown once added, and whenever it runs: it may
+  // have been started from another browser (L16).
+  const [secondAdded, setSecondAdded] = useLocalStorage<boolean>({
+    key: 'mrtk-stream-monitor-second',
+    defaultValue: false,
+  });
+  const twoStreams = secondAdded || streamB.busy;
+  const streams = twoStreams ? [streamA, streamB] : [streamA];
+  const [selectedId, setSelectedId] = useState<MonitorStreamId>('a');
+  const [overlayOn, setOverlayOn] = useLocalStorage<boolean>({
+    key: 'mrtk-stream-monitor-overlay',
+    defaultValue: true,
+  });
+  const selected = twoStreams && selectedId === 'b' ? streamB : streamA;
+  const {
+    status, epochs, sats, logLines, messageTypes, messageNow, messageLabel, messageRows,
+    live, state, submitting, clasSource,
+  } = selected;
+
+  const anyRunning = streams.some((s) => s.running);
+  const startable = streams.filter((s) => !s.busy && s.inputPath.trim());
+  const handleStartAll = () => startable.forEach((s) => void s.start(!twoStreams));
+  const handleStopAll = () => streams.filter((s) => s.running).forEach((s) => void s.stop());
 
   const [tab, setTab] = useState<string | null>('chart');
+  const { ref: panelsRef, height: panelsHeight } = useElementSize();
+  const chartHeight = Math.max(MIN_CHART_HEIGHT, panelsHeight - PANEL_TOP);
   // Chart views, side by side; kept per browser. A stored value from an
   // older layout (e.g. 'position') is dropped (L28).
   const [storedViews, setChartViews] = useLocalStorage<string[]>({
@@ -218,152 +281,123 @@ export function StreamMonitorPanel() {
   }, [storedViews]);
   const positionViews = POSITION_VIEWS.filter((v) => chartViews.includes(v));
 
+  // What the backend streams rows for: only while the tab is open.
+  const subscribedLabel = tab === 'message' ? messageLabel : null;
+  const subscribedStream = selected.id;
+  const subscribedRef = useRef<{ stream: MonitorStreamId; label: string | null }>({ stream: 'a', label: null });
+  useLayoutEffect(() => {
+    subscribedRef.current = { stream: subscribedStream, label: subscribedLabel };
+  });
+
   const wsRef = useRef<WebSocket | null>(null);
-  const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const unmountedRef = useRef(false);
-  // A start request is in flight: a "not running" status sent before it
-  // (e.g. on WS connect) must not flip the page back to idle.
-  const startingRef = useRef(false);
-  // Counts `exited` statuses. A Start response that arrives after a session
-  // ended (relay exit, Stop from another page) is older than that exit and
-  // must not bring Running back: no further status would correct it.
-  const exitCountRef = useRef(0);
-  // `started_at` of the session this page shows. A status with another one
-  // means a new session (maybe started from another page): its console and
-  // data start empty. `undefined` = take the next status as is (`history`
-  // just replaced everything).
-  const sessionRef = useRef<string | null | undefined>(undefined);
-
-  const clearData = useCallback(() => {
-    setEpochs([]);
-    setSats(null);
-  }, []);
-
-  const connectWs = useCallback(() => {
-    if (wsRef.current || unmountedRef.current) return;
-    const ws = streamMonitorApi.connectWs();
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      if (wsRef.current === ws) setWsOpen(true);
-    };
-
-    ws.onmessage = (event) => {
-      let msg: MonitorMessage;
-      try {
-        msg = JSON.parse(event.data) as MonitorMessage;
-      } catch {
-        return;
-      }
-      switch (msg.type) {
-        case 'history':
-          // Authoritative: empty when no session is running.
-          setEpochs((msg.epochs ?? []).slice(-MAX_EPOCHS));
-          setSats(msg.satellites ?? null);
-          setLogLines((msg.logs ?? []).reduce(appendLog, [] as string[]));
-          sessionRef.current = undefined;
-          break;
-        case 'status':
-          if (!msg.running && !msg.exited && startingRef.current) break;
-          if (
-            sessionRef.current !== undefined &&
-            msg.started_at &&
-            msg.started_at !== sessionRef.current
-          ) {
-            clearData();
-            setLogLines([]);
-          }
-          sessionRef.current = msg.started_at;
-          setStatus(msg);
-          if (msg.exited) {
-            exitCountRef.current += 1;
-            clearData();
-          }
-          break;
-        case 'epochs':
-          setEpochs((prev) => [...prev, ...msg.epochs].slice(-MAX_EPOCHS));
-          break;
-        case 'satellites':
-          setSats({ time: msg.time, time_sys: msg.time_sys, satellites: msg.satellites });
-          break;
-        case 'log':
-          setLogLines((prev) => appendLog(prev, msg.message));
-          break;
-      }
-    };
-
-    ws.onclose = () => {
-      // A stale socket (already replaced or torn down) must not touch state.
-      if (wsRef.current !== ws) return;
-      wsRef.current = null;
-      if (unmountedRef.current) return;
-      setWsOpen(false);
-      wsReconnectRef.current = setTimeout(() => {
-        wsReconnectRef.current = null;
-        connectWs();
-      }, 2000);
-    };
-  }, [clearData]);
 
   useEffect(() => {
-    unmountedRef.current = false;
-    connectWs();
+    let closed = false;
+    let reconnect: ReturnType<typeof setTimeout> | null = null;
+
+    const connect = () => {
+      if (wsRef.current || closed) return;
+      const ws = streamMonitorApi.connectWs();
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (wsRef.current === ws) setWsOpen(true);
+      };
+
+      ws.onmessage = (event) => {
+        let msg: MonitorMessage;
+        try {
+          msg = JSON.parse(event.data) as MonitorMessage;
+        } catch {
+          return;
+        }
+        const stream = msg.stream ?? 'a';
+        if (msg.type === 'message_rows') {
+          // Rows of the previous selection may still be on their way.
+          const sub = subscribedRef.current;
+          if (stream !== sub.stream || msg.label !== sub.label) return;
+        }
+        (stream === 'b' ? onMessageB : onMessageA)(msg);
+      };
+
+      ws.onclose = () => {
+        // A stale socket (already replaced or torn down) must not touch state.
+        if (wsRef.current !== ws) return;
+        wsRef.current = null;
+        if (closed) return;
+        setWsOpen(false);
+        reconnect = setTimeout(() => {
+          reconnect = null;
+          connect();
+        }, 2000);
+      };
+    };
+
+    connect();
     return () => {
-      unmountedRef.current = true;
-      if (wsReconnectRef.current) clearTimeout(wsReconnectRef.current);
-      wsReconnectRef.current = null;
+      closed = true;
+      if (reconnect) clearTimeout(reconnect);
       const ws = wsRef.current;
       wsRef.current = null;
       ws?.close();
     };
-  }, [connectWs]);
+  }, [onMessageA, onMessageB]);
 
-  const running = !!status?.running;
-  const busy = running || submitting;
-  // Live figures only while the WebSocket delivers them.
-  const live = running && wsOpen;
-
-  const handleStart = async () => {
-    startingRef.current = true;
-    setSubmitting(true);
-    setRequestError(null);
-    clearData();
-    setLogLines([]);
-    const exitsBefore = exitCountRef.current;
-    try {
-      const st = await streamMonitorApi.start({
-        input: { type: typeMeta.value, path: inputPath.trim() },
-        raw_log: !isFile && saveRaw && rawLog.trim() ? rawLog.trim() : null,
-        file_speed: isFile && Number(fileSpeed) > 0 ? Number(fileSpeed) : null,
-      });
-      // A session that ended meanwhile keeps its exit status. If the exit
-      // was another session's, the next status tick (1 s) shows this one.
-      if (exitCountRef.current === exitsBefore) setStatus(st);
-    } catch (err) {
-      setRequestError(err instanceof Error ? err.message : String(err));
-    } finally {
-      startingRef.current = false;
-      setSubmitting(false);
-    }
-  };
-
-  const handleStop = async () => {
-    setSubmitting(true);
-    setRequestError(null);
-    try {
-      setStatus(await streamMonitorApi.stop());
-      clearData();
-    } catch (err) {
-      setRequestError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  // Tell the backend what to send; again after a reconnect, which starts
+  // a new client there.
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!wsOpen || ws?.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'select_message', stream: subscribedStream, label: subscribedLabel }));
+  }, [subscribedStream, subscribedLabel, wsOpen]);
 
   // ── adapters to the RT components
   const last = epochs.length > 0 ? epochs[epochs.length - 1] : null;
   const metricsPosition = useMemo(() => (last ? toMetricsPosition(last) : null), [last]);
-  const posEpochs = useMemo(() => epochs.map(toPosEpoch), [epochs]);
+  const posA = useMemo(() => streamA.epochs.map(toPosEpoch), [streamA.epochs]);
+  const posB = useMemo(() => streamB.epochs.map(toPosEpoch), [streamB.epochs]);
+  const posOf = (s: MonitorStream) => (s.id === 'a' ? posA : posB);
+
+  // Overlay: the selected stream on top of the other; while it has no epochs
+  // the other is shown alone, so there is nothing to compare yet.
+  const other = selected.id === 'a' ? streamB : streamA;
+  const overlaying = twoStreams && overlayOn;
+  const primary = overlaying && posOf(selected).length === 0 && posOf(other).length > 0 ? other : selected;
+  const secondary = primary.id === 'a' ? streamB : streamA;
+  const primaryPos = posOf(primary);
+  const secondaryPos = posOf(secondary);
+  const showOverlay = overlaying && primaryPos.length > 0 && secondaryPos.length > 0;
+  // One time system while overlaid, or the ENU charts would be seconds apart.
+  const overlayTimeSystem = useMemo(
+    () => (showOverlay ? commonTimeSystem([...primary.epochs, ...secondary.epochs]) : 'GPST'),
+    [showOverlay, primary.epochs, secondary.epochs],
+  );
+  const primaryEpochs = useMemo(
+    () => (showOverlay ? alignEpochs(primary.epochs, primaryPos, overlayTimeSystem) : primaryPos),
+    [showOverlay, primary.epochs, primaryPos, overlayTimeSystem],
+  );
+  const secondaryEpochs = useMemo(
+    () => (showOverlay ? alignEpochs(secondary.epochs, secondaryPos, overlayTimeSystem) : secondaryPos),
+    [showOverlay, secondary.epochs, secondaryPos, overlayTimeSystem],
+  );
+  const positionOverlay = useMemo((): PositionOverlay | undefined => {
+    if (!showOverlay) return undefined;
+    return {
+      label: `Stream ${primary.id.toUpperCase()}`,
+      color: STREAM_COLOR[primary.id],
+      other: {
+        label: `Stream ${secondary.id.toUpperCase()}`,
+        color: STREAM_COLOR[secondary.id],
+        epochs: secondaryEpochs,
+        timeSystem: overlayTimeSystem,
+      },
+    };
+  }, [showOverlay, primary.id, secondary.id, secondaryEpochs, overlayTimeSystem]);
+  // Another source, reference or overlay refits the views; epochs do not.
+  const positionKey = [
+    `${primary.id}:${primary.status?.started_at ?? ''}`,
+    showOverlay ? `${secondary.id}:${secondary.status?.started_at ?? ''}` : '',
+  ].join('|');
   const lastL6 = live && clasSource ? decodeClasSource(last?.refid) : null;
   // Without a decoded source, a non-zero station id is still shown as is.
   const lastStationId = live && !lastL6 && last?.refid ? String(last.refid).padStart(4, '0') : null;
@@ -374,340 +408,297 @@ export function StreamMonitorPanel() {
   const solutionScroll = useFollowScroll(tab === 'solution', epochs);
   const consoleScroll = useFollowScroll(tab === 'console', relayLog.console);
 
-  const state: MonitorState = submitting && !running ? 'starting' : status?.state ?? 'idle';
-  const msgCounts = Object.entries(status?.msg_counts ?? {}).sort((a, b) => b[1] - a[1]);
-  // Unknown bytes are normal at the start (the stream is joined mid-frame);
-  // bad checksums and decode errors are not.
-  const framingIssues = status ? status.bad_frames + status.decode_errors : 0;
   // The relay's status line is only current while it runs.
   const relayStatusLine = live ? relayLog.status : null;
 
   return (
-    <Stack gap="sm">
-      <Grid gutter="sm" align="stretch">
-        {/* Input */}
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder p="md" h="100%">
-            <Group justify="space-between" mb="xs">
-              <Group gap={6} wrap="nowrap">
-                <Title order={5}>Stream Monitor</Title>
-                <MonitorHelp />
-              </Group>
-              {!running ? (
-                <Button
-                  size="xs"
-                  color="green"
-                  leftSection={<IconPlayerPlay size={14} />}
-                  onClick={handleStart}
-                  loading={submitting}
-                  disabled={!inputPath.trim()}
-                >
-                  Start
-                </Button>
-              ) : (
+    <ConsoleFrame
+      configOpen={configOpen}
+      onToggleConfig={onToggleConfig ?? (() => {})}
+      config={
+        <Card withBorder p="xs" h="100%">
+          <Group justify="space-between" mb="xs" wrap="nowrap">
+            <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+              {onToggleConfig && <ConfigCollapseButton onClick={onToggleConfig} />}
+              <Title order={6} size="xs">Stream Monitor</Title>
+              <MonitorHelp />
+            </Group>
+            <Group gap="xs" wrap="nowrap">
+              <Button
+                variant="light"
+                size="compact-xs"
+                leftSection={<IconPlus size={12} />}
+                onClick={() => setSecondAdded(true)}
+                disabled={twoStreams}
+              >
+                Add Stream
+              </Button>
+              {!twoStreams && state !== 'idle' && (
+                <Badge color={STATE_COLOR[state]} variant="dot" size="sm">
+                  {state}
+                </Badge>
+              )}
+              {anyRunning ? (
                 <Button
                   size="xs"
                   color="red"
                   leftSection={<IconPlayerStop size={14} />}
-                  onClick={handleStop}
-                  loading={submitting}
+                  onClick={handleStopAll}
+                  loading={!twoStreams && submitting}
                 >
-                  Stop
+                  {twoStreams ? 'Stop All' : 'Stop'}
+                </Button>
+              ) : (
+                <Button
+                  size="xs"
+                  color="green"
+                  leftSection={<IconPlayerPlay size={14} />}
+                  onClick={handleStartAll}
+                  loading={!twoStreams && submitting}
+                  disabled={startable.length === 0}
+                >
+                  {twoStreams ? 'Start All' : 'Start'}
                 </Button>
               )}
             </Group>
-            <Row label="Input type">
-              <Select
-                size="xs"
-                value={typeMeta.value}
-                onChange={(v) => v && setInputType(v)}
-                data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
-                allowDeselect={false}
-                disabled={busy}
-              />
-            </Row>
-            <Row label="Path">
-              <Group gap={6} wrap="nowrap">
-                <Box style={{ flex: 1, minWidth: 0 }}>
-                  <MaskedPathInput
-                    size="xs"
-                    value={inputPath}
-                    onChange={setInputPath}
-                    placeholder={typeMeta.placeholder}
-                    disabled={busy}
-                    styles={{ input: { fontFamily: MONO } }}
-                  />
-                </Box>
-                <StreamPathHelp />
-              </Group>
-            </Row>
-            {isFile && (
-              <Row label="Playback">
-                <Select
-                  size="xs"
-                  value={fileSpeed}
-                  onChange={(v) => v && setFileSpeed(v)}
-                  data={FILE_SPEEDS}
-                  allowDeselect={false}
-                  disabled={busy}
-                />
-              </Row>
-            )}
-            {!isFile && (
-              <Row label="Save raw stream" minHeight={30}>
-                <Switch
-                  size="xs"
-                  checked={saveRaw}
-                  onChange={(e) => setSaveRaw(e.currentTarget.checked)}
-                  disabled={busy}
-                />
-              </Row>
-            )}
-            {!isFile && saveRaw && (
-              <Row label="Raw log file">
-                <TextInput
-                  size="xs"
-                  value={rawLog}
-                  onChange={(e) => setRawLog(e.currentTarget.value)}
-                  placeholder={DEFAULT_RAW_LOG}
-                  disabled={busy}
-                  styles={{ input: { fontFamily: MONO } }}
-                />
-              </Row>
-            )}
-            <Row label="CLAS L6 source" minHeight={30}>
-              <Switch
-                size="xs"
-                checked={clasSource}
-                onChange={(e) => setClasSource(e.currentTarget.checked)}
-                title="Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there."
-              />
-            </Row>
-            {requestError && (
-              <Text size="sm" c="red" mt={4}>
-                {requestError}
-              </Text>
-            )}
-          </Card>
-        </Grid.Col>
-
-        {/* Stream status */}
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder p="md" h="100%">
-            <Title order={5} mb="xs">Stream</Title>
-            <Row label="State">
-              <Group gap="xs" wrap="nowrap">
-                <Badge color={STATE_COLOR[state]} variant="dot" size="sm">
-                  {state}
-                </Badge>
-                {status && !wsOpen ? (
-                  <Text size="xs" c="orange">connection to the server lost · reconnecting</Text>
-                ) : (
-                  live && status && (
-                    status.file ? (
-                      <Text size="xs" c={status.file.eof ? 'dimmed' : 'green'}>
-                        {status.file.eof ? 'end of file' : 'reading'}
-                      </Text>
-                    ) : (
-                      // `connected` is the backend's link to the relay, not the
-                      // relay's input: judge the input by the bytes arriving.
-                      <Text size="xs" c={status.bytes_per_sec > 0 ? 'green' : 'orange'}>
-                        {status.bytes_per_sec > 0 ? 'receiving' : status.connected ? 'no data' : 'starting relay'}
-                      </Text>
-                    )
-                  )
-                )}
-              </Group>
-            </Row>
-            {state === 'error' && status?.error_message && (
-              <Row label="Error">
-                <Text size="sm" c="red">{status.error_message}</Text>
-              </Row>
-            )}
-            <Row label="Input">
-              <Mono>{status?.input ? maskLogLine(status.input) : '—'}</Mono>
-            </Row>
-            {status?.raw_log && (
-              <Row label="Raw log">
-                <Mono>{status.raw_log}</Mono>
-              </Row>
-            )}
-            {status?.file ? (
-              <Row label="Read">
-                <Mono>
-                  {`${formatBytes(status.file.read)} of ${formatBytes(status.file.size)}`
-                    + ` (${status.file.size > 0 ? Math.floor((status.file.read / status.file.size) * 100) : 100}%)`
-                    + ` · ${status.file.speed ? `${status.file.speed}× real time` : 'all at once'}`}
-                </Mono>
-              </Row>
-            ) : (
-              <Row label="Data rate">
-                <Mono>
-                  {status && live
-                    ? `${formatBytes(status.bytes_per_sec)}/s · ${formatBytes(status.bytes_total)} total`
-                    : '—'}
-                </Mono>
-              </Row>
-            )}
-            <Row label="Position from">
-              <Mono>{status?.epoch_source ?? '—'}</Mono>
-            </Row>
-            <Row label="Satellites from">
-              <Mono>{status?.satellite_source ?? '—'}</Mono>
-            </Row>
-            {lastL6 && (
-              // CLAS: the GGA station id of `mrtk run` NMEA output (#144)
-              <Row label="L6 source">
-                <Mono>{`${formatClasSource(lastL6)} (${String(last?.refid).padStart(4, '0')})`}</Mono>
-              </Row>
-            )}
-            {lastStationId && (
-              <Row label="Station ID">
-                <Mono>{lastStationId}</Mono>
-              </Row>
-            )}
-            <Row label="Messages">
-              <Mono>
-                {msgCounts.length > 0
-                  ? msgCounts.map(([k, n]) => `${k} ${n}`).join(' · ')
-                  : '—'}
-              </Mono>
-            </Row>
-            <Row label="Undecoded">
-              <Mono c={framingIssues > 0 ? 'orange' : undefined}>
-                {status
-                  ? `${formatBytes(status.unknown_bytes)} unknown · ${status.bad_frames} bad frames · ${status.decode_errors} decode errors`
-                  : '—'}
-              </Mono>
-            </Row>
-          </Card>
-        </Grid.Col>
-      </Grid>
-
-      {/* Workspace */}
-      <Card withBorder p="xs">
-        <Stack gap={6}>
-          <RtMetricsRow
-            lastPosition={metricsPosition}
-            satellites={satellites}
-            timeSystem={last?.time_sys ?? 'GPST'}
-          />
-
-          <Tabs value={tab} onChange={setTab}>
-            <Group justify="space-between" align="center" gap={0}>
-              <Tabs.List>
-                <Tabs.Tab value="chart" style={{ fontSize: 11 }}>Chart</Tabs.Tab>
-                <Tabs.Tab value="solution" style={{ fontSize: 11 }}>Solution</Tabs.Tab>
-                <Tabs.Tab value="console" style={{ fontSize: 11 }}>Console</Tabs.Tab>
-              </Tabs.List>
-              <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
-                <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
-                  <Chip value="2d" size="xs" variant="light">2D</Chip>
-                  <Chip value="enu" size="xs" variant="light">ENU</Chip>
-                  <Chip value="map" size="xs" variant="light">Map</Chip>
-                  <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
-                </Group>
-              </Chip.Group>
-            </Group>
-
-            <Tabs.Panel value="chart" pt={6}>
-              <div style={{ display: 'flex', gap: 10, height: CHART_HEIGHT, minHeight: 0 }}>
-                {positionViews.length > 0 && (
-                  // One share of the width per view
-                  <div style={{ flex: positionViews.length, minWidth: 0, minHeight: 0 }}>
-                    {/* The PP Result Viewer's views over the live epochs,
-                        sharing reference and legend; a new session
-                        (started_at) resets zoom and map. */}
-                    <PositionViewer
-                      epochs={posEpochs}
-                      dataKey={status?.started_at ?? ''}
-                      maxHeight={CHART_HEIGHT}
-                      timeSystem={last?.time_sys ?? 'GPST'}
-                      emptyText={live ? 'Waiting for positions…' : 'No position data'}
-                      views={positionViews}
-                      clasSource={clasSource}
-                    />
-                  </div>
-                )}
-                {chartViews.includes('skysnr') && (
-                  <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                    <SkySnrPanel satellites={satellites} updateTime={satTime} />
-                  </div>
-                )}
-              </div>
-            </Tabs.Panel>
-
-            <Tabs.Panel value="solution" pt={6}>
-              <Box pos="relative">
-                <ScrollArea
-                  h={CHART_HEIGHT}
-                  {...solutionScroll.scrollProps}
-                  styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
+          </Group>
+          {twoStreams ? (
+            <Stack gap="xs">
+              {streams.map((s) => (
+                <Card
+                  key={s.id}
+                  withBorder
+                  p="xs"
+                  onClick={() => setSelectedId(s.id)}
+                  style={{ borderColor: selected.id === s.id ? 'var(--mantine-color-blue-5)' : undefined }}
                 >
-                  <Text
-                    c={epochs.length > 0 ? 'gray.4' : 'dimmed'}
-                    fs={epochs.length > 0 ? undefined : 'italic'}
-                    style={{ fontFamily: MONO, whiteSpace: 'pre', fontSize: '11px', lineHeight: 1.5 }}
-                  >
-                    {solutionScroll.shown.length > 0
-                      ? solutionScroll.shown
-                          .map((e) =>
-                            [
-                              `${rtTimestamp(e.time)} ${e.time_sys}`,
-                              e.lat.toFixed(8).padStart(13),
-                              e.lon.toFixed(8).padStart(14),
-                              (e.height != null ? e.height.toFixed(3) : '—').padStart(10),
-                              `Q=${e.Q}`,
-                              `ns=${e.ns ?? '—'}`,
-                            ].join('  '),
-                          )
-                          .join('\n')
-                      : 'No solution data yet.'}
-                  </Text>
-                </ScrollArea>
-                {solutionScroll.held && <JumpToLatest onClick={solutionScroll.resume} />}
-              </Box>
-            </Tabs.Panel>
+                  <Group justify="space-between" wrap="nowrap" mb={6}>
+                    <StreamName s={s} />
+                    <Group gap={4} wrap="nowrap">
+                      {s.state !== 'idle' && (
+                        <Badge color={STATE_COLOR[s.state]} variant="dot" size="xs">{s.state}</Badge>
+                      )}
+                      {s.running ? (
+                        <ActionIcon
+                          variant="light"
+                          color="red"
+                          size="xs"
+                          onClick={() => void s.stop()}
+                          loading={s.submitting}
+                          title={`Stop stream ${s.id.toUpperCase()}`}
+                          aria-label={`Stop stream ${s.id.toUpperCase()}`}
+                        >
+                          <IconPlayerStop size={12} />
+                        </ActionIcon>
+                      ) : (
+                        <ActionIcon
+                          variant="light"
+                          color="green"
+                          size="xs"
+                          onClick={() => void s.start(false)}
+                          loading={s.submitting}
+                          disabled={!s.inputPath.trim()}
+                          title={`Start stream ${s.id.toUpperCase()}`}
+                          aria-label={`Start stream ${s.id.toUpperCase()}`}
+                        >
+                          <IconPlayerPlay size={12} />
+                        </ActionIcon>
+                      )}
+                      {s.id === 'b' && (
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          size="xs"
+                          onClick={(e) => {
+                            e.stopPropagation(); // the card would select this stream again
+                            setSecondAdded(false);
+                            setSelectedId('a');
+                          }}
+                          disabled={s.busy}
+                          title="Remove stream"
+                          aria-label="Remove stream"
+                        >
+                          <IconTrash size={12} />
+                        </ActionIcon>
+                      )}
+                    </Group>
+                  </Group>
+                  <StreamForm s={s} pacing={false} />
+                </Card>
+              ))}
+            </Stack>
+          ) : (
+            <StreamForm s={streamA} pacing />
+          )}
+        </Card>
+      }
+      workspace={
+        <Card withBorder p="xs" style={{ display: 'flex', flexDirection: 'column', minHeight: WORKSPACE_MIN_HEIGHT }}>
+          <Stack gap={6} style={{ flex: '1 1 auto', minHeight: 0 }}>
+            {/* One selector for every per-stream view (#171) */}
+            {twoStreams && (
+              <SegmentedControl
+                size="xs"
+                value={selected.id}
+                onChange={(v) => setSelectedId(v as MonitorStreamId)}
+                data={streams.map((s) => ({ value: s.id, label: <StreamName s={s} /> }))}
+              />
+            )}
+            <RtMetricsRow
+              lastPosition={metricsPosition}
+              satellites={satellites}
+              timeSystem={last?.time_sys ?? 'GPST'}
+            />
 
-            <Tabs.Panel value="console" pt={6}>
-              <Box pos="relative">
-                <ScrollArea
-                  h={CHART_HEIGHT}
-                  {...consoleScroll.scrollProps}
-                  styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-                >
-                  {consoleScroll.shown.length > 0 ? (
-                    consoleScroll.shown.map((line, i) => (
-                      <Text
-                        key={i}
-                        c="gray.4"
-                        style={{ fontFamily: MONO, fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
-                      >
-                        {maskLogLine(line)}
-                      </Text>
-                    ))
-                  ) : (
-                    <Text c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: '11px' }}>
-                      No log output yet.
-                    </Text>
+            <Tabs value={tab} onChange={setTab} style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <Group justify="space-between" align="center" gap={0}>
+                <Tabs.List>
+                  <Tabs.Tab value="chart" style={{ fontSize: 11 }}>Chart</Tabs.Tab>
+                  <Tabs.Tab value="solution" style={{ fontSize: 11 }}>Solution</Tabs.Tab>
+                  <Tabs.Tab value="console" style={{ fontSize: 11 }}>Console</Tabs.Tab>
+                  <Tabs.Tab value="message" style={{ fontSize: 11 }}>Message</Tabs.Tab>
+                </Tabs.List>
+                <Group gap={6} wrap="nowrap">
+                  {twoStreams && (
+                    <Chip
+                      size="xs"
+                      variant="light"
+                      checked={overlayOn}
+                      onChange={setOverlayOn}
+                      title="Draw both streams on the 2D, ENU and Map views"
+                    >
+                      Overlay
+                    </Chip>
                   )}
-                </ScrollArea>
-                {consoleScroll.held && <JumpToLatest onClick={consoleScroll.resume} />}
-              </Box>
-            </Tabs.Panel>
-          </Tabs>
+                  <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
+                    <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
+                      <Chip value="2d" size="xs" variant="light">2D</Chip>
+                      <Chip value="enu" size="xs" variant="light">ENU</Chip>
+                      <Chip value="map" size="xs" variant="light">Map</Chip>
+                      <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
+                    </Group>
+                  </Chip.Group>
+                </Group>
+              </Group>
 
-          {/* Latest mrtk relay status line (kept out of the console) */}
-          <Text
-            c="dimmed"
-            truncate="end"
-            title={relayStatusLine ? maskLogLine(relayStatusLine) : undefined}
-            style={{ fontFamily: MONO, fontSize: '11px', padding: '0 4px', minHeight: 17 }}
-          >
-            {relayStatusLine ? `relay  ${maskLogLine(relayStatusLine)}` : ''}
-          </Text>
-        </Stack>
-      </Card>
-    </Stack>
+              {/* A fixed basis, not its content: the measured height must not feed back. */}
+              <div ref={panelsRef} style={{ flex: `1 1 ${MIN_CHART_HEIGHT + PANEL_TOP}px`, minHeight: 0, overflow: 'hidden' }}>
+                <Tabs.Panel value="chart" pt={PANEL_TOP}>
+                  <div style={{ display: 'flex', gap: 10, height: chartHeight, minHeight: 0 }}>
+                    {positionViews.length > 0 && (
+                      // One share of the width per view
+                      <div style={{ flex: positionViews.length, minWidth: 0, minHeight: 0 }}>
+                        {/* The PP Result Viewer's views over the live epochs,
+                            sharing reference and legend; a new session
+                            (started_at) resets zoom and map. */}
+                        <PositionViewer
+                          epochs={primaryEpochs}
+                          dataKey={positionKey}
+                          maxHeight={chartHeight}
+                          timeSystem={showOverlay ? overlayTimeSystem : primary.epochs[primary.epochs.length - 1]?.time_sys ?? 'GPST'}
+                          emptyText={live ? 'Waiting for positions…' : 'No position data'}
+                          views={positionViews}
+                          clasSource={primary.clasSource}
+                          overlay={positionOverlay}
+                        />
+                      </div>
+                    )}
+                    {chartViews.includes('skysnr') && (
+                      <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                        <SkySnrPanel satellites={satellites} updateTime={satTime} />
+                      </div>
+                    )}
+                  </div>
+                </Tabs.Panel>
+
+                <Tabs.Panel value="solution" pt={PANEL_TOP}>
+                  <Box pos="relative">
+                    <ScrollArea
+                      h={chartHeight}
+                      {...solutionScroll.scrollProps}
+                      styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
+                    >
+                      <Text
+                        c={epochs.length > 0 ? 'gray.4' : 'dimmed'}
+                        fs={epochs.length > 0 ? undefined : 'italic'}
+                        style={{ fontFamily: MONO, whiteSpace: 'pre', fontSize: '11px', lineHeight: 1.5 }}
+                      >
+                        {solutionScroll.shown.length > 0
+                          ? solutionScroll.shown
+                              .map((e) =>
+                                [
+                                  `${rtTimestamp(e.time)} ${e.time_sys}`,
+                                  e.lat.toFixed(8).padStart(13),
+                                  e.lon.toFixed(8).padStart(14),
+                                  (e.height != null ? e.height.toFixed(3) : '—').padStart(10),
+                                  `Q=${e.Q}`,
+                                  `ns=${e.ns ?? '—'}`,
+                                ].join('  '),
+                              )
+                              .join('\n')
+                          : 'No solution data yet.'}
+                      </Text>
+                    </ScrollArea>
+                    {solutionScroll.held && <JumpToLatest onClick={solutionScroll.resume} />}
+                  </Box>
+                </Tabs.Panel>
+
+                <Tabs.Panel value="console" pt={PANEL_TOP}>
+                  <Box pos="relative">
+                    <ScrollArea
+                      h={chartHeight}
+                      {...consoleScroll.scrollProps}
+                      styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
+                    >
+                      {consoleScroll.shown.length > 0 ? (
+                        consoleScroll.shown.map((line, i) => (
+                          <Text
+                            key={i}
+                            c="gray.4"
+                            style={{ fontFamily: MONO, fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+                          >
+                            {maskLogLine(line)}
+                          </Text>
+                        ))
+                      ) : (
+                        <Text c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: '11px' }}>
+                          No log output yet.
+                        </Text>
+                      )}
+                    </ScrollArea>
+                    {consoleScroll.held && <JumpToLatest onClick={consoleScroll.resume} />}
+                  </Box>
+                </Tabs.Panel>
+
+                <Tabs.Panel value="message" pt={PANEL_TOP}>
+                  {tab === 'message' && (
+                    <StreamMessagePanel
+                      types={messageTypes}
+                      rows={messageRows}
+                      selected={messageLabel}
+                      onSelect={selected.selectMessage}
+                      now={messageNow}
+                      showAge={!status?.file}
+                      height={chartHeight}
+                    />
+                  )}
+                </Tabs.Panel>
+              </div>
+            </Tabs>
+
+            {/* Streaming status (same footer as Real-Time) */}
+            <StreamMonitorStatusRow
+              status={status}
+              state={state}
+              live={live}
+              wsOpen={wsOpen}
+              l6Source={lastL6 ? `${formatClasSource(lastL6)} (${String(last?.refid).padStart(4, '0')})` : null}
+              stationId={lastStationId}
+              relayLine={relayStatusLine}
+            />
+          </Stack>
+        </Card>
+      }
+    />
   );
 }

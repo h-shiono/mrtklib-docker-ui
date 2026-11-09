@@ -14,6 +14,8 @@ const API_BASE = '/api/stream-monitor';
 export type MonitorInputType = 'serial' | 'tcpcli' | 'tcpsvr' | 'ntripcli' | 'file';
 
 export interface MonitorStartRequest {
+  /** Default on the server: stream a. */
+  stream?: MonitorStreamId;
   input: { type: MonitorInputType; path: string };
   raw_log: string | null;
   /** File input: × real time, paced by the epoch times; null = all at once. */
@@ -88,12 +90,57 @@ export interface MonitorStatus {
   exited?: boolean;
 }
 
-export type MonitorMessage =
+/** One message type's counters (Message tab, #136). */
+export interface MonitorMessageType {
+  label: string;
+  kind: string;
+  count: number;
+  bytes: number;
+  /** Size of the last frame. */
+  length: number;
+  /** Per second; null when a file is read all at once. */
+  rate: number | null;
+  /** Server time of the last frame, seconds. */
+  last: number;
+}
+
+/** A frame of the selected message type. */
+export interface MonitorMessageRow {
+  seq: number;
+  /** Satellite and signal for navigation data, else null. */
+  key: string | null;
+  t: number;
+  length: number;
+  summary: string | null;
+  /** Start of the content in hex; null for a text frame. */
+  preview: string | null;
+  /** The whole frame in hex, or the line of a text frame. */
+  data: string;
+}
+
+export interface MonitorMessageCounters {
+  now: number;
+  types: MonitorMessageType[];
+}
+
+/** The stream a message belongs to (#171). */
+export type MonitorStreamId = 'a' | 'b';
+
+export type MonitorMessage = { stream?: MonitorStreamId } & (
   | MonitorStatus
-  | { type: 'history'; epochs: MonitorEpoch[]; satellites: MonitorSatellites | null; logs: string[] }
+  | {
+      type: 'history';
+      epochs: MonitorEpoch[];
+      satellites: MonitorSatellites | null;
+      messages: MonitorMessageCounters | null;
+      logs: string[];
+    }
+  | ({ type: 'messages' } & MonitorMessageCounters)
+  | { type: 'message_rows'; label: string; reset: boolean; rows: MonitorMessageRow[] }
   | { type: 'epochs'; epochs: MonitorEpoch[] }
   | ({ type: 'satellites' } & MonitorSatellites)
-  | { type: 'log'; message: string };
+  | { type: 'log'; message: string }
+);
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -113,8 +160,8 @@ export const streamMonitorApi = {
     return handleResponse<MonitorStatus>(response);
   },
 
-  stop: async (): Promise<MonitorStatus> => {
-    const response = await fetch(`${API_BASE}/stop`, { method: 'POST' });
+  stop: async (stream: MonitorStreamId = 'a'): Promise<MonitorStatus> => {
+    const response = await fetch(`${API_BASE}/stop?stream=${stream}`, { method: 'POST' });
     return handleResponse<MonitorStatus>(response);
   },
 
