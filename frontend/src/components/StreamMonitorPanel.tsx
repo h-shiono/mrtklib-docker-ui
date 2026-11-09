@@ -10,7 +10,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionIcon,
-  Badge,
   Box,
   Button,
   Card,
@@ -34,7 +33,6 @@ import {
   streamMonitorApi,
   type MonitorMessage,
   type MonitorSatellite,
-  type MonitorState,
   type MonitorStreamId,
 } from '../api/streamMonitor';
 import {
@@ -59,6 +57,8 @@ import { StreamMonitorStatusRow } from './StreamMonitorStatusRow';
 import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { SkySnrPanel } from './SkySnrPanel';
 import { StreamMessagePanel } from './StreamMessagePanel';
+import { StatusBadge } from './common/StatusBadge';
+import { processTone, STATUS_COLOR } from '../utils/status';
 import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
 
 const MONO = "'IBM Plex Mono', monospace";
@@ -93,7 +93,7 @@ function MonitorHelp() {
   return (
     <Popover opened={opened} onClose={close} position="bottom-start" width={380} shadow="md" withArrow>
       <Popover.Target>
-        <ActionIcon size={14} variant="subtle" radius="xl" onClick={toggle} style={{ opacity: 0.5 }}
+        <ActionIcon size={14} variant="subtle" color="gray" radius="xl" onClick={toggle}
           aria-label="About the Stream Monitor"
         >
           <IconQuestionMark size={10} />
@@ -110,14 +110,6 @@ function MonitorHelp() {
     </Popover>
   );
 }
-
-const STATE_COLOR: Record<MonitorState, string> = {
-  idle: 'gray',
-  starting: 'yellow',
-  running: 'green',
-  stopped: 'gray',
-  error: 'red',
-};
 
 /** Label-left / input-right row (project form convention). */
 function Row({ label, children, minHeight }: {
@@ -211,7 +203,7 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
         />
       </Row>
       {s.requestError && (
-        <Text size="sm" c="red" mt={4}>
+        <Text size="sm" c={STATUS_COLOR.error} mt={4}>
           {s.requestError}
         </Text>
       )}
@@ -434,9 +426,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                 Add Stream
               </Button>
               {!twoStreams && state !== 'idle' && (
-                <Badge color={STATE_COLOR[state]} variant="dot" size="sm">
-                  {state}
-                </Badge>
+                <StatusBadge tone={processTone(state)}>{state}</StatusBadge>
               )}
               {anyRunning ? (
                 <Button
@@ -476,7 +466,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                     <StreamName s={s} />
                     <Group gap={4} wrap="nowrap">
                       {s.state !== 'idle' && (
-                        <Badge color={STATE_COLOR[s.state]} variant="dot" size="xs">{s.state}</Badge>
+                        <StatusBadge tone={processTone(s.state)} size="xs">{s.state}</StatusBadge>
                       )}
                       {s.running ? (
                         <ActionIcon
@@ -616,7 +606,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                     <ScrollArea
                       h={chartHeight}
                       {...solutionScroll.scrollProps}
-                      styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
+                      styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
                     >
                       <Text
                         c={epochs.length > 0 ? 'gray.4' : 'dimmed'}
@@ -648,13 +638,13 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                     <ScrollArea
                       h={chartHeight}
                       {...consoleScroll.scrollProps}
-                      styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
+                      styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
                     >
                       {consoleScroll.shown.length > 0 ? (
                         consoleScroll.shown.map((line, i) => (
                           <Text
                             key={i}
-                            c="gray.4"
+                            c="var(--app-console-fg)"
                             style={{ fontFamily: MONO, fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
                           >
                             {maskLogLine(line)}

@@ -2,7 +2,8 @@ import { Box, Group, Stack, Text } from '@mantine/core';
 import type { PositionUpdate } from '../types/mrtkRunConfig';
 import type { Satellite } from '../types/satellite';
 import { isUsed } from '../utils/satellites';
-import { qualityColor, qualityLabel } from '../utils/quality';
+import { qualityColor, qualityLabel, qualityTextColor } from '../utils/quality';
+import { STATUS_COLOR } from '../utils/status';
 
 // ─── Real-time metrics row (console redesign Phase 4) ────────────────────────
 // Borderless at-a-glance metrics. Order: Time · Position(LLH) · Quality · Ratio
@@ -68,7 +69,11 @@ export function RtMetricsRow({
   timeSystem?: string;
 }) {
   const q = lastPosition
-    ? { label: qualityLabel(lastPosition.quality).toUpperCase(), color: qualityColor(lastPosition.quality) }
+    ? {
+        label: qualityLabel(lastPosition.quality).toUpperCase(),
+        mark: qualityColor(lastPosition.quality),
+        text: qualityTextColor(lastPosition.quality),
+      }
     : undefined;
 
   // Per-system used/total breakdown.
@@ -126,10 +131,10 @@ export function RtMetricsRow({
           <Box
             style={{
               width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
-              background: q?.color ?? 'var(--color-single)',
+              background: q?.mark ?? STATUS_COLOR.off,
             }}
           />
-          <Text component="span" style={{ fontSize: '24px', fontWeight: 700, lineHeight: 1, color: q?.color ?? 'var(--mantine-color-dimmed)' }}>
+          <Text component="span" style={{ fontSize: '24px', fontWeight: 700, lineHeight: 1, color: q?.text ?? 'var(--mantine-color-dimmed)' }}>
             {q?.label ?? DASH}
           </Text>
         </Group>
@@ -137,7 +142,7 @@ export function RtMetricsRow({
 
       {/* Ratio */}
       <Cell caption="Ratio" minWidth={70}>
-        <Text component="span" style={{ ...NUM, color: 'var(--mantine-color-blue-text)' }}>
+        <Text component="span" style={NUM}>
           {lastPosition?.ratio != null ? lastPosition.ratio.toFixed(2) : DASH}
         </Text>
       </Cell>

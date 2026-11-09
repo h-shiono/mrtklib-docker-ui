@@ -40,7 +40,9 @@ import { PostProcessingConfiguration  } from './components';
 import { ResultViewer } from './components/viewer';
 import { ConsoleFrame } from './components/ConsoleFrame';
 import { RealTimeProcessing, type RtLiveStatus } from './components/RealTimeProcessing';
-import { qualityColor, qualityLabel } from './utils/quality';
+import { qualityColor, qualityLabel, qualityTextColor } from './utils/quality';
+import { STATUS_COLOR } from './utils/status';
+import { StatusBadge } from './components/common/StatusBadge';
 import { ConversionPanel } from './components/ConversionPanel';
 import { StreamPathHelp } from './components/StreamPathHelp';
 import { ClasPipelinePanel } from './components/ClasPipelinePanel';
@@ -168,7 +170,7 @@ function PostProcessingRightPanel({
       return (
         <Group justify="space-between" px="sm" py={6}>
           <Group gap="xs">
-            <Badge size="sm" color="green">Complete</Badge>
+            <StatusBadge tone="ok">Complete</StatusBadge>
             <Code style={{ fontSize: '10px' }}>{outputFile}</Code>
           </Group>
           <Button
@@ -188,7 +190,7 @@ function PostProcessingRightPanel({
     if (processStatus === 'error') {
       return (
         <Group justify="center" px="sm" py={6}>
-          <Badge size="sm" color="red">Error</Badge>
+          <StatusBadge tone="error">Error</StatusBadge>
           <Text size="xs" c="dimmed">Processing failed. Check console for details.</Text>
         </Group>
       );
@@ -326,7 +328,7 @@ function PostProcessingRightPanel({
           <ScrollArea
             h={CONTENT_HEIGHT}
             viewportRef={consoleViewportRef}
-            styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
+            styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
           >
             {logLines.length === 0 ? (
               <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
@@ -337,7 +339,7 @@ function PostProcessingRightPanel({
                 <Text
                   key={index}
                   size="xs"
-                  c="gray.4"
+                  c="var(--app-console-fg)"
                   style={{
                     fontFamily: "'IBM Plex Mono', monospace",
                     fontSize: '11px',
@@ -473,7 +475,7 @@ function SolutionView({
     }
   }, [content]);
 
-  const consoleBg = 'var(--mantine-color-dark-8, #1a1b1e)';
+  const consoleBg = 'var(--app-console-bg)';
 
   if (loading) {
     return (
@@ -539,7 +541,7 @@ function SolutionView({
           styles={{ viewport: { backgroundColor: consoleBg, padding: '8px 12px' } }}
         >
           <Text
-            c="gray.4"
+            c="var(--app-console-fg)"
             style={{
               fontFamily: "'IBM Plex Mono', monospace",
               whiteSpace: 'pre',
@@ -1151,9 +1153,9 @@ function MultiStreamPanel() {
 
   const statusDotColor = (status: RelayStream['status']) => {
     switch (status) {
-      case 'running': return '#22c55e';
-      case 'error': return '#ef4444';
-      default: return '#6b7280';
+      case 'running': return STATUS_COLOR.ok;
+      case 'error': return STATUS_COLOR.error;
+      default: return STATUS_COLOR.off;
     }
   };
 
@@ -1397,7 +1399,7 @@ function MultiStreamPanel() {
                 <ScrollArea
                   h={CONSOLE_HEIGHT}
                   viewportRef={stream.id === activeStreamId ? consoleViewportRef : undefined}
-                  styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
+                  styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
                 >
                   {stream.logLines.length === 0 ? (
                     <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
@@ -1408,7 +1410,7 @@ function MultiStreamPanel() {
                       <Text
                         key={index}
                         size="xs"
-                        c="gray.4"
+                        c="var(--app-console-fg)"
                         style={{
                           fontFamily: "'IBM Plex Mono', monospace",
                           fontSize: '11px',
@@ -1495,11 +1497,11 @@ function StatusBar({ activeTab, mrtkVersion, rtStatus }: { activeTab: string; mr
       style={{ fontFamily: MONO, fontSize: 10.5, color: 'var(--mantine-color-dimmed)', overflow: 'hidden' }}
     >
       {rtStatus ? (
-        <Text span style={{ ...cell, color: qualityColor(rtStatus.quality), fontWeight: 600 }}>
+        <Text span style={{ ...cell, color: qualityTextColor(rtStatus.quality), fontWeight: 600 }}>
           ● {qualityLabel(rtStatus.quality).toUpperCase()}
         </Text>
       ) : (
-        <Text span style={{ ...cell, color: 'var(--color-single)' }}>● —</Text>
+        <Text span style={{ ...cell, color: STATUS_COLOR.off }}>● —</Text>
       )}
       <Text span style={cell}>Sat {sat}</Text>
       <Text span style={cell}>ratio {rtStatus ? rtStatus.ratio.toFixed(1) : '—'}</Text>
@@ -1608,7 +1610,7 @@ function App() {
               })}
             </Group>
             <Badge
-              color={healthStatus === 'ok' ? 'green' : healthStatus === 'error' ? 'red' : 'gray'}
+              color={STATUS_COLOR[healthStatus === 'ok' ? 'ok' : healthStatus === 'error' ? 'error' : 'off']}
               variant="dot"
               size="lg"
               visibleFrom="sm"

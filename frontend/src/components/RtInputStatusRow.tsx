@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Box, Group, Stack, Text, Tooltip } from '@mantine/core';
 import type { InputStreamState, InputStreamStatus } from '../types/mrtkRunConfig';
+import { STATUS_COLOR } from '../utils/status';
 
 // ─── Streaming status (footer of the RT workspace) ───────────────────────────
 // Rover / Base / Correction connection state, so a run that keeps going with a
@@ -15,12 +16,12 @@ const LABEL: Record<InputStreamStatus['name'], string> = {
 };
 
 const STATE: Record<InputStreamState, { label: string; color: string }> = {
-  receiving:  { label: 'RECEIVING',  color: 'var(--color-fix)' },
-  connecting: { label: 'CONNECTING', color: 'var(--color-live)' },
-  stalled:    { label: 'STALLED',    color: 'var(--color-float)' },
-  nodecode:   { label: 'NO DECODE',  color: 'var(--color-float)' },
-  error:      { label: 'ERROR',      color: 'var(--mantine-color-red-6)' },
-  off:        { label: 'OFF',        color: 'var(--color-single)' },
+  receiving:  { label: 'RECEIVING',  color: STATUS_COLOR.ok },
+  connecting: { label: 'CONNECTING', color: STATUS_COLOR.starting },
+  stalled:    { label: 'STALLED',    color: STATUS_COLOR.warn },
+  nodecode:   { label: 'NO DECODE',  color: STATUS_COLOR.warn },
+  error:      { label: 'ERROR',      color: STATUS_COLOR.error },
+  off:        { label: 'OFF',        color: STATUS_COLOR.off },
 };
 
 // Polls run every ~1 s; a slow cycle (telnet timeouts) can take several.
@@ -99,7 +100,7 @@ export function StatusFooter({ active, faded = false, note, cellGap = 30, childr
       <Text component="span" style={{ ...CAP, display: 'block', marginBottom: 6 }}>
         Streaming status
         {note && (
-          <Text component="span" inherit style={{ color: 'var(--color-float)' }}>
+          <Text component="span" inherit style={{ color: STATUS_COLOR.warn }}>
             {` · ${note}`}
           </Text>
         )}
@@ -144,7 +145,7 @@ function StreamCell({ s }: { s: InputStreamStatus }) {
         {!off && detail && (
           <Text
             component="span"
-            c={s.state === 'error' ? 'red.4' : 'dimmed'}
+            c={s.state === 'error' ? STATUS_COLOR.error : 'dimmed'}
             style={{ fontFamily: MONO, fontSize: '10.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}
           >
             {detail}

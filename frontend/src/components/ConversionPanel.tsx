@@ -38,6 +38,8 @@ import {
 } from '@tabler/icons-react';
 import { FileBrowserModal } from './FileBrowserModal';
 import { ComboLabel } from './common/OptionLabel';
+import { StatusBadge } from './common/StatusBadge';
+import { processTone } from '../utils/status';
 import { hatanakaOutputPath, type HatanakaDirection } from '../utils/hatanakaNames';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -756,7 +758,6 @@ export function ConversionPanel() {
     window.open(`${baseUrl}/api/files/download?path=${encodeURIComponent(filePath)}`, '_blank');
   }, [activePreviewFile, outputFiles]);
 
-  const statusColor = status === 'converting' ? 'blue' : status === 'done' ? 'green' : status === 'failed' ? 'red' : 'gray';
   const statusLabel = status === 'converting' ? 'Converting' : status === 'done' ? 'Done' : status === 'failed' ? 'Failed' : 'Idle';
 
   return (
@@ -808,7 +809,7 @@ export function ConversionPanel() {
             <Text size="xs" c="dimmed">{tool === 'hatanaka' ? 'rnx2crx / crx2rnx' : 'convbin'}</Text>
           </Group>
           <Group gap="xs">
-            <Badge size="sm" color={statusColor} variant="light">{statusLabel}</Badge>
+            <StatusBadge tone={processTone(status)}>{statusLabel}</StatusBadge>
             {status === 'converting' ? (
               <Button
                 size="compact-xs"
@@ -863,7 +864,7 @@ export function ConversionPanel() {
                       style={{ flex: 1 }}
                       styles={{ input: { fontFamily: "'IBM Plex Mono', monospace" } }}
                     />
-                    <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('hk:inputFile', 'data')}>
+                    <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('hk:inputFile', 'data')}>
                       <IconFolder size={16} />
                     </ActionIcon>
                   </Group>
@@ -878,7 +879,7 @@ export function ConversionPanel() {
                       style={{ flex: 1 }}
                       styles={{ input: { fontFamily: "'IBM Plex Mono', monospace" } }}
                     />
-                    <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('hk:outputFile', 'workspace')}>
+                    <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('hk:outputFile', 'workspace')}>
                       <IconFolder size={16} />
                     </ActionIcon>
                   </Group>
@@ -936,7 +937,7 @@ export function ConversionPanel() {
                     placeholder="/data/raw/receiver.ubx"
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('rawFile', 'data')}>
+                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('rawFile', 'data')}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
@@ -969,7 +970,7 @@ export function ConversionPanel() {
                     placeholder="auto-generated"
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('observationFile', 'workspace')}>
+                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('observationFile', 'workspace')}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
@@ -983,7 +984,7 @@ export function ConversionPanel() {
                     placeholder="auto-generated"
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('navigationFile', 'workspace')}>
+                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('navigationFile', 'workspace')}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
@@ -1004,7 +1005,7 @@ export function ConversionPanel() {
                     onChange={e => setForm(prev => ({ ...prev, outputDirectory: e.currentTarget.value }))}
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('outputDirectory', 'workspace', true)}>
+                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => openFileBrowser('outputDirectory', 'workspace', true)}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
@@ -1308,7 +1309,7 @@ export function ConversionPanel() {
                   viewportRef={consoleRef}
                   styles={{
                     viewport: {
-                      backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)',
+                      backgroundColor: 'var(--app-console-bg)',
                       padding: '8px 12px',
                     },
                   }}
@@ -1322,7 +1323,7 @@ export function ConversionPanel() {
                       <Text
                         key={i}
                         size="xs"
-                        c="gray.4"
+                        c="var(--app-console-fg)"
                         style={{
                           fontFamily: "'IBM Plex Mono', monospace",
                           fontSize: '11px',
@@ -1343,14 +1344,14 @@ export function ConversionPanel() {
                   py={6}
                   style={{
                     borderTop: '1px solid var(--mantine-color-default-border)',
-                    backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)',
+                    backgroundColor: 'var(--app-console-bg)',
                   }}
                 >
                   <Group gap={6} wrap="nowrap">
                     <Text size="xs" c="dimmed" style={{ flexShrink: 0, fontSize: '10px' }}>Command Preview</Text>
                     <Text
                       size="xs"
-                      c="gray.5"
+                      c="var(--app-console-fg)"
                       style={{
                         fontFamily: "'IBM Plex Mono', monospace",
                         fontSize: '9px',

@@ -9,7 +9,6 @@ import {
   Button,
   ActionIcon,
   Tooltip,
-  Badge,
 } from '@mantine/core';
 import {
   IconPlayerPlay,
@@ -27,6 +26,8 @@ import { ProcessingConfigPanel, TomlDrawer } from './ProcessingConfigTabs';
 import { PresetPanel } from './PresetPanel';
 import { ConfigAssistantModal } from './ConfigAssistantModal';
 import { ConfigCollapseButton } from './ConsoleFrame';
+import { StatusBadge } from './common/StatusBadge';
+import { processTone, type ProcessState } from '../utils/status';
 import { tomlToConfig } from '../utils/tomlImport';
 
 interface PostProcessingConfigurationProps {
@@ -45,7 +46,7 @@ interface PostProcessingConfigurationProps {
   outputFile: string;
   onOutputFileChange: (v: string) => void;
   needsBase: boolean;
-  processStatus: string;
+  processStatus: ProcessState;
   isLoading: boolean;
   onExecute: () => void;
   onStop: () => void;
@@ -150,9 +151,7 @@ export function PostProcessingConfiguration({
           </Group>
           <Group gap="xs">
             {processStatus !== 'idle' && (
-              <Badge color={processStatus === 'running' ? 'green' : processStatus === 'success' ? 'blue' : 'red'} variant="dot" size="sm">
-                {processStatus}
-              </Badge>
+              <StatusBadge tone={processTone(processStatus)}>{processStatus}</StatusBadge>
             )}
             {processStatus === 'running' ? (
               <Button size="xs" color="red" leftSection={<IconPlayerStop size={12} />} onClick={onStop} loading={isLoading}>
@@ -170,7 +169,7 @@ export function PostProcessingConfiguration({
             </Tooltip>
             {aiConfigured ? (
               <Tooltip label="Config Assistant">
-                <ActionIcon variant="light" color="yellow" size="lg" onClick={openAssistant}>
+                <ActionIcon variant="light" color="gray" size="lg" onClick={openAssistant}>
                   <IconSparkles size={16} />
                 </ActionIcon>
               </Tooltip>
@@ -192,7 +191,7 @@ export function PostProcessingConfiguration({
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Download TOML">
-              <ActionIcon variant="light" color="blue" size="lg" onClick={onExportConf} disabled={processStatus === 'running'}>
+              <ActionIcon variant="light" color="gray" size="lg" onClick={onExportConf} disabled={processStatus === 'running'}>
                 <IconDownload size={16} />
               </ActionIcon>
             </Tooltip>
