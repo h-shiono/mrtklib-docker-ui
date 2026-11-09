@@ -253,6 +253,7 @@ export function SatVisibilityChart({
       }
 
       // Unit label
+      ctx.font = `${FONT_SIZE.label}px ${CANVAS_MONO}`;
       ctx.textAlign = 'left';
       ctx.fillText('dBHz', legendRight + 6, legendY + 1);
     }

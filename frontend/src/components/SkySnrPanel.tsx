@@ -220,7 +220,7 @@ function SnrBarChart({ satellites }: { satellites: ShownSatellite[] }) {
               title: {
                 display: true,
                 text: 'SNR (dBHz)',
-                font: { size: FONT_SIZE.caption },
+                font: { size: FONT_SIZE.label },
                 color: '#868e96',
               },
               ticks: {

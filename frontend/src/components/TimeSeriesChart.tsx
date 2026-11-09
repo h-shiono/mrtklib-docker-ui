@@ -58,14 +58,14 @@ export function TimeSeriesChart({ points, maxPoints = 300 }: TimeSeriesChartProp
           yAxisId="left"
           tick={{ fontSize: FONT_SIZE.caption }}
           domain={[0, 'auto']}
-          label={{ value: 'Q / NS', angle: -90, position: 'insideLeft', fontSize: FONT_SIZE.caption }}
+          label={{ value: 'Q / NS', angle: -90, position: 'insideLeft', fontSize: FONT_SIZE.label }}
         />
         <YAxis
           yAxisId="right"
           orientation="right"
           tick={{ fontSize: FONT_SIZE.caption }}
           domain={[0, 'auto']}
-          label={{ value: 'Ratio', angle: 90, position: 'insideRight', fontSize: FONT_SIZE.caption }}
+          label={{ value: 'Ratio', angle: 90, position: 'insideRight', fontSize: FONT_SIZE.label }}
         />
         <Tooltip
           contentStyle={{

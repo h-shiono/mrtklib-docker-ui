@@ -581,7 +581,7 @@ export function PositionViewer({
         {l6Summary && (
           // Hover for every source and when it started
           <Badge size="xs" variant="outline" color="gray" title={l6Summary.title}
-            style={{ marginLeft: 'auto', textTransform: 'none', fontFamily: MONO }}
+            style={{ marginLeft: 'auto', textTransform: 'none', fontFamily: MONO, fontSize: FONT_SIZE.label }}
           >
             {l6Summary.text}
           </Badge>

@@ -91,7 +91,7 @@ export function PositionScatter({ points, maxPoints = 3600 }: PositionScatterPro
             domain={[-range, range]}
             tick={{ fontSize: FONT_SIZE.caption }}
             tickFormatter={(v: number) => v.toFixed(1)}
-            label={{ value: 'East (m)', position: 'bottom', fontSize: FONT_SIZE.caption, offset: 5 }}
+            label={{ value: 'East (m)', position: 'bottom', fontSize: FONT_SIZE.label, offset: 5 }}
           />
           <YAxis
             type="number"
@@ -100,7 +100,7 @@ export function PositionScatter({ points, maxPoints = 3600 }: PositionScatterPro
             domain={[-range, range]}
             tick={{ fontSize: FONT_SIZE.caption }}
             tickFormatter={(v: number) => v.toFixed(1)}
-            label={{ value: 'North (m)', angle: -90, position: 'insideLeft', fontSize: FONT_SIZE.caption }}
+            label={{ value: 'North (m)', angle: -90, position: 'insideLeft', fontSize: FONT_SIZE.label }}
           />
           <Tooltip
             formatter={(value: unknown) => `${Number(value).toFixed(3)} m`}
