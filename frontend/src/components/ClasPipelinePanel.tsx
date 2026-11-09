@@ -249,10 +249,10 @@ export function ClasPipelinePanel() {
   const selectedReceiver = receivers.find((r) => r.id === receiverId);
 
   return (
-    <Grid gutter="md" align="stretch">
+    <Grid gutter="md" align="stretch" overflow="hidden" h={{ base: 'auto', md: '100%' }} styles={{ inner: { height: 'calc(100% + var(--mantine-spacing-md))' } }}>
       {/* Left column: form + status + actions */}
-      <Grid.Col span={{ base: 12, md: 6 }}>
-      <Card withBorder p="md" h="100%">
+      <Grid.Col span={{ base: 12, md: 6 }} h={{ base: 'auto', md: '100%' }}>
+      <Card withBorder p="md" h="100%" style={{ overflowY: 'auto' }}>
         <Stack gap={6}>
           <Title order={5}>CLAS Pipeline</Title>
           <Text size="xs" c="dimmed">
@@ -440,7 +440,7 @@ export function ClasPipelinePanel() {
       </Grid.Col>
 
       {/* Right column: live monitoring (flow meter, scatter, logs) */}
-      <Grid.Col span={{ base: 12, md: 6 }}>
+      <Grid.Col span={{ base: 12, md: 6 }} h={{ base: 'auto', md: '100%' }}>
       <Stack gap="md" h="100%" style={{ minHeight: 0 }}>
         <ClasFlowMeter stats={flowStats} />
         <Card withBorder p="sm">
@@ -452,13 +452,13 @@ export function ClasPipelinePanel() {
           </Stack>
         </Card>
         <Card withBorder p="sm" style={{ flex: 1, minHeight: 0 }}>
-          <Tabs defaultValue="relay">
+          <Tabs defaultValue="relay" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Tabs.List>
               <Tabs.Tab value="relay">mrtk relay</Tabs.Tab>
               <Tabs.Tab value="cssr">mrtk cssr2rtcm3</Tabs.Tab>
             </Tabs.List>
-            <Tabs.Panel value="relay" pt="xs">
-              <ScrollArea h={260} viewportRef={relayScrollRef}>
+            <Tabs.Panel value="relay" pt="xs" style={{ flex: 1, minHeight: 0 }}>
+              <ScrollArea h="100%" viewportRef={relayScrollRef}>
                 <Code
                   block
                   style={{
@@ -473,8 +473,8 @@ export function ClasPipelinePanel() {
                 </Code>
               </ScrollArea>
             </Tabs.Panel>
-            <Tabs.Panel value="cssr" pt="xs">
-              <ScrollArea h={260} viewportRef={cssrScrollRef}>
+            <Tabs.Panel value="cssr" pt="xs" style={{ flex: 1, minHeight: 0 }}>
+              <ScrollArea h="100%" viewportRef={cssrScrollRef}>
                 <Code
                   block
                   style={{

@@ -70,7 +70,8 @@ import { generateRelayArgs, parseRelayArgs } from './utils/streamArgs';
 import { FONT_SIZE, MONO } from './utils/typography';
 import { FormRow } from './components/common/FormRow';
 import { StreamCardHeader } from './components/common/StreamCardHeader';
-import { FORM_LABEL_GAP } from './utils/formLayout';
+import { FORM_LABEL_GAP, MIN_PANEL_HEIGHT, SCREEN_HEIGHT } from './utils/formLayout';
+import { useElementSize } from '@mantine/hooks';
 
 function ColorSchemeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -114,6 +115,7 @@ function PostProcessingRightPanel({
   const [refreshKey, setRefreshKey] = useState(0);
   const consoleViewportRef = useRef<HTMLDivElement>(null);
   const [prevStatus, setPrevStatus] = useState(processStatus);
+  const { ref: contentRef, height: contentAreaHeight } = useElementSize();
 
   // Auto-scroll console when new lines arrive
   useEffect(() => {
@@ -208,7 +210,7 @@ function PostProcessingRightPanel({
     );
   };
 
-  const CONTENT_HEIGHT = 540;
+  const contentHeight = Math.max(MIN_PANEL_HEIGHT, contentAreaHeight);
 
   return (
     <Card withBorder p={0} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -309,28 +311,29 @@ function PostProcessingRightPanel({
         </Group>
 
         {/* Chart tab */}
-        <Tabs.Panel value="chart" style={{ flex: 1, minHeight: 0 }}>
+        <div ref={contentRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <Tabs.Panel value="chart">
           <ResultViewer
             filePath={outputFile}
-            maxHeight={CONTENT_HEIGHT}
+            maxHeight={contentHeight}
             refreshKey={refreshKey}
             clasSource={clasSource}
           />
         </Tabs.Panel>
 
         {/* Solution tab */}
-        <Tabs.Panel value="solution" style={{ flex: 1, minHeight: 0 }}>
+        <Tabs.Panel value="solution">
           <SolutionView
             outputFile={outputFile}
             refreshKey={refreshKey}
-            maxHeight={CONTENT_HEIGHT}
+            maxHeight={contentHeight}
           />
         </Tabs.Panel>
 
         {/* Console tab */}
-        <Tabs.Panel value="console" style={{ flex: 1, minHeight: 0 }}>
+        <Tabs.Panel value="console">
           <ScrollArea
-            h={CONTENT_HEIGHT}
+            h={contentHeight}
             viewportRef={consoleViewportRef}
             styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
           >
@@ -360,16 +363,17 @@ function PostProcessingRightPanel({
         </Tabs.Panel>
 
         {/* Trace tab */}
-        <Tabs.Panel value="trace" style={{ flex: 1, minHeight: 0 }}>
+        <Tabs.Panel value="trace">
           <SolutionView
             outputFile={outputFile ? outputFile + '.trace' : ''}
             refreshKey={refreshKey}
-            maxHeight={CONTENT_HEIGHT}
+            maxHeight={contentHeight}
             fromEnd
             noun="trace file"
             searchable
           />
         </Tabs.Panel>
+        </div>
       </Tabs>
 
       {/* 4. Fix rate gauge bar (always visible) */}
@@ -768,7 +772,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
       configOpen={configOpen}
       onToggleConfig={onToggleConfig ?? (() => {})}
       config={
-        <Stack gap="xs">
+        <Stack gap="xs" h="100%">
           <PostProcessingConfiguration
             onConfigChange={setConfig}
             onNavigateToAiSettings={onNavigateToAiSettings}
@@ -1172,12 +1176,11 @@ function MultiStreamPanel() {
   }, [activeStreamId, updateStream]);
 
   const runningCount = streams.filter((s) => s.status === 'running').length;
-  const CONSOLE_HEIGHT = 540;
 
   return (
-    <Grid gutter="md">
+    <Grid gutter="md" overflow="hidden" h={{ base: 'auto', md: '100%' }} styles={{ inner: { height: 'calc(100% + var(--mantine-spacing-md))' } }}>
       {/* Left Pane: Stream Cards */}
-      <Grid.Col span={{ base: 12, md: 6 }}>
+      <Grid.Col span={{ base: 12, md: 6 }} h={{ base: 'auto', md: '100%' }}>
         <Card withBorder p="xs" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           {/* Header */}
           <Group justify="space-between" mb="xs">
@@ -1291,7 +1294,7 @@ function MultiStreamPanel() {
       </Grid.Col>
 
       {/* Right Pane: Console */}
-      <Grid.Col span={{ base: 12, md: 6 }}>
+      <Grid.Col span={{ base: 12, md: 6 }} h={{ base: 'auto', md: '100%' }}>
         <Card withBorder p={0} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <Tabs
             value={activeStreamId}
@@ -1343,7 +1346,7 @@ function MultiStreamPanel() {
             {streams.map((stream) => (
               <Tabs.Panel key={stream.id} value={stream.id} style={{ flex: 1, minHeight: 0 }}>
                 <ScrollArea
-                  h={CONSOLE_HEIGHT}
+                  h="100%"
                   viewportRef={stream.id === activeStreamId ? consoleViewportRef : undefined}
                   styles={{ viewport: { backgroundColor: 'var(--app-console-bg)', padding: '8px 12px' } }}
                 >
@@ -1382,17 +1385,17 @@ function MultiStreamPanel() {
 function StreamRelayView() {
   const [mode, setMode] = useState<string | null>('multi-stream');
   return (
-    <Stack gap="sm">
+    <Stack gap="sm" h={SCREEN_HEIGHT}>
       <Tabs value={mode} onChange={setMode}>
         <Tabs.List>
           <Tabs.Tab value="multi-stream">Multi-Stream</Tabs.Tab>
           <Tabs.Tab value="clas">CLAS Pipeline</Tabs.Tab>
         </Tabs.List>
       </Tabs>
-      <div style={{ display: mode === 'multi-stream' ? undefined : 'none' }}>
+      <div style={{ display: mode === 'multi-stream' ? undefined : 'none', flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <MultiStreamPanel />
       </div>
-      <div style={{ display: mode === 'clas' ? undefined : 'none' }}>
+      <div style={{ display: mode === 'clas' ? undefined : 'none', flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <ClasPipelinePanel />
       </div>
     </Stack>
@@ -1602,7 +1605,7 @@ function App() {
         <div style={{ display: activeTab === 'conversion' ? undefined : 'none' }}>
           <ConversionPanel />
         </div>
-        <div style={{ display: activeTab === 'tools' ? 'flex' : 'none', width: '100%', minHeight: 500, overflow: 'hidden', border: '1px solid var(--mantine-color-default-border)', borderRadius: 'var(--mantine-radius-md)', background: 'var(--mantine-color-default)' }}>
+        <div style={{ display: activeTab === 'tools' ? 'flex' : 'none', width: '100%', height: SCREEN_HEIGHT, overflow: 'hidden', border: '1px solid var(--mantine-color-default-border)', borderRadius: 'var(--mantine-radius-md)', background: 'var(--mantine-color-default)' }}>
           <div style={{ width: 160, flexShrink: 0, borderRight: '1px solid var(--mantine-color-default-border)', overflowY: 'auto' }}>
             <ToolsSidebar selected={selectedTool} onSelect={setSelectedTool} aiConfigured={aiConfigured} />
           </div>

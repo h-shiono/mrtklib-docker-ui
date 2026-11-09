@@ -44,6 +44,7 @@ import { hatanakaOutputPath, type HatanakaDirection } from '../utils/hatanakaNam
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
+import { SCREEN_HEIGHT } from '../utils/formLayout';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -758,7 +759,7 @@ export function ConversionPanel() {
     <Box style={{
       display: 'flex',
       width: '100%',
-      minHeight: 600,
+      height: SCREEN_HEIGHT,
       overflow: 'hidden',
       border: '1px solid var(--mantine-color-default-border)',
       borderRadius: 'var(--mantine-radius-md)',

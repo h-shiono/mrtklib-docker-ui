@@ -141,8 +141,8 @@ export function PostProcessingConfiguration({
 
   return (
     <>
-    <Card withBorder p="xs">
-      <Stack gap={4}>
+    <Card withBorder p="xs" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Stack gap={4} style={{ flex: 1, minHeight: 0 }}>
         {/* Header: title + status + buttons */}
         <Group justify="space-between">
           <Group gap="xs">
