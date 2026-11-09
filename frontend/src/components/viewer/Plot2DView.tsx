@@ -25,7 +25,7 @@ const PADDING = { top: 20, right: 20, bottom: 20, left: 20 };
 const RING_FONT = '10px "IBM Plex Mono", monospace';
 const COMPASS_FONT = '500 11px "IBM Plex Sans", sans-serif';
 /** Rings closer than this would have overlapping labels. */
-const MIN_RING_SPACING_PX = 48;
+const MIN_RING_SPACING_PX = 40;
 
 /**
  * Distance from the reference (the ENU origin) shown as concentric rings with
@@ -113,7 +113,11 @@ export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
     // Rings crossing the visible area
     const halfRange = (maxE - minE) / 2;
     const mPerPx = (maxE - minE) / plotW;
-    const step = ringStep(Math.max(halfRange / 4, MIN_RING_SPACING_PX * mPerPx));
+    let step = ringStep(halfRange / 4);
+    // A wider 1/2/5 step when the labels would touch, keeping a ring in view
+    while (step < MIN_RING_SPACING_PX * mPerPx && ringStep(step * 2.2) <= halfRange) {
+      step = ringStep(step * 2.2);
+    }
     const nearest = Math.hypot(Math.max(minE, Math.min(maxE, 0)), Math.max(minN, Math.min(maxN, 0)));
     const farthest = Math.hypot(Math.max(-minE, maxE), Math.max(-minN, maxN));
     const firstRing = Math.max(1, Math.ceil(nearest / step));
