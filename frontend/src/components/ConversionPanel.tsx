@@ -45,6 +45,7 @@ import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
 import { SCREEN_HEIGHT } from '../utils/formLayout';
+import { SectionHeader } from './common/SectionHeader';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -834,7 +835,7 @@ export function ConversionPanel() {
           <ScrollArea style={{ width: '55%', flexShrink: 0 }}>
             {tool === 'hatanaka' && (
               <Stack gap={6} p="md">
-                <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.06em' }}>Operation</Text>
+                <SectionHeader title="Operation" />
                 <FormRow label="Direction">
                   <SegmentedControl
                     size="xs"
@@ -848,7 +849,7 @@ export function ConversionPanel() {
                   />
                 </FormRow>
 
-                <Text size="xs" fw={700} tt="uppercase" c="dimmed" mt={6} style={{ letterSpacing: '0.06em' }}>Files</Text>
+                <SectionHeader title="Files" mt={6} />
                 <FormRow label="Input File">
                   <Group wrap="nowrap" gap={4}>
                     <TextInput
@@ -883,7 +884,7 @@ export function ConversionPanel() {
                   Leave empty for the default name. Output goes under /workspace; a .gz input is decompressed on the fly.
                 </Text>
 
-                <Text size="xs" fw={700} tt="uppercase" c="dimmed" mt={6} style={{ letterSpacing: '0.06em' }}>Options</Text>
+                <SectionHeader title="Options" mt={6} />
                 <Switch
                   size="xs"
                   label="gzip output (.gz)"
@@ -922,7 +923,7 @@ export function ConversionPanel() {
             )}
             <Stack gap={6} p="md" style={tool === 'convbin' ? undefined : { display: 'none' }}>
               {/* Input Section */}
-              <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.06em' }}>Input</Text>
+              <SectionHeader title="Input" />
               <FormRow label="Raw File">
                 <Group wrap="nowrap" gap={4}>
                   <TextInput
@@ -955,7 +956,7 @@ export function ConversionPanel() {
               </FormRow>
 
               {/* Output Section */}
-              <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.06em', marginTop: 8 }}>Output</Text>
+              <SectionHeader title="Output" mt={6} />
               <FormRow label="Observation File">
                 <Group wrap="nowrap" gap={4}>
                   <TextInput

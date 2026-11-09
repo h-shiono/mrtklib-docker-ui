@@ -56,6 +56,7 @@ import { SECTION_SEARCH_TEXT } from '../config/sectionSearchIndex';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
+import { SectionHeader as CommonSectionHeader } from './common/SectionHeader';
 
 // ─── Sub-components ────────────────────────────────────────────────────────
 
@@ -279,22 +280,23 @@ const SECTION_ANCHORS: Record<string, string> = {
 
 function SectionHeader({ title, anchor }: { title: string; anchor: string }) {
   return (
-    <>
-      <Group justify="space-between" align="center">
-        <Text size="sm" fw={500}>{title}</Text>
+    <CommonSectionHeader
+      title={title}
+      help={
         <ActionIcon
           variant="subtle"
+          color="gray"
           size="xs"
           component="a"
           href={`${DOCS_BASE}${SECTION_ANCHORS[anchor] || ''}`}
           target="_blank"
           rel="noopener noreferrer"
+          aria-label={`Help for ${title}`}
         >
           <IconQuestionMark size={13} />
         </ActionIcon>
-      </Group>
-      <Divider mb={4} />
-    </>
+      }
+    />
   );
 }
 

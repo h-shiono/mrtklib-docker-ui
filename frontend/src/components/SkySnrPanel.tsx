@@ -360,8 +360,8 @@ export function SkySnrPanel({ satellites, updateTime }: SkySnrPanelProps) {
         <SkyPlot satellites={filtered} />
       </div>
 
-      {/* SNR Bar Chart - fixed height */}
-      <div style={{ height: 160, borderTop: '0.5px solid var(--mantine-color-default-border)', padding: '4px 8px 4px' }}>
+      {/* SNR Bar Chart - a share of the panel, so a short panel keeps its sky plot */}
+      <div style={{ flex: '0 0 38%', minHeight: 90, borderTop: '0.5px solid var(--mantine-color-default-border)', padding: '4px 8px 4px' }}>
         <SnrBarChart satellites={filtered} />
       </div>
     </div>

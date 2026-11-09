@@ -116,9 +116,8 @@ components:
 
 > **Status.** Adopted 2026-11-09 as the target for the interface. The code is
 > being migrated in stages; where it differs from this file, this file wins.
-> Not yet in code: `LogView`, the workspace's single-row summary strip, unified
-> tabs and view selector, `SectionHeader` everywhere, the Run Ending behaviour,
-> and `<label>` association on the Processing Configuration rows,
+> Not yet in code: `LogView`, the workspace's compact summary strip and status
+> footer, the Run Ending behaviour, and `<label>` association on the Processing Configuration rows,
 > which match `FormRow` visually but do not use it yet.
 
 ## Overview
@@ -209,7 +208,8 @@ The config column is a section rail and a form. Form rows use a 130px label, an
 On Real-time, Post-processing and Stream Monitor, the workspace runs, top to
 bottom: the summary strip (auto height, no wrapping reflow), the tab bar, the
 panel (fills the remaining height) and the status footer (pinned, one compact
-row). Tabs are ordered Chart, Solution, Console, then Trace or Message. Stream
+row; Post-processing has no live stream and omits it). Tabs are ordered Chart,
+Solution, Console, then Trace or Message. Stream
 Relay, Conversion and Tools have no positioning summary, so they take neither
 the summary strip nor the status footer.
 
