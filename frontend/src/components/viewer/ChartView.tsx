@@ -27,6 +27,8 @@ interface ChartViewProps {
   markers?: ChartMarker[];
   /** Draw the markers' labels (stacked charts: the top one only). */
   showMarkerLabels?: boolean;
+  /** Statistics chip at the top-left of the plot. */
+  showStats?: boolean;
 }
 
 /** A vertical line at a time (unix seconds), with an optional label. */
@@ -319,6 +321,7 @@ export function ChartView({
   ySymmetric = false,
   markers = NO_MARKERS,
   showMarkerLabels = false,
+  showStats = true,
 }: ChartViewProps) {
   const { ref: containerRef, width } = useElementSize();
   const chartRef = useRef<HTMLDivElement>(null);
@@ -395,7 +398,7 @@ export function ChartView({
       plugins: [
         qColorPlugin(qValuesRef),
         markerPlugin(markersRef, isDark),
-        statsChipPlugin(metric, isDark),
+        ...(showStats ? [statsChipPlugin(metric, isDark)] : []),
         tooltipPlugin(metric, isDark),
       ],
       legend: { show: false },
@@ -449,6 +452,11 @@ export function ChartView({
         {
           stroke: textColor,
           font: MONO_FONT,
+          // A symmetric range can end just inside a tick (+-0.098 with a 0.1
+          // step leaves only "0"); a tighter spacing keeps a tick each side.
+          ...(ySymmetric && metric !== 'ns'
+            ? { space: (_u: uPlot, _i: number, _min: number, _max: number, dim: number) => Math.min(30, dim / 5) }
+            : {}),
           grid: { stroke: gridColor },
           ticks: { stroke: axisColor, size: 4 },
           border: { show: true, stroke: borderColor, width: 1 },
@@ -498,7 +506,7 @@ export function ChartView({
     };
     // Size, data and ranges come from refs and are applied by the effects
     // below, so they do not rebuild the chart.
-  }, [ready, isDark, metric, cursorSyncKey, showXLabels, ySymmetric]);
+  }, [ready, isDark, metric, cursorSyncKey, showXLabels, ySymmetric, showStats]);
 
   // Resize in place
   useEffect(() => {
