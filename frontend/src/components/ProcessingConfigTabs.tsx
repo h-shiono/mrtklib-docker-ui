@@ -707,7 +707,6 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               <FormRow
                 label="Corrections (CLK, SP3, FCB, IONEX, L6, HAS, B2b, SBS, etc.)"
                 align="flex-start"
-                trailing={<ActionIcon variant="light" size="xs" onClick={() => execution.onCorrectionFilesChange([...execution.correctionFiles, ''])}> <IconPlus size={12} /> </ActionIcon>}
               >
                 <Stack gap={6}>
                   {execution.correctionFiles.map((cf, idx) => (
@@ -721,6 +720,14 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                           execution.onCorrectionFilesChange(next);
                         }}
                         leftSection={<IconFile size={12} />}
+                        rightSectionPointerEvents="all"
+                        rightSection={execution.correctionFiles.length > 1 ? (
+                          <Tooltip label="Remove file">
+                            <ActionIcon aria-label="Remove file" variant="subtle" color="gray" size={22} onClick={() => execution.onCorrectionFilesChange(execution.correctionFiles.filter((_, i) => i !== idx))}>
+                              <IconX size={14} />
+                            </ActionIcon>
+                          </Tooltip>
+                        ) : undefined}
                         styles={{ input: { fontFamily: MONO } }}
                         style={{ flex: 1 }}
                       />
@@ -731,13 +738,15 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       }, 'data')}>
                         <IconFolder size={16} />
                       </ActionIcon>
-                      {execution.correctionFiles.length > 1 && (
-                        <ActionIcon aria-label="Remove file" variant="subtle" color="red" size={30} onClick={() => execution.onCorrectionFilesChange(execution.correctionFiles.filter((_, i) => i !== idx))}>
-                          <IconX size={14} />
-                        </ActionIcon>
-                      )}
                     </Group>
                   ))}
+                  <Group justify="flex-end">
+                    <Tooltip label="Add file">
+                      <ActionIcon aria-label="Add file" variant="light" color="gray" size={30} onClick={() => execution.onCorrectionFilesChange([...execution.correctionFiles, ''])}>
+                        <IconPlus size={14} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
                 </Stack>
               </FormRow>
               <FormRow label="Output *" trailing={<ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser(execution.onOutputFileChange)}> <IconFolder size={16} /> </ActionIcon>}>
