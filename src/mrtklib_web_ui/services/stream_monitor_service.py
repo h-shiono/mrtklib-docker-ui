@@ -349,6 +349,9 @@ class StreamMonitorService:
                         continue
                     times = [e.time for e in events if isinstance(e, Epoch)]
                     if not times:
+                        # A stretch with no position (e.g. a measurement-only
+                        # log) must still yield, or Stop and clients stall.
+                        await asyncio.sleep(0)
                         continue
                     t = times[-1]
                     if last_t is not None:

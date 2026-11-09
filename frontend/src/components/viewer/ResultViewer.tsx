@@ -10,6 +10,8 @@ interface ResultViewerProps {
   filePath: string | null;
   maxHeight: number;
   refreshKey?: number;
+  /** The file is CLAS output: read the GGA station id as the L6 source. */
+  clasSource?: boolean;
 }
 
 const NO_EPOCHS: PosEpoch[] = [];
@@ -27,6 +29,7 @@ export function ResultViewer({
   filePath,
   maxHeight,
   refreshKey = 0,
+  clasSource = false,
 }: ResultViewerProps) {
   // The last load result, tagged with the file/refresh it belongs to. Values
   // are derived during render (no synchronous setState in the load effect):
@@ -120,6 +123,7 @@ export function ResultViewer({
       timeSystem={timeSystem}
       headerRefPos={headerRefPos}
       notice={notice}
+      clasSource={clasSource}
     />
   );
 }

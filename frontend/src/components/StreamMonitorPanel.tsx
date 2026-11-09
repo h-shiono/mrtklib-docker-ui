@@ -185,6 +185,13 @@ export function StreamMonitorPanel() {
     key: 'mrtk-stream-monitor-file-speed',
     defaultValue: '0',
   });
+  // Read the GGA station id as the CLAS L6 source (#144). Off by default:
+  // only `mrtk run` CLAS output puts the source there; any other receiver
+  // puts its base station id, which can look like a valid source.
+  const [clasSource, setClasSource] = useLocalStorage<boolean>({
+    key: 'mrtk-stream-monitor-clas-source',
+    defaultValue: false,
+  });
   const typeMeta = INPUT_TYPES.find((t) => t.value === inputType) ?? INPUT_TYPES[1];
   const isFile = typeMeta.value === 'file';
 
@@ -357,7 +364,9 @@ export function StreamMonitorPanel() {
   const last = epochs.length > 0 ? epochs[epochs.length - 1] : null;
   const metricsPosition = useMemo(() => (last ? toMetricsPosition(last) : null), [last]);
   const posEpochs = useMemo(() => epochs.map(toPosEpoch), [epochs]);
-  const lastL6 = live ? decodeClasSource(last?.refid) : null;
+  const lastL6 = live && clasSource ? decodeClasSource(last?.refid) : null;
+  // Without a decoded source, a non-zero station id is still shown as is.
+  const lastStationId = live && !lastL6 && last?.refid ? String(last.refid).padStart(4, '0') : null;
   const satellites = sats?.satellites ?? NO_SATELLITES;
   const satTime = sats?.time ? `${rtTimestamp(sats.time)} ${sats.time_sys}` : undefined;
 
@@ -466,6 +475,14 @@ export function StreamMonitorPanel() {
                 />
               </Row>
             )}
+            <Row label="CLAS L6 source" minHeight={30}>
+              <Switch
+                size="xs"
+                checked={clasSource}
+                onChange={(e) => setClasSource(e.currentTarget.checked)}
+                title="Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there."
+              />
+            </Row>
             {requestError && (
               <Text size="sm" c="red" mt={4}>
                 {requestError}
@@ -544,6 +561,11 @@ export function StreamMonitorPanel() {
                 <Mono>{`${formatClasSource(lastL6)} (${String(last?.refid).padStart(4, '0')})`}</Mono>
               </Row>
             )}
+            {lastStationId && (
+              <Row label="Station ID">
+                <Mono>{lastStationId}</Mono>
+              </Row>
+            )}
             <Row label="Messages">
               <Mono>
                 {msgCounts.length > 0
@@ -603,6 +625,7 @@ export function StreamMonitorPanel() {
                       timeSystem={last?.time_sys ?? 'GPST'}
                       emptyText={live ? 'Waiting for positions…' : 'No position data'}
                       views={positionViews}
+                      clasSource={clasSource}
                     />
                   </div>
                 )}

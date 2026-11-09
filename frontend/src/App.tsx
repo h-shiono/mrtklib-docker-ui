@@ -91,6 +91,8 @@ interface PostProcessingRightPanelProps {
   } | null;
   logLines: string[];
   outputFile: string;
+  /** The config writes the CLAS L6 source into the GGA station id. */
+  clasSource: boolean;
   onClearLog: () => void;
 }
 
@@ -99,6 +101,7 @@ function PostProcessingRightPanel({
   progress,
   logLines,
   outputFile,
+  clasSource,
   onClearLog,
 }: PostProcessingRightPanelProps) {
   const [rightTab, setRightTab] = useState<string | null>('chart');
@@ -305,6 +308,7 @@ function PostProcessingRightPanel({
             filePath={outputFile}
             maxHeight={CONTENT_HEIGHT}
             refreshKey={refreshKey}
+            clasSource={clasSource}
           />
         </Tabs.Panel>
 
@@ -798,6 +802,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
           progress={progress}
           logLines={logLines}
           outputFile={outputFile}
+          clasSource={config.positioning.positioningMode === 'ppp-rtk' && config.output.clasNmeaSourceId}
           onClearLog={() => setLogLines([])}
         />
       }

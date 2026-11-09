@@ -415,6 +415,27 @@ def test_file_is_paced_by_epoch_time(relay, client, data_root):
         _receive_until(ws, lambda m: m.get("exited"))
 
 
+def test_paced_file_without_epochs_still_yields(tmp_path):
+    """A paced file with no position (a measurement-only log) must not read
+    through in one go: Stop, the ticker and clients run between chunks."""
+    f = tmp_path / "sats.nmea"
+    f.write_bytes(nmea("GPGSV,1,1,01,05,45,120,44,1") * 2000)  # ~60 KiB, no Epoch
+    size = f.stat().st_size
+
+    async def run():
+        svc = sms.StreamMonitorService()
+        await svc.start_file(f, 1.0)
+        for _ in range(5):
+            await asyncio.sleep(0)
+        read, eof = svc.file["read"], svc.file["eof"]
+        await asyncio.wait_for(svc.stop(), timeout=2)
+        return read, eof, svc.state
+
+    read, eof, state = asyncio.run(run())
+    assert not eof and 0 < read < size
+    assert state == "stopped"
+
+
 @pytest.mark.parametrize(
     "body, code",
     [

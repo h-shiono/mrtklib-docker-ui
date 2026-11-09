@@ -21,6 +21,8 @@ interface MapViewProps {
   /** Identifies the data source. The map follows the data (fits it as it
    *  changes) until the user drags or zooms; a new key follows again. */
   fitKey?: string;
+  /** Show the GGA station id as the CLAS L6 source (PositionViewer). */
+  clasSource?: boolean;
 }
 
 // OpenStreetMap tiles in both themes. Dark mode darkens them with a CSS
@@ -89,7 +91,7 @@ function downsample(data: PosEpoch[], maxPoints: number): PosEpoch[] {
   return result;
 }
 
-export function MapView({ data, height, timeSystem = 'GPST', fitKey = '' }: MapViewProps) {
+export function MapView({ data, height, timeSystem = 'GPST', fitKey = '', clasSource = false }: MapViewProps) {
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === 'dark';
   // The source the user moved the map away from; follow any other source.
@@ -148,7 +150,7 @@ export function MapView({ data, height, timeSystem = 'GPST', fitKey = '' }: MapV
                 <div>Lon: {epoch.lon.toFixed(8)}°</div>
                 <div>Height: {epoch.height != null ? `${epoch.height.toFixed(4)} m` : '—'}</div>
                 <div>ns={epoch.ns ?? '—'} ratio={epoch.ratio != null ? epoch.ratio.toFixed(1) : '—'}</div>
-                {clasSourceLine(epoch.refid)}
+                {clasSource && clasSourceLine(epoch.refid)}
               </div>
             </Tooltip>
           </CircleMarker>

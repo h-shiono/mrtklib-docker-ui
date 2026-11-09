@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.6-alpha] - 2026-11-08
+
+No action is needed to upgrade from 0.4.5-alpha. The Result Viewer's SBAS,
+DGPS and PPP colours change (see Changed).
+
 ### Added
 - CLAS PPP-RTK L6 source (#144): the Result Viewer reads the NMEA GGA
   station id that MRTKLIB writes in CLAS output (L6 PRN of each channel
@@ -15,6 +20,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   started), and the map tooltip shows it per epoch. The Stream Monitor
   shows it live (an "L6 source" row) when it reads the NMEA output of a
   CLAS `mrtk run`. NMEA output only; `.pos` files do not carry it.
+  Other receivers put their base station id in the same field, so it is
+  read as an L6 source only for CLAS output: in the Result Viewer when
+  the configuration is PPP-RTK with **CLAS NMEA Src ID** on, in the
+  Stream Monitor with the **CLAS L6 source** switch (off by default,
+  kept in the browser; while off, a station id shows as is).
 - Sky / SNR panel (Real-Time and Stream Monitor): toggle each
   constellation on and off. The toggles show the system colours and
   satellite counts, and the choice is kept in the browser.
@@ -25,18 +35,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   L1 / L2 / L5 as a filter by constellation.
 
 ### Changed
-- Stream Monitor (#96): the Chart tab shows the Post-processing Result
-  Viewer's views over the live epochs: **2D**, **ENU**, **Map** and
-  **Sky / SNR** as chips, side by side, 2D + Sky / SNR by default (the
-  choice is kept in the browser; drop Sky / SNR for a solution stream
-  without satellites). They replace the Real-Time 2D scatter and time
-  series there; Real-Time keeps them. Zoom and pan stay put while epochs
-  arrive, and reset for a new session.
-- Stream Monitor input form: same compact size as the other screens;
-  the description moved behind a **?** next to the title.
-- Map (Result Viewer, Real-Time, Stream Monitor): after you drag or zoom
-  it, the map stops re-fitting to new data; a **Fit** button fits it
-  and follows again.
 - Solution quality (Q) colours are the same in every view (#96): the
   Post-processing Result Viewer, the Real-Time and Stream Monitor
   views, the status bar and the progress badge now share one table.
@@ -49,6 +47,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   the geoid), a missing satellite count leaves a gap in the ns chart,
   and the map tooltip shows "—" for a missing height or AR ratio (NMEA
   has none).
+- Map (Result Viewer, Real-Time, Stream Monitor): after you drag or zoom
+  it, the map stops re-fitting to new data; a **Fit** button fits it
+  and follows again.
+- Stream Monitor (#96): the Chart tab shows the Post-processing Result
+  Viewer's views over the live epochs: **2D**, **ENU**, **Map** and
+  **Sky / SNR** as chips, side by side, 2D + Sky / SNR by default (the
+  choice is kept in the browser; drop Sky / SNR for a solution stream
+  without satellites). They replace the Real-Time 2D scatter and time
+  series there; Real-Time keeps them. Zoom and pan stay put while epochs
+  arrive, and reset for a new session.
+- Stream Monitor input form: same compact size as the other screens;
+  the description moved behind a **?** next to the title.
 
 ### Fixed
 - Conversion → RINEX Converter: a refused start (input or output path not
