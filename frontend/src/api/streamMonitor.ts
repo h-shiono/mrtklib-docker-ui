@@ -14,6 +14,8 @@ const API_BASE = '/api/stream-monitor';
 export type MonitorInputType = 'serial' | 'tcpcli' | 'tcpsvr' | 'ntripcli' | 'file';
 
 export interface MonitorStartRequest {
+  /** Default on the server: stream a. */
+  stream?: MonitorStreamId;
   input: { type: MonitorInputType; path: string };
   raw_log: string | null;
   /** File input: × real time, paced by the epoch times; null = all at once. */
@@ -121,7 +123,10 @@ export interface MonitorMessageCounters {
   types: MonitorMessageType[];
 }
 
-export type MonitorMessage =
+/** The stream a message belongs to (#171). */
+export type MonitorStreamId = 'a' | 'b';
+
+export type MonitorMessage = { stream?: MonitorStreamId } & (
   | MonitorStatus
   | {
       type: 'history';
@@ -134,7 +139,8 @@ export type MonitorMessage =
   | { type: 'message_rows'; label: string; reset: boolean; rows: MonitorMessageRow[] }
   | { type: 'epochs'; epochs: MonitorEpoch[] }
   | ({ type: 'satellites' } & MonitorSatellites)
-  | { type: 'log'; message: string };
+  | { type: 'log'; message: string }
+);
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -154,8 +160,8 @@ export const streamMonitorApi = {
     return handleResponse<MonitorStatus>(response);
   },
 
-  stop: async (): Promise<MonitorStatus> => {
-    const response = await fetch(`${API_BASE}/stop`, { method: 'POST' });
+  stop: async (stream: MonitorStreamId = 'a'): Promise<MonitorStatus> => {
+    const response = await fetch(`${API_BASE}/stop?stream=${stream}`, { method: 'POST' });
     return handleResponse<MonitorStatus>(response);
   },
 

@@ -4,9 +4,16 @@
  * satellites go to the Sky / SNR panel as they come (shared `Satellite`).
  */
 
-import type { MonitorEpoch } from '../api/streamMonitor';
+import type { MonitorEpoch, MonitorState, MonitorStatus, MonitorStreamId } from '../api/streamMonitor';
 import type { MetricsPosition } from '../components/RtMetricsRow';
 import type { PosEpoch } from '../components/viewer';
+
+/** Colour of each stream when overlaid (#171). Fixed per stream, whichever is
+ *  selected; apart under colour-vision deficiency on both themes. */
+export const STREAM_COLOR: Record<MonitorStreamId, string> = {
+  a: '#0284c7',
+  b: '#db2777',
+};
 
 /** '2026-03-14T06:59:32.000Z' → '2026/03/14 06:59:32.000', the rtkrcv-style
  *  timestamp the RT components show (TimeSeriesChart takes the part after
@@ -69,4 +76,43 @@ export function splitRelayLog(lines: string[]): { console: string[]; status: str
     else out.push(line);
   }
   return { console: out, status };
+}
+
+/** State of the input. `connected` is the backend's link to the relay, not
+ *  the relay's input: the input is judged by the bytes arriving. */
+export function inputLight(status: MonitorStatus | null, state: MonitorState, live: boolean) {
+  if (live && status?.file) {
+    return status.file.eof
+      ? { label: 'END OF FILE', color: 'var(--color-single)', dimmed: true }
+      : { label: 'READING', color: 'var(--color-fix)', dimmed: false };
+  }
+  if (live && status) {
+    if (status.bytes_per_sec > 0) return { label: 'RECEIVING', color: 'var(--color-fix)', dimmed: false };
+    return status.connected
+      ? { label: 'NO DATA', color: 'var(--color-float)', dimmed: false }
+      : { label: 'STARTING RELAY', color: 'var(--color-live)', dimmed: false };
+  }
+  if (state === 'error') return { label: 'ERROR', color: 'var(--mantine-color-red-6)', dimmed: false };
+  if (state === 'starting') return { label: 'STARTING', color: 'var(--color-live)', dimmed: false };
+  return { label: 'STOPPED', color: 'var(--color-single)', dimmed: true };
+}
+
+/** Seconds from a time system to GPST. GPST - UTC is 18 s since 2017. */
+const TO_GPST_S: Record<string, number> = { GPST: 0, UTC: 18, JST: 18 - 9 * 3600 };
+
+/** The time system two overlaid streams share: their own if they agree (no
+ *  leap second assumed then), otherwise GPST. */
+export function commonTimeSystem(epochs: MonitorEpoch[]): string {
+  const first = epochs[0]?.time_sys ?? 'GPST';
+  return epochs.every((e) => e.time_sys === first) ? first : 'GPST';
+}
+
+/** `pos` (one per `raw` epoch) on `timeSystem`, as `commonTimeSystem` gave it:
+ *  NMEA epochs are UTC, SBF and MRTKLIB .pos GPST, and a chart compares by time. */
+export function alignEpochs(raw: MonitorEpoch[], pos: PosEpoch[], timeSystem: string): PosEpoch[] {
+  return pos.map((p, i) => {
+    if (raw[i].time_sys === timeSystem) return p;
+    const timeUnix = p.timeUnix + (TO_GPST_S[raw[i].time_sys] ?? 0);
+    return { ...p, timeUnix, time: new Date(timeUnix * 1000) };
+  });
 }

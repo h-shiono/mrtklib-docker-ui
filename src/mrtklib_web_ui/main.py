@@ -22,10 +22,7 @@ from mrtklib_web_ui.api import (
     presets, downloader, convert, ai, clas_pipeline, stream_monitor,
 )
 from mrtklib_web_ui.services import clas_pipeline_service, process_manager, ws_manager
-from mrtklib_web_ui.services.stream_monitor_service import (
-    RELAY_PID as STREAM_MONITOR_RELAY_PID,
-    stream_monitor_service,
-)
+from mrtklib_web_ui.services.stream_monitor_service import on_relay_log, stop_all_streams
 
 # Static files directory (set in Docker build)
 STATIC_DIR = Path("/app/static")
@@ -37,8 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup: Wire up process manager to WebSocket manager
     async def _on_process_log(process_id: str, line: str) -> None:
         await ws_manager.broadcast_log(process_id, line)
-        if process_id == STREAM_MONITOR_RELAY_PID:
-            await stream_monitor_service.on_relay_log(line)
+        await on_relay_log(process_id, line)
 
     process_manager.set_log_callback(_on_process_log)
     process_manager.set_status_callback(ws_manager.broadcast_status)
@@ -62,7 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         pass
     try:
-        await stream_monitor_service.stop()
+        await stop_all_streams()
     except Exception:
         pass
     for proc_info in process_manager.get_all_processes():

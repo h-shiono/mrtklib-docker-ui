@@ -18,6 +18,9 @@ Decoded epochs are thinned to one per `EPOCH_INTERVAL_S` of data time and
 sent once per `TICK_S` with the latest satellite snapshot and the stream
 statistics. When one stream carries several position sources (UBX NAV-PVT and
 NMEA GGA, SBF PVTGeodetic and NMEA), the receiver's native one is shown.
+
+Up to two streams run at once (#171), each its own session with its own
+relay; messages to the page carry the stream id.
 """
 
 from __future__ import annotations
@@ -29,17 +32,22 @@ import time
 from collections import deque
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Collection, Iterable, Literal
 
 from mrtklib_web_ui.services.mask_credentials import mask_log_line
-from mrtklib_web_ui.services.mrtk_run_service import gpst_now, number_file_stream_path
+from mrtklib_web_ui.services.mrtk_run_service import (
+    expand_path_keywords,
+    gpst_now,
+    number_file_stream_path,
+)
 from mrtklib_web_ui.services.process_manager import process_manager
 from mrtklib_web_ui.services.stream_decoders import Epoch, Event, Satellites, StreamDecoder
 from mrtklib_web_ui.services.stream_decoders.messages import MessageLog
 
 logger = logging.getLogger(__name__)
 
-RELAY_PID = "stream-monitor-relay"
+StreamId = Literal["a", "b"]
+STREAM_IDS: tuple[StreamId, ...] = ("a", "b")
 
 # UI stream type → mrtk relay scheme (same names as frontend streamArgs.ts).
 INPUT_SCHEMES = {
@@ -136,13 +144,20 @@ class MonitorState:
 
 
 def build_relay_args(
-    input_type: str, path: str, raw_log: str | None, port: int, now: datetime | None = None
+    input_type: str,
+    path: str,
+    raw_log: str | None,
+    port: int,
+    now: datetime | None = None,
+    other_raw_logs: Iterable[str] = (),
 ) -> tuple[list[str], str | None]:
     """mrtk relay arguments, and the raw log path after numbering.
 
     The raw log gets _2, _3, ... like RT logs, so a restart in the same time
-    period does not truncate the earlier file. The caller still validates
-    the file paths (`api.mrtk_relay._validate_relay_args`).
+    period does not truncate the earlier file, nor the file of the other
+    stream (`other_raw_logs`; its relay may not have created it yet). The
+    caller still validates the file paths
+    (`api.mrtk_relay._validate_relay_args`).
     """
     scheme = INPUT_SCHEMES.get(input_type)
     if scheme is None:
@@ -157,21 +172,33 @@ def build_relay_args(
             # mrtk relay reads "#fmt" as a format tag and strips it from the
             # file name, so the numbering below would check another file.
             raise ValueError("Raw log path must not contain '#'")
-        numbered = number_file_stream_path(raw_log.strip(), now or gpst_now(), set())
+        t = now or gpst_now()
+        reserved = {
+            str(Path(expand_path_keywords(other.partition("::")[0], t)).resolve())
+            for other in other_raw_logs
+        }
+        numbered = number_file_stream_path(raw_log.strip(), t, reserved)
         args += ["-out", f"file://{numbered}"]
     return args, numbered
 
 
-def free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+def free_port(exclude: Collection[int] = ()) -> int:
+    """A free TCP port, not one in `exclude` (ports already handed to a relay
+    that may not have bound them yet)."""
+    while True:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        if port not in exclude:
+            return port
 
 
 class StreamMonitorService:
-    """One monitor session at a time (single-user tool)."""
+    """The monitor session of one stream."""
 
-    def __init__(self) -> None:
+    def __init__(self, stream_id: StreamId = "a") -> None:
+        self.stream_id: StreamId = stream_id
+        self.relay_pid = f"stream-monitor-relay-{stream_id}"
         self._broadcast: Callable[[dict], Awaitable[None]] | None = None
         self._on_tick: Callable[[], None] | None = None
         self._lock = asyncio.Lock()
@@ -210,7 +237,7 @@ class StreamMonitorService:
     def _begin(self, input_label: str, raw_log: str | None, port: int | None) -> None:
         """Reset for a new session (caller holds the lock)."""
         if self.is_running:
-            raise RuntimeError("Stream Monitor is already running")
+            raise RuntimeError(f"Stream {self.stream_id.upper()} is already running")
         self._run += 1
         self._state = MonitorState()
         self.messages = MessageLog()
@@ -234,7 +261,9 @@ class StreamMonitorService:
             # page that a new session begins (its console and data reset).
             await self._send(self.status_message())
             try:
-                await process_manager.start(command="str2str", args=args, process_id=RELAY_PID)
+                await process_manager.start(
+                    command="str2str", args=args, process_id=self.relay_pid
+                )
             except Exception as e:
                 self.state = "error"
                 self.error_message = f"Failed to start mrtk relay: {e}"
@@ -279,7 +308,7 @@ class StreamMonitorService:
         self._run += 1  # the reader stops reconnecting, the ticker stops
         if self.file is None:
             try:
-                await process_manager.stop(RELAY_PID, timeout=3.0)
+                await process_manager.stop(self.relay_pid, timeout=3.0)
             except ValueError:
                 pass  # already exited
             except Exception:
@@ -401,7 +430,7 @@ class StreamMonitorService:
                 self._on_tick()
             if self.file is not None:
                 continue  # no relay; the session ends on Stop
-            info = await process_manager.get_status(RELAY_PID)
+            info = await process_manager.get_status(self.relay_pid)
             if info is None or info.state.value in ("stopped", "error"):
                 rc = info.return_code if info else None
                 async with self._lock:
@@ -428,6 +457,7 @@ class StreamMonitorService:
     def status_message(self) -> dict[str, Any]:
         return {
             "type": "status",
+            "stream": self.stream_id,
             "running": self.is_running,
             "state": self.state,
             "error_message": self.error_message,
@@ -459,11 +489,12 @@ class StreamMonitorService:
         running = self.is_running
         return {
             "type": "history",
+            "stream": self.stream_id,
             "epochs": list(self._state.history) if running else [],
             "satellites": self._state.satellites if running else None,
             "messages": self.messages_message() if running else None,
             "logs": list(self._file_log) if self.file is not None
-            else process_manager.get_log(RELAY_PID),
+            else process_manager.get_log(self.relay_pid),
         }
 
     async def _send_updates(self) -> None:
@@ -476,9 +507,29 @@ class StreamMonitorService:
     async def _send(self, msg: dict) -> None:
         if self._broadcast is not None:
             try:
-                await self._broadcast(msg)
+                await self._broadcast({**msg, "stream": self.stream_id})
             except Exception:
                 logger.exception("Stream Monitor broadcast failed")
 
 
-stream_monitor_service = StreamMonitorService()
+stream_monitor_services: dict[StreamId, StreamMonitorService] = {
+    stream_id: StreamMonitorService(stream_id) for stream_id in STREAM_IDS
+}
+
+
+async def on_relay_log(process_id: str, line: str) -> None:
+    """Route a process_manager log line to the stream whose relay wrote it."""
+    for service in stream_monitor_services.values():
+        if process_id == service.relay_pid:
+            await service.on_relay_log(line)
+
+
+async def stop_all_streams() -> None:
+    """Stop every stream; one that fails to stop does not hold up the other."""
+    results = await asyncio.gather(
+        *(service.stop() for service in stream_monitor_services.values()),
+        return_exceptions=True,
+    )
+    for result in results:
+        if isinstance(result, Exception):
+            logger.error("Failed to stop a Stream Monitor stream: %s", result)

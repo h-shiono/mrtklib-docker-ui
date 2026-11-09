@@ -20,9 +20,12 @@ from mrtklib_web_ui.api.mrtk_relay import _stream_file_path, _validate_relay_arg
 from mrtklib_web_ui.services.stream_decoders.messages import MessageLog
 from mrtklib_web_ui.services.stream_monitor_service import (
     INPUT_SCHEMES,
+    STREAM_IDS,
+    StreamId,
+    StreamMonitorService,
     build_relay_args,
     free_port,
-    stream_monitor_service as _service,
+    stream_monitor_services as _services,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,6 +46,7 @@ class _Client:
         self.task: asyncio.Task | None = None
         # The message type this page shows in its Message tab (#136), and
         # how far it has been sent. `log` tells when a new session began.
+        self.selected_stream: StreamId = "a"
         self.selected: str | None = None
         self.sent_seq = 0
         self.log: MessageLog | None = None
@@ -86,7 +90,7 @@ def _send_rows(client: _Client) -> None:
     """Queue the new rows of the client's selected message type."""
     if client.selected is None:
         return
-    log = _service.messages
+    log = _services[client.selected_stream].messages
     reset = client.log is not log
     if reset:  # just selected, or a new session
         client.log = log
@@ -94,7 +98,13 @@ def _send_rows(client: _Client) -> None:
     rows, client.sent_seq = log.rows(client.selected, client.sent_seq)
     if not rows and not reset:
         return
-    msg = {"type": "message_rows", "label": client.selected, "reset": reset, "rows": rows}
+    msg = {
+        "type": "message_rows",
+        "stream": client.selected_stream,
+        "label": client.selected,
+        "reset": reset,
+        "rows": rows,
+    }
     try:
         client.queue.put_nowait(json.dumps(msg))
     except asyncio.QueueFull:
@@ -108,7 +118,7 @@ def _send_all_rows() -> None:
 
 
 def _handle_client_message(client: _Client, text: str) -> None:
-    """`{"type": "select_message", "label": str | null}` from a page."""
+    """`{"type": "select_message", "stream": "a", "label": str | null}` from a page."""
     try:
         msg = json.loads(text)
     except ValueError:
@@ -118,13 +128,18 @@ def _handle_client_message(client: _Client, text: str) -> None:
     label = msg.get("label")
     if label is not None and (not isinstance(label, str) or len(label) > MAX_SELECT_LABEL):
         return
+    stream = msg.get("stream", "a")
+    if stream not in STREAM_IDS:
+        return
+    client.selected_stream = stream
     client.selected = label
     client.log = None  # the next rows are a full replay
     _send_rows(client)
 
 
-_service.set_broadcast(_broadcast)
-_service.set_on_tick(_send_all_rows)
+for _service in _services.values():
+    _service.set_broadcast(_broadcast)
+    _service.set_on_tick(_send_all_rows)
 
 
 class InputStream(BaseModel):
@@ -136,6 +151,7 @@ class InputStream(BaseModel):
 
 
 class StreamMonitorStartRequest(BaseModel):
+    stream: StreamId = "a"
     input: InputStream
     raw_log: str | None = Field(
         default=None,
@@ -154,25 +170,33 @@ class StreamMonitorStartRequest(BaseModel):
 
 @router.post("/start")
 async def start_monitor(request: StreamMonitorStartRequest) -> dict[str, Any]:
-    port = free_port()
+    service = _services[request.stream]
+    others = [s for s in _services.values() if s is not service and s.is_running]
+    port = free_port({s.port for s in others if s.port is not None})
     try:
         args, raw_log = build_relay_args(
-            request.input.type, request.input.path, request.raw_log, port
+            request.input.type,
+            request.input.path,
+            request.raw_log,
+            port,
+            other_raw_logs=[s.raw_log for s in others if s.raw_log],
         )
     except (ValueError, RuntimeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     if err := _validate_relay_args(args):
         raise HTTPException(status_code=403, detail=err)
     if request.input.type == "file":
-        return await _start_file(args[1], request)
+        return await _start_file(service, args[1], request)
     try:
-        await _service.start(args, args[1], raw_log, port)
+        await service.start(args, args[1], raw_log, port)
     except RuntimeError as e:
         raise HTTPException(status_code=409, detail=str(e))
-    return _service.status_message()
+    return service.status_message()
 
 
-async def _start_file(stream: str, request: StreamMonitorStartRequest) -> dict[str, Any]:
+async def _start_file(
+    service: StreamMonitorService, stream: str, request: StreamMonitorStartRequest
+) -> dict[str, Any]:
     """File input (#161): read here, not through mrtk relay."""
     if "::" in request.input.path:
         raise HTTPException(
@@ -185,29 +209,30 @@ async def _start_file(stream: str, request: StreamMonitorStartRequest) -> dict[s
     if not path.is_file():
         raise HTTPException(status_code=400, detail=f"File not found: {path}")
     try:
-        await _service.start_file(path, request.file_speed)
+        await service.start_file(path, request.file_speed)
     except RuntimeError as e:
         raise HTTPException(status_code=409, detail=str(e))
-    return _service.status_message()
+    return service.status_message()
 
 
 @router.post("/stop")
-async def stop_monitor() -> dict[str, Any]:
-    await _service.stop()
-    return _service.status_message()
+async def stop_monitor(stream: StreamId = "a") -> dict[str, Any]:
+    await _services[stream].stop()
+    return _services[stream].status_message()
 
 
 @router.get("/status")
-async def get_status() -> dict[str, Any]:
-    return _service.status_message()
+async def get_status(stream: StreamId = "a") -> dict[str, Any]:
+    return _services[stream].status_message()
 
 
 @router.websocket("/ws")
 async def websocket_monitor(websocket: WebSocket) -> None:
-    """Messages sent to clients:
+    """Every message but `message_rows` is per stream and carries `stream`
+    ("a" / "b"). Messages sent to clients:
 
     - {"type": "history", "epochs": [...], "satellites": {...} | null, "logs": [...]}
-      once on connect (epochs / satellites only while running)
+      once on connect, per stream (epochs / satellites only while running)
     - {"type": "status", "running": bool, "state": ..., stats ...} each second;
       `exited: true` when a session ends
     - {"type": "epochs", "epochs": [Epoch, ...]} thinned to 1 Hz
@@ -217,13 +242,14 @@ async def websocket_monitor(websocket: WebSocket) -> None:
     - {"type": "message_rows", "label": ..., "reset": bool, "rows": [...]} to the
       page that selected this type; `reset` replaces what it had
 
-    Sent by clients: {"type": "select_message", "label": str | null}
+    Sent by clients: {"type": "select_message", "stream": "a", "label": str | null}
     """
     await websocket.accept()
     client = _Client(websocket)
     # Replay first, through the same queue so it stays ahead of live messages.
-    client.queue.put_nowait(json.dumps(_service.history_message()))
-    client.queue.put_nowait(json.dumps(_service.status_message()))
+    for service in _services.values():
+        client.queue.put_nowait(json.dumps(service.history_message()))
+        client.queue.put_nowait(json.dumps(service.status_message()))
     _clients.add(client)
     client.task = asyncio.create_task(client.run())
     try:

@@ -25,6 +25,7 @@ import { ChartView, X_AXIS_LABELLED, X_AXIS_TICKS_ONLY, type ChartMarker } from 
 import { Plot2DView } from './Plot2DView';
 import type {
   PosEpoch,
+  PositionOverlay,
   ENUEpoch,
   ReferencePosition,
   ReferenceMode,
@@ -60,6 +61,47 @@ interface PositionViewerProps {
    *  data is known to be CLAS output: any other receiver puts its base
    *  station id there, which can look like a valid source. */
   clasSource?: boolean;
+  /** A second solution over the 2D, ENU and Map views, on the same reference. */
+  overlay?: PositionOverlay;
+}
+
+const NO_EPOCHS: PosEpoch[] = [];
+
+/** Epochs per quality flag. */
+function countQuality(epochs: PosEpoch[]): Record<number, number> {
+  const counts: Record<number, number> = {};
+  for (const epoch of epochs) counts[epoch.Q] = (counts[epoch.Q] || 0) + 1;
+  return counts;
+}
+
+/** The Q flags of one solution, in flag order. */
+function QualityBadges({ counts, total }: { counts: Record<number, number>; total: number }) {
+  return Object.entries(counts)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([q, count]) => (
+      <Badge key={q} size="xs" variant="dot" color={qualityColor(Number(q))}>
+        {qualityLabel(Number(q))}: {(count / total * 100).toFixed(1)}% ({count})
+      </Badge>
+    ));
+}
+
+/** Stream name in the legend, with its mark: filled, or a ring by quality. */
+function StreamKey({ label, color, ring }: { label: string; color?: string; ring: boolean }) {
+  const mark = color ?? 'var(--mantine-color-dimmed)';
+  return (
+    <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
+      <Box
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: ring ? undefined : mark,
+          border: ring ? `1px solid ${mark}` : undefined,
+        }}
+      />
+      <Text size="xs" fw={600} style={{ fontSize: '10px', whiteSpace: 'nowrap' }}>{label}</Text>
+    </Group>
+  );
 }
 
 const REFERENCE_OPTIONS = [
@@ -98,6 +140,7 @@ export function PositionViewer({
   emptyText = 'No position data',
   views,
   clasSource = false,
+  overlay,
 }: PositionViewerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('2d');
   const [refMode, setRefMode] = useState<ReferenceMode>('mean');
@@ -123,6 +166,8 @@ export function PositionViewer({
   const [enuYRange, setEnuYRange] = useState<YRangeSettings>({ ...DEFAULT_Y_RANGE });
   const [yAxisPopoverOpened, setYAxisPopoverOpened] = useState(false);
   const [showEnuStats, setShowEnuStats] = useState(true);
+  // Overlay: colour by solution, or by quality (the overlay as rings)
+  const [overlayColor, setOverlayColor] = useState<'stream' | 'q'>('stream');
 
   const handleXRangeChange = setXRange;
 
@@ -161,6 +206,24 @@ export function PositionViewer({
     return convertToENU(epochs, referencePos);
   }, [epochs, referencePos]);
 
+  // The overlay on the same reference: each on its own would hide the bias.
+  const overlayEpochs = overlay?.other.epochs ?? NO_EPOCHS;
+  const byStream = overlayColor === 'stream';
+  const otherColor = overlay && byStream ? overlay.other.color : undefined;
+  const dataColor = overlay && byStream ? overlay.color : undefined;
+  const plotOverlay = useMemo(() => {
+    if (overlayEpochs.length === 0 || !referencePos) return undefined;
+    return { data: convertToENU(overlayEpochs, referencePos), color: otherColor };
+  }, [overlayEpochs, referencePos, otherColor]);
+  const seriesLabels = useMemo(
+    (): [string, string] | undefined => (overlay ? [overlay.label, overlay.other.label] : undefined),
+    [overlay],
+  );
+  const mapOverlay = useMemo(() => {
+    if (!overlay) return undefined;
+    return { data: overlay.other.epochs, label: overlay.other.label, timeSystem: overlay.other.timeSystem, color: otherColor };
+  }, [overlay, otherColor]);
+
   // CLAS L6 source changes (GGA station id in MRTKLIB NMEA output, #144):
   // marked on the ENU charts and summed up next to the Q legend. Nothing
   // shows when no epoch names a source, or the data is not CLAS output.
@@ -184,17 +247,12 @@ export function PositionViewer({
   }, [l6Changes, timeSystem]);
 
   // Q-flag statistics
-  const qStats = useMemo(() => {
-    const counts: Record<number, number> = {};
-    for (const epoch of epochs) {
-      counts[epoch.Q] = (counts[epoch.Q] || 0) + 1;
-    }
-    return counts;
-  }, [epochs]);
+  const qStats = useMemo(() => countQuality(epochs), [epochs]);
+  const overlayStats = useMemo(() => countQuality(overlayEpochs), [overlayEpochs]);
 
   // Layout
   const controlBarHeight = 32;
-  const legendHeight = 28;
+  const legendHeight = overlay ? 44 : 28;
   const vizHeight = maxHeight - controlBarHeight - legendHeight;
   const shown: ViewMode[] = views ?? [viewMode];
   const showsEnu = shown.includes('enu');
@@ -219,10 +277,10 @@ export function PositionViewer({
 
   const renderView = (v: ViewMode) => {
     if (v === '2d') {
-      return <Plot2DView data={enuData} height={vizHeight} resetKey={`${dataKey}\0${refKey}`} />;
+      return <Plot2DView data={enuData} height={vizHeight} resetKey={`${dataKey}\0${refKey}`} color={dataColor} overlay={plotOverlay} />;
     }
     if (v === 'map') {
-      return <MapView data={epochs} height={vizHeight} timeSystem={timeSystem} fitKey={dataKey} clasSource={clasSource} />;
+      return <MapView data={epochs} height={vizHeight} timeSystem={timeSystem} fitKey={dataKey} clasSource={clasSource} label={overlay?.label} color={dataColor} overlay={mapOverlay} />;
     }
     return (
       <Stack gap={0}>
@@ -257,6 +315,9 @@ export function PositionViewer({
                 markers={l6Markers}
                 showMarkerLabels={i === 0}
                 showStats={showEnuStats}
+                color={dataColor}
+                overlay={plotOverlay}
+                seriesLabels={seriesLabels}
               />
             </div>
           );
@@ -287,6 +348,20 @@ export function PositionViewer({
                 { label: 'Map', value: 'map' },
               ]}
             />
+          )}
+          {overlay && (
+            <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
+              <Text size="xs" c="dimmed" style={{ fontSize: '10px' }}>Color</Text>
+              <SegmentedControl
+                size="xs"
+                value={overlayColor}
+                onChange={(v) => setOverlayColor(v as 'stream' | 'q')}
+                data={[
+                  { label: 'Stream', value: 'stream' },
+                  { label: 'Q', value: 'q' },
+                ]}
+              />
+            </Group>
           )}
           {notice && (
             <Text size="xs" c="dimmed" truncate title={notice} style={{ minWidth: 0 }}>
@@ -477,20 +552,31 @@ export function PositionViewer({
         ))}
       </div>
 
-      {/* Q-flag legend */}
-      <Group gap="xs" px="sm" py={2} style={{ height: legendHeight, flexShrink: 0 }}>
-        {Object.entries(qStats)
-          .sort(([a], [b]) => Number(a) - Number(b))
-          .map(([q, count]) => (
-            <Badge
-              key={q}
-              size="xs"
-              variant="dot"
-              color={qualityColor(Number(q))}
-            >
-              {qualityLabel(Number(q))}: {(count / epochs.length * 100).toFixed(1)}% ({count})
-            </Badge>
-          ))}
+      {/* Q-flag legend, one row per solution when overlaid */}
+      <Group
+        gap="xs"
+        px="sm"
+        py={2}
+        align={overlay ? 'flex-start' : undefined}
+        style={{ height: legendHeight, flexShrink: 0, minWidth: 0 }}
+      >
+        {overlay ? (
+          <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+            {[
+              { label: overlay.label, color: dataColor, ring: false, counts: qStats, total: epochs.length },
+              { label: overlay.other.label, color: otherColor, ring: !byStream, counts: overlayStats, total: overlayEpochs.length },
+            ]
+              .sort((a, b) => a.label.localeCompare(b.label)) // stays put when the selection changes
+              .map((row) => (
+                <Group key={row.label} gap="xs" wrap="nowrap" style={{ minWidth: 0, overflow: 'hidden' }}>
+                  <StreamKey label={row.label} color={row.color} ring={row.ring} />
+                  <QualityBadges counts={row.counts} total={row.total} />
+                </Group>
+              ))}
+          </Stack>
+        ) : (
+          <QualityBadges counts={qStats} total={epochs.length} />
+        )}
         {l6Summary && (
           // Hover for every source and when it started
           <Badge size="xs" variant="outline" color="gray" title={l6Summary.title}
