@@ -31,6 +31,19 @@ export interface PosEpoch {
   refid?: number | null;
 }
 
+/** A second solution drawn over the viewer's `epochs` to compare them. */
+export interface PositionOverlay {
+  /** Name and colour of the viewer's `epochs`. */
+  label: string;
+  color: string;
+  other: {
+    label: string;
+    color: string;
+    epochs: PosEpoch[];
+    timeSystem: string;
+  };
+}
+
 /** Parsed .pos file data including header info */
 export interface PosFileData {
   epochs: PosEpoch[];

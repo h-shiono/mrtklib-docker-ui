@@ -23,7 +23,16 @@ interface MapViewProps {
   fitKey?: string;
   /** Show the GGA station id as the CLAS L6 source (PositionViewer). */
   clasSource?: boolean;
+  /** Name of `data`, in the tooltip, when another solution is overlaid. */
+  label?: string;
+  /** One colour for every point of `data`; without it, by quality. */
+  color?: string;
+  /** Second solution, under `data`. Without `color`: by quality, as rings. */
+  overlay?: { data: PosEpoch[]; label: string; timeSystem: string; color?: string };
 }
+
+/** Drop null/invalid solutions at (0, 0, 0) so they don't map to "null island". */
+const isValid = (e: PosEpoch) => !(e.lat === 0 && e.lon === 0 && (e.height ?? 0) === 0);
 
 // OpenStreetMap tiles in both themes. Dark mode darkens them with a CSS
 // filter on the tile layer (.mrtk-tiles-dark in index.css) instead of a
@@ -91,7 +100,16 @@ function downsample(data: PosEpoch[], maxPoints: number): PosEpoch[] {
   return result;
 }
 
-export function MapView({ data, height, timeSystem = 'GPST', fitKey = '', clasSource = false }: MapViewProps) {
+export function MapView({
+  data,
+  height,
+  timeSystem = 'GPST',
+  fitKey = '',
+  clasSource = false,
+  label,
+  color,
+  overlay,
+}: MapViewProps) {
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === 'dark';
   // The source the user moved the map away from; follow any other source.
@@ -99,14 +117,48 @@ export function MapView({ data, height, timeSystem = 'GPST', fitKey = '', clasSo
   const follow = movedKey !== fitKey;
   const onUserMove = useCallback(() => setMovedKey(fitKey), [fitKey]);
 
-  // Drop null/invalid solutions at (0, 0, 0) so they don't map to "null island".
-  const validData = useMemo(
-    () => data.filter((e) => !(e.lat === 0 && e.lon === 0 && (e.height ?? 0) === 0)),
-    [data],
-  );
+  const validData = useMemo(() => data.filter(isValid), [data]);
+  const validOverlay = useMemo(() => overlay?.data.filter(isValid) ?? [], [overlay]);
+  const fitData = useMemo(() => [...validData, ...validOverlay], [validData, validOverlay]);
 
   // Downsample for rendering performance (Canvas handles ~5000 markers well)
-  const displayData = useMemo(() => downsample(validData, 5000), [validData]);
+  const maxPoints = overlay ? 2500 : 5000;
+  const displayData = useMemo(() => downsample(validData, maxPoints), [validData, maxPoints]);
+  const displayOverlay = useMemo(() => downsample(validOverlay, maxPoints), [validOverlay, maxPoints]);
+
+  const marker = (
+    epoch: PosEpoch,
+    key: string,
+    fixedColor: string | undefined,
+    ring: boolean,
+    stream: string | undefined,
+    timeLabel: string,
+  ) => (
+    <CircleMarker
+      key={key}
+      center={[epoch.lat, epoch.lon]}
+      radius={ring ? 2.5 : 2}
+      pathOptions={{
+        color: fixedColor ?? qualityColor(epoch.Q),
+        fillColor: fixedColor ?? qualityColor(epoch.Q),
+        fillOpacity: ring ? 0 : 0.8,
+        weight: ring ? 1 : 0,
+      }}
+    >
+      <Tooltip>
+        <div style={{ fontSize: '11px', lineHeight: 1.4 }}>
+          {stream && <div>{stream}</div>}
+          <div><b>{epoch.time.toISOString().replace('T', ' ').replace('Z', '')} {timeLabel}</b></div>
+          <div>Q={epoch.Q} ({qualityLabel(epoch.Q)})</div>
+          <div>Lat: {epoch.lat.toFixed(8)}°</div>
+          <div>Lon: {epoch.lon.toFixed(8)}°</div>
+          <div>Height: {epoch.height != null ? `${epoch.height.toFixed(4)} m` : '—'}</div>
+          <div>ns={epoch.ns ?? '—'} ratio={epoch.ratio != null ? epoch.ratio.toFixed(1) : '—'}</div>
+          {clasSource && clasSourceLine(epoch.refid)}
+        </div>
+      </Tooltip>
+    </CircleMarker>
+  );
 
   // Default center (Tokyo) if no data
   const defaultCenter: [number, number] = validData.length > 0
@@ -128,33 +180,12 @@ export function MapView({ data, height, timeSystem = 'GPST', fitKey = '', clasSo
           url={TILE_URL}
           className={isDark ? 'mrtk-tiles-dark' : undefined}
         />
-        <AutoFitBounds data={validData} follow={follow} />
+        <AutoFitBounds data={fitData} follow={follow} />
         <UserMoveListener onMove={onUserMove} />
-        {displayData.map((epoch, i) => (
-          <CircleMarker
-            key={i}
-            center={[epoch.lat, epoch.lon]}
-            radius={2}
-            pathOptions={{
-              color: qualityColor(epoch.Q),
-              fillColor: qualityColor(epoch.Q),
-              fillOpacity: 0.8,
-              weight: 0,
-            }}
-          >
-            <Tooltip>
-              <div style={{ fontSize: '11px', lineHeight: 1.4 }}>
-                <div><b>{epoch.time.toISOString().replace('T', ' ').replace('Z', '')} {timeSystem}</b></div>
-                <div>Q={epoch.Q} ({qualityLabel(epoch.Q)})</div>
-                <div>Lat: {epoch.lat.toFixed(8)}°</div>
-                <div>Lon: {epoch.lon.toFixed(8)}°</div>
-                <div>Height: {epoch.height != null ? `${epoch.height.toFixed(4)} m` : '—'}</div>
-                <div>ns={epoch.ns ?? '—'} ratio={epoch.ratio != null ? epoch.ratio.toFixed(1) : '—'}</div>
-                {clasSource && clasSourceLine(epoch.refid)}
-              </div>
-            </Tooltip>
-          </CircleMarker>
-        ))}
+        {/* The overlay first: the selected stream stays on top */}
+        {overlay && displayOverlay.map((epoch, i) =>
+          marker(epoch, `o${i}`, overlay.color, !overlay.color, overlay.label, overlay.timeSystem))}
+        {displayData.map((epoch, i) => marker(epoch, `d${i}`, color, false, label, timeSystem))}
       </MapContainer>
       {!follow && validData.length > 0 && (
         <Button

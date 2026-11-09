@@ -4,9 +4,16 @@
  * satellites go to the Sky / SNR panel as they come (shared `Satellite`).
  */
 
-import type { MonitorEpoch, MonitorState, MonitorStatus } from '../api/streamMonitor';
+import type { MonitorEpoch, MonitorState, MonitorStatus, MonitorStreamId } from '../api/streamMonitor';
 import type { MetricsPosition } from '../components/RtMetricsRow';
 import type { PosEpoch } from '../components/viewer';
+
+/** Colour of each stream when overlaid (#171). Fixed per stream, whichever is
+ *  selected; apart under colour-vision deficiency on both themes. */
+export const STREAM_COLOR: Record<MonitorStreamId, string> = {
+  a: '#0284c7',
+  b: '#db2777',
+};
 
 /** '2026-03-14T06:59:32.000Z' → '2026/03/14 06:59:32.000', the rtkrcv-style
  *  timestamp the RT components show (TimeSeriesChart takes the part after

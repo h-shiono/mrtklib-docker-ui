@@ -11,6 +11,10 @@ interface Plot2DViewProps {
   /** Zoom / pan is reset when this changes (another source or reference);
    *  without it, whenever `data` changes. Live epochs keep the same key. */
   resetKey?: string;
+  /** One colour for every point of `data`; without it, by quality. */
+  color?: string;
+  /** Second solution, under `data`. Without `color`: by quality, as rings. */
+  overlay?: { data: ENUEpoch[]; color?: string };
 }
 
 interface Bounds {
@@ -32,7 +36,7 @@ const MIN_RING_SPACING_PX = 40;
  * N/E/S/W axes. The default view is centered on the reference and fits every
  * epoch; zooming or panning redraws the rings for the visible area.
  */
-export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
+export function Plot2DView({ data, height, resetKey, color, overlay }: Plot2DViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { ref: containerRef, width: containerWidth } = useElementSize();
   const { colorScheme } = useMantineColorScheme();
@@ -54,13 +58,13 @@ export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
   const naturalBounds = useMemo((): Bounds | null => {
     if (data.length === 0) return null;
     let farthest = 0;
-    for (const epoch of data) {
+    for (const epoch of [...data, ...(overlay?.data ?? [])]) {
       const d = Math.hypot(epoch.e, epoch.n);
       if (d > farthest) farthest = d;
     }
     const half = Math.max(farthest * 1.1, 0.01);
     return { minE: -half, maxE: half, minN: -half, maxN: half };
-  }, [data]);
+  }, [data, overlay]);
 
   // Reset zoom for new data, or only for a new source when keyed
   const resetDep = resetKey ?? data;
@@ -152,12 +156,22 @@ export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
     }
     ctx.setLineDash([]);
 
-    for (const epoch of data) {
-      const x = toX(epoch.e);
-      const y = toY(epoch.n);
-      ctx.fillStyle = qualityColor(epoch.Q);
+    // The overlay first: the selected stream stays on top
+    for (const epoch of overlay?.data ?? []) {
       ctx.beginPath();
-      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.arc(toX(epoch.e), toY(epoch.n), overlay?.color ? 2 : 2.5, 0, Math.PI * 2);
+      if (overlay?.color) {
+        ctx.fillStyle = overlay.color;
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = qualityColor(epoch.Q);
+        ctx.stroke();
+      }
+    }
+    for (const epoch of data) {
+      ctx.fillStyle = color ?? qualityColor(epoch.Q);
+      ctx.beginPath();
+      ctx.arc(toX(epoch.e), toY(epoch.n), 2, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
@@ -194,7 +208,7 @@ export function Plot2DView({ data, height, resetKey }: Plot2DViewProps) {
       ctx.textAlign = 'right';
       ctx.fillText('W', PADDING.left - 5, oy + 4);
     }
-  }, [data, naturalBounds, size, isDark]);
+  }, [data, overlay, color, naturalBounds, size, isDark]);
 
   // Draw on dependency change. Canvas text does not wait for web fonts:
   // redraw once IBM Plex has loaded, or the first draw keeps the fallback.

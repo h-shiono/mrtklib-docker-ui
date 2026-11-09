@@ -38,6 +38,7 @@ import {
   type MonitorStreamId,
 } from '../api/streamMonitor';
 import {
+  STREAM_COLOR,
   inputLight,
   rtTimestamp,
   splitRelayLog,
@@ -56,7 +57,7 @@ import { StreamMonitorStatusRow } from './StreamMonitorStatusRow';
 import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { SkySnrPanel } from './SkySnrPanel';
 import { StreamMessagePanel } from './StreamMessagePanel';
-import { PositionViewer, type ViewMode } from './viewer';
+import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
 
 const MONO = "'IBM Plex Mono', monospace";
 
@@ -248,6 +249,10 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   const twoStreams = secondAdded || streamB.busy;
   const streams = twoStreams ? [streamA, streamB] : [streamA];
   const [selectedId, setSelectedId] = useState<MonitorStreamId>('a');
+  const [overlayOn, setOverlayOn] = useLocalStorage<boolean>({
+    key: 'mrtk-stream-monitor-overlay',
+    defaultValue: true,
+  });
   const selected = twoStreams && selectedId === 'b' ? streamB : streamA;
   const {
     status, epochs, sats, logLines, messageTypes, messageNow, messageLabel, messageRows,
@@ -347,7 +352,38 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   // ── adapters to the RT components
   const last = epochs.length > 0 ? epochs[epochs.length - 1] : null;
   const metricsPosition = useMemo(() => (last ? toMetricsPosition(last) : null), [last]);
-  const posEpochs = useMemo(() => epochs.map(toPosEpoch), [epochs]);
+  const posA = useMemo(() => streamA.epochs.map(toPosEpoch), [streamA.epochs]);
+  const posB = useMemo(() => streamB.epochs.map(toPosEpoch), [streamB.epochs]);
+  const posOf = (s: MonitorStream) => (s.id === 'a' ? posA : posB);
+
+  // Overlay: the selected stream on top of the other; while it has no epochs
+  // the other is shown alone, so there is nothing to compare yet.
+  const other = selected.id === 'a' ? streamB : streamA;
+  const overlaying = twoStreams && overlayOn;
+  const primary = overlaying && posOf(selected).length === 0 && posOf(other).length > 0 ? other : selected;
+  const secondary = primary.id === 'a' ? streamB : streamA;
+  const primaryEpochs = posOf(primary);
+  const secondaryEpochs = posOf(secondary);
+  const showOverlay = overlaying && primaryEpochs.length > 0 && secondaryEpochs.length > 0;
+  const secondaryTimeSystem = secondary.epochs[secondary.epochs.length - 1]?.time_sys ?? 'GPST';
+  const positionOverlay = useMemo((): PositionOverlay | undefined => {
+    if (!showOverlay) return undefined;
+    return {
+      label: `Stream ${primary.id.toUpperCase()}`,
+      color: STREAM_COLOR[primary.id],
+      other: {
+        label: `Stream ${secondary.id.toUpperCase()}`,
+        color: STREAM_COLOR[secondary.id],
+        epochs: secondaryEpochs,
+        timeSystem: secondaryTimeSystem,
+      },
+    };
+  }, [showOverlay, primary.id, secondary.id, secondaryEpochs, secondaryTimeSystem]);
+  // Another source, reference or overlay refits the views; epochs do not.
+  const positionKey = [
+    `${primary.id}:${primary.status?.started_at ?? ''}`,
+    showOverlay ? `${secondary.id}:${secondary.status?.started_at ?? ''}` : '',
+  ].join('|');
   const lastL6 = live && clasSource ? decodeClasSource(last?.refid) : null;
   // Without a decoded source, a non-zero station id is still shown as is.
   const lastStationId = live && !lastL6 && last?.refid ? String(last.refid).padStart(4, '0') : null;
@@ -508,14 +544,27 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                   <Tabs.Tab value="console" style={{ fontSize: 11 }}>Console</Tabs.Tab>
                   <Tabs.Tab value="message" style={{ fontSize: 11 }}>Message</Tabs.Tab>
                 </Tabs.List>
-                <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
-                  <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
-                    <Chip value="2d" size="xs" variant="light">2D</Chip>
-                    <Chip value="enu" size="xs" variant="light">ENU</Chip>
-                    <Chip value="map" size="xs" variant="light">Map</Chip>
-                    <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
-                  </Group>
-                </Chip.Group>
+                <Group gap={6} wrap="nowrap">
+                  {twoStreams && (
+                    <Chip
+                      size="xs"
+                      variant="light"
+                      checked={overlayOn}
+                      onChange={setOverlayOn}
+                      title="Draw both streams on the 2D and Map views"
+                    >
+                      Overlay
+                    </Chip>
+                  )}
+                  <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
+                    <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
+                      <Chip value="2d" size="xs" variant="light">2D</Chip>
+                      <Chip value="enu" size="xs" variant="light">ENU</Chip>
+                      <Chip value="map" size="xs" variant="light">Map</Chip>
+                      <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
+                    </Group>
+                  </Chip.Group>
+                </Group>
               </Group>
 
               {/* A fixed basis, not its content: the measured height must not feed back. */}
@@ -529,13 +578,14 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                             sharing reference and legend; a new session
                             (started_at) resets zoom and map. */}
                         <PositionViewer
-                          epochs={posEpochs}
-                          dataKey={`${selected.id}:${status?.started_at ?? ''}`}
+                          epochs={primaryEpochs}
+                          dataKey={positionKey}
                           maxHeight={chartHeight}
-                          timeSystem={last?.time_sys ?? 'GPST'}
+                          timeSystem={primary.epochs[primary.epochs.length - 1]?.time_sys ?? 'GPST'}
                           emptyText={live ? 'Waiting for positions…' : 'No position data'}
                           views={positionViews}
-                          clasSource={clasSource}
+                          clasSource={primary.clasSource}
+                          overlay={positionOverlay}
                         />
                       </div>
                     )}
