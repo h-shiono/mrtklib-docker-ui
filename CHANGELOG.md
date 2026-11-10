@@ -46,6 +46,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   and side-by-side views are separated by space instead of a line.
 - Conversion moved into Tools, as its first group (RINEX Converter, Hatanaka).
   A running conversion keeps going while another tool is open.
+- Conversion: the Hatanaka and Signal Options switches sit in the field column
+  at the height of the input rows, instead of in short rows under the labels.
 
 ### Removed
 - The clear-log buttons in Post-processing, Stream Relay and Conversion. A new

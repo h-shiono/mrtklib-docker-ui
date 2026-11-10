@@ -666,7 +666,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   style={{ flex: 1 }}
                 />
               </Group>
-              <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label, paddingLeft: 130 }}>Input in GPS Time (GPST = UTC + 18 s)</Text>
+              <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label, paddingLeft: FORM_LABEL_WIDTH + FORM_LABEL_GAP }}>Input in GPS Time (GPST = UTC + 18 s)</Text>
               <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                 <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: FONT_SIZE.label }}>Interval (0=all)</Text>
                 <ConfigNumberInput

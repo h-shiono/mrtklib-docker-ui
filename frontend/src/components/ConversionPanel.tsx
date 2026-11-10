@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   Box,
+  SimpleGrid,
   Stack,
   Group,
   Text,
@@ -38,7 +39,7 @@ import { processTone } from '../utils/status';
 import { hatanakaOutputPath, type HatanakaDirection } from '../utils/hatanakaNames';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
-import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
+import { FORM_LABEL_GAP, FORM_LABEL_WIDTH, FORM_ROW_HEIGHT } from '../utils/formLayout';
 import { SectionHeader } from './common/SectionHeader';
 import { LogView } from './common/LogView';
 
@@ -47,6 +48,9 @@ import { LogView } from './common/LogView';
 type ConvertStatus = 'idle' | 'converting' | 'done' | 'failed';
 type RightPanelTab = 'console' | 'preview';
 type PreviewFileType = 'obs' | 'nav';
+/** One switch in an options grid, at the height of an input row. */
+const OPTION_CELL = { minHeight: FORM_ROW_HEIGHT, display: 'flex', alignItems: 'center' } as const;
+
 export type ConvertTool = 'convbin' | 'hatanaka';
 
 // Hatanaka compression: rnx2crx / crx2rnx run as filters by the backend (#81)
@@ -224,7 +228,7 @@ function CollapsibleSection({ label, children, defaultOpen = false }: {
         <Text size="xs" fw={600}>{label}</Text>
       </UnstyledButton>
       <Collapse in={opened}>
-        <Stack gap={6} pl={4} pb={8}>
+        <Stack gap={6} pb={8}>
           {children}
         </Stack>
       </Collapse>
@@ -779,32 +783,38 @@ export function ConversionPanel({ tool, onBusyChange }: {
                     </ActionIcon>
                   </Group>
                 </FormRow>
-                <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label, paddingLeft: 136 }}>
+                <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label, paddingLeft: FORM_LABEL_WIDTH + FORM_LABEL_GAP }}>
                   Leave empty for the default name. Output goes under /workspace; a .gz input is decompressed on the fly.
                 </Text>
 
                 <SectionHeader title="Options" mt={6} />
-                <Switch
-                  size="xs"
-                  label="gzip output (.gz)"
-                  styles={{ label: { fontSize: FONT_SIZE.label } }}
-                  checked={hk.gzipOutput}
-                  onChange={e => { const checked = e.currentTarget.checked; setHk(prev => ({ ...prev, gzipOutput: checked })); }}
-                />
-                <Switch
-                  size="xs"
-                  label="Skip strange epochs (-s)"
-                  styles={{ label: { fontSize: FONT_SIZE.label } }}
-                  checked={hk.skipStrange}
-                  onChange={e => { const checked = e.currentTarget.checked; setHk(prev => ({ ...prev, skipStrange: checked })); }}
-                />
-                <Switch
-                  size="xs"
-                  label="Overwrite an existing output file"
-                  styles={{ label: { fontSize: FONT_SIZE.label } }}
-                  checked={hk.overwrite}
-                  onChange={e => { const checked = e.currentTarget.checked; setHk(prev => ({ ...prev, overwrite: checked })); }}
-                />
+                <FormRow label={null}>
+                  <Switch
+                    size="xs"
+                    label="gzip output (.gz)"
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
+                    checked={hk.gzipOutput}
+                    onChange={e => { const checked = e.currentTarget.checked; setHk(prev => ({ ...prev, gzipOutput: checked })); }}
+                  />
+                </FormRow>
+                <FormRow label={null}>
+                  <Switch
+                    size="xs"
+                    label="Skip strange epochs (-s)"
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
+                    checked={hk.skipStrange}
+                    onChange={e => { const checked = e.currentTarget.checked; setHk(prev => ({ ...prev, skipStrange: checked })); }}
+                  />
+                </FormRow>
+                <FormRow label={null}>
+                  <Switch
+                    size="xs"
+                    label="Overwrite an existing output file"
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
+                    checked={hk.overwrite}
+                    onChange={e => { const checked = e.currentTarget.checked; setHk(prev => ({ ...prev, overwrite: checked })); }}
+                  />
+                </FormRow>
                 {hk.direction === 'compress' && (
                   <FormRow label="Reset Every (epochs)">
                     <NumberInput
@@ -1003,50 +1013,64 @@ export function ConversionPanel({ tool, onBusyChange }: {
                     max={7}
                   />
                 </FormRow>
-                <Group justify="space-between" gap="md" align="center" mih={30}>
-                  <Switch
-                    size="xs"
-                    label="Include Doppler"
-                    styles={{ label: { fontSize: FONT_SIZE.label } }}
-                    checked={form.includeDoppler}
-                    onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, includeDoppler: checked })); }}
-                  />
-                  <Switch
-                    size="xs"
-                    label="Include SNR"
-                    styles={{ label: { fontSize: FONT_SIZE.label } }}
-                    checked={form.includeSnr}
-                    onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, includeSnr: checked })); }}
-                  />
-                  <Switch
-                    size="xs"
-                    label="Iono Correction"
-                    styles={{ label: { fontSize: FONT_SIZE.label } }}
-                    checked={form.ionoCorrection}
-                    onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, ionoCorrection: checked })); }}
-                  />
-                  <Switch
-                    size="xs"
-                    label="Time Correction"
-                    styles={{ label: { fontSize: FONT_SIZE.label } }}
-                    checked={form.timeCorrection}
-                    onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, timeCorrection: checked })); }}
-                  />
-                  <Switch
-                    size="xs"
-                    label="Leap Seconds"
-                    styles={{ label: { fontSize: FONT_SIZE.label } }}
-                    checked={form.leapSeconds}
-                    onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, leapSeconds: checked })); }}
-                  />
-                  <Switch
-                    size="xs"
-                    label="Half-cycle Corr"
-                    styles={{ label: { fontSize: FONT_SIZE.label } }}
-                    checked={form.halfCycleCorr}
-                    onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, halfCycleCorr: checked })); }}
-                  />
-                </Group>
+                <FormRow label={null}>
+                  <SimpleGrid cols={2} spacing={FORM_LABEL_GAP} verticalSpacing={6}>
+                    <Box style={OPTION_CELL}>
+                      <Switch
+                        size="xs"
+                        label="Include Doppler"
+                        styles={{ label: { fontSize: FONT_SIZE.label } }}
+                        checked={form.includeDoppler}
+                        onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, includeDoppler: checked })); }}
+                      />
+                    </Box>
+                    <Box style={OPTION_CELL}>
+                      <Switch
+                        size="xs"
+                        label="Include SNR"
+                        styles={{ label: { fontSize: FONT_SIZE.label } }}
+                        checked={form.includeSnr}
+                        onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, includeSnr: checked })); }}
+                      />
+                    </Box>
+                    <Box style={OPTION_CELL}>
+                      <Switch
+                        size="xs"
+                        label="Iono Correction"
+                        styles={{ label: { fontSize: FONT_SIZE.label } }}
+                        checked={form.ionoCorrection}
+                        onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, ionoCorrection: checked })); }}
+                      />
+                    </Box>
+                    <Box style={OPTION_CELL}>
+                      <Switch
+                        size="xs"
+                        label="Time Correction"
+                        styles={{ label: { fontSize: FONT_SIZE.label } }}
+                        checked={form.timeCorrection}
+                        onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, timeCorrection: checked })); }}
+                      />
+                    </Box>
+                    <Box style={OPTION_CELL}>
+                      <Switch
+                        size="xs"
+                        label="Leap Seconds"
+                        styles={{ label: { fontSize: FONT_SIZE.label } }}
+                        checked={form.leapSeconds}
+                        onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, leapSeconds: checked })); }}
+                      />
+                    </Box>
+                    <Box style={OPTION_CELL}>
+                      <Switch
+                        size="xs"
+                        label="Half-cycle Corr"
+                        styles={{ label: { fontSize: FONT_SIZE.label } }}
+                        checked={form.halfCycleCorr}
+                        onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, halfCycleCorr: checked })); }}
+                      />
+                    </Box>
+                  </SimpleGrid>
+                </FormRow>
                 <FormRow label="Exclude Satellites">
                   <TextInput
                     size="xs"
