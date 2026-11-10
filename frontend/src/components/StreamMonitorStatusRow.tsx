@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Box, Text } from '@mantine/core';
+import { Box, Text, UnstyledButton } from '@mantine/core';
 import type { MonitorState, MonitorStatus } from '../api/streamMonitor';
 import { maskLogLine } from '../utils/maskPath';
 import { STATUS_COLOR } from '../utils/status';
@@ -41,16 +41,55 @@ function Value({ c, children }: { c?: string; children: ReactNode }) {
   );
 }
 
+const L6_TOGGLE_TITLE = 'Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). '
+  + 'Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there.';
+
+/** Pill toggle beside the station id: read it as the CLAS L6 source. Sized to
+ *  the value line so the footer keeps its height. */
+function L6Toggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <UnstyledButton
+      aria-pressed={on}
+      aria-label="Read the station id as the CLAS L6 source"
+      title={L6_TOGGLE_TITLE}
+      onClick={() => onChange(!on)}
+      style={{
+        flexShrink: 0,
+        fontSize: FONT_SIZE.caption,
+        lineHeight: '14px',
+        padding: '0 6px',
+        borderRadius: 999,
+        // On: filled with the theme's contrast text (black on azure in dark,
+        // white in light); off: neutral outline.
+        border: `1px solid ${on ? 'var(--mantine-color-blue-filled)' : 'var(--app-input-border)'}`,
+        color: on ? 'var(--mantine-primary-color-contrast)' : 'var(--mantine-color-dimmed)',
+        backgroundColor: on ? 'var(--mantine-color-blue-filled)' : 'transparent',
+      }}
+    >
+      L6
+    </UnstyledButton>
+  );
+}
+
+/** GGA station id of the last epoch, and its CLAS L6 reading. */
+export interface MonitorStation {
+  /** Four digits, or null when the station id is 0000 / absent. */
+  id: string | null;
+  /** Decoded L6 source, when `decodeL6` is on and the id follows the encoding. */
+  l6: string | null;
+}
+
 interface StreamMonitorStatusRowProps {
   status: MonitorStatus | null;
   state: MonitorState;
   /** A session is running and the WebSocket delivers its figures. */
   live: boolean;
   wsOpen: boolean;
-  /** Decoded CLAS L6 source of the last epoch. */
-  l6Source: string | null;
-  /** GGA station id of the last epoch, when it is not a decoded L6 source. */
-  stationId: string | null;
+  /** Station id cell; null hides it (not live, or no id and decoding off). */
+  station: MonitorStation | null;
+  /** Read the station id as the CLAS L6 source (#144). */
+  decodeL6: boolean;
+  onDecodeL6Change: (on: boolean) => void;
   /** Latest `mrtk relay` status line (kept out of the console). */
   relayLine: string | null;
 }
@@ -60,8 +99,9 @@ export function StreamMonitorStatusRow({
   state,
   live,
   wsOpen,
-  l6Source,
-  stationId,
+  station,
+  decodeL6,
+  onDecodeL6Change,
   relayLine,
 }: StreamMonitorStatusRowProps) {
   const disconnected = !!status && !wsOpen;
@@ -114,14 +154,21 @@ export function StreamMonitorStatusRow({
         <Value>{status?.epoch_source ?? '—'}</Value>
       </Cell>
 
-      {l6Source && (
-        <Cell cap="L6 source">
-          <Value>{l6Source}</Value>
-        </Cell>
-      )}
-      {stationId && (
-        <Cell cap="Station ID">
-          <Value>{stationId}</Value>
+      {station && (
+        <Cell
+          cap={decodeL6 ? 'L6 source' : 'Station ID'}
+          flex={decodeL6 ? '1.8 1 0' : '1 1 0'}
+          title={decodeL6 && station.l6 ? `${station.l6} (station id ${station.id})` : undefined}
+        >
+          <Box style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            {decodeL6 && !station.l6 ? (
+              // 0000 or an id that is not an L6 source: say so, keep the id
+              <Value c="dimmed">{station.id ? `none (${station.id})` : 'none'}</Value>
+            ) : (
+              <Value>{decodeL6 ? `${station.l6} (${station.id})` : station.id}</Value>
+            )}
+            <L6Toggle on={decodeL6} onChange={onDecodeL6Change} />
+          </Box>
         </Cell>
       )}
 
