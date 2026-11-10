@@ -136,6 +136,20 @@ GNSS positioning capabilities. No compilation required — just
 - Two streams at once: overlay them on 2D / ENU / Map on one reference
   to compare two receivers or solutions, coloured by stream or by
   quality; one selector switches the per-stream views
+- Receiver configuration (Septentrio mosaic-X5 / mosaic-CLAS / mosaic-G5):
+  the Configure button on a running stream opens a receiver panel in the
+  config column. SBF output works like RxControl's SBF Output dialog: one
+  column per stream in use (port, interval) and a check box per group or
+  block, read from the receiver. A preset (raw observations, CLAS L6D,
+  MADOCA L6E, Galileo HAS E6, BeiDou B2b, SouthPAN PVS) checks the blocks
+  that MRTKLIB's quickstart guide for that service lists, and adds the
+  signal tracking it needs;
+  change any box, then Apply sends only what changed, with the commands
+  shown first. The panel also shows the ports' input / output and the
+  tracked signals, saves the settings to the boot configuration, and has a
+  console for any command. Commands use the stream's own connection
+  (Browser serial, or `mrtk relay` with `-b 1`), so the Message tab shows
+  the result at once
 - Message tab: every message type with count, rate, size and age, and
   the latest frames of the selected type as a hex dump or text
 - Stream health: data rate, message counts, undecoded bytes / bad
@@ -449,6 +463,10 @@ Bug reports and feedback are very welcome — please
   port replaying a u-blox F9 capture (receive, Stop, unplug, tab closed);
   with a real receiver only the connection (macOS, Chrome, mosaic), not
   yet the decoded messages; Windows and u-blox receivers untested
+- **Receiver configuration**: checked in Chrome against a simulated
+  mosaic-G5 that answers the commands (read, preset into a new stream,
+  edits, apply, console, save);
+  not yet against a real receiver. u-blox receivers are not supported yet
 - **Stream Monitor, two streams**: two relays were checked together
   through the API; the page and the overlay not yet against live streams
 - **CLAS L6 source**: checked with MRTKLIB's handover test output
