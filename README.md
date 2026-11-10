@@ -446,9 +446,9 @@ Bug reports and feedback are very welcome — please
   NMEA) and Septentrio mosaic-G5 (SBF) streams and files; UBX NAV-PVT /
   NAV-SAT and other receivers are not yet tested with real data
 - **Stream Monitor, Browser serial**: checked in Chrome with a simulated
-  port replaying a u-blox F9 capture (receive, Stop, unplug, tab closed)
-  and connected to a real receiver once; not yet across macOS / Windows
-  and receiver models
+  port replaying a u-blox F9 capture (receive, Stop, unplug, tab closed);
+  with a real receiver only the connection (macOS, Chrome, mosaic), not
+  yet the decoded messages; Windows and u-blox receivers untested
 - **Stream Monitor, two streams**: two relays were checked together
   through the API; the page and the overlay not yet against live streams
 - **CLAS L6 source**: checked with MRTKLIB's handover test output
