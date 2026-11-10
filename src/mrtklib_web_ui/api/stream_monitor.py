@@ -156,12 +156,6 @@ class InputStream(BaseModel):
 class StreamMonitorStartRequest(BaseModel):
     stream: StreamId = "a"
     input: InputStream
-    raw_log: str | None = Field(
-        default=None,
-        max_length=1024,
-        description="Optional raw log file under /workspace (mrtk time keywords allowed)",
-        examples=["/workspace/rtlog/monitor_%Y%m%d_%h%M.raw"],
-    )
     file_speed: float | None = Field(
         default=None,
         gt=0,
@@ -177,21 +171,15 @@ async def start_monitor(request: StreamMonitorStartRequest) -> dict[str, Any]:
     others = [s for s in _services.values() if s is not service and s.is_running]
     port = free_port({s.port for s in others if s.port is not None})
     try:
-        args, raw_log = build_relay_args(
-            request.input.type,
-            request.input.path,
-            request.raw_log,
-            port,
-            other_raw_logs=[s.raw_log for s in others if s.raw_log],
-        )
-    except (ValueError, RuntimeError) as e:
+        args = build_relay_args(request.input.type, request.input.path, port)
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if err := _validate_relay_args(args):
         raise HTTPException(status_code=403, detail=err)
     if request.input.type == "file":
         return await _start_file(service, args[1], request)
     try:
-        await service.start(args, args[1], raw_log, port)
+        await service.start(args, args[1], port)
     except RuntimeError as e:
         raise HTTPException(status_code=409, detail=str(e))
     return service.status_message()
@@ -206,8 +194,6 @@ async def _start_file(
             status_code=400,
             detail="File options (::T, ::x...) are not supported here; choose the playback speed",
         )
-    if request.raw_log:
-        raise HTTPException(status_code=400, detail="A file input is not saved again as a raw log")
     path = Path(_stream_file_path(stream) or "")  # the path _validate_relay_args checked
     if not path.is_file():
         raise HTTPException(status_code=400, detail=f"File not found: {path}")

@@ -35,8 +35,6 @@ export const INPUT_TYPES: { value: MonitorInputType; label: string; placeholder:
   { value: 'file', label: 'File', placeholder: '/data/rover.sbf' },
 ];
 
-export const DEFAULT_RAW_LOG = '/workspace/rtlog/monitor_%Y%m%d%h%M.raw';
-
 /** Keep at most one relay status line (the newest): they arrive every few
  *  seconds and would push everything else out of the buffer. */
 function appendLog(prev: string[], line: string): string[] {
@@ -50,8 +48,6 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
   const key = (name: string) => `mrtk-stream-monitor-${id === 'a' ? '' : `${id}-`}${name}`;
   const [inputType, setInputType] = useLocalStorage<string>({ key: key('input-type'), defaultValue: 'tcpcli' });
   const [inputPath, setInputPath] = useLocalStorage<string>({ key: key('input-path'), defaultValue: '' });
-  const [saveRaw, setSaveRaw] = useLocalStorage<boolean>({ key: key('save-raw'), defaultValue: false });
-  const [rawLog, setRawLog] = useLocalStorage<string>({ key: key('raw-log'), defaultValue: DEFAULT_RAW_LOG });
   const [fileSpeed, setFileSpeed] = useLocalStorage<string>({ key: key('file-speed'), defaultValue: '0' });
   // Read the GGA station id as the CLAS L6 source (#144). Off by default:
   // only `mrtk run` CLAS output puts the source there; any other receiver
@@ -161,7 +157,6 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
       const st = await streamMonitorApi.start({
         stream: id,
         input: { type: typeMeta.value, path: inputPath.trim() },
-        raw_log: !isFile && saveRaw && rawLog.trim() ? rawLog.trim() : null,
         file_speed: isFile && pacing && Number(fileSpeed) > 0 ? Number(fileSpeed) : null,
       });
       // A session that ended meanwhile keeps its exit status. If the exit
@@ -193,8 +188,6 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
     // form
     typeMeta, isFile, setInputType,
     inputPath, setInputPath,
-    saveRaw, setSaveRaw,
-    rawLog, setRawLog,
     fileSpeed, setFileSpeed,
     clasSource, setClasSource,
     // session

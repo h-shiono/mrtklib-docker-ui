@@ -162,6 +162,23 @@ def test_receive_only_relay_discards_the_data(pm, monkeypatch):
         assert c.post("/api/mrtk-relay/stop", json={"process_id": pid, "timeout": 2}).status_code == 200
 
 
+def test_a_second_relay_does_not_take_the_file_of_a_running_one(pm, monkeypatch, tmp_path):
+    app = FastAPI()
+    app.include_router(mrtk_relay.router, prefix="/api/mrtk-relay")
+    monkeypatch.setattr(mrtk_relay, "_validate_relay_args", lambda args: None)  # tmp_path is not /workspace
+    out = f"file://{tmp_path / 'log.ubx'}::S=1"
+    args = ["-in", "tcpcli://h:2101", "-out", out]
+
+    with TestClient(app) as c:
+        first = c.post("/api/mrtk-relay/start", json={"args": args, "name": "A"}).json()
+        # the fake relay never creates the file: only the reservation stops a clash
+        second = c.post("/api/mrtk-relay/start", json={"args": args, "name": "B"}).json()
+        assert first["args"][-1] == out
+        assert second["args"][-1] == f"file://{tmp_path / 'log_2.ubx'}::S=1"
+        for r in (first, second):
+            assert c.post("/api/mrtk-relay/stop", json={"process_id": r["id"], "timeout": 2}).status_code == 200
+
+
 def test_exit_is_announced_after_get_status_marked_it_stopped(monkeypatch):
     pm = ProcessManager()
     monkeypatch.setattr(pm, "SUBCOMMAND_MAP", {"str2str": "relay"})

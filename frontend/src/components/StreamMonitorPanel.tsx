@@ -21,10 +21,8 @@ import {
   SegmentedControl,
   Select,
   Stack,
-  Switch,
   Tabs,
   Text,
-  TextInput,
   Title,
 } from '@mantine/core';
 import { useDisclosure, useElementSize, useLocalStorage } from '@mantine/hooks';
@@ -46,7 +44,7 @@ import {
   toMetricsPosition,
   toPosEpoch,
 } from '../utils/streamMonitor';
-import { DEFAULT_RAW_LOG, INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
+import { INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
 import { decodeClasSource, formatClasSource } from '../utils/clasSource';
 import { MaskedPathInput } from './common/MaskedPathInput';
 import { StreamPathHelp } from './StreamPathHelp';
@@ -60,7 +58,7 @@ import { processTone, STATUS_COLOR } from '../utils/status';
 import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
-import { FORM_LABEL_GAP, MIN_PANEL_HEIGHT, PRIMARY_MIN_WIDTH } from '../utils/formLayout';
+import { MIN_PANEL_HEIGHT, PRIMARY_MIN_WIDTH } from '../utils/formLayout';
 import { WorkspaceTabBar } from './common/WorkspaceTabBar';
 import { LogView } from './common/LogView';
 import { useUnseenErrors } from '../hooks/useUnseenErrors';
@@ -150,33 +148,6 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
             disabled={s.busy || !pacing}
             title={pacing ? undefined : 'With two streams, files are read all at once'}
           />
-        </FormRow>
-      )}
-      {/* One row, like Real-time raw logs: file options (::T, ::S=) go in the path */}
-      {!s.isFile && (
-        <FormRow label="Raw log">
-          <Group gap={FORM_LABEL_GAP} wrap="nowrap">
-            <Switch
-              size="xs"
-              aria-label="Save raw stream"
-              checked={s.saveRaw}
-              onChange={(e) => {
-                const on = e.currentTarget.checked;
-                if (on && !s.rawLog.trim()) s.setRawLog(DEFAULT_RAW_LOG);
-                s.setSaveRaw(on);
-              }}
-              disabled={s.busy}
-            />
-            <TextInput
-              aria-label="Raw log file"
-              value={s.rawLog}
-              onChange={(e) => s.setRawLog(e.currentTarget.value)}
-              placeholder={DEFAULT_RAW_LOG}
-              disabled={s.busy || !s.saveRaw}
-              style={{ flex: 1, minWidth: 0 }}
-              styles={{ input: { fontFamily: MONO } }}
-            />
-          </Group>
         </FormRow>
       )}
       {s.requestError && (

@@ -17,7 +17,6 @@ export interface MonitorStartRequest {
   /** Default on the server: stream a. */
   stream?: MonitorStreamId;
   input: { type: MonitorInputType; path: string };
-  raw_log: string | null;
   /** File input: × real time, paced by the epoch times; null = all at once. */
   file_speed?: number | null;
 }
@@ -73,7 +72,6 @@ export interface MonitorStatus {
   started_at: string | null;
   /** Input stream with credentials masked. */
   input: string | null;
-  raw_log: string | null;
   connected: boolean;
   bytes_per_sec: number;
   /** File input only. */
