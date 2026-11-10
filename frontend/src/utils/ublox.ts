@@ -9,6 +9,7 @@
  */
 
 import type { MonitorConsoleEntry } from '../api/streamMonitor';
+import type { ReceiverCommand } from './receiverConsole';
 import { UBLOX_CATALOG, type UbloxModel, type UbloxPort } from './ubloxCatalog';
 
 export const UBLOX_MODELS: UbloxModel[] = ['ZED-F9P', 'NEO-D9C'];
@@ -88,6 +89,15 @@ export function valget(keys: number[]): string[] {
   return chunks(keys).map((part) => ubxFrame(0x06, 0x8b, [0x00, 0x00, 0x00, 0x00, ...part.flatMap(u32)]));
 }
 
+/** The wildcard key of an item's group: every item of the group. */
+export const groupWildcard = (key: number) => ((key & 0x0fff0000) | 0xffff) >>> 0;
+
+/** UBX-CFG-VALGET poll (hex) of the RAM layer for one (wildcard) key,
+ *  skipping the first `position` items of the answer. */
+export function valgetFrom(key: number, position: number): string {
+  return ubxFrame(0x06, 0x8b, [0x00, 0x00, position & 0xff, position >> 8, ...u32(key)]);
+}
+
 /** UBX-MON-VER poll: names the receiver (MOD=...) and its firmware. */
 export const MON_VER_POLL = ubxFrame(0x0a, 0x04);
 
@@ -129,6 +139,29 @@ export function readKeys(model: UbloxModel): number[] {
   return [
     ...cat.messages.flatMap((m) => Object.values(m.keys) as number[]),
     ...Object.values(cat.items).map(([key]) => key),
+  ];
+}
+
+/** What the Receiver tab reads: MON-VER, then each group of items it shows
+ *  with a wildcard VALGET, 64 items a page. A poll naming a key the firmware
+ *  does not know is refused whole, so it never names single keys: older
+ *  firmware just answers with fewer items. */
+export function ubloxReadCommands(model: UbloxModel): ReceiverCommand[] {
+  const cat = UBLOX_CATALOG[model];
+  const groups = new Map<number, string>();
+  for (const m of cat.messages) for (const key of Object.values(m.keys) as number[]) groups.set(groupWildcard(key), 'CFG-MSGOUT');
+  for (const [name, [key]] of Object.entries(cat.items)) groups.set(groupWildcard(key), name.replace(/-[^-]+$/, ''));
+  const page = (key: number, name: string, position: number): ReceiverCommand => ({
+    hex: valgetFrom(key, position),
+    shown: `CFG-VALGET ${name}${position ? ` from ${position}` : ''}`,
+    accept: acceptsValget,
+    // A full page: there may be more.
+    next: (reply) => (reply.label === 'UBX CFG-VALGET' && parseValget(reply.data ?? '').size >= MAX_ITEMS
+      ? page(key, name, position + MAX_ITEMS) : null),
+  });
+  return [
+    { hex: MON_VER_POLL, shown: 'MON-VER (poll)', accept: acceptsMonVer },
+    ...[...groups].map(([key, name]) => page(key, name, 0)),
   ];
 }
 

@@ -488,8 +488,9 @@ Bug reports and feedback are very welcome — please
   mosaic-G5 that answers the commands (read, preset into a new stream,
   edits, apply, console, save);
   not yet against a real receiver. u-blox: checked in Chrome against a
-  simulated ZED-F9P (read, preset, apply and read back, save) through
-  Streams Browser serial; NEO-D9C and real u-blox receivers untested
+  simulated ZED-F9P (read, preset, apply and read back, save; also one
+  that refuses keys newer than its firmware) through Streams Browser
+  serial; NEO-D9C and real u-blox receivers untested
 - **Streams, Browser serial**: checked in Chrome with a simulated
   mosaic-G5 port and the real `mrtk relay` (messages, receiver read,
   console, stop, tab closed); not yet with a real receiver

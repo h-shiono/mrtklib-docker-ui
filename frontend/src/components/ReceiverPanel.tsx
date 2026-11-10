@@ -37,15 +37,12 @@ import type { UbloxModel } from '../utils/ubloxCatalog';
 import {
   LAYER_BBR,
   LAYER_FLASH,
-  MON_VER_POLL,
   UBLOX_MODELS,
-  acceptsMonVer,
-  acceptsValget,
   acceptsValset,
   readKeys,
   ubloxModelFromVersion,
+  ubloxReadCommands,
   ubloxSettings,
-  valget,
   valset,
 } from '../utils/ublox';
 import { STATUS_COLOR } from '../utils/status';
@@ -102,13 +99,12 @@ const isUbloxModel = (m: string): m is UbloxModel => (UBLOX_MODELS as string[]).
 
 /** What a fresh session reads from the receiver. */
 function readCommands(model: ReceiverModel): ReceiverCommand[] {
-  if (!isUbloxModel(model)) return READ_COMMANDS.map((line) => ({ line }));
-  const polls = valget(readKeys(model));
-  return [
-    { hex: MON_VER_POLL, shown: 'MON-VER (poll)', accept: acceptsMonVer },
-    ...polls.map((hex, i) => ({ hex, shown: `CFG-VALGET ${i + 1}/${polls.length}`, accept: acceptsValget })),
-  ];
+  return isUbloxModel(model) ? ubloxReadCommands(model) : READ_COMMANDS.map((line) => ({ line }));
 }
+
+/** The command `c` makes from its reply (the next page of a poll), if any. */
+const follow = (c: ReceiverCommand, reply: MonitorConsoleEntry | null) =>
+  (reply && 'next' in c && c.next ? c.next(reply) : null);
 
 const STEP_COLOR: Record<StepState, string> = {
   waiting: STATUS_COLOR.starting,
@@ -157,9 +153,13 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
     if (!takesCommands || !startedAt || readRef.current === key) return;
     readRef.current = key;
     void (async () => {
-      for (const c of readCommands(model)) {
+      const queue = readCommands(model);
+      // Stops when the model changes: another read has started.
+      for (let c = queue.shift(); c && readRef.current === key; c = queue.shift()) {
         try {
-          await sendCommand('line' in c ? { line: c.line } : { hex: c.hex }, 'line' in c ? undefined : c.accept);
+          const reply = await sendCommand('line' in c ? { line: c.line } : { hex: c.hex }, 'line' in c ? undefined : c.accept);
+          const more = follow(c, reply);
+          if (more) queue.unshift(more);
         } catch {
           return;
         }
@@ -170,10 +170,11 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
   /** Send lines one by one, each after the previous answer; stop at a
    *  failure unless `keepGoing`. Returns the steps, or null if the server
    *  refused to send. */
-  const run = async (commands: ReceiverCommand[], keepGoing = false): Promise<Step[] | null> => {
+  const run = async (initial: ReceiverCommand[], keepGoing = false): Promise<Step[] | null> => {
     setBusy(true);
     setError(null);
     setNotice(null);
+    const commands = [...initial];
     const list: Step[] = commands.map((c) => ({ line: commandText(c), state: 'waiting' }));
     setSteps(list);
     try {
@@ -182,6 +183,11 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
         const reply = await sendCommand('line' in c ? { line: c.line } : { hex: c.hex }, 'line' in c ? undefined : c.accept);
         const state: StepState = !reply ? 'timeout' : isFailure(reply) ? 'error' : 'ok';
         list[i] = { ...list[i], state, reply: reply?.text?.split(/\r?\n/)[0] ?? reply?.summary ?? undefined };
+        const more = state === 'ok' ? follow(c, reply) : null;
+        if (more) {
+          commands.splice(i + 1, 0, more);
+          list.splice(i + 1, 0, { line: commandText(more), state: 'waiting' });
+        }
         const stop = state !== 'ok' && !keepGoing;
         if (stop) for (let j = i + 1; j < list.length; j++) list[j] = { ...list[j], state: 'skipped' };
         setSteps([...list]);

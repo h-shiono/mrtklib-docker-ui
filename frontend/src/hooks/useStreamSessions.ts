@@ -15,8 +15,11 @@ const MAX_CONSOLE = 300;
 /** How long a command may take to answer before the next one is sent. */
 const REPLY_TIMEOUT_MS = 5000;
 
-/** Labels of replies that answer a command (not $TD / $TE / blocks). */
-const ANSWERS = new Set(['Septentrio reply', 'Septentrio error', 'UBX ACK-ACK', 'UBX ACK-NAK', 'UBX CFG-VALGET', 'UBX MON-VER']);
+/** Labels of replies that answer an ASCII command line (not $TD / $TE /
+ *  blocks). A binary command names its own reply: a UBX reply must never be
+ *  taken by a line still waiting (e.g. Septentrio reads sent before the
+ *  model was switched to u-blox). */
+const LINE_ANSWERS = new Set(['Septentrio reply', 'Septentrio error']);
 
 interface Waiter {
   accept: (entry: MonitorConsoleEntry) => boolean;
@@ -180,11 +183,11 @@ export function useStreamSessions(subscription: RowSubscription | null, keep: st
 
   /** Send one command and wait for the receiver's answer (null on timeout).
    *  `accept` picks the reply that answers it (a UBX command: its own ACK or
-   *  response); by default any reply that answers a command. */
+   *  response); by default a Septentrio reply, which answers a line. */
   const sendCommand = useCallback(async (
     stream: string,
     command: { line: string } | { hex: string },
-    accept: (entry: MonitorConsoleEntry) => boolean = (e) => ANSWERS.has(e.label),
+    accept: (entry: MonitorConsoleEntry) => boolean = (e) => LINE_ANSWERS.has(e.label),
   ): Promise<MonitorConsoleEntry | null> => {
     let resolve: (entry: MonitorConsoleEntry | null) => void = () => {};
     const answer = new Promise<MonitorConsoleEntry | null>((r) => { resolve = r; });

@@ -4,7 +4,8 @@
  * column per port, checked when the message is output (rate 1 = every
  * navigation epoch). A preset checks what MRTKLIB reads; the user adds or
  * removes from there. Apply sends the changed rates with UBX-CFG-VALSET (RAM
- * layer), then reads them back.
+ * layer), then reads them back. Messages the firmware does not know (it
+ * did not report them) have no check box.
  */
 
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
@@ -80,6 +81,9 @@ export function UbloxOutputEditor({ model, values, canSend, busy, apply, onReloa
   const preset = presets.find((p) => p.id === presetId) ?? presets[0];
   const rate = (key: number | undefined) => (key === undefined ? undefined : edits.get(key) ?? values.get(key));
   const read = values.size > 0;
+  // Only items the receiver reported: its firmware refuses a whole VALSET
+  // naming a key it does not know.
+  const known = (key: number | undefined): key is number => key !== undefined && values.has(key);
 
   const setRate = (key: number, value: number) => setEdits((prev) => {
     const next = new Map(prev);
@@ -97,9 +101,9 @@ export function UbloxOutputEditor({ model, values, canSend, busy, apply, onReloa
       const next = new Map(prev);
       for (const name of messages) {
         const key = cat.messages.find((m) => m.name === name)?.keys[port];
-        if (key !== undefined && values.get(key) !== 1) next.set(key, 1);
+        if (known(key) && values.get(key) !== 1) next.set(key, 1);
       }
-      for (const [key, value] of items) if (values.get(key) !== value) next.set(key, value);
+      for (const [key, value] of items) if (known(key) && values.get(key) !== value) next.set(key, value);
       return next;
     });
   };
@@ -210,7 +214,7 @@ export function UbloxOutputEditor({ model, values, canSend, busy, apply, onReloa
                       </Table.Td>
                       {ports.map((p) => (
                         <Table.Td key={p} style={cell}>
-                          {checkbox(messages.flatMap((m) => (m.keys[p] !== undefined ? [m.keys[p]!] : [])), `${group} on ${p}`)}
+                          {checkbox(messages.flatMap((m) => (known(m.keys[p]) ? [m.keys[p]!] : [])), `${group} on ${p}`)}
                         </Table.Td>
                       ))}
                     </Table.Tr>
@@ -226,7 +230,7 @@ export function UbloxOutputEditor({ model, values, canSend, busy, apply, onReloa
                         </Table.Td>
                         {ports.map((p) => (
                           <Table.Td key={p} style={cell}>
-                            {m.keys[p] !== undefined && checkbox([m.keys[p]!], `${m.label} on ${p}`)}
+                            {known(m.keys[p]) && checkbox([m.keys[p]!], `${m.label} on ${p}`)}
                           </Table.Td>
                         ))}
                       </Table.Tr>

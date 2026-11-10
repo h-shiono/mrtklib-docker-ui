@@ -33,10 +33,16 @@ export function consoleLines(entries: MonitorConsoleEntry[]): string[] {
 }
 
 /** A command for the receiver: an ASCII line (answered by any reply), or a
- *  binary frame shown as `shown`, answered by the reply `accept` takes. */
+ *  binary frame shown as `shown`, answered by the reply `accept` takes;
+ *  `next` may make a follow-up from the reply (the next page of a poll). */
 export type ReceiverCommand =
   | { line: string }
-  | { hex: string; shown: string; accept: (entry: MonitorConsoleEntry) => boolean };
+  | {
+    hex: string;
+    shown: string;
+    accept: (entry: MonitorConsoleEntry) => boolean;
+    next?: (reply: MonitorConsoleEntry) => ReceiverCommand | null;
+  };
 
 /** How a command shows in the list of steps. */
 export const commandText = (c: ReceiverCommand) => ('line' in c ? c.line : c.shown);
