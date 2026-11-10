@@ -13,7 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   were: if the file exists, or another running relay writes it, the relay
   writes to `_2`, `_3`, … instead of overwriting it, and says so in its log.
 - Stream Monitor input type **Stream Relay**: pick a running relay's TCP
-  Server output by its name instead of typing `127.0.0.1:PORT`.
+  Server output by its name instead of typing `127.0.0.1:PORT`. The input
+  takes one row (type, then path or relay output), like a Stream Relay input.
 
 ### Changed
 - Real-time raw logs (Rover, Base, Correction) take one row each: a switch

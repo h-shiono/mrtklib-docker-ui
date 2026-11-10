@@ -59,7 +59,7 @@ import { processTone, STATUS_COLOR } from '../utils/status';
 import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
-import { MIN_PANEL_HEIGHT, PRIMARY_MIN_WIDTH } from '../utils/formLayout';
+import { FORM_LABEL_GAP, MIN_PANEL_HEIGHT, PRIMARY_MIN_WIDTH } from '../utils/formLayout';
 import { WorkspaceTabBar } from './common/WorkspaceTabBar';
 import { LogView } from './common/LogView';
 import { useUnseenErrors } from '../hooks/useUnseenErrors';
@@ -145,6 +145,7 @@ function RelayOutputSelect({ value, onChange, disabled }: {
       placeholder="A running relay with a TCP Server output"
       nothingFoundMessage="No running relay has a TCP Server output"
       disabled={disabled}
+      style={{ flex: 1, minWidth: 0 }}
       styles={{ input: { fontFamily: MONO } }}
     />
   );
@@ -155,37 +156,33 @@ function RelayOutputSelect({ value, onChange, disabled }: {
 function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
   return (
     <Stack gap={6}>
-      <FormRow label="Input type">
-        <Select
-          size="xs"
-          value={s.typeMeta.value}
-          onChange={(v) => v && s.setInputType(v)}
-          data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
-          allowDeselect={false}
-          disabled={s.busy}
-        />
+      {/* One row, like a Stream Relay input: type, then the path or relay output */}
+      <FormRow label={<Group gap={4} wrap="nowrap">Input<StreamPathHelp /></Group>}>
+        <Group gap={FORM_LABEL_GAP} wrap="nowrap">
+          <Select
+            aria-label="Input type"
+            value={s.typeMeta.value}
+            onChange={(v) => v && s.setInputType(v)}
+            data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
+            allowDeselect={false}
+            disabled={s.busy}
+            style={{ width: 120, flexShrink: 0 }}
+          />
+          {s.isRelay ? (
+            <RelayOutputSelect value={s.relayPath} onChange={s.setRelayPath} disabled={s.busy} />
+          ) : (
+            <MaskedPathInput
+              aria-label="Input path"
+              value={s.inputPath}
+              onChange={s.setInputPath}
+              placeholder={s.typeMeta.placeholder}
+              disabled={s.busy}
+              style={{ flex: 1, minWidth: 0 }}
+              styles={{ input: { fontFamily: MONO } }}
+            />
+          )}
+        </Group>
       </FormRow>
-      {s.isRelay ? (
-        <FormRow label="Relay output">
-          <RelayOutputSelect value={s.relayPath} onChange={s.setRelayPath} disabled={s.busy} />
-        </FormRow>
-      ) : (
-        <FormRow label="Path">
-          <Group gap={6} wrap="nowrap">
-            <Box style={{ flex: 1, minWidth: 0 }}>
-              <MaskedPathInput
-                size="xs"
-                value={s.inputPath}
-                onChange={s.setInputPath}
-                placeholder={s.typeMeta.placeholder}
-                disabled={s.busy}
-                styles={{ input: { fontFamily: MONO } }}
-              />
-            </Box>
-            <StreamPathHelp />
-          </Group>
-        </FormRow>
-      )}
       {s.isFile && (
         <FormRow label="Playback">
           <Select

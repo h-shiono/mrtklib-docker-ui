@@ -36,7 +36,7 @@ export const INPUT_TYPES: { value: MonitorFormInputType; label: string; placehol
   { value: 'serial', label: 'Serial', placeholder: 'ttyACM0:115200' },
   { value: 'tcpcli', label: 'TCP Client', placeholder: '192.168.1.100:9001' },
   { value: 'tcpsvr', label: 'TCP Server', placeholder: ':9001' },
-  { value: 'ntripcli', label: 'NTRIP Client', placeholder: 'user:pass@caster:2101/MOUNT' },
+  { value: 'ntripcli', label: 'NTRIP', placeholder: 'user:pass@caster:2101/MOUNT' },
   { value: 'file', label: 'File', placeholder: '/data/rover.sbf' },
 ];
 
