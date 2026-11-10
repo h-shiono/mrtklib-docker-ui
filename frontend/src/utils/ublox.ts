@@ -189,8 +189,13 @@ export function ubloxSettings(entries: MonitorConsoleEntry[]): UbloxSettings {
 /** The model a MON-VER reply names, if it is one of ours. */
 export function ubloxModelFromVersion(version: string | null): UbloxModel | null {
   if (!version) return null;
-  if (version.includes('D9C') || version.includes('QZS')) return 'NEO-D9C';
-  if (version.includes('F9P') || version.includes('HPG')) return 'ZED-F9P';
+  // MOD= names the module; FWVER= the firmware line (HPG: F9P, QZS: D9C).
+  // Not a bare "QZS": an F9P lists the GNSS it supports, QZSS among them.
+  const mod = /MOD=(\S+)/.exec(version)?.[1];
+  if (mod) return mod.includes('D9C') ? 'NEO-D9C' : mod.includes('F9P') ? 'ZED-F9P' : null;
+  const fw = /FWVER=(\S+)/.exec(version)?.[1];
+  if (fw === 'QZS') return 'NEO-D9C';
+  if (fw === 'HPG') return 'ZED-F9P';
   return null;
 }
 
