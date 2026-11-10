@@ -11,7 +11,7 @@ GNSS positioning capabilities. No compilation required — just
 ![React](https://img.shields.io/badge/react-19-blue.svg)
 ![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.17-green.svg)
 
-> **Status**: v0.4.7-alpha — core features are functional.
+> **Status**: v0.4.8-alpha — core features are functional.
 > Known limitations are listed in [Known Issues](#known-issues).
 
 ![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
@@ -173,10 +173,10 @@ Images are published for both `linux/amd64` and `linux/arm64`
 1. **Pull the image**
    ```bash
    # Docker Hub
-   docker pull hatognss/mrtklib-docker-ui:0.4.7-alpha
+   docker pull hatognss/mrtklib-docker-ui:0.4.8-alpha
 
    # or GitHub Container Registry
-   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.7-alpha
+   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.8-alpha
    ```
 
 2. **Prepare host directories**
@@ -192,7 +192,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
      -e PUID="$(id -u)" -e PGID="$(id -g)" \
-     hatognss/mrtklib-docker-ui:0.4.7-alpha
+     hatognss/mrtklib-docker-ui:0.4.8-alpha
    ```
 
 4. **Open the UI** at <http://localhost:8080>
@@ -413,7 +413,8 @@ surface orphan state in its UI.
 | **v0.4.4-alpha** | MRTKLIB 0.7.17: SouthPAN PVS and BeiDou PPP-B2b correction sources, BeiDou PRN options (BDS-2 / GEO / IGSO), CLAS NMEA source id, Real-Time presets for PPP-B2b / Galileo HAS / SouthPAN PVS |
 | **v0.4.5-alpha** | Stream Monitor: live decode of a receiver or stream (NMEA, SBF, UBX, solution text) with the Real-Time views; Stream Server renamed Stream Relay |
 | **v0.4.6-alpha** | Stream Monitor: Result Viewer views (2D / ENU / Map) live, per-band SNR, constellation toggles, file playback; one quality colour table; CLAS L6 source (PRN / facility) marked in the Result Viewer and Stream Monitor |
-| **v0.4.7-alpha** (current) | Stream Monitor: two streams with overlaid 2D / ENU / Map, Message tab, Real-Time style layout; 2D plot with range rings around the reference; ENU chart options |
+| **v0.4.7-alpha** | Stream Monitor: two streams with overlaid 2D / ENU / Map, Message tab, Real-Time style layout; 2D plot with range rings around the reference; ENU chart options |
+| **v0.4.8-alpha** (current) | One design system across the app (`DESIGN.md`): colours, type scale, 30 px form rows, shared log view and toolbars; raw streams saved in Stream Relay (restart-safe files, receive-only streams), Stream Monitor reads a running relay; CLAS Pipeline renamed CLAS to RTCM3 with Stream Relay style input and outputs; Conversion moved into Tools |
 
 ---
 
