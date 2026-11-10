@@ -34,7 +34,9 @@ export interface RowSubscription {
 
 const keyOf = (s: RowSubscription | null) => (s ? `${s.stream}\n${s.label}` : '');
 
-export function useStreamSessions(subscription: RowSubscription | null) {
+/** `keep`: the sessions the page may still show (each card's latest one);
+ *  other finished sessions are dropped when a session ends. */
+export function useStreamSessions(subscription: RowSubscription | null, keep: string[] = []) {
   const [sessions, setSessions] = useState<Record<string, SessionState>>({});
   const [wsOpen, setWsOpen] = useState(false);
   // Rows of the subscribed type, tagged with it: rows of an earlier
@@ -42,8 +44,12 @@ export function useStreamSessions(subscription: RowSubscription | null) {
   const [rowState, setRowState] = useState<{ key: string; rows: MonitorMessageRow[] }>({ key: '', rows: [] });
   const subKey = keyOf(subscription);
   const subRef = useRef(subscription);
+  const keepRef = useRef(keep);
+  // The stream the server sends rows of: unsubscribing must name it.
+  const sentStreamRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     subRef.current = subscription;
+    keepRef.current = keep;
   });
   // Commands waiting for their answer, per relay, oldest first.
   const waitersRef = useRef<Map<string, ((e: MonitorConsoleEntry | null) => void)[]>>(new Map());
@@ -70,7 +76,15 @@ export function useStreamSessions(subscription: RowSubscription | null) {
         case 'status':
           if (msg.exited) {
             // The relay stopped: its data goes, its console stays readable.
-            update(stream, (s) => ({ ...s, status: msg, messageTypes: [] }));
+            // Its console stays readable; finished sessions no card shows go.
+            setSessions((prev) => {
+              const next: Record<string, SessionState> = {};
+              for (const [id, s] of Object.entries(prev)) {
+                if (id === stream) next[id] = { ...s, status: msg, messageTypes: [] };
+                else if (!s.status?.exited || keepRef.current.includes(id)) next[id] = s;
+              }
+              return next;
+            });
             setRowState((prev) => (prev.key.startsWith(`${stream}\n`) ? { key: prev.key, rows: [] } : prev));
           } else {
             update(stream, (s) => ({ ...s, status: msg }));
@@ -140,7 +154,14 @@ export function useStreamSessions(subscription: RowSubscription | null) {
     const ws = wsRef.current;
     if (!wsOpen || ws?.readyState !== WebSocket.OPEN) return;
     const sub = subRef.current;
-    ws.send(JSON.stringify({ type: 'select_message', stream: sub?.stream ?? '', label: sub?.label ?? null }));
+    if (sub) {
+      ws.send(JSON.stringify({ type: 'select_message', stream: sub.stream, label: sub.label }));
+      sentStreamRef.current = sub.stream;
+    } else if (sentStreamRef.current) {
+      // Stop the rows: the server needs the stream it sends them for.
+      ws.send(JSON.stringify({ type: 'select_message', stream: sentStreamRef.current, label: null }));
+      sentStreamRef.current = null;
+    }
   }, [subKey, wsOpen]);
 
   /** Send one command and wait for the receiver's answer (null on timeout). */

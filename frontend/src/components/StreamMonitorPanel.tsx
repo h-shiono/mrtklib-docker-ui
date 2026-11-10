@@ -484,7 +484,11 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
       config={
         <Card withBorder p="xs" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           {configuring !== null && (configuring === 'a' || twoStreams) ? (
-            <ReceiverPanel link={receiverLink(configuring === 'b' ? streamB : streamA)} onClose={() => setConfiguring(null)} />
+            <ReceiverPanel
+              key={`${configuring}:${(configuring === 'b' ? streamB : streamA).status?.started_at ?? ''}`}
+              link={receiverLink(configuring === 'b' ? streamB : streamA)}
+              onClose={() => setConfiguring(null)}
+            />
           ) : (<>
           <Group justify="space-between" mb="xs" wrap="nowrap">
             <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>

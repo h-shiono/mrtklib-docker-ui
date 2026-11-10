@@ -48,13 +48,25 @@ export function StreamWorkspace({ streams, activeId, onSelect }: {
   const [tab, setTab] = useState<string | null>('messages');
   // The message type picked per stream (by card id), kept across tabs.
   const [labels, setLabels] = useState<Record<string, string>>({});
+  // The last session of each card: after Stop its console stays readable.
+  const [lastPid, setLastPid] = useState<Record<string, string>>({});
+  const seen = streams.filter((s) => s.processId && lastPid[s.id] !== s.processId);
+  if (seen.length > 0) {
+    // Derived from props during render (React re-renders before painting).
+    setLastPid((prev) => ({ ...prev, ...Object.fromEntries(seen.map((s) => [s.id, s.processId as string])) }));
+  }
   const active = streams.find((s) => s.id === activeId) ?? streams[0];
   const pid = active?.running ? active.processId : null;
+  const shownPid = active ? active.processId ?? lastPid[active.id] ?? null : null;
   const label = active ? labels[active.id] ?? null : null;
   const subscription = tab === 'messages' && pid && label ? { stream: pid, label } : null;
-  const { sessions, rows, sendCommand } = useStreamSessions(subscription);
-  const session = pid ? sessions[pid] : undefined;
-  const status = session?.status ?? null;
+  const keep = useMemo(
+    () => streams.map((s) => s.processId ?? lastPid[s.id]).filter((x): x is string => !!x),
+    [streams, lastPid],
+  );
+  const { sessions, rows, sendCommand } = useStreamSessions(subscription, keep);
+  const session = shownPid ? sessions[shownPid] : undefined;
+  const status = pid ? session?.status ?? null : null;
   const live = !!pid && !!status && !status.exited;
   const { ref: panelsRef, height: panelsHeight } = useElementSize();
   const panelHeight = Math.max(MIN_PANEL_HEIGHT, panelsHeight - PANEL_TOP);
@@ -132,7 +144,9 @@ export function StreamWorkspace({ streams, activeId, onSelect }: {
               )}
           </Tabs.Panel>
           <Tabs.Panel value="receiver" pt={PANEL_TOP} style={{ height: panelHeight + PANEL_TOP }}>
-            {link && <ReceiverPanel link={link} withConsole={false} />}
+            {/* One panel per stream and session: edits made for one receiver
+                must never be applied to another. */}
+            {link && <ReceiverPanel key={`${active.id}:${pid ?? ''}`} link={link} withConsole={false} />}
           </Tabs.Panel>
           <Tabs.Panel value="console" pt={PANEL_TOP} style={{ height: panelHeight + PANEL_TOP }}>
             <ReceiverConsole
