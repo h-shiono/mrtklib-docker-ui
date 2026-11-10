@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- A Stream Relay stream can have no outputs, to check that its input
+  receives: the console shows the byte count and the data is not kept.
+
 ### Changed
 - Colours follow a single design policy (`DESIGN.md`). Filled buttons,
   placeholders, field outlines and off switches are readable in both themes,

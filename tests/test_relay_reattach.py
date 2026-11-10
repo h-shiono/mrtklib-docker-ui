@@ -138,6 +138,30 @@ def test_streams_endpoint_lists_ui_relays_with_log(pm):
         assert mrtk_relay._stream_names == {}
 
 
+def test_receive_only_relay_discards_the_data(pm, monkeypatch):
+    app = FastAPI()
+    app.include_router(mrtk_relay.router, prefix="/api/mrtk-relay")
+    started = []
+    real_start = pm.start
+
+    async def spy_start(command, args, process_id=None):
+        started.append(args)
+        return await real_start(command, args, process_id)
+
+    monkeypatch.setattr(pm, "start", spy_start)
+    args = ["-in", "tcpcli://h:2101"]
+
+    with TestClient(app) as c:
+        r = c.post("/api/mrtk-relay/start", json={"args": args, "name": "Check"})
+        assert r.status_code == 200
+        pid = r.json()["id"]
+        assert started == [["-in", "tcpcli://h:2101", "-out", mrtk_relay.DISCARD_OUTPUT]]
+        # the page sees the stream as it was given: no outputs
+        assert r.json()["args"] == args
+        assert c.get("/api/mrtk-relay/streams").json()[0]["args"] == args
+        assert c.post("/api/mrtk-relay/stop", json={"process_id": pid, "timeout": 2}).status_code == 200
+
+
 def test_exit_is_announced_after_get_status_marked_it_stopped(monkeypatch):
     pm = ProcessManager()
     monkeypatch.setattr(pm, "SUBCOMMAND_MAP", {"str2str": "relay"})

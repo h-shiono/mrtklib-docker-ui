@@ -87,6 +87,34 @@ def _mask_stream_arg(arg: str) -> str:
     return scheme + sep + _STREAM_PASSWORD.sub(r"\1:***@", rest)
 
 
+# With no -out, mrtk relay writes the input to its stdout, which would flood
+# the console with binary. A relay started with no outputs only receives,
+# to check the input: the server adds this output to discard the data.
+# Users cannot send it themselves: file outputs must be inside /workspace.
+DISCARD_OUTPUT = "file:///dev/null"
+
+
+def _with_discard_output(args: list[str]) -> list[str]:
+    """Add the discard output to a relay with an input and no output."""
+    flags = [_ALIASES.get(a, a) for a in args]
+    if "-in" in flags and "-out" not in flags:
+        return [*args, "-out", DISCARD_OUTPUT]
+    return args
+
+
+def _without_discard_output(args: list[str]) -> list[str]:
+    """The arguments as the user gave them, without the discard output."""
+    out: list[str] = []
+    i = 0
+    while i < len(args):
+        if args[i] == "-out" and i + 1 < len(args) and args[i + 1] == DISCARD_OUTPUT:
+            i += 2
+            continue
+        out.append(args[i])
+        i += 1
+    return out
+
+
 def _to_response(info) -> ProcessStatusResponse:
     """Convert ProcessInfo to response model."""
     return ProcessStatusResponse(
@@ -98,7 +126,7 @@ def _to_response(info) -> ProcessStatusResponse:
         started_at=info.started_at.isoformat() if info.started_at else None,
         stopped_at=info.stopped_at.isoformat() if info.stopped_at else None,
         error_message=info.error_message,
-        args=[_mask_stream_arg(a) for a in info.args],
+        args=[_mask_stream_arg(a) for a in _without_discard_output(info.args)],
     )
 
 
@@ -191,13 +219,14 @@ async def start_relay(request: MrtkRelayStartRequest) -> ProcessStatusResponse:
     """Start stream relay process (mrtk relay).
 
     If no arguments are provided, mrtk relay will print its help message.
+    An input with no output only receives: the data is discarded.
     """
     if err := _validate_relay_args(request.args):
         raise HTTPException(status_code=403, detail=err)
     try:
         info = await process_manager.start(
             command="str2str",
-            args=request.args,
+            args=_with_discard_output(request.args),
             process_id=request.process_id,
         )
         _stream_names[info.id] = request.name or info.id
