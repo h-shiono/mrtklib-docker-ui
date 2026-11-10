@@ -37,6 +37,8 @@ router = APIRouter()
 # session ticker or the relay log callback (process_manager awaits it).
 CLIENT_QUEUE_MAX = 256
 MAX_SELECT_LABEL = 64
+MAX_INGEST_FRAME = 65536  # bytes per WebSocket message from a browser input
+BROWSER_INPUT = "browser"  # Web Serial in the page (#136); not a relay scheme
 
 
 class _Client:
@@ -146,7 +148,7 @@ for _service in _services.values():
 
 
 class InputStream(BaseModel):
-    type: str = Field(examples=list(INPUT_SCHEMES))
+    type: str = Field(examples=[*INPUT_SCHEMES, BROWSER_INPUT])
     path: str = Field(
         max_length=1024,
         examples=["ttyACM0:115200", "localhost:9001", "user:pass@caster:2101/MOUNT"],
@@ -168,6 +170,8 @@ class StreamMonitorStartRequest(BaseModel):
 @router.post("/start")
 async def start_monitor(request: StreamMonitorStartRequest) -> dict[str, Any]:
     service = _services[request.stream]
+    if request.input.type == BROWSER_INPUT:
+        return await _start_browser(service, request)
     others = [s for s in _services.values() if s is not service and s.is_running]
     port = free_port({s.port for s in others if s.port is not None})
     try:
@@ -204,6 +208,19 @@ async def _start_file(
     return service.status_message()
 
 
+async def _start_browser(
+    service: StreamMonitorService, request: StreamMonitorStartRequest
+) -> dict[str, Any]:
+    """Browser input: the page sends the bytes of a serial port it opened with
+    Web Serial to `/ingest`. `path` only names the port for display."""
+    label = request.input.path.strip() or "serial port"
+    try:
+        await service.start_browser(f"browser-serial://{label}")
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return service.status_message()
+
+
 @router.post("/stop")
 async def stop_monitor(stream: StreamId = "a") -> dict[str, Any]:
     await _services[stream].stop()
@@ -213,6 +230,54 @@ async def stop_monitor(stream: StreamId = "a") -> dict[str, Any]:
 @router.get("/status")
 async def get_status(stream: StreamId = "a") -> dict[str, Any]:
     return _services[stream].status_message()
+
+
+@router.websocket("/ingest")
+async def websocket_ingest(
+    websocket: WebSocket, stream: str = "a", session: str | None = None
+) -> None:
+    """Bytes of a browser input (#136), binary messages from the page that
+    started the session (`session` = its `started_at`). Closing the socket ends
+    the session; the server closes it when the session ends (Stop elsewhere)."""
+    await websocket.accept()
+    if stream not in STREAM_IDS:
+        await websocket.close(code=1008, reason="Unknown stream")
+        return
+    service = _services[stream]
+    try:
+        run = service.attach_ingest(session)
+    except ValueError as e:
+        await websocket.close(code=1008, reason=str(e))
+        return
+    ended = asyncio.create_task(service.wait_ended())
+    try:
+        while True:
+            received = asyncio.create_task(websocket.receive())
+            done, _ = await asyncio.wait({received, ended}, return_when=asyncio.FIRST_COMPLETED)
+            if received not in done:  # session ended (Stop from any page)
+                received.cancel()
+                await _close_quietly_code(websocket, 1000, "Session ended")
+                return
+            message = received.result()
+            if message["type"] == "websocket.disconnect":
+                return
+            data = message.get("bytes")
+            if data is None:
+                continue  # text: reserved for messages from the page
+            if len(data) > MAX_INGEST_FRAME:
+                await _close_quietly_code(websocket, 1009, "Message too large")
+                return
+            service.feed_ingest(run, data)
+    finally:
+        ended.cancel()
+        await service.detach_ingest(run)
+
+
+async def _close_quietly_code(ws: WebSocket, code: int, reason: str) -> None:
+    try:
+        await asyncio.wait_for(ws.close(code=code, reason=reason), timeout=5.0)
+    except Exception:
+        pass
 
 
 @router.websocket("/ws")
