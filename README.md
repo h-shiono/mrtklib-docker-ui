@@ -101,9 +101,11 @@ GNSS positioning capabilities. No compilation required — just
 - Outputs as in Streams: the first is the bridge to cssr2rtcm3
   (`tcpsvr`, port editable); add a file to record the raw SBF
   (restart-safe `_2`, `_3`, …) or a TCP server to hand it to other apps
-- Split logs for both child processes; watch the receiver's position
-  and messages in the **Monitor** (input type Streams →
-  `CLAS to RTCM3 · :9870`)
+- A Messages tab shows what the receiver sends through the bridge, and
+  split logs for both child processes; watch the receiver's position in
+  the **Monitor** (input type Streams → `CLAS to RTCM3 · :9870`)
+- Configure the receiver with the pipeline stopped: while it runs, the
+  receiver port takes RTCM3 and ignores commands
 - Currently ships with a mosaic-G5 preset; request more receivers
   via the GitHub Issue template
 

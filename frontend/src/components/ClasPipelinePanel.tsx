@@ -40,6 +40,7 @@ import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
 import { LogView } from './common/LogView';
+import { BridgeMessages } from './BridgeMessages';
 
 const MAX_LOG_LINES = 500;
 const RECEIVER_REQUEST_URL =
@@ -282,6 +283,7 @@ export function ClasPipelinePanel() {
   };
 
   // --- Derived values ---
+  const [rightTab, setRightTab] = useState<string | null>('relay');
   const isRunning =
     pipelineStatus.state === 'running' || pipelineStatus.state === 'starting';
   const canStart = !isRunning && !!inputPath.trim() && !submitting;
@@ -514,15 +516,20 @@ export function ClasPipelinePanel() {
       </Card>
       </Grid.Col>
 
-      {/* Right column: the two processes' logs. Positions are watched in the
-          Stream Monitor, which reads the bridge like any relay output. */}
+      {/* Right column: the bridge's messages and the two processes' logs.
+          Positions are watched in the Monitor, which reads the bridge like
+          any relay output. */}
       <Grid.Col span={{ base: 12, md: 6 }} h={{ base: 'auto', md: '100%' }}>
         <Card withBorder p="sm" h="100%" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Tabs defaultValue="relay" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <Tabs value={rightTab} onChange={setRightTab} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Tabs.List>
+              <Tabs.Tab value="messages">Messages</Tabs.Tab>
               <Tabs.Tab value="relay">mrtk relay</Tabs.Tab>
               <Tabs.Tab value="cssr">mrtk cssr2rtcm3</Tabs.Tab>
             </Tabs.List>
+            <Tabs.Panel value="messages" pt="xs" style={{ flex: 1, minHeight: 0 }}>
+              {rightTab === 'messages' && <BridgeMessages running={isRunning} />}
+            </Tabs.Panel>
             <Tabs.Panel value="relay" pt="xs" style={{ flex: 1, minHeight: 0 }}>
               <LogView lines={relayLog} wrap severity running={isRunning} startLabel="Start" cap={MAX_LOG_LINES} />
             </Tabs.Panel>
