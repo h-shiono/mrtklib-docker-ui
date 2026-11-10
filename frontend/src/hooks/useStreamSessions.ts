@@ -9,10 +9,11 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { MonitorConsoleEntry, MonitorMessageRow, MonitorMessageType } from '../api/streamMonitor';
 import { streamSessionsApi, type SessionMessage, type SessionStatus } from '../api/streamSessions';
 import { mergeMessageRows } from '../utils/streamMessages';
-import { REPLY_TIMEOUT_MS } from './useMonitorStream';
 
 /** Same cap as the backend (CONSOLE_MAX). */
 const MAX_CONSOLE = 300;
+/** How long a command may take to answer before the next one is sent. */
+const REPLY_TIMEOUT_MS = 5000;
 
 /** Labels of replies that answer a command (not $TD / $TE / blocks). */
 const ANSWERS = new Set(['Septentrio reply', 'Septentrio error', 'UBX ACK-ACK', 'UBX ACK-NAK', 'UBX CFG-VALGET', 'UBX MON-VER']);

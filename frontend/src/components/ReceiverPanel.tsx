@@ -1,7 +1,7 @@
 /**
- * Receiver configuration for one Stream Monitor stream (#136), Septentrio
- * mosaic first. Shown in the Monitor's config column, so the Message tab on
- * the right shows at once whether the receiver now outputs what was asked.
+ * Receiver configuration of one stream (#136), Septentrio mosaic first: the
+ * Receiver tab of the Streams page, next to the stream's Messages tab, which
+ * shows at once whether the receiver now outputs what was asked.
  *
  * Commands go through the stream's own connection (the browser's serial
  * port, or the relay with `-b 1`); the receiver's replies come back in the
@@ -12,7 +12,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActionIcon,
   Alert,
   Box,
   Button,
@@ -27,10 +26,9 @@ import {
   Title,
 } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
-import { IconArrowLeft, IconCheck, IconDeviceFloppy, IconRefresh, IconX } from '@tabler/icons-react';
+import { IconCheck, IconDeviceFloppy, IconRefresh, IconX } from '@tabler/icons-react';
 import type { MonitorConsoleEntry } from '../api/streamMonitor';
 import { FormRow } from './common/FormRow';
-import { ReceiverConsole } from './ReceiverConsole';
 import { isFailure } from '../utils/receiverConsole';
 import { SbfOutputEditor } from './SbfOutputEditor';
 import { STATUS_COLOR } from '../utils/status';
@@ -54,8 +52,8 @@ interface Step {
   reply?: string;
 }
 
-/** What the panel needs from the connection that reaches the receiver: a
- *  Stream Monitor stream today, a Stream later (#136). */
+/** What the panel needs from the stream that reaches the receiver: its
+ *  session on the Streams page (#136). */
 export interface ReceiverLink {
   /** Shown in the title, e.g. "Stream 1". */
   name: string;
@@ -80,13 +78,7 @@ const STEP_COLOR: Record<StepState, string> = {
   skipped: STATUS_COLOR.off,
 };
 
-export function ReceiverPanel({ link, onClose, withConsole = true }: {
-  link: ReceiverLink;
-  /** Back to the stream list; no back button without it. */
-  onClose?: () => void;
-  /** A Console tab here; the Streams page shows the console as a tab of its own. */
-  withConsole?: boolean;
-}) {
+export function ReceiverPanel({ link }: { link: ReceiverLink }) {
   const [model, setModel] = useLocalStorage<SeptentrioModel>({ key: `${link.storageKey}-model`, defaultValue: 'mosaic-G5' });
   const [steps, setSteps] = useState<Step[]>([]);
   const [busy, setBusy] = useState(false);
@@ -175,11 +167,6 @@ export function ReceiverPanel({ link, onClose, withConsole = true }: {
     <Stack gap="xs" style={{ height: '100%', minHeight: 0 }}>
       <Group justify="space-between" wrap="nowrap">
         <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
-          {onClose && (
-            <ActionIcon variant="subtle" onClick={onClose} aria-label="Back to streams" title="Back to streams">
-              <IconArrowLeft size={14} />
-            </ActionIcon>
-          )}
           <Title order={6} size="sm" style={{ whiteSpace: 'nowrap' }}>Receiver · {link.name}</Title>
         </Group>
         <SaveButton disabled={!canSend} onSave={() => void runReported([SAVE_COMMAND], 'Saved as the boot configuration.')} />
@@ -221,7 +208,6 @@ export function ReceiverPanel({ link, onClose, withConsole = true }: {
         <Tabs.List>
           <Tabs.Tab value="sbf" style={{ fontSize: FONT_SIZE.label }}>SBF output</Tabs.Tab>
           <Tabs.Tab value="receiver" style={{ fontSize: FONT_SIZE.label }}>Ports &amp; tracking</Tabs.Tab>
-          {withConsole && <Tabs.Tab value="console" style={{ fontSize: FONT_SIZE.label }}>Console</Tabs.Tab>}
         </Tabs.List>
 
         <Tabs.Panel value="sbf" pt="xs" style={{ flex: 1, minHeight: 0 }}>
@@ -260,16 +246,6 @@ export function ReceiverPanel({ link, onClose, withConsole = true }: {
           </ScrollArea>
         </Tabs.Panel>
 
-        {withConsole && (
-          <Tabs.Panel value="console" pt="xs" style={{ flex: 1, minHeight: 0 }}>
-            <ReceiverConsole
-              entries={link.consoleEntries}
-              blocked={why}
-              sendCommand={sendCommand}
-              active={tab === 'console'}
-            />
-          </Tabs.Panel>
-        )}
       </Tabs>
     </Stack>
   );

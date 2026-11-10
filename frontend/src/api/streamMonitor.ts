@@ -129,7 +129,8 @@ export interface MonitorMessageCounters {
 /** The stream a message belongs to (#171). */
 export type MonitorStreamId = 'a' | 'b';
 
-/** Receiver console (#136): a command sent, or the receiver's reply. */
+/** Receiver console (#136): a command sent, or the receiver's reply (the
+ *  Streams page's stream sessions). */
 export interface MonitorConsoleEntry {
   t: number;
   dir: 'tx' | 'rx';
@@ -149,7 +150,6 @@ export type MonitorMessage = { stream?: MonitorStreamId } & (
       epochs: MonitorEpoch[];
       satellites: MonitorSatellites | null;
       messages: MonitorMessageCounters | null;
-      console?: MonitorConsoleEntry[];
       logs: string[];
     }
   | ({ type: 'messages' } & MonitorMessageCounters)
@@ -157,7 +157,7 @@ export type MonitorMessage = { stream?: MonitorStreamId } & (
   | { type: 'epochs'; epochs: MonitorEpoch[] }
   | ({ type: 'satellites' } & MonitorSatellites)
   | { type: 'log'; message: string }
-  | { type: 'console'; entry: MonitorConsoleEntry }
+
 );
 
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -176,17 +176,6 @@ export const streamMonitorApi = {
       body: JSON.stringify(request),
     });
     return handleResponse<MonitorStatus>(response);
-  },
-
-  /** Send one command to the receiver behind a running stream: an ASCII
-   *  `line` (CR LF is added) or a binary frame in `hex`. */
-  send: async (stream: MonitorStreamId, command: { line: string } | { hex: string }): Promise<void> => {
-    const response = await fetch(`${API_BASE}/send`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stream, ...command }),
-    });
-    await handleResponse<{ ok: boolean }>(response);
   },
 
   stop: async (stream: MonitorStreamId = 'a'): Promise<MonitorStatus> => {

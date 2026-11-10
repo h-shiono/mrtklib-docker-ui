@@ -26,7 +26,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useDisclosure, useElementSize, useLocalStorage } from '@mantine/hooks';
-import { IconAdjustmentsHorizontal, IconPlayerPlay, IconPlayerStop, IconPlus, IconQuestionMark } from '@tabler/icons-react';
+import { IconPlayerPlay, IconPlayerStop, IconPlus, IconQuestionMark } from '@tabler/icons-react';
 import {
   streamMonitorApi,
   type MonitorMessage,
@@ -57,7 +57,6 @@ import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { SkySnrPanel } from './SkySnrPanel';
 import { StreamMessagePanel } from './StreamMessagePanel';
 import { StreamCardHeader } from './common/StreamCardHeader';
-import { ReceiverPanel, type ReceiverLink } from './ReceiverPanel';
 import { processTone, STATUS_COLOR } from '../utils/status';
 import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
 import { FONT_SIZE, MONO } from '../utils/typography';
@@ -246,29 +245,6 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
   );
 }
 
-/** A Monitor stream as the receiver panel's connection (#136). */
-function receiverLink(s: MonitorStream): ReceiverLink {
-  const input = s.status?.input ?? '';
-  return {
-    name: streamLabel(s.id),
-    storageKey: `mrtk-receiver-${s.id}`,
-    blocked: !s.running ? 'Start the stream first'
-      : s.status?.kind === 'file' ? 'A file cannot take commands'
-      : input.startsWith('ntrip://') ? 'An NTRIP input cannot take receiver commands'
-      : null,
-    // The server refuses commands for a Stream Relay output (no relay-back);
-    // the CLAS to RTCM3 bridge passes them, but its receiver port takes RTCM3
-    // and ignores commands while the pipeline runs.
-    note: s.isRelay
-      ? 'This stream reads a relay output. Commands reach the receiver only through the CLAS to RTCM3 '
-        + 'bridge, and not while that pipeline feeds RTCM3 back: configure the receiver before starting it.'
-      : null,
-    session: s.status?.started_at ?? null,
-    consoleEntries: s.consoleEntries,
-    sendCommand: s.sendCommand,
-  };
-}
-
 /** Dot, name and state of a stream, for its card and the selector. */
 function StreamName({ s }: { s: MonitorStream }) {
   const light = inputLight(s.status, s.state, s.live);
@@ -301,9 +277,6 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   const twoStreams = secondAdded || streamB.busy;
   const streams = twoStreams ? [streamA, streamB] : [streamA];
   const [selectedId, setSelectedId] = useState<MonitorStreamId>('a');
-  // The stream whose receiver is being configured (#136); the config column
-  // shows its receiver panel instead of the stream cards.
-  const [configuring, setConfiguring] = useState<MonitorStreamId | null>(null);
   const [overlayOn, setOverlayOn] = useLocalStorage<boolean>({
     key: 'mrtk-stream-monitor-overlay',
     defaultValue: true,
@@ -483,13 +456,6 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
       onToggleConfig={onToggleConfig ?? (() => {})}
       config={
         <Card withBorder p="xs" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          {configuring !== null && (configuring === 'a' || twoStreams) ? (
-            <ReceiverPanel
-              key={`${configuring}:${(configuring === 'b' ? streamB : streamA).status?.started_at ?? ''}`}
-              link={receiverLink(configuring === 'b' ? streamB : streamA)}
-              onClose={() => setConfiguring(null)}
-            />
-          ) : (<>
           <Group justify="space-between" mb="xs" wrap="nowrap">
             <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
               {onToggleConfig && <ConfigCollapseButton onClick={onToggleConfig} />}
@@ -559,21 +525,6 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                       setSecondAdded(false);
                       setSelectedId('a');
                     }}
-                    actions={
-                      <ActionIcon
-                        variant="light"
-                        size="xs"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedId(s.id);
-                          setConfiguring(s.id);
-                        }}
-                        title="Configure the receiver"
-                        aria-label={`Configure the receiver of ${streamLabel(s.id)}`}
-                      >
-                        <IconAdjustmentsHorizontal size={12} />
-                      </ActionIcon>
-                    }
                   />
                   <StreamForm s={s} pacing={!twoStreams} />
                 </Stack>
@@ -581,7 +532,6 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
             ))}
           </Stack>
           </ScrollArea>
-          </>)}
         </Card>
       }
       workspace={
