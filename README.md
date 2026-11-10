@@ -116,6 +116,13 @@ GNSS positioning capabilities. No compilation required — just
   NTRIP client) through `mrtk relay`, without running `mrtk run`
   — for example the receiver itself, or the NMEA output of a running
   `mrtk run`
+- Input type **Browser serial**: the browser opens a USB / serial port on
+  the computer it runs on (Web Serial, Chrome or Edge, page on `localhost`
+  or https) and sends the data to the server, so Docker needs no USB
+  access (no `usbipd` on Windows, works on macOS). The port is chosen on
+  Start; closing or reloading the tab, or unplugging the receiver, ends
+  the stream (other inputs reattach after a reload). Start two browser
+  streams one at a time: the browser shows one port picker at a time
 - Replays a recorded file (raw SBF / UBX / NMEA log or solution text)
   all at once or paced by its epoch times (real time, 10×, 60×)
 - Decodes NMEA (GGA, RMC, ZDA, GST, GSA, GSV), Septentrio SBF
@@ -276,8 +283,13 @@ do both (output SBF/L6, input RTCM3). Set `CLAS_INPUT_DEVICE` in
 
 Docker Desktop on macOS runs Linux containers in a hidden VM, so
 USB-serial devices on the Mac (`/dev/cu.usbmodem*`) are **not**
-visible to the container by default. Use one of:
+visible to the container by default. Windows needs `usbipd` for the
+same reason. Use one of:
 
+- For the Stream Monitor, pick input type **Browser serial**: Chrome or
+  Edge opens the port on the Mac / PC and sends the data to the server.
+  Nothing to install or attach; the stream lasts while the tab is open,
+  so it does not suit a long `mrtk run` or Stream Relay session.
 - Run on the SBC itself (recommended for production CLAS use).
 - Forward over the network with USB/IP or a TCP↔serial bridge
   (e.g. `socat`, `ser2net`) and pick TCP in the UI instead of
@@ -433,6 +445,10 @@ Bug reports and feedback are very welcome — please
 - **Stream Monitor**: checked with u-blox F9 (RXM-RAWX + SFRBX +
   NMEA) and Septentrio mosaic-G5 (SBF) streams and files; UBX NAV-PVT /
   NAV-SAT and other receivers are not yet tested with real data
+- **Stream Monitor, Browser serial**: checked in Chrome with a simulated
+  port replaying a u-blox F9 capture (receive, Stop, unplug, tab closed);
+  with a real receiver only the connection (macOS, Chrome, mosaic), not
+  yet the decoded messages; Windows and u-blox receivers untested
 - **Stream Monitor, two streams**: two relays were checked together
   through the API; the page and the overlay not yet against live streams
 - **CLAS L6 source**: checked with MRTKLIB's handover test output

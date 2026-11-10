@@ -44,7 +44,8 @@ import {
   toMetricsPosition,
   toPosEpoch,
 } from '../utils/streamMonitor';
-import { INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
+import { BROWSER_SERIAL_AVAILABLE, INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
+import { BAUD_RATES } from '../utils/webSerial';
 import { decodeClasSource, formatClasSource } from '../utils/clasSource';
 import * as mrtkRelayApi from '../api/mrtkRelay';
 import * as clasApi from '../api/clasPipeline';
@@ -182,13 +183,31 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
             aria-label="Input type"
             value={s.typeMeta.value}
             onChange={(v) => v && s.setInputType(v)}
-            data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
+            data={INPUT_TYPES.map(({ value, label }) => ({
+              value,
+              label,
+              disabled: value === 'browser' && !BROWSER_SERIAL_AVAILABLE,
+            }))}
             allowDeselect={false}
             disabled={s.busy}
             style={{ width: 120, flexShrink: 0 }}
           />
           {s.isRelay ? (
             <RelayOutputSelect value={s.relayPath} onChange={s.setRelayPath} disabled={s.busy} />
+          ) : s.isBrowser ? (
+            // The port is picked on Start; only the baud rate is set here
+            // (USB receivers ignore it, a UART adapter does not).
+            <Select
+              aria-label="Baud rate"
+              value={s.baud}
+              onChange={(v) => v && s.setBaud(v)}
+              data={BAUD_RATES.map((b) => ({ value: b, label: `${b} baud` }))}
+              allowDeselect={false}
+              disabled={s.busy}
+              title="The port is chosen when you press Start"
+              style={{ flex: 1, minWidth: 0 }}
+              styles={{ input: { fontFamily: MONO } }}
+            />
           ) : (
             <MaskedPathInput
               aria-label="Input path"

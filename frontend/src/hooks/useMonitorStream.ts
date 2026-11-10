@@ -21,6 +21,12 @@ import {
   type MonitorStreamId,
 } from '../api/streamMonitor';
 import { isRelayStatusLine } from '../utils/streamMonitor';
+import {
+  BrowserSerialSession,
+  DEFAULT_BAUD,
+  isPickerCancelled,
+  webSerialAvailable,
+} from '../utils/webSerial';
 import { mergeMessageRows } from '../utils/streamMessages';
 
 /** Same cap as the backend history (HISTORY_EPOCHS, 1 Hz → one hour). */
@@ -38,7 +44,12 @@ export const INPUT_TYPES: { value: MonitorFormInputType; label: string; placehol
   { value: 'tcpsvr', label: 'TCP Server', placeholder: ':9001' },
   { value: 'ntripcli', label: 'NTRIP', placeholder: 'user:pass@caster:2101/MOUNT' },
   { value: 'file', label: 'File', placeholder: '/data/rover.sbf' },
+  { value: 'browser', label: 'Browser serial', placeholder: '' },
 ];
+
+/** Web Serial works in this browser and page (Chrome / Edge, localhost or
+ *  https). Fixed for the page's lifetime. */
+export const BROWSER_SERIAL_AVAILABLE = webSerialAvailable();
 
 /** Keep at most one relay status line (the newest): they arrive every few
  *  seconds and would push everything else out of the buffer. */
@@ -57,18 +68,22 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
   // (127.0.0.1:PORT). Kept apart so it does not overwrite a typed path.
   const [relayPath, setRelayPath] = useLocalStorage<string>({ key: key('relay-path'), defaultValue: '' });
   const [fileSpeed, setFileSpeed] = useLocalStorage<string>({ key: key('file-speed'), defaultValue: '0' });
+  const [baud, setBaud] = useLocalStorage<string>({ key: key('baud'), defaultValue: DEFAULT_BAUD });
   // Read the GGA station id as the CLAS L6 source (#144). Off by default:
   // only `mrtk run` CLAS output puts the source there; any other receiver
   // puts its base station id, which can look like a valid source.
   const [clasSource, setClasSource] = useLocalStorage<boolean>({ key: key('clas-source'), defaultValue: false });
-  const typeMeta = INPUT_TYPES.find((t) => t.value === inputType)
+  // A stored `browser` falls back where Web Serial is missing (Safari, or the
+  // page opened over plain http from another machine).
+  const typeMeta = INPUT_TYPES.find((t) => t.value === inputType && (t.value !== 'browser' || BROWSER_SERIAL_AVAILABLE))
     ?? INPUT_TYPES.find((t) => t.value === 'tcpcli')!;
   const isFile = typeMeta.value === 'file';
   const isRelay = typeMeta.value === 'relay';
+  const isBrowser = typeMeta.value === 'browser';
   const startInput: { type: MonitorInputType; path: string } = isRelay
     ? { type: 'tcpcli', path: relayPath }
     : { type: typeMeta.value as MonitorInputType, path: inputPath.trim() };
-  const canStart = startInput.path !== '';
+  const canStart = isBrowser || startInput.path !== '';
 
   // ── session data
   const [status, setStatus] = useState<MonitorStatus | null>(null);
@@ -95,6 +110,9 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
   // data start empty. `undefined` = take the next status as is (`history`
   // just replaced everything).
   const sessionRef = useRef<string | null | undefined>(undefined);
+  // The serial port this page opened for a browser input. It runs on its own:
+  // leaving the page keeps it sending until the session ends.
+  const serialRef = useRef<BrowserSerialSession | null>(null);
 
   const clearData = useCallback(() => {
     setEpochs([]);
@@ -161,6 +179,21 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
 
   /** `pacing`: honour the playback speed of a file input. */
   const start = async (pacing: boolean) => {
+    // A browser input opens its port first: the picker needs the click's
+    // user activation, so nothing may be awaited before it.
+    let serial: BrowserSerialSession | null = null;
+    if (isBrowser) {
+      setRequestError(null);
+      try {
+        serial = await BrowserSerialSession.open(baud, (reason) => {
+          if (serialRef.current === serial) serialRef.current = null;
+          if (reason) setRequestError(reason);
+        });
+      } catch (err) {
+        if (!isPickerCancelled(err)) setRequestError(err instanceof Error ? err.message : String(err));
+        return;
+      }
+    }
     startingRef.current = true;
     setSubmitting(true);
     setRequestError(null);
@@ -170,13 +203,18 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
     try {
       const st = await streamMonitorApi.start({
         stream: id,
-        input: startInput,
+        input: serial ? { type: 'browser', path: serial.label } : startInput,
         file_speed: isFile && pacing && Number(fileSpeed) > 0 ? Number(fileSpeed) : null,
       });
+      if (serial) {
+        serialRef.current = serial;
+        serial.attach(streamMonitorApi.ingestUrl(id, st.started_at ?? ''));
+      }
       // A session that ended meanwhile keeps its exit status. If the exit
       // was another session's, the next status tick (1 s) shows this one.
       if (exitCountRef.current === exitsBefore) setStatus(st);
     } catch (err) {
+      void serial?.close();
       setRequestError(err instanceof Error ? err.message : String(err));
     } finally {
       startingRef.current = false;
@@ -190,6 +228,7 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
     try {
       setStatus(await streamMonitorApi.stop(id));
       clearData();
+      void serialRef.current?.close();  // the server closes its socket too
     } catch (err) {
       setRequestError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -200,7 +239,8 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
   return {
     id,
     // form
-    typeMeta, isFile, isRelay, setInputType,
+    typeMeta, isFile, isRelay, isBrowser, setInputType,
+    baud, setBaud,
     inputPath, setInputPath,
     relayPath, setRelayPath,
     canStart,

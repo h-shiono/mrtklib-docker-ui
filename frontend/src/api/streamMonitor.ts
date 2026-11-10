@@ -10,8 +10,12 @@ import type { Satellite } from '../types/satellite';
 
 const API_BASE = '/api/stream-monitor';
 
-/** Input stream types the backend accepts (`INPUT_SCHEMES`). */
-export type MonitorInputType = 'serial' | 'tcpcli' | 'tcpsvr' | 'ntripcli' | 'file';
+/** Input stream types the backend accepts (`INPUT_SCHEMES`), and `browser`:
+ *  a serial port this page opened with Web Serial (#136). */
+export type MonitorInputType = 'serial' | 'tcpcli' | 'tcpsvr' | 'ntripcli' | 'file' | 'browser';
+
+/** What feeds a session: `mrtk relay`, a file read by the server, or a page. */
+export type MonitorSessionKind = 'relay' | 'file' | 'browser';
 
 export interface MonitorStartRequest {
   /** Default on the server: stream a. */
@@ -68,6 +72,7 @@ export interface MonitorStatus {
   type: 'status';
   running: boolean;
   state: MonitorState;
+  kind: MonitorSessionKind;
   error_message: string | null;
   started_at: string | null;
   /** Input stream with credentials masked. */
@@ -161,6 +166,14 @@ export const streamMonitorApi = {
   stop: async (stream: MonitorStreamId = 'a'): Promise<MonitorStatus> => {
     const response = await fetch(`${API_BASE}/stop?stream=${stream}`, { method: 'POST' });
     return handleResponse<MonitorStatus>(response);
+  },
+
+  /** Where a page sends the bytes of a browser input; `startedAt` names the
+   *  session it started, so a stale page cannot feed a newer one. */
+  ingestUrl: (stream: MonitorStreamId, startedAt: string): string => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const query = new URLSearchParams({ stream, session: startedAt });
+    return `${protocol}//${window.location.host}${API_BASE}/ingest?${query}`;
   },
 
   connectWs: (): WebSocket => {

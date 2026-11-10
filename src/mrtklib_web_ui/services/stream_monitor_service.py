@@ -3,6 +3,11 @@
     input (serial / tcpcli / tcpsvr / ntrip)
         └──► mrtk relay ──► tcpsvr://:PORT ──► StreamDecoder (this process)
     input (file) ──► StreamDecoder, read here (all at once or paced, #161)
+    input (browser) ──► Web Serial in the page ──► ingest WebSocket ──► StreamDecoder
+
+A browser session (#136) reads a serial port the page opened with Web Serial,
+so a receiver on the user's machine needs no Docker USB access (usbipd,
+macOS). The page sends the bytes; the session ends when that socket closes.
 
 Raw streams are saved in Stream Relay, which the Monitor can read through a
 relay output `tcpsvr://:PORT` (#191).
@@ -44,6 +49,7 @@ from mrtklib_web_ui.services.stream_decoders.messages import MessageLog
 logger = logging.getLogger(__name__)
 
 StreamId = Literal["a", "b"]
+SessionKind = Literal["relay", "file", "browser"]
 STREAM_IDS: tuple[StreamId, ...] = ("a", "b")
 
 # UI stream type → mrtk relay scheme (same names as frontend streamArgs.ts).
@@ -64,6 +70,7 @@ _DRAIN_S = 1.0  # on stop, wait this long for the reader to reach EOF
 _FILE_CHUNK_FAST = 1 << 16  # bytes per read when reading a file at once
 _FILE_CHUNK_PACED = 512  # small, so pacing by epoch time stays smooth
 _FILE_MAX_WAIT_S = 2.0  # a gap in the data is skipped after this long
+INGEST_TIMEOUT_S = 10.0  # a browser session whose page never sends ends
 
 # Lower = preferred. A source is shown unless a preferred one was seen
 # within SOURCE_HOLD_S.
@@ -181,6 +188,7 @@ class StreamMonitorService:
         self._reader: asyncio.Task | None = None
         self._ticker: asyncio.Task | None = None
         self._run = 0  # bumped per start; stale tasks / logs check it
+        self.kind: SessionKind = "relay"
         self.state = "idle"  # idle | starting | running | stopped | error
         self.error_message: str | None = None
         self.started_at: datetime | None = None
@@ -191,7 +199,13 @@ class StreamMonitorService:
         self.connected = False
         # File input (#161): {"size", "read", "eof", "speed"}; None for a relay.
         self.file: dict[str, Any] | None = None
-        self._file_log: list[str] = []
+        # Log of a session without a relay (file, browser); a relay's is
+        # kept by process_manager.
+        self._session_log: list[str] = []
+        # Browser input: the page that sends, and when it must have connected.
+        self._ingest_run: int | None = None
+        self._ingest_deadline = 0.0
+        self._ended = asyncio.Event()
 
     def set_broadcast(self, cb: Callable[[dict], Awaitable[None]]) -> None:
         self._broadcast = cb
@@ -206,11 +220,14 @@ class StreamMonitorService:
 
     # ── lifecycle ───────────────────────────────────────────────────────────
 
-    def _begin(self, input_label: str, port: int | None) -> None:
+    def _begin(self, input_label: str, port: int | None, kind: SessionKind) -> None:
         """Reset for a new session (caller holds the lock)."""
         if self.is_running:
             raise RuntimeError(f"Stream {self.stream_id.upper()} is already running")
         self._run += 1
+        self.kind = kind
+        self._ended = asyncio.Event()
+        self._ingest_run = None
         self._state = MonitorState()
         self.messages = MessageLog()
         self._decoder = StreamDecoder(on_frame=self.messages.add)
@@ -223,11 +240,11 @@ class StreamMonitorService:
         self.bytes_per_sec = 0.0
         self.connected = False
         self.file = None
-        self._file_log = []
+        self._session_log = []
 
     async def start(self, args: list[str], input_label: str, port: int) -> None:
         async with self._lock:
-            self._begin(input_label, port)
+            self._begin(input_label, port, "relay")
             # Before the relay's first log line: a new `started_at` tells every
             # page that a new session begins (its console and data reset).
             await self._send(self.status_message())
@@ -251,7 +268,7 @@ class StreamMonitorService:
         by the epoch times at `speed` × real time. The session stays open at
         the end of the file, until Stop."""
         async with self._lock:
-            self._begin(f"file://{path}", None)
+            self._begin(f"file://{path}", None, "file")
             size = path.stat().st_size
             self.file = {"size": size, "read": 0, "eof": False, "speed": speed}
             await self._send(self.status_message())
@@ -262,6 +279,46 @@ class StreamMonitorService:
             self._reader = asyncio.create_task(self._read_file(run, path, speed))
             self._ticker = asyncio.create_task(self._tick(run))
         await self._send(self.status_message())
+
+    async def start_browser(self, input_label: str) -> None:
+        """Wait for the page to send what it reads from its serial port."""
+        async with self._lock:
+            self._begin(input_label, None, "browser")
+            await self._send(self.status_message())
+            await self._log("[SYSTEM] Waiting for the browser to send the serial port data")
+            self.state = "running"
+            self._ingest_deadline = time.monotonic() + INGEST_TIMEOUT_S
+            self._ticker = asyncio.create_task(self._tick(self._run))
+        await self._send(self.status_message())
+
+    def attach_ingest(self, started_at: str | None) -> int:
+        """Register the page that sends a browser session's bytes; returns its
+        run token. Raises ValueError if this is not the session it started."""
+        if self.kind != "browser" or not self.is_running:
+            raise ValueError("No browser serial session is waiting")
+        if started_at != (self.started_at.isoformat() if self.started_at else None):
+            raise ValueError("This session has ended")
+        if self._ingest_run is not None:
+            raise ValueError("Another page is already sending this session")
+        self._ingest_run = self._run
+        self.connected = True
+        return self._run
+
+    def feed_ingest(self, run: int, data: bytes) -> None:
+        if run == self._run and self.is_running:
+            self._state.add(self._decoder.feed(data))
+
+    async def detach_ingest(self, run: int) -> None:
+        """The page stopped sending (closed, unplugged): the session ends."""
+        async with self._lock:
+            if run != self._run or not self.is_running:
+                return
+            await self._log("[SYSTEM] The browser closed the serial port")
+            await self._finish("stopped", None)
+
+    async def wait_ended(self) -> None:
+        """Return once the current session has ended."""
+        await self._ended.wait()
 
     async def stop(self) -> None:
         async with self._lock:
@@ -277,7 +334,7 @@ class StreamMonitorService:
         epoch is only complete then), instead of being cut off mid-stream.
         """
         self._run += 1  # the reader stops reconnecting, the ticker stops
-        if self.file is None:
+        if self.kind == "relay":
             try:
                 await process_manager.stop(self.relay_pid, timeout=3.0)
             except ValueError:
@@ -300,6 +357,7 @@ class StreamMonitorService:
         self.state = state
         self.error_message = error
         self.connected = False
+        self._ended.set()
         await self._send_updates()
         await self._send({**self.status_message(), "exited": True})
 
@@ -399,7 +457,14 @@ class StreamMonitorService:
             await self._send(self.messages_message())
             if self._on_tick is not None:
                 self._on_tick()
-            if self.file is not None:
+            if self.kind == "browser":
+                if self._ingest_run is None and time.monotonic() > self._ingest_deadline:
+                    async with self._lock:
+                        if run == self._run:
+                            await self._finish("error", "The browser did not send the serial port data")
+                    return
+                continue  # no relay; the page's socket ends the session
+            if self.kind == "file":
                 continue  # no relay; the session ends on Stop
             info = await process_manager.get_status(self.relay_pid)
             if info is None or info.state.value in ("stopped", "error"):
@@ -416,13 +481,13 @@ class StreamMonitorService:
 
     async def on_relay_log(self, line: str) -> None:
         """process_manager log line of the relay (already masked)."""
-        if self.file is not None:
+        if self.kind != "relay":
             return  # a relay left over from before does not belong here
         await self._send({"type": "log", "message": line})
 
     async def _log(self, line: str) -> None:
-        """A log line of a file session (there is no relay log)."""
-        self._file_log.append(line)
+        """A log line of a session without a relay (file, browser)."""
+        self._session_log.append(line)
         await self._send({"type": "log", "message": line})
 
     def status_message(self) -> dict[str, Any]:
@@ -431,6 +496,7 @@ class StreamMonitorService:
             "stream": self.stream_id,
             "running": self.is_running,
             "state": self.state,
+            "kind": self.kind,
             "error_message": self.error_message,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "input": self.input_label,
@@ -463,7 +529,7 @@ class StreamMonitorService:
             "epochs": list(self._state.history) if running else [],
             "satellites": self._state.satellites if running else None,
             "messages": self.messages_message() if running else None,
-            "logs": list(self._file_log) if self.file is not None
+            "logs": list(self._session_log) if self.kind != "relay"
             else process_manager.get_log(self.relay_pid),
         }
 

@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from mrtklib_web_ui.services import stream_monitor_service as sms
 from mrtklib_web_ui.services.process_manager import ProcessState, process_manager
@@ -374,14 +375,18 @@ def test_a_stalled_client_cannot_block_the_broadcast():
 # ── File input (#161): read here, not through mrtk relay ───────────────────
 
 
-def _nmea_file(path, n: int) -> None:
+def _nmea_epochs(n: int) -> bytes:
     out = b""
     for k in range(n):
         t = (T0 + timedelta(seconds=k)).strftime("%H%M%S.00")
         out += nmea(f"GNRMC,{t},A,3530.0,N,13915.0,E,0.0,,071126,,,A,V")
         out += nmea(f"GNGGA,{t},3530.0,N,13915.0,E,4,12,0.5,20.0,M,40.0,M,1.0,0001")
         out += nmea("GPGSV,1,1,01,05,45,120,44,1")
-    path.write_bytes(out)
+    return out
+
+
+def _nmea_file(path, n: int) -> None:
+    path.write_bytes(_nmea_epochs(n))
 
 
 @pytest.fixture
@@ -565,3 +570,122 @@ def test_a_stopped_session_replays_no_message_rows(relay, client):
 def test_free_port_skips_excluded_ports():
     taken = sms.free_port()
     assert sms.free_port({taken}) != taken
+
+
+# ── browser input (Web Serial, #136) ────────────────────────────────────────
+
+
+def _start_browser(client, stream="a"):
+    r = client.post(
+        "/api/stream-monitor/start",
+        json={"stream": stream, "input": {"type": "browser", "path": "USB 1546:01A9 @115200"}},
+    )
+    assert r.status_code == 200
+    st = r.json()
+    assert st["running"] and st["kind"] == "browser"
+    assert st["input"] == "browser-serial://USB 1546:01A9 @115200"
+    return st["started_at"]
+
+
+def _ingest(client, started_at, stream="a"):
+    return client.websocket_connect(
+        f"/api/stream-monitor/ingest?stream={stream}&session={started_at}"
+    )
+
+
+def test_browser_session_decodes_what_the_page_sends(relay, client):
+    started_at = _start_browser(client)
+    assert relay.args is None  # no mrtk relay for a browser input
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        with _ingest(client, started_at) as ingest:
+            data = _nmea_epochs(5)
+            for i in range(0, len(data), 100):  # arbitrary chunks, as Web Serial reads
+                ingest.send_bytes(data[i : i + 100])
+            epochs = _receive_until(ws, lambda m: m["type"] == "epochs")["epochs"]
+            assert epochs[0]["Q"] == 1
+            status = _receive_until(ws, lambda m: m["type"] == "status" and m["bytes_total"])
+            assert status["connected"] and status["kind"] == "browser"
+        # The page closed the socket (tab closed, port unplugged): session over.
+        ended = _receive_until(ws, lambda m: m["type"] == "status" and m.get("exited"))
+        assert ended["state"] == "stopped" and not ended["running"]
+    history = client.get("/api/stream-monitor/status").json()
+    assert history["state"] == "stopped"
+
+
+def test_browser_session_log_is_replayed(relay, client):
+    started_at = _start_browser(client)
+    with _ingest(client, started_at):
+        with client.websocket_connect("/api/stream-monitor/ws") as ws:
+            history = json.loads(ws.receive_text())
+            assert history["type"] == "history"
+            assert any("Waiting for the browser" in line for line in history["logs"])
+    client.post("/api/stream-monitor/stop")
+
+
+def test_stop_closes_the_browser_socket(relay, client):
+    started_at = _start_browser(client)
+    with _ingest(client, started_at) as ingest:
+        ingest.send_bytes(_nmea_epochs(1))
+        assert client.post("/api/stream-monitor/stop").json()["state"] == "stopped"
+        with pytest.raises(WebSocketDisconnect) as closed:
+            ingest.receive_bytes()
+        assert closed.value.code == 1000
+
+
+@pytest.mark.parametrize("case", ["no session", "wrong session", "second page", "bad stream"])
+def test_ingest_refuses(relay, client, case):
+    if case == "no session":
+        url = "/api/stream-monitor/ingest?stream=a&session=x"
+    elif case == "bad stream":
+        url = "/api/stream-monitor/ingest?stream=z&session=x"
+    else:
+        started_at = _start_browser(client)
+        url = f"/api/stream-monitor/ingest?stream=a&session={started_at}"
+        if case == "wrong session":
+            url = "/api/stream-monitor/ingest?stream=a&session=2000-01-01T00:00:00"
+    try:
+        if case == "second page":
+            with client.websocket_connect(url):
+                with client.websocket_connect(url) as second:
+                    with pytest.raises(WebSocketDisconnect) as closed:
+                        second.receive_bytes()
+                    assert closed.value.code == 1008
+        else:
+            with client.websocket_connect(url) as ws:
+                with pytest.raises(WebSocketDisconnect) as closed:
+                    ws.receive_bytes()
+                assert closed.value.code == 1008
+    finally:
+        client.post("/api/stream-monitor/stop")
+
+
+def test_browser_session_without_data_times_out(relay, client, monkeypatch):
+    monkeypatch.setattr(sms, "INGEST_TIMEOUT_S", 0.3)
+    _start_browser(client)
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        ended = _receive_until(ws, lambda m: m["type"] == "status" and m.get("exited"))
+    assert ended["state"] == "error"
+    assert "did not send" in ended["error_message"]
+
+
+def test_oversized_ingest_message_ends_the_session(relay, client):
+    started_at = _start_browser(client)
+    with _ingest(client, started_at) as ingest:
+        ingest.send_bytes(b"\0" * 70000)
+        with pytest.raises(WebSocketDisconnect) as closed:
+            ingest.receive_bytes()
+        assert closed.value.code == 1009
+    assert client.get("/api/stream-monitor/status").json()["state"] == "stopped"
+
+
+def test_browser_and_relay_streams_side_by_side(relay, client):
+    started_at = _start_browser(client, "b")
+    client.post("/api/stream-monitor/start", json={"input": {"type": "tcpcli", "path": "x:1"}})
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        with _ingest(client, started_at, "b") as ingest:
+            ingest.send_bytes(_nmea_epochs(3))
+            _receive_until(ws, lambda m: m["type"] == "epochs", stream="b")
+            _receive_until(ws, lambda m: m["type"] == "epochs", stream="a")
+    assert client.get("/api/stream-monitor/status?stream=b").json()["state"] == "stopped"
+    assert client.get("/api/stream-monitor/status?stream=a").json()["running"]
+    client.post("/api/stream-monitor/stop")

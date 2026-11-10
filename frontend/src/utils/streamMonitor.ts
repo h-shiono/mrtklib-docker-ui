@@ -94,8 +94,9 @@ export function inputLight(status: MonitorStatus | null, state: MonitorState, li
   }
   if (live && status) {
     if (status.bytes_per_sec > 0) return { label: 'RECEIVING', color: STATUS_COLOR.ok, dimmed: false };
-    return status.connected
-      ? { label: 'NO DATA', color: STATUS_COLOR.warn, dimmed: false }
+    if (status.connected) return { label: 'NO DATA', color: STATUS_COLOR.warn, dimmed: false };
+    return status.kind === 'browser'
+      ? { label: 'WAITING FOR BROWSER', color: STATUS_COLOR.starting, dimmed: false }
       : { label: 'STARTING RELAY', color: STATUS_COLOR.starting, dimmed: false };
   }
   if (state === 'error') return { label: 'ERROR', color: STATUS_COLOR.error, dimmed: false };
