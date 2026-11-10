@@ -39,7 +39,7 @@ export function StreamPathHelp() {
             </div>
           ))}
           <Text size="xs" c="dimmed" mt={4} style={{ fontSize: FONT_SIZE.label }}>
-            Stream Monitor only: <Code style={{ fontSize: FONT_SIZE.label }}>Browser serial</Code> opens
+            Monitor only: <Code style={{ fontSize: FONT_SIZE.label }}>Browser serial</Code> opens
             a serial or USB port on the computer running this browser (Chrome or Edge, page on
             localhost or https), so Docker needs no USB access. The port is chosen on Start;
             closing the tab ends the stream.

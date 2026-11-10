@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed
+- Stream Relay is renamed **Streams** and Stream Monitor **Monitor** in the
+  header; both pages work as before. Streams now shows, for the selected
+  stream, its messages, its receiver's settings, a command console and the
+  relay log.
+
 ## [0.4.8-alpha] - 2026-11-10
 
 No configuration change is needed to upgrade from 0.4.7-alpha. Two things

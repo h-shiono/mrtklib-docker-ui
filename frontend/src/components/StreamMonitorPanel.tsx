@@ -93,7 +93,7 @@ function MonitorHelp() {
     <Popover opened={opened} onClose={close} position="bottom-start" width={380} shadow="md" withArrow>
       <Popover.Target>
         <ActionIcon size={14} variant="subtle" color="gray" radius="xl" onClick={toggle}
-          aria-label="About the Stream Monitor"
+          aria-label="About the Monitor"
         >
           <IconQuestionMark size={10} />
         </ActionIcon>
@@ -489,7 +489,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
           <Group justify="space-between" mb="xs" wrap="nowrap">
             <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
               {onToggleConfig && <ConfigCollapseButton onClick={onToggleConfig} />}
-              <Title order={6} size="sm">Stream Monitor</Title>
+              <Title order={6} size="sm">Monitor</Title>
               <MonitorHelp />
             </Group>
             <Group gap="xs" wrap="nowrap">

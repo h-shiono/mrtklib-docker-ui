@@ -338,7 +338,9 @@ export function SbfOutputEditor({ model, settings, port, canSend, busy, apply, o
               <Table.Tr>
                 <Table.Td colSpan={2}>
                   <Text c="dimmed" style={{ fontSize: FONT_SIZE.label }}>
-                    {settings.sbfOutputs.length === 0 ? 'Reading the SBF output…' : 'No SBF stream is on. Load a preset or add a stream.'}
+                    {settings.sbfOutputs.length === 0
+                      ? 'No SBF output read from the receiver yet (Septentrio receivers). Read it with ⟳, or load a preset.'
+                      : 'No SBF stream is on. Load a preset or add a stream.'}
                   </Text>
                 </Table.Td>
               </Table.Tr>

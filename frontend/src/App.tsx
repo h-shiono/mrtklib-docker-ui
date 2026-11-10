@@ -69,6 +69,7 @@ import { useElementSize, useLocalStorage } from '@mantine/hooks';
 import { WorkspaceTabBar } from './components/common/WorkspaceTabBar';
 import type { ViewMode } from './components/viewer';
 import { LogView } from './components/common/LogView';
+import { StreamWorkspace } from './components/StreamWorkspace';
 import { useUnseenErrors } from './hooks/useUnseenErrors';
 
 function ColorSchemeToggle() {
@@ -760,6 +761,9 @@ const PATH_PLACEHOLDER_FOR_TYPE: Record<StreamType, string> = {
 };
 
 const MAX_RELAY_LOG_LINES = 500;
+/** mrtk relay: one input and four outputs (MAXSTR 5). With four, the
+ *  message tap shares a TCP Server output, or the stream has none (#136). */
+const MAX_RELAY_OUTPUTS = 4;
 
 const RELAY_STATE_TO_STATUS: Record<string, RelayStream['status']> = {
   idle: 'idle', starting: 'running', running: 'running',
@@ -1100,7 +1104,13 @@ function MultiStreamPanel() {
           <ScrollArea style={{ flex: 1 }} offsetScrollbars>
             <Stack gap="xs">
               {streams.map((stream) => (
-                <Card key={stream.id} withBorder p="xs" style={{ borderColor: activeStreamId === stream.id ? 'var(--mantine-color-blue-5)' : undefined }}>
+                <Card
+                  key={stream.id}
+                  withBorder
+                  p="xs"
+                  onClick={() => setActiveStreamId(stream.id)}
+                  style={{ borderColor: activeStreamId === stream.id ? 'var(--mantine-color-blue-5)' : undefined }}
+                >
                   <Stack gap="xs">
                     <StreamCardHeader
                       name={stream.name}
@@ -1112,7 +1122,10 @@ function MultiStreamPanel() {
                       removeDisabled={streams.length <= 1 || stream.status === 'running'}
                       onStart={() => handleStartStream(stream.id)}
                       onStop={() => handleStopStream(stream.id)}
-                      onRemove={() => handleRemoveStream(stream.id)}
+                      onRemove={(e) => {
+                        e.stopPropagation(); // the card would select this stream again
+                        handleRemoveStream(stream.id);
+                      }}
                     />
 
 
@@ -1139,13 +1152,13 @@ function MultiStreamPanel() {
                     <FormRow
                       label={<Group gap={4} wrap="nowrap">Outputs<StreamPathHelp /></Group>}
                       align="flex-start"
-                      trailing={<ActionIcon variant="light" color="blue" size="xs" onClick={() => handleAddOutput(stream.id)} aria-label="Add output"> <IconPlus size={10} /> </ActionIcon>}
+                      trailing={<ActionIcon variant="light" color="blue" size="xs" onClick={() => handleAddOutput(stream.id)} disabled={stream.outputs.length >= MAX_RELAY_OUTPUTS} title={stream.outputs.length >= MAX_RELAY_OUTPUTS ? 'mrtk relay takes up to four outputs' : undefined} aria-label="Add output"> <IconPlus size={10} /> </ActionIcon>}
                     >
                       <Stack gap={6}>
-                        {/* No outputs: the relay only receives, to check the input (the server discards the data) */}
+                        {/* No outputs: the relay only receives, to check the input and show its messages */}
                         {stream.outputs.length === 0 && (
                           <Text c="dimmed" style={{ fontSize: FONT_SIZE.label, lineHeight: `${FORM_ROW_HEIGHT}px` }}>
-                            None: receive only. Checks the input; the data is not kept.
+                            None: receive only. Shows the messages; the data is not kept.
                           </Text>
                         )}
                         {stream.outputs.map((output) => (
@@ -1176,60 +1189,21 @@ function MultiStreamPanel() {
         </Card>
       </Grid.Col>
 
-      {/* Right Pane: Console */}
+      {/* Right Pane: the selected stream's messages, receiver, console and log (#136) */}
       <Grid.Col span={{ base: 12, md: 6 }} h={{ base: 'auto', md: '100%' }}>
         <Card withBorder p={0} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <Tabs
-            value={activeStreamId}
-            onChange={(v) => { if (v) setActiveStreamId(v); }}
-            keepMounted={false}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
-          >
-            <Group
-              justify="space-between"
-              wrap="nowrap"
-              px="sm"
-              style={{
-                backgroundColor: 'var(--app-surface)',
-                borderBottom: '1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-6))',
-                flexShrink: 0,
-              }}
-            >
-              <Tabs.List style={{ borderBottom: 'none', flexWrap: 'nowrap' }}>
-                {streams.map((stream) => (
-                  <Tabs.Tab
-                    key={stream.id}
-                    value={stream.id}
-                    leftSection={
-                      <Box
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          backgroundColor: statusDotColor(stream.status),
-                        }}
-                      />
-                    }
-                    style={{ fontSize: FONT_SIZE.label, padding: '6px 10px' }}
-                  >
-                    {stream.name}
-                  </Tabs.Tab>
-                ))}
-              </Tabs.List>
-            </Group>
-
-            {streams.map((stream) => (
-              <Tabs.Panel key={stream.id} value={stream.id} style={{ flex: 1, minHeight: 0 }}>
-                <LogView
-                  lines={stream.logLines}
-                  wrap
-                  severity
-                  running={stream.status === 'running'}
-                  cap={MAX_RELAY_LOG_LINES}
-                />
-              </Tabs.Panel>
-            ))}
-          </Tabs>
+          <StreamWorkspace
+            streams={streams.map((s) => ({
+              id: s.id,
+              name: s.name,
+              running: s.status === 'running',
+              processId: s.processId,
+              logLines: s.logLines,
+              logCap: MAX_RELAY_LOG_LINES,
+            }))}
+            activeId={activeStreamId}
+            onSelect={setActiveStreamId}
+          />
         </Card>
       </Grid.Col>
     </Grid>
@@ -1273,8 +1247,8 @@ const PRIMARY_MODES = [
 const isConverter = (id: string): id is ConvertTool => id === 'convbin' || id === 'hatanaka';
 
 const SECONDARY_VIEWS = [
-  { value: 'stream-relay', label: 'Stream Relay' },
-  { value: 'stream-monitor', label: 'Stream Monitor' },
+  { value: 'stream-relay', label: 'Streams' },
+  { value: 'stream-monitor', label: 'Monitor' },
   { value: 'tools', label: 'Tools' },
 ] as const;
 
@@ -1452,7 +1426,7 @@ function App() {
           <Tabs.List grow>
             <Tabs.Tab value="post-processing">Post</Tabs.Tab>
             <Tabs.Tab value="realtime">RT</Tabs.Tab>
-            <Tabs.Tab value="stream-relay">Relay</Tabs.Tab>
+            <Tabs.Tab value="stream-relay">Streams</Tabs.Tab>
             <Tabs.Tab value="stream-monitor">Monitor</Tabs.Tab>
             <Tabs.Tab value="tools">Tools</Tabs.Tab>
           </Tabs.List>
