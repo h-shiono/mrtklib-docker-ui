@@ -266,3 +266,19 @@ def test_rate_is_scaled_or_absent_for_files():
     log.add(_frame(nmea("GNGGA,1")))
     assert log.summary(10.0)[0]["rate"] == 0.1
     assert log.summary(None)[0]["rate"] is None
+
+
+def test_ack_and_mon_ver_summaries_and_replies():
+    from mrtklib_web_ui.services.stream_decoders.messages import is_reply
+
+    ack = _frame(ubx(0x05, 0x01, bytes((0x06, 0x8A))))
+    nak = _frame(ubx(0x05, 0x00, bytes((0x06, 0x8A))))
+    assert summary(ack) == "ACK for UBX-CFG-VALSET"
+    assert summary(nak) == "NAK for UBX-CFG-VALSET"
+    ver = _frame(ubx(0x0A, 0x04, b"HPG 1.51".ljust(30, b"\0") + b"00190000".ljust(10, b"\0")
+                     + b"PROTVER=27.50".ljust(30, b"\0")))
+    assert summary(ver) == "HPG 1.51  00190000  PROTVER=27.50"
+    assert is_reply(ack) and is_reply(ver)
+    assert not is_reply(_frame(nmea("GNGGA,1")))
+    assert is_reply(Frame("reply", b"$R: x\r\nUSB1>", "Septentrio reply"))
+

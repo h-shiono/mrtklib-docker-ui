@@ -1,4 +1,4 @@
-"""Split one receiver byte stream into NMEA / UBX / SBF / RTCM3 / text frames.
+"""Split one receiver byte stream into NMEA / UBX / SBF / RTCM3 / reply / text frames.
 
 Receivers commonly mix protocols on one port (u-blox: UBX + NMEA, Septentrio:
 SBF + NMEA), and relay outputs may carry RTCM3 too. Binary frames are only
@@ -9,6 +9,12 @@ payload is never scanned for syncs.
 
 A candidate whose declared length exceeds `MAX_FRAME` is treated as a false
 sync, so it cannot stall the parser waiting for bytes that never come.
+
+Septentrio ASCII output (command replies `$R:` / `$R;` / `$R?`, transmissions
+`$TD` / `$TE`, formatted blocks `$--`) is a `reply` frame: it runs up to the
+prompt that ends it (`USB1>`, `COM1>`, `IP10>`, `STOP>`, or the pseudo-prompt
+`---->`), and must stay printable. Replies are atomic on the receiver side, so
+binary data cannot interleave inside one.
 """
 
 from __future__ import annotations
@@ -22,12 +28,30 @@ from mrtklib_web_ui.services.stream_decoders.names import SBF_NAMES, UBX_NAMES
 MAX_FRAME = 16384
 MAX_LINE = 512  # NMEA allows 82; proprietary sentences and .pos lines are longer
 _MAX_BUFFER = 1 << 20
+MAX_REPLY = 65536  # a long lst reply (configuration file) still fits
 _MAX_NMEA_LABEL = 16  # a checksummed line without a comma must not become a huge label
 
 # Bytes that can start a frame: UBX µ, RTCM3 0xD3, '$' (NMEA / SBF '$@'),
 # '%' (RTKLIB solution header) and digits (RTKLIB solution rows).
 _CANDIDATE = re.compile(rb"[\xb5\xd3$%0-9]")
 _PRINTABLE = frozenset(range(0x20, 0x7F)) | {0x09}
+_REPLY_BYTES = bytes(sorted(_PRINTABLE | {0x0A, 0x0D}))
+# Two characters after '$' that start Septentrio ASCII output, and its label.
+SEPTENTRIO_REPLY_LABELS = {
+    b"R:": "Septentrio reply",
+    b"R;": "Septentrio reply",
+    b"R?": "Septentrio error",
+    b"TD": "Septentrio $TD",
+    b"TE": "Septentrio $TE",
+    b"--": "Septentrio block",
+}
+# A line break, then the prompt of a connection (COM1, USB1, IP10, IPS1, NTR1,
+# BT10, ...), STOP after a reset command, or the pseudo-prompt between blocks.
+_PROMPT = re.compile(rb"\r?\n(?P<prompt>[A-Z]{2,4}[0-9]{1,2}|STOP|----)>")
+# Binary, or a line starting with '$' (the next sentence: replies never have
+# one; lst blocks are frames of their own). Either way this is not a reply,
+# and a false "$R:" in an NMEA stream cannot hold the stream for 64 KiB.
+_NOT_REPLY = re.compile(rb"[^" + re.escape(_REPLY_BYTES) + rb"]|\n\$")
 
 
 @dataclass
@@ -163,6 +187,8 @@ class Framer:
                 res = self._try_rtcm3(pos)
             elif b0 == 0x24 and pos + 1 < n and buf[pos + 1] == 0x40:
                 res = self._try_sbf(pos)
+            elif b0 == 0x24 and (pos + 2 >= n or bytes(buf[pos + 1 : pos + 3]) in SEPTENTRIO_REPLY_LABELS):
+                res = self._try_reply(pos, eof)
             elif b0 == 0x24:
                 res = self._try_line(pos, nmea=True, eof=eof)
             else:
@@ -212,6 +238,28 @@ class Framer:
             self.bad_frames += 1
             return _NO
         return Frame("sbf", bytes(buf[pos:end]), _sbf_label(bid & 0x1FFF)), end
+
+    def _try_reply(self, pos: int, eof: bool):
+        """Septentrio ASCII output, up to and including its prompt."""
+        buf = self._buf
+        n = len(buf)
+        if pos + 2 >= n:
+            return _NO if eof else _NEED_MORE  # too short to tell yet
+        head = bytes(buf[pos + 1 : pos + 3])
+        if head not in SEPTENTRIO_REPLY_LABELS:
+            return self._try_line(pos, nmea=True, eof=eof)
+        limit = min(n, pos + MAX_REPLY)
+        window = bytes(buf[pos:limit])
+        end_m = _PROMPT.search(window)
+        bad = _NOT_REPLY.search(window, 0, end_m.end() if end_m else len(window))
+        if bad is not None:
+            return _NO  # binary inside: not a reply (or one cut off)
+        if end_m is None:
+            if limit - pos >= MAX_REPLY or eof:
+                return _NO
+            return _NEED_MORE
+        end = pos + end_m.end()
+        return Frame("reply", bytes(buf[pos:end]), SEPTENTRIO_REPLY_LABELS[head]), end
 
     def _try_rtcm3(self, pos: int):
         buf = self._buf

@@ -112,3 +112,70 @@ def test_flush_drops_an_incomplete_binary_frame():
     block = sbf(4013, sbf_tow(0, 1) + b"\x00" * 30)
     assert f.feed(block[:-4]) == []
     assert f.flush() == [] and f.unknown_bytes == len(block) - 4
+
+
+# ── Septentrio ASCII replies (#136) ─────────────────────────────────────────
+
+ACK = b"$R: setNMEAOutput, stream1, com1, GGA, sec1\r\n  NMEAOutput, Stream1, COM1, GGA, sec1\r\nCOM1>"
+
+
+def _reply_frames(data: bytes, step: int = 0):
+    f = Framer()
+    out = []
+    if step:
+        for i in range(0, len(data), step):
+            out += f.feed(data[i : i + step])
+    else:
+        out = f.feed(data)
+    return f, out + f.flush()
+
+
+def test_septentrio_replies_run_to_their_prompt():
+    data = (
+        ACK
+        + b"$R? setFoo: Invalid command!\r\nUSB1>"
+        + b"$R; lstConfigFile, Current\r\n---->"
+        + b"$-- BLOCK 1 / 1\r\nsetSBFOutput, Stream1, USB1, Support, sec1\r\nIP10>"
+        + b"$TE ResetReceiver\r\nSTOP>"
+    )
+    for step in (0, 1, 7):
+        f, frames = _reply_frames(data, step)
+        assert [(x.kind, x.label) for x in frames] == [
+            ("reply", "Septentrio reply"),
+            ("reply", "Septentrio error"),
+            ("reply", "Septentrio reply"),
+            ("reply", "Septentrio block"),
+            ("reply", "Septentrio $TE"),
+        ]
+        assert frames[0].data == ACK and f.unknown_bytes == 0 and f.bad_frames == 0
+
+
+def test_reply_between_binary_frames():
+    block = sbf(4007, sbf_tow(1000, 2409) + bytes(80))
+    f, frames = _reply_frames(block + ACK + nmea("GNGGA,1") + block, step=5)
+    assert [x.kind for x in frames] == ["sbf", "reply", "nmea", "sbf"]
+
+
+def test_reply_bytes_inside_an_sbf_block_stay_in_the_block():
+    block = sbf(4007, sbf_tow(1000, 2409) + b"$R: x\r\nUSB1>" + bytes(68))
+    f, frames = _reply_frames(block)
+    assert [x.kind for x in frames] == ["sbf"]
+
+
+def test_binary_inside_a_would_be_reply_rejects_it():
+    f, frames = _reply_frames(b"$R: abc\x00\xff\r\nUSB1>" + nmea("GNGGA,1"))
+    assert [x.kind for x in frames] == ["text", "nmea"]  # the prompt line is text
+    assert f.unknown_bytes > 0
+
+
+def test_a_false_reply_does_not_hold_back_the_next_sentence():
+    f = Framer()
+    frames = f.feed(b"$R: not a reply\r\n" + nmea("GNGGA,1"))
+    assert [x.kind for x in frames if x.kind == "nmea"] == ["nmea"]
+
+
+def test_reply_waits_for_its_prompt_and_is_dropped_at_eof():
+    f = Framer()
+    assert f.feed(b"$R: setFoo\r\n  Foo, 1\r\n") == []
+    assert all(x.kind != "reply" for x in f.flush())  # no prompt: never a reply
+

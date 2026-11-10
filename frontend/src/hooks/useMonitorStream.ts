@@ -10,6 +10,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useLocalStorage } from '@mantine/hooks';
 import {
   streamMonitorApi,
+  type MonitorConsoleEntry,
   type MonitorEpoch,
   type MonitorInputType,
   type MonitorMessage,
@@ -32,6 +33,13 @@ import { mergeMessageRows } from '../utils/streamMessages';
 /** Same cap as the backend history (HISTORY_EPOCHS, 1 Hz → one hour). */
 const MAX_EPOCHS = 3600;
 const MAX_LOG_LINES = 500;
+/** Same cap as the backend (CONSOLE_MAX). */
+const MAX_CONSOLE = 300;
+/** How long a command may take to answer before the next one is sent. */
+export const REPLY_TIMEOUT_MS = 5000;
+
+/** Labels of replies that answer a command (not $TD / $TE / blocks). */
+const ANSWERS = new Set(['Septentrio reply', 'Septentrio error', 'UBX ACK-ACK', 'UBX ACK-NAK', 'UBX CFG-VALGET', 'UBX MON-VER']);
 
 /** The form's input types: the server's, and `relay`, a running Stream Relay
  *  relay's TCP server output, read as a TCP client (#192). */
@@ -95,6 +103,11 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
   const [messageNow, setMessageNow] = useState(0);
   const [messageLabel, setMessageLabel] = useState<string | null>(null);
   const [messageRows, setMessageRows] = useState<MonitorMessageRow[]>([]);
+  // Receiver console (#136). Kept after the session ends, so the last
+  // replies stay readable; a new session clears it.
+  const [consoleEntries, setConsoleEntries] = useState<MonitorConsoleEntry[]>([]);
+  // Commands waiting for their answer, oldest first.
+  const waitersRef = useRef<((entry: MonitorConsoleEntry | null) => void)[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
 
@@ -130,6 +143,7 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
         setMessageTypes(msg.messages?.types ?? []);
         setMessageNow(msg.messages?.now ?? 0);
         setLogLines((msg.logs ?? []).reduce(appendLog, [] as string[]));
+        if (msg.console?.length) setConsoleEntries(msg.console.slice(-MAX_CONSOLE));
         sessionRef.current = undefined;
         break;
       case 'status':
@@ -141,6 +155,7 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
         ) {
           clearData();
           setLogLines([]);
+          setConsoleEntries([]);
         }
         sessionRef.current = msg.started_at;
         setStatus(msg);
@@ -158,6 +173,12 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
       case 'log':
         setLogLines((prev) => appendLog(prev, msg.message));
         break;
+      case 'console': {
+        const entry = msg.entry;
+        setConsoleEntries((prev) => [...prev.slice(-(MAX_CONSOLE - 1)), entry]);
+        if (entry.dir === 'rx' && ANSWERS.has(entry.label)) waitersRef.current.shift()?.(entry);
+        break;
+      }
       case 'messages':
         setMessageTypes(msg.types);
         setMessageNow(msg.now);
@@ -173,6 +194,31 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
     setMessageLabel(label);
     setMessageRows([]);
   };
+
+  /** Send one command and wait for the receiver's answer (null on timeout).
+   *  Throws if the server refuses it (not running, a file, ...). */
+  const sendCommand = useCallback(async (
+    command: { line: string } | { hex: string },
+    timeoutMs = REPLY_TIMEOUT_MS,
+  ): Promise<MonitorConsoleEntry | null> => {
+    let resolve: (entry: MonitorConsoleEntry | null) => void = () => {};
+    const answer = new Promise<MonitorConsoleEntry | null>((r) => { resolve = r; });
+    waitersRef.current.push(resolve);
+    const timer = setTimeout(() => {
+      waitersRef.current = waitersRef.current.filter((w) => w !== resolve);
+      resolve(null);
+    }, timeoutMs);
+    try {
+      await streamMonitorApi.send(id, command);
+    } catch (err) {
+      clearTimeout(timer);
+      waitersRef.current = waitersRef.current.filter((w) => w !== resolve);
+      throw err;
+    }
+    const entry = await answer;
+    clearTimeout(timer);
+    return entry;
+  }, [id]);
 
   const running = !!status?.running;
   const state: MonitorState = submitting && !running ? 'starting' : status?.state ?? 'idle';
@@ -247,7 +293,7 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
     fileSpeed, setFileSpeed,
     clasSource, setClasSource,
     // session
-    status, epochs, sats, logLines,
+    status, epochs, sats, logLines, consoleEntries, sendCommand,
     messageTypes, messageNow, messageLabel, messageRows,
     requestError, submitting, running, state,
     busy: running || submitting,
