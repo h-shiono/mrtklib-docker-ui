@@ -15,6 +15,8 @@ export interface ProcessStatus {
   error_message: string | null;
   /** Command line arguments, with credentials masked */
   args: string[];
+  /** Browser serial input: what the page shows /browser/ingest (start only) */
+  browser_token?: string | null;
 }
 
 /** A relay started from the Stream Relay view, with its recent log */
@@ -28,6 +30,16 @@ export interface StartRequest {
   process_id?: string;
   /** Stream name, returned by listStreams() after a page reload */
   name?: string;
+  /** Browser serial input (#136): the name of the port the page opened; the
+   *  server provides the relay's input. */
+  browser_input?: string;
+}
+
+/** Where the page sends the bytes of a Browser serial stream. */
+export function browserIngestUrl(processId: string, token: string): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const query = new URLSearchParams({ process_id: processId, token });
+  return `${protocol}//${window.location.host}${API_BASE}/browser/ingest?${query}`;
 }
 
 export interface StopRequest {

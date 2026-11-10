@@ -51,11 +51,12 @@ const VENDORS: Record<number, string> = { 0x1546: 'u-blox' };
 
 const hex4 = (n: number) => n.toString(16).toUpperCase().padStart(4, '0');
 
-/** "u-blox 1546:01A9 @115200": a name for the port in the status and logs. */
+/** "u-blox 1546:01A9, 115200 baud": a name for the port in the status and
+ *  logs. No "@": "a:b@" reads as credentials and would be masked. */
 export function serialPortLabel(info: SerialPortInfo, baud: string): string {
-  if (info.usbVendorId === undefined) return `serial port @${baud}`;
+  if (info.usbVendorId === undefined) return `serial port, ${baud} baud`;
   const ids = `${hex4(info.usbVendorId)}:${hex4(info.usbProductId ?? 0)}`;
-  return `${VENDORS[info.usbVendorId] ?? 'USB'} ${ids} @${baud}`;
+  return `${VENDORS[info.usbVendorId] ?? 'USB'} ${ids}, ${baud} baud`;
 }
 
 /** The user closed the port picker without choosing: not an error. */

@@ -70,6 +70,10 @@ import { WorkspaceTabBar } from './components/common/WorkspaceTabBar';
 import type { ViewMode } from './components/viewer';
 import { LogView } from './components/common/LogView';
 import { StreamWorkspace } from './components/StreamWorkspace';
+import { BAUD_RATES, BrowserSerialSession, DEFAULT_BAUD, isPickerCancelled, webSerialAvailable } from './utils/webSerial';
+
+/** Web Serial works in this browser and page (Chrome / Edge, localhost or https). */
+const BROWSER_SERIAL_AVAILABLE = webSerialAvailable();
 import { useUnseenErrors } from './hooks/useUnseenErrors';
 
 function ColorSchemeToggle() {
@@ -743,8 +747,14 @@ const STREAM_TYPE_OPTIONS = [
   { value: 'ntripcli', label: 'NTRIP' },
   { value: 'file', label: 'File' },
 ];
+/** Inputs also take a serial port this page opens (Web Serial, #136). */
+const INPUT_TYPE_OPTIONS = [
+  ...STREAM_TYPE_OPTIONS,
+  { value: 'browser', label: 'Browser serial', disabled: !BROWSER_SERIAL_AVAILABLE },
+];
 
 const DEFAULT_PATH_FOR_TYPE: Record<StreamType, string> = {
+  browser: DEFAULT_BAUD,
   serial: 'ttyUSB0:115200',
   tcpcli: '192.168.1.100:2101',
   tcpsvr: ':2101',
@@ -753,6 +763,7 @@ const DEFAULT_PATH_FOR_TYPE: Record<StreamType, string> = {
 };
 
 const PATH_PLACEHOLDER_FOR_TYPE: Record<StreamType, string> = {
+  browser: '',
   serial: 'ttyUSB0:115200',
   tcpcli: '192.168.1.100:2101',
   tcpsvr: ':2101',
@@ -792,7 +803,9 @@ function isPristineRelayStream(s: RelayStream): boolean {
 
 /** Rebuild a stream card for a relay the backend runs but this page did not start */
 function adoptRelayStream(r: mrtkRelayApi.RelayStreamInfo): RelayStream {
-  const { input, outputs = [] } = parseRelayArgs(r.args);
+  const { input: parsed, outputs = [] } = parseRelayArgs(r.args);
+  // A Browser serial input is shown by its port's name; the form keeps a baud rate.
+  const input = parsed?.type === 'browser' ? { ...parsed, path: DEFAULT_BAUD } : parsed;
   return {
     id: randomUUID(),
     name: r.name,
@@ -857,6 +870,9 @@ function MultiStreamPanel() {
 
   // Ref for process-id-to-stream-id mapping (avoids re-creating WS callback)
   const processMapRef = useRef<Map<string, string>>(new Map());
+  // Serial ports this page opened for Browser serial streams, by card id.
+  // Each runs on its own: leaving the page keeps it sending until it stops.
+  const serialRef = useRef<Map<string, BrowserSerialSession>>(new Map());
 
   // Keep processMapRef in sync
   useEffect(() => {
@@ -949,10 +965,38 @@ function MultiStreamPanel() {
       return;
     }
 
+    // A Browser serial input opens its port first: the picker needs this
+    // click's user activation, so nothing may be awaited before it (L31).
+    let serial: BrowserSerialSession | null = null;
+    if (stream.input.type === 'browser') {
+      try {
+        serial = await BrowserSerialSession.open(stream.input.path, (reason) => {
+          serialRef.current.delete(id);
+          if (reason) {
+            setStreams((prev) => prev.map((s) => (s.id === id
+              ? { ...s, logLines: [...s.logLines, `[ERROR] ${reason}`].slice(-MAX_RELAY_LOG_LINES) } : s)));
+          }
+        });
+      } catch (err) {
+        if (!isPickerCancelled(err)) {
+          updateStream(id, { status: 'error', logLines: [...stream.logLines, `[ERROR] ${err instanceof Error ? err.message : String(err)}`] });
+        }
+        return;
+      }
+    }
+
     setLoadingIds((prev) => new Set(prev).add(id));
     try {
       const args = buildArgs(stream);
-      const result = await mrtkRelayApi.startRelay({ args, name: stream.name });
+      const result = await mrtkRelayApi.startRelay({
+        args,
+        name: stream.name,
+        ...(serial ? { browser_input: serial.label } : {}),
+      });
+      if (serial) {
+        serialRef.current.set(id, serial);
+        serial.attach(mrtkRelayApi.browserIngestUrl(result.id, result.browser_token ?? ''));
+      }
       localChangeAtRef.current.set(result.id, performance.now());
       const receiveOnly = stream.outputs.length === 0 ? ', receive only' : '';
       // A file output that would overwrite an existing file is numbered
@@ -967,6 +1011,7 @@ function MultiStreamPanel() {
         logLines: [`[INFO] Started (${result.id}${receiveOnly})`, ...numbered],
       });
     } catch (err) {
+      void serial?.close();
       updateStream(id, { status: 'error', logLines: [...stream.logLines, `[ERROR] ${err instanceof Error ? err.message : 'Failed to start'}`] });
     } finally {
       setLoadingIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
@@ -982,6 +1027,7 @@ function MultiStreamPanel() {
       await mrtkRelayApi.stopRelay({ process_id: stream.processId });
       localChangeAtRef.current.set(stream.processId, performance.now());
       updateStream(id, { status: 'idle', processId: null });
+      void serialRef.current.get(id)?.close();  // the server closes its socket too
     } catch (err) {
       updateStream(id, { logLines: [...stream.logLines, `[ERROR] ${err instanceof Error ? err.message : 'Failed to stop'}`] });
     } finally {
@@ -1135,16 +1181,30 @@ function MultiStreamPanel() {
                         <Select
                           value={stream.input.type}
                           onChange={(v) => handleInputTypeChange(stream.id, v as StreamType)}
-                          data={STREAM_TYPE_OPTIONS}
+                          data={INPUT_TYPE_OPTIONS}
                           style={{ width: 120, flexShrink: 0 }}
                         />
-                        <MaskedPathInput
-                          value={stream.input.path}
-                          onChange={(v) => handleInputPathChange(stream.id, v)}
-                          placeholder={PATH_PLACEHOLDER_FOR_TYPE[stream.input.type]}
-                          styles={{ input: { fontFamily: MONO } }}
-                          style={{ flex: 1, minWidth: 0 }}
-                        />
+                        {stream.input.type === 'browser' ? (
+                          // The port is picked on Start; only the baud rate is set here.
+                          <Select
+                            aria-label="Baud rate"
+                            value={BAUD_RATES.includes(stream.input.path) ? stream.input.path : DEFAULT_BAUD}
+                            onChange={(v) => v && handleInputPathChange(stream.id, v)}
+                            data={BAUD_RATES.map((b) => ({ value: b, label: `${b} baud` }))}
+                            allowDeselect={false}
+                            title="The port is chosen when you press Start"
+                            styles={{ input: { fontFamily: MONO } }}
+                            style={{ flex: 1, minWidth: 0 }}
+                          />
+                        ) : (
+                          <MaskedPathInput
+                            value={stream.input.path}
+                            onChange={(v) => handleInputPathChange(stream.id, v)}
+                            placeholder={PATH_PLACEHOLDER_FOR_TYPE[stream.input.type]}
+                            styles={{ input: { fontFamily: MONO } }}
+                            style={{ flex: 1, minWidth: 0 }}
+                          />
+                        )}
                       </Group>
                     </FormRow>
 
