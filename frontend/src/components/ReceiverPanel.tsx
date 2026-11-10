@@ -10,7 +10,7 @@
  * settings, saving to the boot configuration, and an expert console.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -42,17 +42,15 @@ import {
   readKeys,
   ubloxModelFromVersion,
   ubloxReadCommands,
-  ubloxSettings,
   valset,
+  type UbloxSettings,
 } from '../utils/ublox';
 import { STATUS_COLOR } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import {
-  EMPTY_SETTINGS,
   READ_COMMANDS,
   SAVE_COMMAND,
   SEPTENTRIO_MODELS,
-  applyReply,
   modelFromName,
   type SeptentrioModel,
   type SeptentrioSettings,
@@ -79,7 +77,9 @@ export interface ReceiverLink {
   note?: string | null;
   /** Changes with each new session: the panel reads the receiver again. */
   session: string | null;
-  consoleEntries: MonitorConsoleEntry[];
+  /** What the receiver reported in its replies (latest of each setting). */
+  septentrio: SeptentrioSettings;
+  ublox: UbloxSettings;
   /** Send one command; resolves with its answer (the first reply `accept`
    *  takes, if given), null after a timeout. */
   sendCommand: (
@@ -126,14 +126,8 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
   const [tab, setTab] = useState<string | null>('sbf');
 
   // Settings as the replies report them (reads, and every set-command's echo).
-  const settings = useMemo(
-    () => link.consoleEntries.reduce(
-      (acc, e) => (e.dir === 'rx' && e.text && e.label === 'Septentrio reply' ? applyReply(acc, e.text) : acc),
-      EMPTY_SETTINGS,
-    ),
-    [link.consoleEntries],
-  );
-  const ubx = useMemo(() => ubloxSettings(link.consoleEntries), [link.consoleEntries]);
+  const settings = link.septentrio;
+  const ubx = link.ublox;
   const detected: ReceiverModel | null = ublox ? ubloxModelFromVersion(ubx.version) : modelFromName(settings.rxName);
   const reportedName = ublox ? ubx.version : settings.rxName;
   const port = settings.port ?? 'USB1';

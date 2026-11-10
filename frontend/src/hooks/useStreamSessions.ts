@@ -9,6 +9,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { MonitorConsoleEntry, MonitorMessageRow, MonitorMessageType } from '../api/streamMonitor';
 import { streamSessionsApi, type SessionMessage, type SessionStatus } from '../api/streamSessions';
 import { mergeMessageRows } from '../utils/streamMessages';
+import { EMPTY_SETTINGS, applyReply, type SeptentrioSettings } from '../utils/septentrio';
+import { EMPTY_UBLOX, foldUblox, type UbloxSettings } from '../utils/ublox';
 
 /** Same cap as the backend (CONSOLE_MAX). */
 const MAX_CONSOLE = 300;
@@ -31,9 +33,25 @@ export interface SessionState {
   messageTypes: MonitorMessageType[];
   messageNow: number;
   consoleEntries: MonitorConsoleEntry[];
+  /** What the receiver reported in its replies, kept apart from the console
+   *  (capped): a setting read long ago is still known. */
+  septentrio: SeptentrioSettings;
+  ublox: UbloxSettings;
 }
 
-const EMPTY: SessionState = { status: null, messageTypes: [], messageNow: 0, consoleEntries: [] };
+const EMPTY: SessionState = {
+  status: null, messageTypes: [], messageNow: 0, consoleEntries: [], septentrio: EMPTY_SETTINGS, ublox: EMPTY_UBLOX,
+};
+
+/** The session's receiver reports after more console entries, in order. */
+function report(s: SessionState, entries: MonitorConsoleEntry[]): Pick<SessionState, 'septentrio' | 'ublox'> {
+  let { septentrio, ublox } = s;
+  for (const e of entries) {
+    if (e.dir === 'rx' && e.text && e.label === 'Septentrio reply') septentrio = applyReply(septentrio, e.text);
+    ublox = foldUblox(ublox, e);
+  }
+  return { septentrio, ublox };
+}
 
 /** The message type whose rows the page wants (its Messages tab is open). */
 export interface RowSubscription {
@@ -81,6 +99,8 @@ export function useStreamSessions(subscription: RowSubscription | null, keep: st
             messageTypes: msg.messages?.types ?? [],
             messageNow: msg.messages?.now ?? 0,
             consoleEntries: (msg.console ?? []).slice(-MAX_CONSOLE),
+            // Replayed on a reconnect: in order, so the latest still wins.
+            ...report(s, msg.console ?? []),
           }));
           break;
         case 'status':
@@ -116,7 +136,11 @@ export function useStreamSessions(subscription: RowSubscription | null, keep: st
         }
         case 'console': {
           const entry = msg.entry;
-          update(stream, (s) => ({ ...s, consoleEntries: [...s.consoleEntries.slice(-(MAX_CONSOLE - 1)), entry] }));
+          update(stream, (s) => ({
+            ...s,
+            consoleEntries: [...s.consoleEntries.slice(-(MAX_CONSOLE - 1)), entry],
+            ...report(s, [entry]),
+          }));
           if (entry.dir === 'rx') {
             const queue = waitersRef.current.get(stream) ?? [];
             const waiter = queue.find((w) => w.accept(entry));

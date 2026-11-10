@@ -174,16 +174,17 @@ export interface UbloxSettings {
 
 export const EMPTY_UBLOX: UbloxSettings = { values: new Map(), version: null };
 
-/** Fold the receiver's VALGET and MON-VER replies into the settings. */
-export function ubloxSettings(entries: MonitorConsoleEntry[]): UbloxSettings {
-  const values = new Map<number, number>();
-  let version: string | null = null;
-  for (const e of entries) {
-    if (e.dir !== 'rx' || !e.data) continue;
-    if (e.label === 'UBX CFG-VALGET') parseValget(e.data).forEach((v, k) => values.set(k, v));
-    else if (e.label === 'UBX MON-VER') version = e.summary ?? null;
+/** The settings after one more console entry: a VALGET reply's values, or
+ *  MON-VER's version (the same object when the entry reports neither). */
+export function foldUblox(acc: UbloxSettings, e: MonitorConsoleEntry): UbloxSettings {
+  if (e.dir !== 'rx' || !e.data) return acc;
+  if (e.label === 'UBX CFG-VALGET') {
+    const values = new Map(acc.values);
+    parseValget(e.data).forEach((v, k) => values.set(k, v));
+    return { ...acc, values };
   }
-  return { values, version };
+  if (e.label === 'UBX MON-VER') return { ...acc, version: e.summary ?? null };
+  return acc;
 }
 
 /** The model a MON-VER reply names, if it is one of ours. */

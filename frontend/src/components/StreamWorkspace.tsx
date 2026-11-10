@@ -17,7 +17,9 @@ import { WorkspaceTabBar } from './common/WorkspaceTabBar';
 import { ReceiverConsole } from './ReceiverConsole';
 import { ReceiverPanel, type ReceiverLink } from './ReceiverPanel';
 import { StreamMessagePanel } from './StreamMessagePanel';
+import { EMPTY_SETTINGS } from '../utils/septentrio';
 import { STATUS_COLOR } from '../utils/status';
+import { EMPTY_UBLOX } from '../utils/ublox';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { MIN_PANEL_HEIGHT } from '../utils/formLayout';
 
@@ -84,10 +86,11 @@ export function StreamWorkspace({ streams, activeId, onSelect }: {
       blocked,
       note: null,
       session: pid,
-      consoleEntries: session?.consoleEntries ?? [],
+      septentrio: session?.septentrio ?? EMPTY_SETTINGS,
+      ublox: session?.ublox ?? EMPTY_UBLOX,
       sendCommand: (command, accept) => (pid ? sendCommand(pid, command, accept) : Promise.reject(new Error('Not running'))),
     };
-  }, [active, blocked, pid, session?.consoleEntries, sendCommand]);
+  }, [active, blocked, pid, session?.septentrio, session?.ublox, sendCommand]);
 
   if (!active) return null;
 

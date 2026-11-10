@@ -97,13 +97,19 @@ export function UbloxOutputEditor({ model, values, canSend, busy, apply, onReloa
   };
   const loadPreset = () => {
     const { messages, items } = ubloxPreset(preset.id, model, port);
+    // Each item the preset names ends at its value: an earlier edit of it
+    // (e.g. another preset loaded first) goes, also when the receiver
+    // already has the value.
+    const want: [number, number][] = [
+      ...messages.map((name): [number | undefined, number] => [cat.messages.find((m) => m.name === name)?.keys[port], 1]),
+      ...items,
+    ].filter((kv): kv is [number, number] => known(kv[0]));
     setEdits((prev) => {
       const next = new Map(prev);
-      for (const name of messages) {
-        const key = cat.messages.find((m) => m.name === name)?.keys[port];
-        if (known(key) && values.get(key) !== 1) next.set(key, 1);
+      for (const [key, value] of want) {
+        if (values.get(key) === value) next.delete(key);
+        else next.set(key, value);
       }
-      for (const [key, value] of items) if (known(key) && values.get(key) !== value) next.set(key, value);
       return next;
     });
   };
