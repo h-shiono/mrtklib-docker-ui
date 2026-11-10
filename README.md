@@ -78,8 +78,7 @@ GNSS positioning capabilities. No compilation required — just
 - No outputs: the relay only receives, to check that the input works
   (the console shows the byte count; the data is not kept)
 - With a `tcpsvr://:PORT` output, the Stream Monitor can watch the same
-  stream while it is saved (Stream Monitor input `TCP Client`,
-  `127.0.0.1:PORT`)
+  stream while it is saved (Stream Monitor input type **Stream Relay**)
 
 ### CLAS Pipeline (`mrtk relay` + `mrtk cssr2rtcm3`)
 - One-form Wizard for the SBC + receiver + CLAS workflow (supported
@@ -125,8 +124,9 @@ GNSS positioning capabilities. No compilation required — just
   the latest frames of the selected type as a hex dump or text
 - Stream health: data rate, message counts, undecoded bytes / bad
   frames
-- To save the stream as well, relay it with **Stream Relay** (a file
-  output plus `tcpsvr://:PORT`) and monitor `127.0.0.1:PORT`
+- Input type **Stream Relay**: watch a running relay's `tcpsvr://:PORT`
+  output, picked by relay name. To save a stream while watching it, relay
+  it with Stream Relay to a file and to `tcpsvr://:PORT`
 - Reattaches to a running session after a page reload
 
 ### Tools

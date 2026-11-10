@@ -7,7 +7,7 @@
  * of the (up to two, #171) streams gets its own messages.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionIcon,
   Box,
@@ -46,6 +46,7 @@ import {
 } from '../utils/streamMonitor';
 import { INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
 import { decodeClasSource, formatClasSource } from '../utils/clasSource';
+import * as mrtkRelayApi from '../api/mrtkRelay';
 import { MaskedPathInput } from './common/MaskedPathInput';
 import { StreamPathHelp } from './StreamPathHelp';
 import { RtMetricsRow } from './RtMetricsRow';
@@ -58,7 +59,7 @@ import { processTone, STATUS_COLOR } from '../utils/status';
 import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
-import { MIN_PANEL_HEIGHT, PRIMARY_MIN_WIDTH } from '../utils/formLayout';
+import { FORM_LABEL_GAP, MIN_PANEL_HEIGHT, PRIMARY_MIN_WIDTH } from '../utils/formLayout';
 import { WorkspaceTabBar } from './common/WorkspaceTabBar';
 import { LogView } from './common/LogView';
 import { useUnseenErrors } from '../hooks/useUnseenErrors';
@@ -106,35 +107,80 @@ function MonitorHelp() {
   );
 }
 
-/** Label-left / input-right row (project form convention). */
+/** TCP server outputs of the running Stream Relay relays, as TCP client
+ *  paths (`127.0.0.1:PORT`), labelled with the relay's name (#192). */
+async function relayOutputs(): Promise<{ value: string; label: string }[]> {
+  const relays = await mrtkRelayApi.listStreams();
+  return relays
+    .filter((r) => r.state === 'starting' || r.state === 'running')
+    .flatMap((r) => r.args.flatMap((a, i) => {
+      const m = r.args[i - 1] === '-out' ? /^tcpsvr:\/\/[^:#]*:(\d+)/.exec(a) : null;
+      return m ? [{ value: `127.0.0.1:${m[1]}`, label: `${r.name} · :${m[1]}` }] : [];
+    }));
+}
+
+/** Path of the `relay` input type: pick a running relay's TCP server output.
+ *  The list is read when the type is chosen and each time it is opened. */
+function RelayOutputSelect({ value, onChange, disabled }: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  const [options, setOptions] = useState<{ value: string; label: string }[]>([]);
+  const refresh = useCallback(() => {
+    relayOutputs().then(setOptions).catch(() => setOptions([]));
+  }, []);
+  useEffect(refresh, [refresh]);
+  // A saved choice whose relay is not running stays visible as such.
+  const data = value && !options.some((o) => o.value === value)
+    ? [...options, { value, label: `:${value.split(':').pop()} (not running)` }]
+    : options;
+  return (
+    <Select
+      aria-label="Relay output"
+      value={value || null}
+      onChange={(v) => onChange(v ?? '')}
+      onDropdownOpen={refresh}
+      data={data}
+      placeholder="A running relay with a TCP Server output"
+      nothingFoundMessage="No running relay has a TCP Server output"
+      disabled={disabled}
+      style={{ flex: 1, minWidth: 0 }}
+      styles={{ input: { fontFamily: MONO } }}
+    />
+  );
+}
+
 /** The settings of one stream. `pacing`: a file may be replayed paced (one
  *  stream only: files with different start times cannot be aligned, #171). */
 function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
   return (
     <Stack gap={6}>
-      <FormRow label="Input type">
-        <Select
-          size="xs"
-          value={s.typeMeta.value}
-          onChange={(v) => v && s.setInputType(v)}
-          data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
-          allowDeselect={false}
-          disabled={s.busy}
-        />
-      </FormRow>
-      <FormRow label="Path">
-        <Group gap={6} wrap="nowrap">
-          <Box style={{ flex: 1, minWidth: 0 }}>
+      {/* One row, like a Stream Relay input: type, then the path or relay output */}
+      <FormRow label={<Group gap={4} wrap="nowrap">Input<StreamPathHelp /></Group>}>
+        <Group gap={FORM_LABEL_GAP} wrap="nowrap">
+          <Select
+            aria-label="Input type"
+            value={s.typeMeta.value}
+            onChange={(v) => v && s.setInputType(v)}
+            data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
+            allowDeselect={false}
+            disabled={s.busy}
+            style={{ width: 120, flexShrink: 0 }}
+          />
+          {s.isRelay ? (
+            <RelayOutputSelect value={s.relayPath} onChange={s.setRelayPath} disabled={s.busy} />
+          ) : (
             <MaskedPathInput
-              size="xs"
+              aria-label="Input path"
               value={s.inputPath}
               onChange={s.setInputPath}
               placeholder={s.typeMeta.placeholder}
               disabled={s.busy}
+              style={{ flex: 1, minWidth: 0 }}
               styles={{ input: { fontFamily: MONO } }}
             />
-          </Box>
-          <StreamPathHelp />
+          )}
         </Group>
       </FormRow>
       {s.isFile && (
@@ -202,7 +248,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   } = selected;
 
   const anyRunning = streams.some((s) => s.running);
-  const startable = streams.filter((s) => !s.busy && s.inputPath.trim());
+  const startable = streams.filter((s) => !s.busy && s.canStart);
   const handleStartAll = () => startable.forEach((s) => void s.start(!twoStreams));
   const handleStopAll = () => streams.filter((s) => s.running).forEach((s) => void s.stop());
 
@@ -430,7 +476,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                     status={s.state}
                     running={s.running}
                     loading={s.submitting}
-                    startDisabled={!s.inputPath.trim()}
+                    startDisabled={!s.canStart}
                     removeDisabled={s.id === 'a' || s.busy}
                     onStart={() => void s.start(!twoStreams)}
                     onStop={() => void s.stop()}
