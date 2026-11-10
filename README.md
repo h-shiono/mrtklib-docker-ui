@@ -80,7 +80,7 @@ GNSS positioning capabilities. No compilation required — just
 - With a `tcpsvr://:PORT` output, the Stream Monitor can watch the same
   stream while it is saved (Stream Monitor input type **Stream Relay**)
 
-### CLAS Pipeline (`mrtk relay` + `mrtk cssr2rtcm3`)
+### CLAS to RTCM3 (`mrtk relay` + `mrtk cssr2rtcm3`)
 - One-form Wizard for the SBC + receiver + CLAS workflow (supported
   by MRTKLIB since v0.6.5; the image bundles the pinned version)
 - Pipes Septentrio SBF (with QZSS L6 CLAS) → cssr2rtcm3 → RTCM3 →
@@ -241,7 +241,7 @@ own IDs (`id -u` / `id -g`) in `.env`. On start, existing files under
 that ran as root) are chowned to `PUID:PGID`. `PUID=0` restores the
 old run-as-root behaviour.
 
-### Serial Device Passthrough (Stream Monitor, Stream Relay and CLAS Pipeline)
+### Serial Device Passthrough (Stream Monitor, Stream Relay and CLAS to RTCM3)
 
 To connect to a GNSS receiver via serial port, add the device
 to `docker-compose.yml`:
@@ -256,7 +256,7 @@ services:
       - /dev/serial:/dev/serial:ro
 ```
 
-The CLAS Pipeline tab uses **one** bidirectional serial device: the
+The CLAS to RTCM3 tab uses **one** bidirectional serial device: the
 receiver streams SBF (with L6 frames) out of the port and accepts the
 generated RTCM3 back on the same port. Configure the receiver port to
 do both (output SBF/L6, input RTCM3). Set `CLAS_INPUT_DEVICE` in
@@ -436,7 +436,7 @@ Bug reports and feedback are very welcome — please
   not been exhaustively verified
 - **RINEX preview**: implemented but not tested across all
   receiver formats
-- **CLAS Pipeline**: uses a single bidirectional serial port; hardware
+- **CLAS to RTCM3**: uses a single bidirectional serial port; hardware
   passthrough validated only with the mosaic-G5 preset
 
 ### Platform notes

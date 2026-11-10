@@ -1243,7 +1243,7 @@ function StreamRelayView() {
       <Tabs value={mode} onChange={setMode}>
         <Tabs.List>
           <Tabs.Tab value="multi-stream">Multi-Stream</Tabs.Tab>
-          <Tabs.Tab value="clas">CLAS Pipeline</Tabs.Tab>
+          <Tabs.Tab value="clas">CLAS to RTCM3</Tabs.Tab>
         </Tabs.List>
       </Tabs>
       <div style={{ display: mode === 'multi-stream' ? undefined : 'none', flex: 1, minHeight: 0, overflowY: 'auto' }}>

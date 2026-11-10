@@ -257,7 +257,7 @@ Precise and restrained.
 - **Config header:** one row: collapse, title, `?`, then the state badge (always shown, including idle), utility icons and, at the far right, the primary action.
 
 ### Console (`LogView`)
-The one log view (`common/LogView`), used for Console, Solution and Trace on every screen and in Relay, Tools → Conversion and the CLAS pipeline.
+The one log view (`common/LogView`), used for Console, Solution and Trace on every screen and in Relay, Tools → Conversion and CLAS to RTCM3.
 - **Surface:** `console-dark` and `console-light` by theme. It fills its panel.
 - **Toolbar:** one row above the lines: search with count and previous/next, matching-only, then copy and download when a file exists. There is no clear: a new run starts its own log. It stays with the log rather than the tab bar, which has no room for it beside the tabs.
 - **Follow:** `useFollowScroll` everywhere, with "Paused · Jump to latest".

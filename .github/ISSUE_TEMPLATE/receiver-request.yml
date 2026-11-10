@@ -1,5 +1,5 @@
-name: CLAS Pipeline — receiver support request
-description: Request a new GNSS receiver preset for the CLAS Pipeline tab
+name: CLAS to RTCM3 — receiver support request
+description: Request a new GNSS receiver preset for the CLAS to RTCM3 tab
 title: "[Receiver] <vendor> <model>"
 labels: ["enhancement", "module:clas-pipeline", "status:needs-triage"]
 body:
@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Use this template to request that a new GNSS receiver be added to
-        the CLAS Pipeline picker. To add the receiver we need:
+        the CLAS to RTCM3 receiver picker. To add the receiver we need:
 
         1. The receiver outputs **raw SBF** (or a format `mrtk relay` can
            tag) on a serial port, including the QZSS L6 CLAS message.
@@ -15,8 +15,8 @@ body:
            on a separate serial port and runs an internal RTK/VRS-RTK
            engine that consumes it.
 
-        If your receiver does not meet both requirements, the CLAS Pipeline
-        UI will not work end-to-end as designed — please open a regular
+        If your receiver does not meet both requirements, CLAS to RTCM3
+        will not work end-to-end as designed — please open a regular
         feature request instead.
 
   - type: input
