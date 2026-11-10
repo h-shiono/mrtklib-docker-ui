@@ -294,16 +294,13 @@ export function PositionViewer({
             <div
               key={metric}
               style={{
-                // Alternate bands and a rule mark where each chart starts
-                backgroundColor: i % 2 === 1
-                  ? 'light-dark(rgba(0,0,0,0.025), rgba(255,255,255,0.025))'
-                  : undefined,
-                borderTop: i > 0 ? '1px solid var(--mantine-color-default-border)' : undefined,
+                // Rows are told apart by alternating tone, not rules (DESIGN.md)
+                backgroundColor: i % 2 === 1 ? 'var(--app-band)' : undefined,
               }}
             >
               <ChartView
                 data={enuData}
-                height={plotH + (last ? X_AXIS_LABELLED : X_AXIS_TICKS_ONLY) - (i > 0 ? 1 : 0)}
+                height={plotH + (last ? X_AXIS_LABELLED : X_AXIS_TICKS_ONLY)}
                 metric={metric}
                 xRange={xRange}
                 yRange={getYRange(metric)}
@@ -521,8 +518,8 @@ export function PositionViewer({
       </Group>
 
       {/* Visualization area: one view, or the chosen views side by side */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        {shown.map((v, i) => (
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 8 }}>
+        {shown.map((v) => (
           <div
             key={v}
             style={{
@@ -530,7 +527,6 @@ export function PositionViewer({
               minWidth: 0,
               minHeight: 0,
               overflow: v === 'enu' ? 'auto' : undefined,
-              borderLeft: i > 0 ? '1px solid var(--mantine-color-default-border)' : undefined,
             }}
           >
             {renderView(v)}

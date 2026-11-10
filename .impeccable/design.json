@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-09T14:44:47Z",
+  "generatedAt": "2026-11-10T01:17:52Z",
   "title": "Design System: MRTKLIB Web UI",
   "extensions": {
     "colorMeta": {
@@ -107,6 +107,21 @@
           "#A2A5AA",
           "#C7C9CE",
           "#EDEEF2"
+        ]
+      },
+      "band-on-dark": {
+        "role": "neutral",
+        "displayName": "Band On Dark",
+        "canonical": "#1B1F24",
+        "tonalRamp": [
+          "#090B0E",
+          "#222529",
+          "#3E4248",
+          "#5D6268",
+          "#7E8389",
+          "#A1A5AC",
+          "#C5C9CF",
+          "#ECEFF2"
         ]
       },
       "ink-on-dark": {
@@ -257,6 +272,21 @@
           "#A4A5A7",
           "#C8C9CA",
           "#EEEEEF"
+        ]
+      },
+      "band-on-light": {
+        "role": "neutral",
+        "displayName": "Band On Light",
+        "canonical": "#F4F6F8",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242526",
+          "#414244",
+          "#606163",
+          "#818284",
+          "#A3A5A7",
+          "#C8C9CB",
+          "#EDEEEF"
         ]
       },
       "console-ink-on-light": {
@@ -719,6 +749,11 @@
       {
         "name": "The Flat-by-Default Rule",
         "body": "If an element is attached to the page, it has no shadow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Banded Rows Rule",
+        "body": "Stacked charts are told apart by alternating rows of the band tone (`band-on-dark`, `band-on-light`), not by rules, and chart backgrounds use the same tone. Views side by side are separated by space (8px), not by a line.",
         "section": "elevation"
       }
     ],

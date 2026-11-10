@@ -79,6 +79,8 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
     '--app-card': '#FFFFFF',
     '--app-border': 'rgba(0, 0, 0, 0.08)',
     '--app-input-border': '#8A939E',
+    // Alternate rows of stacked charts and chart backgrounds: one tonal step.
+    '--app-band': '#F4F6F8',
     '--app-console-bg': '#F7F8FA',
     '--app-console-fg': '#25292E',
     '--status-off': '#5C6670',
@@ -101,6 +103,7 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
     '--app-card': '#161A1F',
     '--app-border': 'rgba(255, 255, 255, 0.07)',
     '--app-input-border': '#4A525C',
+    '--app-band': '#1B1F24',
     '--app-console-bg': '#0C0E12',
     '--app-console-fg': '#C7CCD2',
     '--status-off': '#9CA3AB',

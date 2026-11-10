@@ -9,6 +9,7 @@ colors:
   graphite-surface: "#13161A"
   graphite-input: "#1B1F24"
   graphite-console: "#0C0E12"
+  band-on-dark: "#1B1F24"
   ink-on-dark: "#ECEEF1"
   console-ink-on-dark: "#C7CCD2"
   dimmed-on-dark: "#9CA3AB"
@@ -19,6 +20,7 @@ colors:
   daylight-body: "#F4F6F8"
   daylight-surface: "#FFFFFF"
   daylight-console: "#F7F8FA"
+  band-on-light: "#F4F6F8"
   console-ink-on-light: "#25292E"
   dimmed-on-light: "#5C6670"
   placeholder-on-light: "#6B7480"
@@ -225,6 +227,8 @@ float above the page: popovers and tooltips.
 
 ### Named Rules
 **The Flat-by-Default Rule.** If an element is attached to the page, it has no shadow.
+
+**The Banded Rows Rule.** Stacked charts are told apart by alternating rows of the band tone (`band-on-dark`, `band-on-light`), not by rules, and chart backgrounds use the same tone. Views side by side are separated by space (8px), not by a line.
 
 ## Shapes
 
