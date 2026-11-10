@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import socket
 import time
 from collections import deque
@@ -163,6 +164,42 @@ def build_relay_args(input_type: str, path: str, port: int) -> list[str]:
     if not path:
         raise ValueError("Input path is required")
     return ["-in", f"{scheme}://{path}", "-out", f"tcpsvr://:{port}", "-b", "1"]
+
+
+_LOCAL_TCPCLI = re.compile(r"^tcpcli://(?:127\.0\.0\.1|localhost):(\d+)$")
+
+
+def relay_back_owner(port: int, exclude: str) -> tuple[str, bool] | None:
+    """The running relay (other than process `exclude`) whose output is
+    `tcpsvr://:port`, and whether that output is its relay-back one (`-b N`):
+    only then do bytes written to the port reach the relay's input.
+
+    `mrtk relay` relays back from a single output index (mrtk_streamsvr.c), so
+    a Stream Relay without `-b` drops what a client writes. None if no relay
+    serves the port (an outside TCP server).
+    """
+    for info in process_manager.get_all_processes():
+        if info.command != "str2str" or info.id == exclude:
+            continue
+        if info.state.value not in ("starting", "running"):
+            continue
+        args = info.args
+        relay_back = None
+        for i, a in enumerate(args[:-1]):
+            if a == "-b":
+                try:
+                    relay_back = int(args[i + 1])
+                except ValueError:
+                    pass
+        index = 0
+        for i, a in enumerate(args[:-1]):
+            if a != "-out":
+                continue
+            index += 1
+            target = args[i + 1].split("#", 1)[0]
+            if re.fullmatch(rf"tcpsvr://[^:/]*:{port}", target):
+                return info.id, relay_back == index
+    return None
 
 
 def free_port(exclude: Collection[int] = ()) -> int:
@@ -338,6 +375,17 @@ class StreamMonitorService:
         if self.input_label.startswith("ntrip://"):
             # -b 1 would send the command to the caster, not a receiver.
             raise RuntimeError("An NTRIP input cannot take receiver commands")
+        local = _LOCAL_TCPCLI.match(self.input_label)
+        if self.kind == "relay" and local:
+            owner = relay_back_owner(int(local.group(1)), exclude=self.relay_pid)
+            if owner is not None and not owner[1]:
+                # The Monitor's -b 1 would write into that relay's TCP server,
+                # which drops it: the receiver would never answer.
+                raise RuntimeError(
+                    f"This stream reads an output of the relay '{owner[0]}', which does not "
+                    "pass commands back to the receiver. Send commands from a stream that "
+                    "opens the receiver itself (Serial, TCP, Browser serial)."
+                )
         if self.kind == "browser":
             if self._ingest_write is None:
                 raise RuntimeError("The browser has not connected the serial port yet")

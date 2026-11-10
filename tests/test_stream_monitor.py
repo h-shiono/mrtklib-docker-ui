@@ -799,3 +799,50 @@ def test_a_file_takes_no_commands(relay, client, data_root):
     assert r.status_code == 409 and "file" in r.json()["detail"]
     client.post("/api/stream-monitor/stop")
 
+
+def _fake_processes(monkeypatch, relays):
+    """Stand-in Stream Relay / CLAS relays seen by relay_back_owner."""
+    infos = [
+        SimpleNamespace(id=pid, command="str2str", args=args, state=ProcessState.RUNNING)
+        for pid, args in relays
+    ]
+    monkeypatch.setattr(process_manager, "get_all_processes", lambda: infos)
+
+
+def test_relay_back_owner():
+    from mrtklib_web_ui.services.stream_monitor_service import relay_back_owner
+
+    procs = [
+        ("relay-1", ["-in", "serial://ttyACM0", "-out", "file:///w/x.sbf", "-out", "tcpsvr://:9001"]),
+        ("clas-relay", ["-in", "serial://ttyACM0", "-b", "1", "-out", "tcpsvr://:9100", "-out", "tcpsvr://:9101#rtcm3"]),
+    ]
+    infos = [SimpleNamespace(id=p, command="str2str", args=a, state=ProcessState.RUNNING) for p, a in procs]
+    orig = process_manager.get_all_processes
+    process_manager.get_all_processes = lambda: infos
+    try:
+        assert relay_back_owner(9001, exclude="x") == ("relay-1", False)
+        assert relay_back_owner(9100, exclude="x") == ("clas-relay", True)
+        assert relay_back_owner(9101, exclude="x") == ("clas-relay", False)
+        assert relay_back_owner(9999, exclude="x") is None
+        assert relay_back_owner(9001, exclude="relay-1") is None
+    finally:
+        process_manager.get_all_processes = orig
+
+
+def test_a_stream_relay_output_without_relay_back_takes_no_commands(relay, client, monkeypatch):
+    _fake_processes(monkeypatch, [("relay-1", ["-in", "serial://ttyACM0", "-out", "tcpsvr://:9001"])])
+    client.post("/api/stream-monitor/start", json={"input": {"type": "tcpcli", "path": "127.0.0.1:9001"}})
+    r = client.post("/api/stream-monitor/send", json={"line": "grc"})
+    assert r.status_code == 409 and "relay-1" in r.json()["detail"]
+    assert bytes(relay.received) == b""
+    client.post("/api/stream-monitor/stop")
+
+
+def test_the_clas_bridge_passes_commands_back(relay, client, monkeypatch):
+    _fake_processes(monkeypatch, [("clas-relay", ["-in", "serial://ttyACM0", "-b", "1", "-out", "tcpsvr://:9100"])])
+    client.post("/api/stream-monitor/start", json={"input": {"type": "tcpcli", "path": "127.0.0.1:9100"}})
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        _receive_until(ws, lambda m: m["type"] == "status" and m["connected"])
+        assert client.post("/api/stream-monitor/send", json={"line": "grc"}).status_code == 200
+    client.post("/api/stream-monitor/stop")
+

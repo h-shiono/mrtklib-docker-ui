@@ -113,8 +113,10 @@ const TCPSVR_PORT = /^tcpsvr:\/\/[^:#]*:(\d+)/;
 
 /** TCP server outputs of the running relays, as TCP client paths
  *  (`127.0.0.1:PORT`): Stream Relay relays by name (#192), and CLAS to RTCM3,
- *  whose bridge carries the receiver's SBF (#197). The Monitor's relay only
- *  reads, so the bridge's relay-back gets nothing from it. */
+ *  whose bridge carries the receiver's SBF (#197). The Monitor's relay writes
+ *  only receiver commands back (#136); the server refuses them for an output
+ *  whose relay does not relay back (every Stream Relay relay; the CLAS bridge
+ *  does). */
 async function relayOutputs(): Promise<{ value: string; label: string }[]> {
   const [relays, clas] = await Promise.allSettled([mrtkRelayApi.listStreams(), clasApi.getPipelineStatus()]);
   const out: { value: string; label: string }[] = [];
