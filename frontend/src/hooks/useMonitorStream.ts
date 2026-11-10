@@ -46,7 +46,7 @@ const ANSWERS = new Set(['Septentrio reply', 'Septentrio error', 'UBX ACK-ACK', 
 export type MonitorFormInputType = MonitorInputType | 'relay';
 
 export const INPUT_TYPES: { value: MonitorFormInputType; label: string; placeholder: string }[] = [
-  { value: 'relay', label: 'Stream Relay', placeholder: 'A running relay with a TCP Server output' },
+  { value: 'relay', label: 'Streams', placeholder: 'A running stream with a TCP Server output' },
   { value: 'serial', label: 'Serial', placeholder: 'ttyACM0:115200' },
   { value: 'tcpcli', label: 'TCP Client', placeholder: '192.168.1.100:9001' },
   { value: 'tcpsvr', label: 'TCP Server', placeholder: ':9001' },

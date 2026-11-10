@@ -10,7 +10,7 @@
  * settings, saving to the boot configuration, and an expert console.
  */
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionIcon,
   Alert,
@@ -24,14 +24,14 @@ import {
   Table,
   Tabs,
   Text,
-  TextInput,
   Title,
 } from '@mantine/core';
-import { useElementSize, useLocalStorage } from '@mantine/hooks';
-import { IconArrowLeft, IconCheck, IconDeviceFloppy, IconRefresh, IconSend, IconX } from '@tabler/icons-react';
+import { useLocalStorage } from '@mantine/hooks';
+import { IconArrowLeft, IconCheck, IconDeviceFloppy, IconRefresh, IconX } from '@tabler/icons-react';
 import type { MonitorConsoleEntry } from '../api/streamMonitor';
 import { FormRow } from './common/FormRow';
-import { LogView } from './common/LogView';
+import { ReceiverConsole } from './ReceiverConsole';
+import { isFailure } from '../utils/receiverConsole';
 import { SbfOutputEditor } from './SbfOutputEditor';
 import { STATUS_COLOR } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
@@ -46,41 +46,12 @@ import {
   type SeptentrioSettings,
 } from '../utils/septentrio';
 
-const CONSOLE_HISTORY = 50;
-
 type StepState = 'waiting' | 'ok' | 'error' | 'timeout' | 'skipped';
 
 interface Step {
   line: string;
   state: StepState;
   reply?: string;
-}
-
-function time(t: number): string {
-  return new Date(t * 1000).toLocaleTimeString('en-GB');
-}
-
-const isFailure = (e: MonitorConsoleEntry) => e.label === 'Septentrio error' || e.label === 'UBX ACK-NAK';
-
-/** Console entries as log lines: `>` sent, `<` received; errors tagged. */
-function consoleLines(entries: MonitorConsoleEntry[]): string[] {
-  const out: string[] = [];
-  for (const e of entries) {
-    const ts = time(e.t);
-    if (e.dir === 'tx') {
-      out.push(`${ts} > ${e.text ?? ''}`);
-      continue;
-    }
-    const tag = isFailure(e) ? '[ERROR] ' : '';
-    if (e.text !== undefined) {
-      const lines = e.text.split(/\r?\n/);
-      out.push(`${tag}${ts} < ${lines[0]}`);
-      for (const l of lines.slice(1)) out.push(`${' '.repeat(ts.length)}   ${l}`);
-    } else {
-      out.push(`${tag}${ts} < ${e.label}  ${e.summary ?? ''}`);
-    }
-  }
-  return out;
 }
 
 /** What the panel needs from the connection that reaches the receiver: a
@@ -109,17 +80,19 @@ const STEP_COLOR: Record<StepState, string> = {
   skipped: STATUS_COLOR.off,
 };
 
-export function ReceiverPanel({ link, onClose }: { link: ReceiverLink; onClose: () => void }) {
+export function ReceiverPanel({ link, onClose, withConsole = true }: {
+  link: ReceiverLink;
+  /** Back to the stream list; no back button without it. */
+  onClose?: () => void;
+  /** A Console tab here; the Streams page shows the console as a tab of its own. */
+  withConsole?: boolean;
+}) {
   const [model, setModel] = useLocalStorage<SeptentrioModel>({ key: `${link.storageKey}-model`, defaultValue: 'mosaic-G5' });
   const [steps, setSteps] = useState<Step[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [tab, setTab] = useState<string | null>('sbf');
-  const [input, setInput] = useState('');
-  const historyRef = useRef<string[]>([]);
-  const historyPos = useRef(-1);
-  const { ref: consoleRef, height: consoleHeight } = useElementSize();
 
   // Settings as the replies report them (reads, and every set-command's echo).
   const settings = useMemo(
@@ -197,39 +170,16 @@ export function ReceiverPanel({ link, onClose }: { link: ReceiverLink; onClose: 
     return false;
   };
 
-  const sendConsole = () => {
-    const line = input.trim();
-    if (!line) return;
-    historyRef.current = [line, ...historyRef.current.filter((h) => h !== line)].slice(0, CONSOLE_HISTORY);
-    historyPos.current = -1;
-    setInput('');
-    setError(null);
-    sendCommand({ line }).catch((err) => setError(err instanceof Error ? err.message : String(err)));
-  };
-
-  const onConsoleKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendConsole();
-    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      const h = historyRef.current;
-      if (h.length === 0) return;
-      e.preventDefault();
-      const pos = Math.max(-1, Math.min(h.length - 1, historyPos.current + (e.key === 'ArrowUp' ? 1 : -1)));
-      historyPos.current = pos;
-      setInput(pos < 0 ? '' : h[pos]);
-    }
-  };
-
-  const lines = useMemo(() => consoleLines(link.consoleEntries), [link.consoleEntries]);
 
   return (
     <Stack gap="xs" style={{ height: '100%', minHeight: 0 }}>
       <Group justify="space-between" wrap="nowrap">
         <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
-          <ActionIcon variant="subtle" onClick={onClose} aria-label="Back to streams" title="Back to streams">
-            <IconArrowLeft size={14} />
-          </ActionIcon>
+          {onClose && (
+            <ActionIcon variant="subtle" onClick={onClose} aria-label="Back to streams" title="Back to streams">
+              <IconArrowLeft size={14} />
+            </ActionIcon>
+          )}
           <Title order={6} size="sm" style={{ whiteSpace: 'nowrap' }}>Receiver · {link.name}</Title>
         </Group>
         <SaveButton disabled={!canSend} onSave={() => void runReported([SAVE_COMMAND], 'Saved as the boot configuration.')} />
@@ -271,7 +221,7 @@ export function ReceiverPanel({ link, onClose }: { link: ReceiverLink; onClose: 
         <Tabs.List>
           <Tabs.Tab value="sbf" style={{ fontSize: FONT_SIZE.label }}>SBF output</Tabs.Tab>
           <Tabs.Tab value="receiver" style={{ fontSize: FONT_SIZE.label }}>Ports &amp; tracking</Tabs.Tab>
-          <Tabs.Tab value="console" style={{ fontSize: FONT_SIZE.label }}>Console</Tabs.Tab>
+          {withConsole && <Tabs.Tab value="console" style={{ fontSize: FONT_SIZE.label }}>Console</Tabs.Tab>}
         </Tabs.List>
 
         <Tabs.Panel value="sbf" pt="xs" style={{ flex: 1, minHeight: 0 }}>
@@ -310,34 +260,16 @@ export function ReceiverPanel({ link, onClose }: { link: ReceiverLink; onClose: 
           </ScrollArea>
         </Tabs.Panel>
 
-        <Tabs.Panel value="console" pt="xs" style={{ flex: 1, minHeight: 0 }}>
-          <Stack gap={6} style={{ height: '100%', minHeight: 0 }}>
-            <Box ref={consoleRef} style={{ flex: 1, minHeight: 0 }}>
-              <LogView
-                lines={lines}
-                height={Math.max(160, consoleHeight)}
-                active={tab === 'console'}
-                severity
-                wrapToggle
-                emptyText="No commands sent yet."
-              />
-            </Box>
-            <TextInput
-              aria-label="Command"
-              placeholder={takesCommands ? 'Command, e.g. getReceiverCapabilities; Enter sends, ↑ ↓ history' : why ?? ''}
-              value={input}
-              onChange={(e) => setInput(e.currentTarget.value)}
-              onKeyDown={onConsoleKey}
-              disabled={!takesCommands}
-              styles={{ input: { fontFamily: MONO } }}
-              rightSection={
-                <ActionIcon variant="subtle" onClick={sendConsole} disabled={!canSend || !input.trim()} aria-label="Send command">
-                  <IconSend size={14} />
-                </ActionIcon>
-              }
+        {withConsole && (
+          <Tabs.Panel value="console" pt="xs" style={{ flex: 1, minHeight: 0 }}>
+            <ReceiverConsole
+              entries={link.consoleEntries}
+              blocked={why}
+              sendCommand={sendCommand}
+              active={tab === 'console'}
             />
-          </Stack>
-        </Tabs.Panel>
+          </Tabs.Panel>
+        )}
       </Tabs>
     </Stack>
   );

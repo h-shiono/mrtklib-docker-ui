@@ -71,8 +71,8 @@ function ClasHelp() {
             both the SBF uplink and the RTCM3 downlink.
           </Text>
           <Text size="xs">
-            To watch the receiver's position and messages, open the Stream Monitor
-            with input type <b>Stream Relay</b> and pick <b>CLAS to RTCM3</b> (the
+            To watch the receiver's position and messages, open the Monitor
+            with input type <b>Streams</b> and pick <b>CLAS to RTCM3</b> (the
             bridge, or another TCP Server output).
           </Text>
           <Text size="xs">
