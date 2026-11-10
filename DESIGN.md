@@ -116,8 +116,6 @@ components:
 
 > **Status.** Adopted 2026-11-09 as the target for the interface. The code is
 > being migrated in stages; where it differs from this file, this file wins.
-> Not yet in code: `<label>` association on the Processing Configuration rows,
-> which match `FormRow` visually but do not use it yet.
 
 ## Overview
 
@@ -245,7 +243,7 @@ Precise and restrained.
 
 ### Inputs / Fields
 - **Size:** 30px (`xs`) everywhere including Tools, set in theme `defaultProps`.
-- **Label:** left, 130px, a real `<label>` tied to its control.
+- **Label:** left, 130px, a real `<label>` tied to its control. A row whose label holds a help button, or that has several inputs, names each input with `aria-label` instead.
 - **Value:** Body, or Value for paths, hosts and numbers. No per-field font size overrides.
 - **Trailing slot:** a fixed 30px slot for browse and `?` controls.
 

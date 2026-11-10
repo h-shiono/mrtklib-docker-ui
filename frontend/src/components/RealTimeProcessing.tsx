@@ -236,7 +236,7 @@ function RawLogEditor({
     <>
       <FormRow label="Save Raw">
         <Group gap="xs" wrap="nowrap">
-          <Switch size="xs" checked={enabled}
+          <Switch size="xs" aria-label="Save Raw" checked={enabled}
             disabled={!enabled && inputStream.type === 'off'}
             onChange={(e) => onChange(e.currentTarget.checked
               ? {
