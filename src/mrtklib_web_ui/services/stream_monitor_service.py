@@ -44,8 +44,9 @@ from typing import Any, Awaitable, Callable, Collection, Literal
 
 from mrtklib_web_ui.services.mask_credentials import mask_log_line
 from mrtklib_web_ui.services.process_manager import process_manager
-from mrtklib_web_ui.services.stream_decoders import Epoch, Event, Frame, Satellites, StreamDecoder
-from mrtklib_web_ui.services.stream_decoders.messages import MessageLog, is_reply, summary
+from mrtklib_web_ui.services.receiver_console import FrameLog
+from mrtklib_web_ui.services.stream_decoders import Epoch, Event, Satellites, StreamDecoder
+from mrtklib_web_ui.services.stream_decoders.messages import MessageLog
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,6 @@ _FILE_CHUNK_FAST = 1 << 16  # bytes per read when reading a file at once
 _FILE_CHUNK_PACED = 512  # small, so pacing by epoch time stays smooth
 _FILE_MAX_WAIT_S = 2.0  # a gap in the data is skipped after this long
 INGEST_TIMEOUT_S = 10.0  # a browser session whose page never sends ends
-CONSOLE_MAX = 300  # receiver console entries kept per session (sent + replies)
 
 # Lower = preferred. A source is shown unless a preferred one was seen
 # within SOURCE_HOLD_S.
@@ -223,11 +223,8 @@ class StreamMonitorService:
         self._on_tick: Callable[[], None] | None = None
         self._lock = asyncio.Lock()
         self._state = MonitorState()
-        self.messages = MessageLog()  # the Message tab; replaced per session
-        self._decoder = StreamDecoder(on_frame=self._on_frame)
-        # Receiver console (#136): commands sent and the receiver's replies.
-        self.console: deque[dict] = deque(maxlen=CONSOLE_MAX)
-        self._console_new: list[dict] = []
+        # Decoder, Message tab log and receiver console; replaced per session.
+        self._frames = FrameLog()
         # Writes to the input: the relay connection, or the page's port.
         self._relay_writer: asyncio.StreamWriter | None = None
         self._ingest_write: Callable[[bytes], Awaitable[None]] | None = None
@@ -275,10 +272,8 @@ class StreamMonitorService:
         self._ended = asyncio.Event()
         self._ingest_run = None
         self._state = MonitorState()
-        self.messages = MessageLog()
-        self._decoder = StreamDecoder(on_frame=self._on_frame)
-        self.console = deque(maxlen=CONSOLE_MAX)
-        self._console_new = []
+        # A recorded file holds no answers to this page's commands.
+        self._frames = FrameLog(replies=kind != "file")
         self._relay_writer = None
         self._ingest_write = None
         self.state = "starting"
@@ -396,28 +391,23 @@ class StreamMonitorService:
                 raise RuntimeError("The relay is not connected yet")
             writer.write(data)
             await writer.drain()
-        await self._console_add({"dir": "tx", "label": "sent", "text": shown})
+        await self._send({"type": "console", "entry": self._frames.sent(shown)})
 
-    def _on_frame(self, frame: Frame) -> None:
-        self.messages.add(frame)
-        if self.kind != "file" and is_reply(frame):
-            entry: dict[str, Any] = {"dir": "rx", "label": frame.label}
-            if frame.kind == "reply":
-                entry["text"] = frame.data.decode("ascii", "replace")
-            else:
-                entry["summary"] = summary(frame)
-                entry["data"] = frame.data.hex()
-            self._console_new.append(entry)
+    @property
+    def messages(self) -> MessageLog:
+        return self._frames.messages
+
+    @property
+    def _decoder(self) -> StreamDecoder:
+        return self._frames.decoder
+
+    @property
+    def console(self) -> deque[dict]:
+        return self._frames.console
 
     async def _flush_console(self) -> None:
-        new, self._console_new = self._console_new, []
-        for entry in new:
-            await self._console_add(entry)
-
-    async def _console_add(self, entry: dict[str, Any]) -> None:
-        entry = {"t": round(time.time(), 3), **entry}
-        self.console.append(entry)
-        await self._send({"type": "console", "entry": entry})
+        for entry in self._frames.take_replies():
+            await self._send({"type": "console", "entry": entry})
 
     async def detach_ingest(self, run: int) -> None:
         """The page stopped sending (closed, unplugged): the session ends."""

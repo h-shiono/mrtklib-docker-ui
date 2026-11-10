@@ -346,7 +346,9 @@ def test_relay_start_line_is_masked():
 
 
 def test_a_stalled_client_cannot_block_the_broadcast():
-    from mrtklib_web_ui.api import stream_monitor as api
+    from mrtklib_web_ui.api.message_hub import CLIENT_QUEUE_MAX, MessageHub, _Client
+
+    hub = MessageHub("test", lambda s: None, valid_stream=lambda s: True)
 
     class StalledWs:
         closed = False
@@ -365,21 +367,21 @@ def test_a_stalled_client_cannot_block_the_broadcast():
             self.got.append(text)
 
     async def run():
-        stalled, good = api._Client(StalledWs()), api._Client(GoodWs())
+        stalled, good = _Client(StalledWs(), None), _Client(GoodWs(), None)
         for c in (stalled, good):
-            api._clients.add(c)
+            hub._clients.add(c)
             c.task = asyncio.create_task(c.run())
         try:
-            n = api.CLIENT_QUEUE_MAX + 5
+            n = CLIENT_QUEUE_MAX + 5
             for k in range(n):  # each broadcast must return without waiting
-                await asyncio.wait_for(api._broadcast({"k": k}), timeout=0.1)
+                await asyncio.wait_for(hub.broadcast({"k": k}), timeout=0.1)
                 await asyncio.sleep(0)
             await asyncio.sleep(0.01)
-            assert stalled not in api._clients and stalled.ws.closed
-            assert good in api._clients and len(good.ws.got) == n
+            assert stalled not in hub._clients and stalled.ws.closed
+            assert good in hub._clients and len(good.ws.got) == n
         finally:
             for c in (stalled, good):
-                api._drop(c)
+                hub._drop(c)
 
     asyncio.run(run())
 

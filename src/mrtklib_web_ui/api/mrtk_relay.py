@@ -4,11 +4,19 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, WebSocket
 from pydantic import BaseModel, Field
+
+from mrtklib_web_ui.api.message_hub import MessageHub
 
 from mrtklib_web_ui.paths import WORKSPACE_ROOT, has_hidden_component, is_allowed_path, is_within
 from mrtklib_web_ui.services import process_manager
+from mrtklib_web_ui.services.receiver_console import MAX_COMMAND_BYTES, MAX_COMMAND_LINE, encode_command
+from mrtklib_web_ui.services.stream_decoders.messages import MessageLog
+from mrtklib_web_ui.services.stream_monitor_service import free_port
+from mrtklib_web_ui.services.stream_session_service import TapInfo, plan_tap, stream_sessions, strip_tap
 from mrtklib_web_ui.services.mrtk_run_service import (
     expand_path_keywords,
     gpst_now,
@@ -21,6 +29,9 @@ router = APIRouter()
 # process ID. Also tells them apart from relays the CLAS pipeline runs
 # through the same process manager. Entries go when the process info is pruned.
 _stream_names: dict[str, str] = {}
+# The message tap the server added to each of those relays (#136), by
+# process ID: hidden from the page, read by a stream session.
+_taps: dict[str, TapInfo | None] = {}
 
 
 class MrtkRelayStartRequest(BaseModel):
@@ -94,7 +105,8 @@ def _mask_stream_arg(arg: str) -> str:
 
 # With no -out, mrtk relay writes the input to its stdout, which would flood
 # the console with binary. A relay started with no outputs only receives,
-# to check the input: the server adds this output to discard the data.
+# to check the input: the message tap (#136) is then its output; a relay
+# without a tap gets this output, which discards the data.
 # Users cannot send it themselves: file outputs must be inside /workspace.
 DISCARD_OUTPUT = "file:///dev/null"
 
@@ -131,7 +143,7 @@ def _to_response(info) -> ProcessStatusResponse:
         started_at=info.started_at.isoformat() if info.started_at else None,
         stopped_at=info.stopped_at.isoformat() if info.stopped_at else None,
         error_message=info.error_message,
-        args=[_mask_stream_arg(a) for a in _without_discard_output(info.args)],
+        args=[_mask_stream_arg(a) for a in strip_tap(_without_discard_output(info.args), _taps.get(info.id))],
     )
 
 
@@ -292,6 +304,8 @@ async def start_relay(request: MrtkRelayStartRequest) -> ProcessStatusResponse:
         args = _number_file_outputs(request.args, _running_relay_files(now), now)
     except (RuntimeError, OSError) as e:  # no free _N name; unresolvable path
         raise HTTPException(status_code=409, detail=str(e))
+    taken = {s.tap.port for s in stream_sessions.sessions.values()}
+    args, tap, blocked = plan_tap(args, free_port(taken))
     try:
         info = await process_manager.start(
             command="str2str",
@@ -299,6 +313,9 @@ async def start_relay(request: MrtkRelayStartRequest) -> ProcessStatusResponse:
             process_id=request.process_id,
         )
         _stream_names[info.id] = request.name or info.id
+        _taps[info.id] = tap
+        if tap is not None:
+            await stream_sessions.attach(info.id, tap, blocked)
         return _to_response(info)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -314,6 +331,7 @@ async def stop_relay(request: MrtkRelayStopRequest) -> ProcessStatusResponse:
             process_id=request.process_id,
             timeout=request.timeout,
         )
+        await stream_sessions.end(request.process_id)
         return _to_response(info)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -349,6 +367,7 @@ async def list_streams() -> list[RelayStreamResponse]:
         info = await process_manager.get_status(proc_id)
         if info is None:  # pruned by the process manager
             del _stream_names[proc_id]
+            _taps.pop(proc_id, None)
             continue
         streams.append(RelayStreamResponse(
             **_to_response(info).model_dump(),
@@ -374,3 +393,71 @@ async def test_relay() -> ProcessStatusResponse:
         return _to_response(info)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Stream sessions (#136): messages and receiver commands of a relay ───────
+
+
+def _resolve_session(process_id: str) -> tuple[MessageLog, bool] | None:
+    session = stream_sessions.get(process_id)
+    return (session.frames.messages, not session.ended) if session is not None else None
+
+
+_hub = MessageHub("Stream sessions", _resolve_session, valid_stream=lambda s: bool(s))
+stream_sessions.set_broadcast(_hub.broadcast)
+stream_sessions.set_on_tick(_hub.send_all_rows)
+
+
+class SessionSendRequest(BaseModel):
+    """One command for the receiver behind a relay: an ASCII `line` (CR LF is
+    added) or a binary frame in `hex` (e.g. UBX)."""
+
+    process_id: str = Field(max_length=100)
+    line: str | None = Field(default=None, max_length=MAX_COMMAND_LINE)
+    hex: str | None = Field(default=None, max_length=2 * MAX_COMMAND_BYTES)
+
+
+@router.get("/sessions")
+async def list_sessions() -> list[dict[str, Any]]:
+    """Status of every relay's session (decoder, console, commands)."""
+    return [s.status_message() for s in stream_sessions.sessions.values()]
+
+
+@router.post("/sessions/send")
+async def send_to_session(request: SessionSendRequest) -> dict[str, Any]:
+    try:
+        data, shown = encode_command(request.line, request.hex)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    session = stream_sessions.get(request.process_id)
+    if session is None:
+        raise HTTPException(status_code=409, detail="This relay is not running")
+    try:
+        await session.send(data, shown)
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=502, detail=f"Write failed: {e}")
+    return {"ok": True}
+
+
+@router.websocket("/sessions/ws")
+async def websocket_sessions(websocket: WebSocket) -> None:
+    """Messages are per relay and carry `stream` (its process ID):
+
+    - {"type": "history", "messages": {...}, "console": [...]} on connect, and
+      when a session starts
+    - {"type": "status", "running", "connected", "bytes_per_sec", "commands":
+      bool, "blocked": reason | null, stats ...} each second; `exited: true`
+      when the relay stops
+    - {"type": "messages", "now", "types": [...]} per-type counters, each second
+    - {"type": "message_rows", ...} rows of the type the page selected
+    - {"type": "console", "entry": {...}} a command sent or a reply
+
+    Sent by clients: {"type": "select_message", "stream": process_id, "label": str | null}
+    """
+    replay: list[dict[str, Any]] = []
+    for session in stream_sessions.sessions.values():
+        replay += [session.history_message(), session.status_message()]
+    await _hub.serve(websocket, replay)
+
