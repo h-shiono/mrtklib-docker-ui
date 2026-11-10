@@ -97,7 +97,7 @@ async def get_serial_ports() -> list[dict]:
 
 @router.post("/start", response_model=PipelineStatusResponse)
 async def start_pipeline(req: PipelineStartRequest) -> PipelineStatusResponse:
-    """Start CLAS to RTCM3 (relay + cssr2rtcm3 + SBF sniffer)."""
+    """Start CLAS to RTCM3 (relay + cssr2rtcm3)."""
     config = PipelineConfig(
         receiver_id=req.receiver_id,
         input_device=req.input_device,

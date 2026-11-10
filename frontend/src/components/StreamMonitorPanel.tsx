@@ -47,6 +47,7 @@ import {
 import { INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
 import { decodeClasSource, formatClasSource } from '../utils/clasSource';
 import * as mrtkRelayApi from '../api/mrtkRelay';
+import * as clasApi from '../api/clasPipeline';
 import { MaskedPathInput } from './common/MaskedPathInput';
 import { StreamPathHelp } from './StreamPathHelp';
 import { RtMetricsRow } from './RtMetricsRow';
@@ -107,16 +108,34 @@ function MonitorHelp() {
   );
 }
 
-/** TCP server outputs of the running Stream Relay relays, as TCP client
- *  paths (`127.0.0.1:PORT`), labelled with the relay's name (#192). */
+const TCPSVR_PORT = /^tcpsvr:\/\/[^:#]*:(\d+)/;
+
+/** TCP server outputs of the running relays, as TCP client paths
+ *  (`127.0.0.1:PORT`): Stream Relay relays by name (#192), and CLAS to RTCM3,
+ *  whose bridge carries the receiver's SBF (#197). The Monitor's relay only
+ *  reads, so the bridge's relay-back gets nothing from it. */
 async function relayOutputs(): Promise<{ value: string; label: string }[]> {
-  const relays = await mrtkRelayApi.listStreams();
-  return relays
-    .filter((r) => r.state === 'starting' || r.state === 'running')
-    .flatMap((r) => r.args.flatMap((a, i) => {
-      const m = r.args[i - 1] === '-out' ? /^tcpsvr:\/\/[^:#]*:(\d+)/.exec(a) : null;
-      return m ? [{ value: `127.0.0.1:${m[1]}`, label: `${r.name} · :${m[1]}` }] : [];
-    }));
+  const [relays, clas] = await Promise.allSettled([mrtkRelayApi.listStreams(), clasApi.getPipelineStatus()]);
+  const out: { value: string; label: string }[] = [];
+  if (relays.status === 'fulfilled') {
+    for (const r of relays.value) {
+      if (r.state !== 'starting' && r.state !== 'running') continue;
+      r.args.forEach((a, i) => {
+        const m = r.args[i - 1] === '-out' ? TCPSVR_PORT.exec(a) : null;
+        if (m) out.push({ value: `127.0.0.1:${m[1]}`, label: `${r.name} · :${m[1]}` });
+      });
+    }
+  }
+  if (clas.status === 'fulfilled' && (clas.value.state === 'starting' || clas.value.state === 'running')) {
+    const ports = [
+      clas.value.bridge_port,
+      ...(clas.value.outputs ?? []).map((o) => TCPSVR_PORT.exec(o)?.[1]).filter(Boolean),
+    ].filter((p) => p != null);
+    for (const port of ports) {
+      out.push({ value: `127.0.0.1:${port}`, label: `CLAS to RTCM3 · :${port}` });
+    }
+  }
+  return out;
 }
 
 /** Path of the `relay` input type: pick a running relay's TCP server output.

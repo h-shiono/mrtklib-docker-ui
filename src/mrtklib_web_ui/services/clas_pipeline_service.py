@@ -8,8 +8,6 @@ Topology (single bidirectional serial port):
                                                                         ▼  │
                                                                    mrtk cssr2rtcm3
                                                                    (in + out on tcpcli)
-                                                                        │
-                                                                        └──► SBF PVT sniffer (UI viz)
 
 The relay runs with `-b 1` (relay-back): bytes it receives on the TCP
 server — the RTCM3 that cssr2rtcm3 writes back to the same port — are fed
@@ -17,9 +15,10 @@ back into the serial input, so a single serial port carries both the SBF
 uplink and the RTCM3 downlink. This replaces the older two-port topology
 (one serial port for SBF in, a second for RTCM3 out).
 
-The service starts the two processes in order, waits briefly for the relay
-to bind its TCP server, then attaches the SBF sniffer. If either process
-exits, the other is stopped to avoid a half-running pipeline.
+The service starts the two processes in order, waiting briefly for the relay
+to bind its TCP server. If either process exits, the other is stopped to
+avoid a half-running pipeline. Positions are watched in the Stream Monitor,
+which reads the bridge (or another TCP server output) like any relay (#197).
 """
 
 from __future__ import annotations
@@ -31,15 +30,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Awaitable, Callable
 
 from mrtklib_web_ui.services.process_manager import process_manager
 from mrtklib_web_ui.services.receiver_presets import get_preset
-from mrtklib_web_ui.services.sbf_pvt_sniffer import (
-    FlowStats,
-    PvtFix,
-    SbfTcpSniffer,
-)
 
 # Process IDs used in the global ProcessManager — fixed strings so the UI
 # can subscribe by name instead of tracking dynamic UUIDs.
@@ -168,18 +161,7 @@ class ClasPipelineService:
 
     _config: PipelineConfig | None = None
     _status: PipelineStatus = field(default_factory=PipelineStatus)
-    _sniffer: SbfTcpSniffer | None = None
     _watch_task: asyncio.Task | None = None
-    _on_pvt: Callable[[PvtFix], Awaitable[None]] | None = None
-    _on_flow: Callable[[FlowStats], Awaitable[None]] | None = None
-
-    def set_callbacks(
-        self,
-        on_pvt: Callable[[PvtFix], Awaitable[None]],
-        on_flow: Callable[[FlowStats], Awaitable[None]],
-    ) -> None:
-        self._on_pvt = on_pvt
-        self._on_flow = on_flow
 
     @property
     def status(self) -> PipelineStatus:
@@ -282,15 +264,6 @@ class ClasPipelineService:
             await self._stop_process(RELAY_PID)
             return self._status
 
-        if self._on_pvt is not None and self._on_flow is not None:
-            self._sniffer = SbfTcpSniffer(
-                host="localhost",
-                port=config.bridge_port,
-                on_pvt=self._on_pvt,
-                on_flow=self._on_flow,
-            )
-            self._sniffer.start()
-
         self._status.state = PipelineState.RUNNING
         self._watch_task = asyncio.create_task(self._watch())
         return self._status
@@ -307,10 +280,6 @@ class ClasPipelineService:
             except asyncio.CancelledError:
                 pass
             self._watch_task = None
-
-        if self._sniffer is not None:
-            await self._sniffer.stop()
-            self._sniffer = None
 
         # cssr2rtcm3 first — it depends on the relay's TCP server, so we want
         # to give it a clean EOF rather than tearing the relay out from under it.
@@ -333,9 +302,6 @@ class ClasPipelineService:
                         "A pipeline process exited unexpectedly — "
                         "see relay/cssr2rtcm3 logs."
                     )
-                    if self._sniffer is not None:
-                        await self._sniffer.stop()
-                        self._sniffer = None
                     if relay_alive:
                         await self._stop_process(RELAY_PID)
                     if cssr_alive:

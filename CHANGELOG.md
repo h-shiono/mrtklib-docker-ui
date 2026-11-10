@@ -77,6 +77,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   at the height of the input rows, instead of in short rows under the labels.
 
 ### Removed
+- CLAS to RTCM3's throughput meter and position scatter (and the SBF
+  sniffer behind them): the Stream Monitor shows the receiver's position and
+  messages from the same bridge, picked as `CLAS to RTCM3 · :9870` under the
+  Stream Relay input type.
 - Stream Monitor's raw log. Raw streams are saved in Stream Relay, as
   with RTKLIB's STRSVR and RTKPLOT: relay the input to a file and to
   `tcpsvr://:PORT`, and monitor it with the Stream Relay input type.
