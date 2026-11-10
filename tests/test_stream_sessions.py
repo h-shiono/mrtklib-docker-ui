@@ -10,8 +10,7 @@ from fastapi.testclient import TestClient
 
 from mrtklib_web_ui.services import stream_session_service as sss
 from mrtklib_web_ui.services.process_manager import ProcessState, process_manager
-from mrtklib_web_ui.services.stream_monitor_service import relay_back_owner
-from mrtklib_web_ui.services.stream_session_service import TapInfo, plan_tap, strip_tap
+from mrtklib_web_ui.services.stream_session_service import TapInfo, plan_tap, relay_back_owner, strip_tap
 from stream_builders import nmea
 
 P = 41000  # the tap port the server picked

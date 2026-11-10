@@ -146,7 +146,7 @@ export function StreamWorkspace({ streams, activeId, onSelect }: {
           <Tabs.Panel value="receiver" pt={PANEL_TOP} style={{ height: panelHeight + PANEL_TOP }}>
             {/* One panel per stream and session: edits made for one receiver
                 must never be applied to another. */}
-            {link && <ReceiverPanel key={`${active.id}:${pid ?? ''}`} link={link} withConsole={false} />}
+            {link && <ReceiverPanel key={`${active.id}:${pid ?? ''}`} link={link} />}
           </Tabs.Panel>
           <Tabs.Panel value="console" pt={PANEL_TOP} style={{ height: panelHeight + PANEL_TOP }}>
             <ReceiverConsole

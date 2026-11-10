@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import socket
 import time
 from collections import deque
@@ -152,9 +151,8 @@ class MonitorState:
 def build_relay_args(input_type: str, path: str, port: int) -> list[str]:
     """mrtk relay arguments: the input, relayed to a local TCP server for the decoder.
 
-    `-b 1` relays what the decoder's connection writes back to the input, so
-    commands reach the receiver (#136). Raw streams are saved in Stream Relay,
-    not here (#191). The caller still validates the file paths
+    The Monitor only reads: receivers are configured on the Streams page
+    (#136). Raw streams are saved in Streams, not here (#191). The caller still validates the file paths
     (`api.mrtk_relay._validate_relay_args`).
     """
     scheme = INPUT_SCHEMES.get(input_type)
@@ -163,43 +161,7 @@ def build_relay_args(input_type: str, path: str, port: int) -> list[str]:
     path = path.strip()
     if not path:
         raise ValueError("Input path is required")
-    return ["-in", f"{scheme}://{path}", "-out", f"tcpsvr://:{port}", "-b", "1"]
-
-
-_LOCAL_TCPCLI = re.compile(r"^tcpcli://(?:127\.0\.0\.1|localhost):(\d+)$")
-
-
-def relay_back_owner(port: int, exclude: str) -> tuple[str, bool] | None:
-    """The running relay (other than process `exclude`) whose output is
-    `tcpsvr://:port`, and whether that output is its relay-back one (`-b N`):
-    only then do bytes written to the port reach the relay's input.
-
-    `mrtk relay` relays back from a single output index (mrtk_streamsvr.c), so
-    a Stream Relay without `-b` drops what a client writes. None if no relay
-    serves the port (an outside TCP server).
-    """
-    for info in process_manager.get_all_processes():
-        if info.command != "str2str" or info.id == exclude:
-            continue
-        if info.state.value not in ("starting", "running"):
-            continue
-        args = info.args
-        relay_back = None
-        for i, a in enumerate(args[:-1]):
-            if a == "-b":
-                try:
-                    relay_back = int(args[i + 1])
-                except ValueError:
-                    pass
-        index = 0
-        for i, a in enumerate(args[:-1]):
-            if a != "-out":
-                continue
-            index += 1
-            target = args[i + 1].split("#", 1)[0]
-            if re.fullmatch(rf"tcpsvr://[^:/]*:{port}", target):
-                return info.id, relay_back == index
-    return None
+    return ["-in", f"{scheme}://{path}", "-out", f"tcpsvr://:{port}"]
 
 
 def free_port(exclude: Collection[int] = ()) -> int:
@@ -223,11 +185,9 @@ class StreamMonitorService:
         self._on_tick: Callable[[], None] | None = None
         self._lock = asyncio.Lock()
         self._state = MonitorState()
-        # Decoder, Message tab log and receiver console; replaced per session.
-        self._frames = FrameLog()
+        # Decoder and Message tab log; replaced per session.
+        self._frames = FrameLog(replies=False)
         # Writes to the input: the relay connection, or the page's port.
-        self._relay_writer: asyncio.StreamWriter | None = None
-        self._ingest_write: Callable[[bytes], Awaitable[None]] | None = None
         self._reader: asyncio.Task | None = None
         self._ticker: asyncio.Task | None = None
         self._run = 0  # bumped per start; stale tasks / logs check it
@@ -272,10 +232,7 @@ class StreamMonitorService:
         self._ended = asyncio.Event()
         self._ingest_run = None
         self._state = MonitorState()
-        # A recorded file holds no answers to this page's commands.
-        self._frames = FrameLog(replies=kind != "file")
-        self._relay_writer = None
-        self._ingest_write = None
+        self._frames = FrameLog(replies=False)
         self.state = "starting"
         self.error_message = None
         self.started_at = datetime.now()
@@ -336,12 +293,9 @@ class StreamMonitorService:
             self._ticker = asyncio.create_task(self._tick(self._run))
         await self._send(self.status_message())
 
-    def attach_ingest(
-        self, started_at: str | None, write: Callable[[bytes], Awaitable[None]] | None = None
-    ) -> int:
-        """Register the page that sends a browser session's bytes, and how to
-        hand it bytes for its port (`write`); returns its run token. Raises
-        ValueError if this is not the session it started."""
+    def attach_ingest(self, started_at: str | None) -> int:
+        """Register the page that sends a browser session's bytes; returns its
+        run token. Raises ValueError if this is not the session it started."""
         if self.kind != "browser" or not self.is_running:
             raise ValueError("No browser serial session is waiting")
         if started_at != (self.started_at.isoformat() if self.started_at else None):
@@ -349,49 +303,12 @@ class StreamMonitorService:
         if self._ingest_run is not None:
             raise ValueError("Another page is already sending this session")
         self._ingest_run = self._run
-        self._ingest_write = write
         self.connected = True
         return self._run
 
     async def feed_ingest(self, run: int, data: bytes) -> None:
         if run == self._run and self.is_running:
             self._state.add(self._decoder.feed(data))
-            await self._flush_console()
-
-    # ── receiver commands (#136) ────────────────────────────────────────────
-
-    async def send(self, data: bytes, shown: str) -> None:
-        """Write `data` to the input (the receiver); `shown` is the console
-        line. Raises RuntimeError when this session cannot take commands."""
-        if not self.is_running:
-            raise RuntimeError(f"Stream {self.stream_id.upper()} is not running")
-        if self.kind == "file":
-            raise RuntimeError("A file input cannot take commands")
-        if self.input_label.startswith("ntrip://"):
-            # -b 1 would send the command to the caster, not a receiver.
-            raise RuntimeError("An NTRIP input cannot take receiver commands")
-        local = _LOCAL_TCPCLI.match(self.input_label)
-        if self.kind == "relay" and local:
-            owner = relay_back_owner(int(local.group(1)), exclude=self.relay_pid)
-            if owner is not None and not owner[1]:
-                # The Monitor's -b 1 would write into that relay's TCP server,
-                # which drops it: the receiver would never answer.
-                raise RuntimeError(
-                    f"This stream reads an output of the relay '{owner[0]}', which does not "
-                    "pass commands back to the receiver. Send commands from a stream that "
-                    "opens the receiver itself (Serial, TCP, Browser serial)."
-                )
-        if self.kind == "browser":
-            if self._ingest_write is None:
-                raise RuntimeError("The browser has not connected the serial port yet")
-            await self._ingest_write(data)
-        else:
-            writer = self._relay_writer
-            if writer is None:
-                raise RuntimeError("The relay is not connected yet")
-            writer.write(data)
-            await writer.drain()
-        await self._send({"type": "console", "entry": self._frames.sent(shown)})
 
     @property
     def messages(self) -> MessageLog:
@@ -400,14 +317,6 @@ class StreamMonitorService:
     @property
     def _decoder(self) -> StreamDecoder:
         return self._frames.decoder
-
-    @property
-    def console(self) -> deque[dict]:
-        return self._frames.console
-
-    async def _flush_console(self) -> None:
-        for entry in self._frames.take_replies():
-            await self._send({"type": "console", "entry": entry})
 
     async def detach_ingest(self, run: int) -> None:
         """The page stopped sending (closed, unplugged): the session ends."""
@@ -473,7 +382,6 @@ class StreamMonitorService:
                 await asyncio.sleep(_CONNECT_RETRY_S)  # relay still binding
                 continue
             self.connected = True
-            self._relay_writer = writer
             try:
                 # Read to EOF even when the session is ending: the relay is
                 # stopped first, so what it sent last is still in the socket.
@@ -482,11 +390,9 @@ class StreamMonitorService:
                     if not chunk:
                         break
                     self._state.add(self._decoder.feed(chunk))
-                    await self._flush_console()
             except OSError:
                 pass
             finally:
-                self._relay_writer = None
                 # Connection over: complete the last epoch, and let the next
                 # connection start with an empty framer.
                 self._state.add(self._decoder.flush())
@@ -633,7 +539,6 @@ class StreamMonitorService:
             "epochs": list(self._state.history) if running else [],
             "satellites": self._state.satellites if running else None,
             "messages": self.messages_message() if running else None,
-            "console": list(self.console) if running else [],
             "logs": list(self._session_log) if self.kind != "relay"
             else process_manager.get_log(self.relay_pid),
         }

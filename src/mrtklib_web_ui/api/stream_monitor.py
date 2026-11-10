@@ -8,8 +8,6 @@ broadcast that ends a session carries `exited: true`.
 from __future__ import annotations
 
 import asyncio
-import base64
-import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -19,7 +17,6 @@ from pydantic import BaseModel, Field
 
 from mrtklib_web_ui.api.message_hub import MessageHub
 from mrtklib_web_ui.api.mrtk_relay import _stream_file_path, _validate_relay_args
-from mrtklib_web_ui.services.receiver_console import MAX_COMMAND_BYTES, MAX_COMMAND_LINE, encode_command
 from mrtklib_web_ui.services.stream_decoders.messages import MessageLog
 from mrtklib_web_ui.services.stream_monitor_service import (
     INPUT_SCHEMES,
@@ -127,30 +124,6 @@ async def _start_browser(
     return service.status_message()
 
 
-class SendRequest(BaseModel):
-    """One command for the receiver behind a running stream (#136): an ASCII
-    `line` (CR LF is added) or binary `hex` (e.g. a UBX frame)."""
-
-    stream: StreamId = "a"
-    line: str | None = Field(default=None, max_length=MAX_COMMAND_LINE)
-    hex: str | None = Field(default=None, max_length=2 * MAX_COMMAND_BYTES)
-
-
-@router.post("/send")
-async def send_command(request: SendRequest) -> dict[str, Any]:
-    try:
-        data, shown = encode_command(request.line, request.hex)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    try:
-        await _services[request.stream].send(data, shown)
-    except RuntimeError as e:
-        raise HTTPException(status_code=409, detail=str(e))
-    except OSError as e:
-        raise HTTPException(status_code=502, detail=f"Write failed: {e}")
-    return {"ok": True}
-
-
 @router.post("/stop")
 async def stop_monitor(stream: StreamId = "a") -> dict[str, Any]:
     await _services[stream].stop()
@@ -169,22 +142,15 @@ async def websocket_ingest(
     """Bytes of a browser input (#136), binary messages from the page that
     started the session (`session` = its `started_at`). Closing the socket ends
     the session; the server closes it when the session ends (Stop elsewhere).
-    The server sends {"type": "write", "data": base64} for the page to write
-    to its port (receiver commands)."""
+    The Monitor only reads: receivers are configured on the Streams page."""
     await websocket.accept()
     if stream not in STREAM_IDS:
         await websocket.close(code=1008, reason="Unknown stream")
         return
     service = _services[stream]
 
-    async def write(data: bytes) -> None:
-        """Bytes for the page's serial port (receiver commands)."""
-        await websocket.send_text(
-            json.dumps({"type": "write", "data": base64.b64encode(data).decode("ascii")})
-        )
-
     try:
-        run = service.attach_ingest(session, write)
+        run = service.attach_ingest(session)
     except ValueError as e:
         await websocket.close(code=1008, reason=str(e))
         return
@@ -234,9 +200,6 @@ async def websocket_monitor(websocket: WebSocket) -> None:
     - {"type": "messages", "now": ..., "types": [...]} per-type counters, each second
     - {"type": "message_rows", "label": ..., "reset": bool, "rows": [...]} to the
       page that selected this type; `reset` replaces what it had
-    - {"type": "console", "entry": {"t", "dir": "tx" | "rx", "label", "text" |
-      "summary" + "data"}} a command sent or the receiver's reply (#136);
-      `history` carries the session's entries as `console`
 
     Sent by clients: {"type": "select_message", "stream": "a", "label": str | null}
     """

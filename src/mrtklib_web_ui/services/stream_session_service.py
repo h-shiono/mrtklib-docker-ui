@@ -32,7 +32,6 @@ from typing import Any
 
 from mrtklib_web_ui.services.process_manager import process_manager
 from mrtklib_web_ui.services.receiver_console import FrameLog
-from mrtklib_web_ui.services.stream_monitor_service import relay_back_owner
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +41,44 @@ _CONNECT_RETRY_S = 0.5
 
 # Input schemes whose stream takes bytes back to the receiver.
 _COMMAND_INPUTS = ("serial", "tcpcli", "tcpsvr")
-_LOCAL_TCPCLI = re.compile(r"^tcpcli://(?:127\.0\.0\.1|localhost):(\d+)$")
+
 _ALIASES = {"--input": "-in", "--output": "-out"}
+
+
+_LOCAL_TCPCLI = re.compile(r"^tcpcli://(?:127\.0\.0\.1|localhost):(\d+)$")
+
+
+def relay_back_owner(port: int, exclude: str) -> tuple[str, bool] | None:
+    """The running relay (other than process `exclude`) whose output is
+    `tcpsvr://:port`, and whether that output is its relay-back one (`-b N`):
+    only then do bytes written to the port reach the relay's input.
+
+    `mrtk relay` relays back from a single output index (mrtk_streamsvr.c), so
+    a Stream Relay without `-b` drops what a client writes. None if no relay
+    serves the port (an outside TCP server).
+    """
+    for info in process_manager.get_all_processes():
+        if info.command != "str2str" or info.id == exclude:
+            continue
+        if info.state.value not in ("starting", "running"):
+            continue
+        args = info.args
+        relay_back = None
+        for i, a in enumerate(args[:-1]):
+            if a == "-b":
+                try:
+                    relay_back = int(args[i + 1])
+                except ValueError:
+                    pass
+        index = 0
+        for i, a in enumerate(args[:-1]):
+            if a != "-out":
+                continue
+            index += 1
+            target = args[i + 1].split("#", 1)[0]
+            if re.fullmatch(rf"tcpsvr://[^:/]*:{port}", target):
+                return info.id, relay_back == index
+    return None
 
 
 @dataclass(frozen=True)

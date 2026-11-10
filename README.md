@@ -78,12 +78,21 @@ GNSS positioning capabilities. No compilation required — just
   `mrtk run` and configured like any receiver. The stream stops when the
   tab closes or reloads
 - For the selected stream: **Messages** (every message type it carries,
-  the latest frames of one type), **Receiver** (Septentrio SBF output grid,
-  ports and tracking, Save to boot), **Console** (any command, and the
-  receiver's replies) and **Log** (the relay's output). The server reads
-  each relay through an extra output it adds (hidden), and sends
-  commands back through it, so a receiver on the relay's serial or TCP
-  input is configured where its data goes out
+  the latest frames of one type), **Receiver**, **Console** (any command,
+  and the receiver's replies) and **Log** (the relay's output). The server
+  reads each relay through an extra output it adds (hidden), and sends
+  commands back through it, so a receiver on the relay's serial, TCP or
+  Browser serial input is configured where its data goes out
+- Receiver tab (Septentrio mosaic-X5 / mosaic-CLAS / mosaic-G5): SBF
+  output works like RxControl's SBF Output dialog, with one column per
+  stream in use (port, interval) and a check box per group or block, read
+  from the receiver. A preset (raw observations, CLAS L6D, MADOCA L6E,
+  Galileo HAS E6, BeiDou B2b, SouthPAN PVS) checks the blocks that
+  MRTKLIB's quickstart guide for that service lists and adds the signal
+  tracking it needs; change any box, then Apply sends only what changed,
+  with the commands shown first. It also shows the ports' input / output
+  and the tracked signals, and saves the settings to the boot
+  configuration
 - Running relays are restored after a page reload and can still be stopped
 - Saves raw streams: a file output (with `::T`, `::S=` options) is
   restart-safe — if the file already exists, or another relay writes
@@ -151,20 +160,8 @@ GNSS positioning capabilities. No compilation required — just
 - Two streams at once: overlay them on 2D / ENU / Map on one reference
   to compare two receivers or solutions, coloured by stream or by
   quality; one selector switches the per-stream views
-- Receiver configuration (Septentrio mosaic-X5 / mosaic-CLAS / mosaic-G5):
-  the Configure button on a running stream opens a receiver panel in the
-  config column. SBF output works like RxControl's SBF Output dialog: one
-  column per stream in use (port, interval) and a check box per group or
-  block, read from the receiver. A preset (raw observations, CLAS L6D,
-  MADOCA L6E, Galileo HAS E6, BeiDou B2b, SouthPAN PVS) checks the blocks
-  that MRTKLIB's quickstart guide for that service lists, and adds the
-  signal tracking it needs;
-  change any box, then Apply sends only what changed, with the commands
-  shown first. The panel also shows the ports' input / output and the
-  tracked signals, saves the settings to the boot configuration, and has a
-  console for any command. Commands use the stream's own connection
-  (Browser serial, or `mrtk relay` with `-b 1`), so the Message tab shows
-  the result at once
+- Receivers are configured on the **Streams** page (Receiver tab), where
+  the stream that owns the receiver port runs; the Monitor only reads
 - Message tab: every message type with count, rate, size and age, and
   the latest frames of the selected type as a hex dump or text
 - Stream health: data rate, message counts, undecoded bytes / bad
