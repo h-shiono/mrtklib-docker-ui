@@ -93,6 +93,14 @@ GNSS positioning capabilities. No compilation required — just
   with the commands shown first. It also shows the ports' input / output
   and the tracked signals, and saves the settings to the boot
   configuration
+- Receiver tab (u-blox ZED-F9P / NEO-D9C, generation 9): message output
+  like u-center's message view, one row per message (grouped by class)
+  and one column per port, read with UBX-CFG-VALGET. A preset (raw
+  observations on a ZED-F9P; CLAS L6D or MADOCA L6E on a NEO-D9C) checks
+  what MRTKLIB reads on the chosen port; Apply sends only what changed
+  with UBX-CFG-VALSET (RAM) and reads it back. It also shows each port's
+  output protocols, the rates, the signals and the D9C's L6 channels, and
+  saves the settings to BBR and flash
 - Running relays are restored after a page reload and can still be stopped
 - Saves raw streams: a file output (with `::T`, `::S=` options) is
   restart-safe — if the file already exists, or another relay writes
@@ -479,7 +487,9 @@ Bug reports and feedback are very welcome — please
 - **Receiver configuration**: checked in Chrome against a simulated
   mosaic-G5 that answers the commands (read, preset into a new stream,
   edits, apply, console, save);
-  not yet against a real receiver. u-blox receivers are not supported yet
+  not yet against a real receiver. u-blox: checked in Chrome against a
+  simulated ZED-F9P (read, preset, apply and read back, save) through
+  Streams Browser serial; NEO-D9C and real u-blox receivers untested
 - **Streams, Browser serial**: checked in Chrome with a simulated
   mosaic-G5 port and the real `mrtk relay` (messages, receiver read,
   console, stop, tab closed); not yet with a real receiver

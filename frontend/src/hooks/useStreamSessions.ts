@@ -18,6 +18,11 @@ const REPLY_TIMEOUT_MS = 5000;
 /** Labels of replies that answer a command (not $TD / $TE / blocks). */
 const ANSWERS = new Set(['Septentrio reply', 'Septentrio error', 'UBX ACK-ACK', 'UBX ACK-NAK', 'UBX CFG-VALGET', 'UBX MON-VER']);
 
+interface Waiter {
+  accept: (entry: MonitorConsoleEntry) => boolean;
+  resolve: (entry: MonitorConsoleEntry | null) => void;
+}
+
 export interface SessionState {
   status: SessionStatus | null;
   messageTypes: MonitorMessageType[];
@@ -52,8 +57,9 @@ export function useStreamSessions(subscription: RowSubscription | null, keep: st
     subRef.current = subscription;
     keepRef.current = keep;
   });
-  // Commands waiting for their answer, per relay, oldest first.
-  const waitersRef = useRef<Map<string, ((e: MonitorConsoleEntry | null) => void)[]>>(new Map());
+  // Commands waiting for their answer, per relay, oldest first; each takes
+  // the first reply it accepts.
+  const waitersRef = useRef<Map<string, Waiter[]>>(new Map());
   const wsRef = useRef<WebSocket | null>(null);
 
   const update = (stream: string, change: (s: SessionState) => SessionState) =>
@@ -108,7 +114,14 @@ export function useStreamSessions(subscription: RowSubscription | null, keep: st
         case 'console': {
           const entry = msg.entry;
           update(stream, (s) => ({ ...s, consoleEntries: [...s.consoleEntries.slice(-(MAX_CONSOLE - 1)), entry] }));
-          if (entry.dir === 'rx' && ANSWERS.has(entry.label)) waitersRef.current.get(stream)?.shift()?.(entry);
+          if (entry.dir === 'rx') {
+            const queue = waitersRef.current.get(stream) ?? [];
+            const waiter = queue.find((w) => w.accept(entry));
+            if (waiter) {
+              waitersRef.current.set(stream, queue.filter((w) => w !== waiter));
+              waiter.resolve(entry);
+            }
+          }
           break;
         }
       }
@@ -165,16 +178,20 @@ export function useStreamSessions(subscription: RowSubscription | null, keep: st
     }
   }, [subKey, wsOpen]);
 
-  /** Send one command and wait for the receiver's answer (null on timeout). */
+  /** Send one command and wait for the receiver's answer (null on timeout).
+   *  `accept` picks the reply that answers it (a UBX command: its own ACK or
+   *  response); by default any reply that answers a command. */
   const sendCommand = useCallback(async (
     stream: string,
     command: { line: string } | { hex: string },
+    accept: (entry: MonitorConsoleEntry) => boolean = (e) => ANSWERS.has(e.label),
   ): Promise<MonitorConsoleEntry | null> => {
     let resolve: (entry: MonitorConsoleEntry | null) => void = () => {};
     const answer = new Promise<MonitorConsoleEntry | null>((r) => { resolve = r; });
+    const waiter: Waiter = { accept, resolve };
     const queue = waitersRef.current.get(stream) ?? [];
-    waitersRef.current.set(stream, [...queue, resolve]);
-    const forget = () => waitersRef.current.set(stream, (waitersRef.current.get(stream) ?? []).filter((w) => w !== resolve));
+    waitersRef.current.set(stream, [...queue, waiter]);
+    const forget = () => waitersRef.current.set(stream, (waitersRef.current.get(stream) ?? []).filter((w) => w !== waiter));
     const timer = setTimeout(() => {
       forget();
       resolve(null);

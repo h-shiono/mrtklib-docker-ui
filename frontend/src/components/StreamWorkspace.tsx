@@ -85,7 +85,7 @@ export function StreamWorkspace({ streams, activeId, onSelect }: {
       note: null,
       session: pid,
       consoleEntries: session?.consoleEntries ?? [],
-      sendCommand: (command) => (pid ? sendCommand(pid, command) : Promise.reject(new Error('Not running'))),
+      sendCommand: (command, accept) => (pid ? sendCommand(pid, command, accept) : Promise.reject(new Error('Not running'))),
     };
   }, [active, blocked, pid, session?.consoleEntries, sendCommand]);
 
