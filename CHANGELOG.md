@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   and the path. File options such as `::T` (time tag) and `::S=` (swap hours)
   are typed in the path, which starts as `...::S=1`; the Time tag switch is
   gone, and the hourly swap that was added out of sight is now visible.
+  Stream Monitor's raw log takes the same one row, instead of a path row
+  that appeared only when the switch was on.
 - Colours follow a single design policy (`DESIGN.md`). Filled buttons,
   placeholders, field outlines and off switches are readable in both themes,
   and the light theme, including the console, is usable in bright surroundings.

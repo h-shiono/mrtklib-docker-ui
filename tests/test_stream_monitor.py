@@ -106,6 +106,14 @@ def test_raw_log_is_numbered_instead_of_overwritten(tmp_path):
     assert args[-2:] == ["-out", f"file://{tmp_path / 'mon_2.raw'}"]
 
 
+def test_raw_log_keeps_its_file_options(tmp_path):
+    # ::T and ::S= are typed in the path, as in Real-time raw logs
+    (tmp_path / "mon.raw").write_bytes(b"old")
+    args, raw = build_relay_args("tcpcli", "h:1", f"{tmp_path / 'mon.raw'}::T::S=1", 41000)
+    assert raw == f"{tmp_path / 'mon_2.raw'}::T::S=1"
+    assert args[-2:] == ["-out", f"file://{tmp_path / 'mon_2.raw'}::T::S=1"]
+
+
 @pytest.mark.parametrize("kind, path", [("udpcli", "h:1"), ("tcpcli", "  ")])
 def test_build_relay_args_rejects(kind, path):
     with pytest.raises(ValueError):
