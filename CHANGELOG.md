@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.8-alpha] - 2026-11-10
+
+No configuration change is needed to upgrade from 0.4.7-alpha. Two things
+move:
+
+- **Stream Monitor no longer saves a raw log.** Save the stream in Stream
+  Relay (a File output, restart-safe) with a `tcpsvr://:PORT` output as well,
+  and pick that relay in the Stream Monitor under the input type
+  **Stream Relay**.
+- **CLAS Pipeline is now CLAS to RTCM3.** "Record raw SBF" is a File output
+  in its Outputs list, and the serial baud rate is part of the input path
+  (`ttyACM0:115200`). Its position plot moved to the Stream Monitor
+  (`CLAS to RTCM3 · :9870`).
+
 ### Added
 - A Stream Relay stream can have no outputs, to check that its input
   receives: the console shows the byte count and the data is not kept.
@@ -63,7 +77,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   Satellites per constellation are shown as text (`G 8/10`), and the less
   urgent status details moved to tooltips.
 - Console, Solution and Trace use one log view on every screen, including
-  Stream Relay, Conversion and CLAS Pipeline: search and copy, following that
+  Stream Relay, Conversion and CLAS to RTCM3: search and copy, following that
   pauses while you read, `[ERROR]` and `[WARN]` in colour, and a count on
   the Console tab for errors that arrive while another tab is open.
 - Real-time: a run that ends stays on screen, dimmed and captioned "Last
@@ -91,6 +105,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   run starts its own log, and a cleared Stream Relay log came back on reload.
 
 ### Fixed
+- Real-time: the TOML Preview showed NTRIP passwords in plain text, while the
+  fields and the console mask them. It now shows `user:***@…`; Download TOML
+  still writes the real value.
 - Conversion: typing in a text field could blank the whole page (the event
   was read inside a state updater that React may run later).
 - Observation QC: switching the SNR plot to Elevation without a NAV file could

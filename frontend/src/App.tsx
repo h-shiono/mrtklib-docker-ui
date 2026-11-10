@@ -1332,17 +1332,16 @@ function App() {
   const [healthStatus, setHealthStatus] = useState<'loading' | 'ok' | 'error'>('loading');
   const [mrtkVersion, setMrtkVersion] = useState<string>('');
   const [selectedTool, setSelectedToolState] = useState('convbin');
-  // A running conversion keeps its tool: the other converter's form would
-  // hide it. Any other tool may be opened; the conversion keeps running.
-  const [conversionBusy, setConversionBusy] = useState(false);
-  const setSelectedTool = useCallback((id: string) => {
-    setSelectedToolState((cur) => (
-      conversionBusy && isConverter(cur) && isConverter(id) ? cur : id
-    ));
-  }, [conversionBusy]);
   // The converter on screen. The panel stays mounted while another tool is
   // open, so a running conversion and its log survive.
   const [conversionTool, setConversionTool] = useState<ConvertTool>('convbin');
+  // A running conversion keeps its converter: the other converter's form
+  // would hide it, also when reached through another tool. Any other tool
+  // may be opened; the conversion keeps running.
+  const [conversionBusy, setConversionBusy] = useState(false);
+  const setSelectedTool = useCallback((id: string) => {
+    setSelectedToolState(conversionBusy && isConverter(id) ? conversionTool : id);
+  }, [conversionBusy, conversionTool]);
   if (isConverter(selectedTool) && selectedTool !== conversionTool) {
     setConversionTool(selectedTool);
   }

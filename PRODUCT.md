@@ -25,8 +25,8 @@ tooltips rather than through a sparser interface.
 ## Product Purpose
 
 MRTKLIB Web UI puts the MRTKLIB CLI tools in a browser, running in one Docker
-container: post-processing, real-time positioning, stream relay (including the
-CLAS to RTCM3), stream monitoring, RINEX conversion and data tools. Nothing has
+container: post-processing, real-time positioning, stream relay (including CLAS
+to RTCM3), stream monitoring, RINEX conversion and data tools. Nothing has
 to be compiled.
 
 Success means the people above can do in the browser what they would otherwise
