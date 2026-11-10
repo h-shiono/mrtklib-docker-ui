@@ -545,7 +545,6 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                           timeSystem={showOverlay ? overlayTimeSystem : primary.epochs[primary.epochs.length - 1]?.time_sys ?? 'GPST'}
                           emptyText={live ? 'Waiting for positions…' : 'No position data'}
                           views={positionViews}
-                          clasSource={primary.clasSource}
                           overlay={positionOverlay}
                         />
                       </div>

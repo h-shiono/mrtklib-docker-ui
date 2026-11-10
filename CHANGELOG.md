@@ -20,7 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Stream Monitor reads the GGA station id as the CLAS L6 source with an
   **L6** toggle beside the id in the status footer, shown once a station id
   arrives, instead of a form row every user saw. Station ID and L6 source
-  are one cell.
+  are one cell. The Monitor's charts and map no longer mark L6 source
+  changes; the footer shows the current source.
 - Colours follow a single design policy (`DESIGN.md`). Filled buttons,
   placeholders, field outlines and off switches are readable in both themes,
   and the light theme, including the console, is usable in bright surroundings.

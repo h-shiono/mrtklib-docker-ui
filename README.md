@@ -34,10 +34,10 @@ GNSS positioning capabilities. No compilation required — just
   and position / quality charts — reads **LLH, XYZ-ECEF, and NMEA-0183**
   solution outputs (auto-detected)
 - CLAS PPP-RTK: the L6 source of the corrections (L6 PRN and facility,
-  from the NMEA GGA station id) is marked on the ENU charts where it
-  changes (QZSS handover, facility switch), in the Result Viewer
-  (PPP-RTK configurations) and live in the Stream Monitor (the **L6**
-  toggle beside the station id in the status footer). NMEA output only; LLH / XYZ `.pos` files do not
+  from the NMEA GGA station id) is marked on the ENU charts of the Result
+  Viewer where it changes (QZSS handover, facility switch; PPP-RTK
+  configurations), and shown live in the Stream Monitor's status footer
+  (the **L6** toggle beside the station id). NMEA output only; LLH / XYZ `.pos` files do not
   carry it
 - Compressed inputs (`.gz`, `.Z`, single-file `.zip`, `.tar`) and
   Hatanaka-compressed RINEX (`.crx`, `.??d`, e.g. `.crx.gz`) are
