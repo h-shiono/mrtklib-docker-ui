@@ -15,6 +15,7 @@ import { notifications } from '@mantine/notifications';
 import { IconSparkles, IconAlertTriangle } from '@tabler/icons-react';
 import { tomlToConfig } from '../utils/tomlImport';
 import type { MrtkPostConfig } from '../types/mrtkPostConfig';
+import { FONT_SIZE } from '../utils/typography';
 
 type ModalState = 'idle' | 'loading' | 'result' | 'error';
 
@@ -131,7 +132,7 @@ export function ConfigAssistantModal({ opened, onClose, mode, onApply }: ConfigA
             <UnstyledButton
               key={ex}
               onClick={() => setPrompt(ex)}
-              style={{ fontSize: '12px', color: 'var(--mantine-color-dimmed)', textAlign: 'left' }}
+              style={{ fontSize: FONT_SIZE.body, color: 'var(--mantine-color-dimmed)', textAlign: 'left' }}
             >
               &bull; &quot;{ex}&quot;
             </UnstyledButton>
@@ -164,7 +165,7 @@ export function ConfigAssistantModal({ opened, onClose, mode, onApply }: ConfigA
                 block
                 style={{
                   fontFamily: 'var(--mantine-font-family-monospace)',
-                  fontSize: '12px',
+                  fontSize: FONT_SIZE.body,
                   whiteSpace: 'pre',
                   background: 'transparent',
                 }}

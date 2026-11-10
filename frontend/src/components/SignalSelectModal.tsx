@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal, Stack, Text, Group, Button, Table, UnstyledButton, useMantineColorScheme } from '@mantine/core';
+import { FONT_SIZE } from '../utils/typography';
 
 /**
  * GNSS signal definitions per system and band.
@@ -80,6 +81,7 @@ export function SignalSelectModal({ opened, onClose, value, onChange }: SignalSe
         .split(/\s+/)
         .filter((s) => s.trim())
         .map((s) => s.trim());
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reloads the draft each time the dialog opens
       setSelected(new Set(codes));
     }
   }, [opened, value]);
@@ -119,7 +121,7 @@ export function SignalSelectModal({ opened, onClose, value, onChange }: SignalSe
       onClose={onClose}
       title="Signal Selection"
       size="lg"
-      styles={{ title: { fontSize: '14px', fontWeight: 600 } }}
+      styles={{ title: { fontSize: FONT_SIZE.title, fontWeight: 600 } }}
     >
       <Stack gap="sm">
         <Text size="xs" c="dimmed">
@@ -127,7 +129,7 @@ export function SignalSelectModal({ opened, onClose, value, onChange }: SignalSe
           Selected: {selected.size} signals
         </Text>
 
-        <Table style={{ fontSize: '10px' }} withRowBorders={false} verticalSpacing={2}>
+        <Table style={{ fontSize: FONT_SIZE.label }} withRowBorders={false} verticalSpacing={2}>
           <Table.Tbody>
             {Object.entries(SIGNAL_CATALOG).map(([sys, def], sysIdx) => {
               const bandEntries = Object.entries(def.bands);
@@ -140,7 +142,7 @@ export function SignalSelectModal({ opened, onClose, value, onChange }: SignalSe
                   {bandIdx === 0 ? (
                     <Table.Td
                       rowSpan={bandEntries.length}
-                      style={{ fontSize: '11px', fontWeight: 600, verticalAlign: 'middle', width: 70, padding: '4px 8px 4px 4px', backgroundColor: stripeBg, borderRadius: bandEntries.length > 1 ? '4px 0 0 4px' : 4 }}
+                      style={{ fontSize: FONT_SIZE.label, fontWeight: 600, verticalAlign: 'middle', width: 70, padding: '4px 8px 4px 4px', backgroundColor: stripeBg, borderRadius: bandEntries.length > 1 ? '4px 0 0 4px' : 4 }}
                     >
                       {def.label}
                     </Table.Td>
@@ -161,7 +163,7 @@ export function SignalSelectModal({ opened, onClose, value, onChange }: SignalSe
                             onClick={() => toggle(code)}
                             aria-pressed={isSelected}
                             style={{
-                              fontSize: '10px',
+                              fontSize: FONT_SIZE.label,
                               fontWeight: isSelected ? 600 : 400,
                               padding: '2px 6px',
                               borderRadius: 4,

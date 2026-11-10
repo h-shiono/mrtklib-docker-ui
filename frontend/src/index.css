@@ -8,15 +8,20 @@ body {
   padding: 0;
 }
 
-/* Semantic colors for solution quality — "A / Carbon-Azure" status palette.
-   These are single-value (not color-scheme aware). The values below read well
-   on both the near-black dark surfaces and the white light surfaces. If you
-   want per-scheme tuning, move them into cssVariablesResolver instead. */
-:root {
-  --color-fix:    #34d399;  /* FIX  */
-  --color-float:  #fbbf24;  /* FLOAT / WARN */
-  --color-single: #6b7280;  /* SINGLE / none */
-  --color-live:   #4c8dff;  /* live / accent */
+/* Field outlines and the off track of a Switch, which Mantine draws in border
+   colours too faint to see. Focus, error and disabled keep Mantine's own. */
+.mantine-Input-wrapper .mantine-Input-input[data-variant='default']:not(:focus, :focus-within, :disabled, [data-disabled], [data-error]) {
+  --input-bd: var(--app-input-border);
+}
+
+.mantine-Switch-input:not(:checked, :disabled) + .mantine-Switch-track {
+  --switch-bg: var(--app-input-border);
+}
+
+/* Mantine's xs and lg Badge sizes (9px, 13px) are off the type scale. */
+.mantine-Badge-root.mantine-Badge-root {
+  --badge-fz-xs: 10px;
+  --badge-fz-lg: 12px;
 }
 
 /* IBM Plex Mono for all monospace contexts */

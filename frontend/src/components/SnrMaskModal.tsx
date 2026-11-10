@@ -10,6 +10,7 @@ import {
   Text,
 } from '@mantine/core';
 import type { SnrMaskConfig } from '../types/mrtkPostConfig';
+import { FONT_SIZE } from '../utils/typography';
 
 interface SnrMaskModalProps {
   opened: boolean;
@@ -48,7 +49,7 @@ export function SnrMaskModal({ opened, onClose, value, onChange }: SnrMaskModalP
       title="SNR Mask Configuration"
       size="xl"
       styles={{
-        title: { fontWeight: 600, fontSize: '14px' },
+        title: { fontWeight: 600, fontSize: FONT_SIZE.title },
       }}
     >
       <Stack gap="md">
@@ -61,7 +62,7 @@ export function SnrMaskModal({ opened, onClose, value, onChange }: SnrMaskModalP
             onChange={(e) =>
               setLocalConfig({ ...localConfig, enableRover: e.currentTarget.checked })
             }
-            styles={{ label: { fontSize: '11px' } }}
+            styles={{ label: { fontSize: FONT_SIZE.label } }}
           />
           <Checkbox
             size="xs"
@@ -70,22 +71,22 @@ export function SnrMaskModal({ opened, onClose, value, onChange }: SnrMaskModalP
             onChange={(e) =>
               setLocalConfig({ ...localConfig, enableBase: e.currentTarget.checked })
             }
-            styles={{ label: { fontSize: '11px' } }}
+            styles={{ label: { fontSize: FONT_SIZE.label } }}
           />
         </Group>
 
         {/* SNR Mask Matrix */}
         <div>
-          <Text size="xs" fw={500} mb="xs" style={{ fontSize: '10px' }}>
+          <Text size="xs" fw={500} mb="xs" style={{ fontSize: FONT_SIZE.label }}>
             SNR Mask (dBHz) - Elevation Angle (deg)
           </Text>
           <Table
             striped
             withTableBorder
             withColumnBorders
-            style={{ fontSize: '10px' }}
+            style={{ fontSize: FONT_SIZE.label }}
             styles={{
-              th: { fontSize: '10px', padding: '4px 6px', textAlign: 'center' },
+              th: { fontSize: FONT_SIZE.label, padding: '4px 6px', textAlign: 'center' },
               td: { padding: '2px' },
             }}
           >
@@ -113,7 +114,6 @@ export function SnrMaskModal({ opened, onClose, value, onChange }: SnrMaskModalP
                         hideControls
                         styles={{
                           input: {
-                            fontSize: '10px',
                             padding: '2px 4px',
                             minHeight: '24px',
                             textAlign: 'center',

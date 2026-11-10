@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   Box,
+  SimpleGrid,
   Stack,
   Group,
   Text,
@@ -25,27 +26,32 @@ import dayjs from 'dayjs';
 import {
   IconPlayerPlay,
   IconPlayerStop,
-  IconCopy,
-  IconTrash,
   IconDownload,
   IconChevronDown,
   IconChevronRight,
   IconFolder,
-  IconRefresh,
-  IconFileCode,
   IconCalendar,
-  IconFileZip,
 } from '@tabler/icons-react';
 import { FileBrowserModal } from './FileBrowserModal';
 import { ComboLabel } from './common/OptionLabel';
+import { StatusBadge } from './common/StatusBadge';
+import { processTone } from '../utils/status';
 import { hatanakaOutputPath, type HatanakaDirection } from '../utils/hatanakaNames';
+import { FONT_SIZE, MONO } from '../utils/typography';
+import { FormRow } from './common/FormRow';
+import { FORM_LABEL_GAP, FORM_LABEL_WIDTH, FORM_ROW_HEIGHT } from '../utils/formLayout';
+import { SectionHeader } from './common/SectionHeader';
+import { LogView } from './common/LogView';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type ConvertStatus = 'idle' | 'converting' | 'done' | 'failed';
 type RightPanelTab = 'console' | 'preview';
 type PreviewFileType = 'obs' | 'nav';
-type ConvertTool = 'convbin' | 'hatanaka';
+/** One switch in an options grid, at the height of an input row. */
+const OPTION_CELL = { minHeight: FORM_ROW_HEIGHT, display: 'flex', alignItems: 'center' } as const;
+
+export type ConvertTool = 'convbin' | 'hatanaka';
 
 // Hatanaka compression: rnx2crx / crx2rnx run as filters by the backend (#81)
 interface HatanakaFormState {
@@ -194,59 +200,9 @@ const TRACE_LEVELS = [
   { value: '5', label: '5' },
 ];
 
-const LABEL_STYLE = { width: 130, flexShrink: 0, fontSize: '11px' } as const;
+const LABEL_STYLE = { width: FORM_LABEL_WIDTH, flexShrink: 0, fontSize: FONT_SIZE.label } as const;
 
 // ─── Sidebar components ─────────────────────────────────────────────────────
-
-function SidebarGroup({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <>
-      <Group
-        gap={6}
-        style={{
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-          fontSize: '10px',
-          padding: '12px 8px 4px',
-          userSelect: 'none',
-          color: 'var(--mantine-color-dimmed)',
-        }}
-      >
-        {icon}
-        <Text size="xs" fw={600} c="dimmed" style={{ fontSize: '10px' }}>{label}</Text>
-      </Group>
-      {children}
-    </>
-  );
-}
-
-function SidebarItem({ label, icon, active, onClick }: {
-  label: string;
-  icon: React.ReactNode;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <UnstyledButton
-      onClick={onClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        width: '100%',
-        padding: '6px 8px',
-        fontSize: '11px',
-        borderLeft: active ? '2px solid var(--mantine-primary-color-filled)' : '2px solid transparent',
-        backgroundColor: active ? 'var(--mantine-color-default-hover)' : undefined,
-        color: active ? 'var(--mantine-color-text)' : 'var(--mantine-color-dimmed)',
-        fontWeight: active ? 500 : 400,
-      }}
-    >
-      {icon}
-      {label}
-    </UnstyledButton>
-  );
-}
 
 // ─── Collapsible Section ────────────────────────────────────────────────────
 
@@ -272,7 +228,7 @@ function CollapsibleSection({ label, children, defaultOpen = false }: {
         <Text size="xs" fw={600}>{label}</Text>
       </UnstyledButton>
       <Collapse in={opened}>
-        <Stack gap={6} pl={4} pb={8}>
+        <Stack gap={6} pb={8}>
           {children}
         </Stack>
       </Collapse>
@@ -281,15 +237,6 @@ function CollapsibleSection({ label, children, defaultOpen = false }: {
 }
 
 // ─── Field row helper ───────────────────────────────────────────────────────
-
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <Group wrap="nowrap" align="center" gap="xs">
-      <Text size="xs" c="dimmed" style={LABEL_STYLE}>{label}</Text>
-      <Box style={{ flex: 1, minWidth: 0 }}>{children}</Box>
-    </Group>
-  );
-}
 
 // Split a space-joined "A B C" string into 3 parts (for X/Y/Z, H/E/N inputs).
 function xyz(s: string): [string, string, string] {
@@ -305,14 +252,17 @@ function setXyz(s: string, idx: number, val: string): string {
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
-export function ConversionPanel() {
-  const [tool, setTool] = useState<ConvertTool>('convbin');
+/** Tools → Conversion. `tool` is chosen in the Tools sidebar; `onBusyChange`
+ *  reports a running conversion, during which the sidebar keeps the tool. */
+export function ConversionPanel({ tool, onBusyChange }: {
+  tool: ConvertTool;
+  onBusyChange?: (busy: boolean) => void;
+}) {
   const [form, setForm] = useState<ConvertFormState>(DEFAULT_FORM);
   const [hk, setHk] = useState<HatanakaFormState>(DEFAULT_HATANAKA);
   const hkOutput = hk.outputFile.trim() || hatanakaOutputPath(hk.inputFile, hk.direction, hk.gzipOutput);
   const [status, setStatus] = useState<ConvertStatus>('idle');
   const [logLines, setLogLines] = useState<string[]>([]);
-  const consoleRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   // Incremented by every start and by Stop. A start that waited for the
   // WebSocket checks it, so Stop during that wait cancels the start.
@@ -405,16 +355,6 @@ export function ConversionPanel() {
       setTimeout(() => setRightTab('preview'), 500);
     }
   }, [fetchPreview]);
-
-  // Auto-scroll console
-  useEffect(() => {
-    if (consoleRef.current) {
-      consoleRef.current.scrollTo({
-        top: consoleRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
-    }
-  }, [logLines]);
 
   // WebSocket for log streaming
   const connectWs = useCallback(() => {
@@ -730,14 +670,6 @@ export function ConversionPanel() {
     }
   }, []);
 
-  const handleCopyLog = useCallback(() => {
-    navigator.clipboard.writeText(logLines.join('\n'));
-  }, [logLines]);
-
-  const handleClearLog = useCallback(() => {
-    setLogLines([]);
-  }, []);
-
   // When conversion completes, try to fetch previews for output files
   useEffect(() => {
     // Hatanaka: the backend sends output_files for a plain RINEX output
@@ -756,46 +688,14 @@ export function ConversionPanel() {
     window.open(`${baseUrl}/api/files/download?path=${encodeURIComponent(filePath)}`, '_blank');
   }, [activePreviewFile, outputFiles]);
 
-  const statusColor = status === 'converting' ? 'blue' : status === 'done' ? 'green' : status === 'failed' ? 'red' : 'gray';
+  useEffect(() => {
+    onBusyChange?.(status === 'converting');
+  }, [status, onBusyChange]);
+
   const statusLabel = status === 'converting' ? 'Converting' : status === 'done' ? 'Done' : status === 'failed' ? 'Failed' : 'Idle';
 
   return (
-    <Box style={{
-      display: 'flex',
-      width: '100%',
-      minHeight: 600,
-      overflow: 'hidden',
-      border: '1px solid var(--mantine-color-default-border)',
-      borderRadius: 'var(--mantine-radius-md)',
-      background: 'var(--mantine-color-default)',
-    }}>
-      {/* Sidebar */}
-      <Box style={{
-        width: 160,
-        flexShrink: 0,
-        borderRight: '1px solid var(--mantine-color-default-border)',
-        overflowY: 'auto',
-      }}>
-        <Stack gap={0}>
-          <SidebarGroup label="FORMAT" icon={<IconFileCode size={12} />}>
-            <SidebarItem
-              label="RINEX Converter"
-              icon={<IconRefresh size={14} />}
-              active={tool === 'convbin'}
-              onClick={() => status !== 'converting' && setTool('convbin')}
-            />
-            <SidebarItem
-              label="Hatanaka (CRX)"
-              icon={<IconFileZip size={14} />}
-              active={tool === 'hatanaka'}
-              onClick={() => status !== 'converting' && setTool('hatanaka')}
-            />
-          </SidebarGroup>
-        </Stack>
-      </Box>
-
-      {/* Main content */}
-      <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+    <Box style={{ height: '100%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         {/* Header bar */}
         <Group
           justify="space-between"
@@ -808,7 +708,7 @@ export function ConversionPanel() {
             <Text size="xs" c="dimmed">{tool === 'hatanaka' ? 'rnx2crx / crx2rnx' : 'convbin'}</Text>
           </Group>
           <Group gap="xs">
-            <Badge size="sm" color={statusColor} variant="light">{statusLabel}</Badge>
+            <StatusBadge tone={processTone(status)}>{statusLabel}</StatusBadge>
             {status === 'converting' ? (
               <Button
                 size="compact-xs"
@@ -837,9 +737,9 @@ export function ConversionPanel() {
           {/* Form (55%) */}
           <ScrollArea style={{ width: '55%', flexShrink: 0 }}>
             {tool === 'hatanaka' && (
-              <Stack gap={10} p="md">
-                <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.06em' }}>Operation</Text>
-                <FieldRow label="Direction">
+              <Stack gap={6} p="md">
+                <SectionHeader title="Operation" />
+                <FormRow label="Direction">
                   <SegmentedControl
                     size="xs"
                     fullWidth
@@ -850,67 +750,73 @@ export function ConversionPanel() {
                       { value: 'compress', label: 'Compress (RINEX → CRX)' },
                     ]}
                   />
-                </FieldRow>
+                </FormRow>
 
-                <Text size="xs" fw={700} tt="uppercase" c="dimmed" mt={6} style={{ letterSpacing: '0.06em' }}>Files</Text>
-                <FieldRow label="Input File">
+                <SectionHeader title="Files" mt={6} />
+                <FormRow label="Input File">
                   <Group wrap="nowrap" gap={4}>
                     <TextInput
                       size="xs"
                       value={hk.inputFile}
-                      onChange={e => setHk(prev => ({ ...prev, inputFile: e.currentTarget.value }))}
+                      onChange={e => { const value = e.currentTarget.value; setHk(prev => ({ ...prev, inputFile: value })); }}
                       placeholder={hk.direction === 'compress' ? '/data/site0010.24o' : '/data/site0010.24d.gz'}
                       style={{ flex: 1 }}
-                      styles={{ input: { fontFamily: "'IBM Plex Mono', monospace" } }}
+                      styles={{ input: { fontFamily: MONO } }}
                     />
-                    <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('hk:inputFile', 'data')}>
+                    <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('hk:inputFile', 'data')}>
                       <IconFolder size={16} />
                     </ActionIcon>
                   </Group>
-                </FieldRow>
-                <FieldRow label="Output File">
+                </FormRow>
+                <FormRow label="Output File">
                   <Group wrap="nowrap" gap={4}>
                     <TextInput
                       size="xs"
                       value={hk.outputFile}
-                      onChange={e => setHk(prev => ({ ...prev, outputFile: e.currentTarget.value }))}
+                      onChange={e => { const value = e.currentTarget.value; setHk(prev => ({ ...prev, outputFile: value })); }}
                       placeholder={hatanakaOutputPath(hk.inputFile, hk.direction, hk.gzipOutput) || '/workspace/...'}
                       style={{ flex: 1 }}
-                      styles={{ input: { fontFamily: "'IBM Plex Mono', monospace" } }}
+                      styles={{ input: { fontFamily: MONO } }}
                     />
-                    <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('hk:outputFile', 'workspace')}>
+                    <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('hk:outputFile', 'workspace')}>
                       <IconFolder size={16} />
                     </ActionIcon>
                   </Group>
-                </FieldRow>
-                <Text size="xs" c="dimmed" style={{ fontSize: '10px', paddingLeft: 136 }}>
+                </FormRow>
+                <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label, paddingLeft: FORM_LABEL_WIDTH + FORM_LABEL_GAP }}>
                   Leave empty for the default name. Output goes under /workspace; a .gz input is decompressed on the fly.
                 </Text>
 
-                <Text size="xs" fw={700} tt="uppercase" c="dimmed" mt={6} style={{ letterSpacing: '0.06em' }}>Options</Text>
-                <Switch
-                  size="xs"
-                  label="gzip output (.gz)"
-                  styles={{ label: { fontSize: '10px' } }}
-                  checked={hk.gzipOutput}
-                  onChange={e => setHk(prev => ({ ...prev, gzipOutput: e.currentTarget.checked }))}
-                />
-                <Switch
-                  size="xs"
-                  label="Skip strange epochs (-s)"
-                  styles={{ label: { fontSize: '10px' } }}
-                  checked={hk.skipStrange}
-                  onChange={e => setHk(prev => ({ ...prev, skipStrange: e.currentTarget.checked }))}
-                />
-                <Switch
-                  size="xs"
-                  label="Overwrite an existing output file"
-                  styles={{ label: { fontSize: '10px' } }}
-                  checked={hk.overwrite}
-                  onChange={e => setHk(prev => ({ ...prev, overwrite: e.currentTarget.checked }))}
-                />
+                <SectionHeader title="Options" mt={6} />
+                <FormRow label={null}>
+                  <Switch
+                    size="xs"
+                    label="gzip output (.gz)"
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
+                    checked={hk.gzipOutput}
+                    onChange={e => { const checked = e.currentTarget.checked; setHk(prev => ({ ...prev, gzipOutput: checked })); }}
+                  />
+                </FormRow>
+                <FormRow label={null}>
+                  <Switch
+                    size="xs"
+                    label="Skip strange epochs (-s)"
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
+                    checked={hk.skipStrange}
+                    onChange={e => { const checked = e.currentTarget.checked; setHk(prev => ({ ...prev, skipStrange: checked })); }}
+                  />
+                </FormRow>
+                <FormRow label={null}>
+                  <Switch
+                    size="xs"
+                    label="Overwrite an existing output file"
+                    styles={{ label: { fontSize: FONT_SIZE.label } }}
+                    checked={hk.overwrite}
+                    onChange={e => { const checked = e.currentTarget.checked; setHk(prev => ({ ...prev, overwrite: checked })); }}
+                  />
+                </FormRow>
                 {hk.direction === 'compress' && (
-                  <FieldRow label="Reset Every (epochs)">
+                  <FormRow label="Reset Every (epochs)">
                     <NumberInput
                       size="xs"
                       min={1}
@@ -920,106 +826,106 @@ export function ConversionPanel() {
                       value={hk.resetEpochs}
                       onChange={v => setHk(prev => ({ ...prev, resetEpochs: typeof v === 'number' ? v : '' }))}
                     />
-                  </FieldRow>
+                  </FormRow>
                 )}
               </Stack>
             )}
-            <Stack gap={10} p="md" style={tool === 'convbin' ? undefined : { display: 'none' }}>
+            <Stack gap={6} p="md" style={tool === 'convbin' ? undefined : { display: 'none' }}>
               {/* Input Section */}
-              <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.06em' }}>Input</Text>
-              <FieldRow label="Raw File">
+              <SectionHeader title="Input" />
+              <FormRow label="Raw File">
                 <Group wrap="nowrap" gap={4}>
                   <TextInput
                     size="xs"
                     value={form.rawFile}
-                    onChange={e => setForm(prev => ({ ...prev, rawFile: e.currentTarget.value }))}
+                    onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, rawFile: value })); }}
                     placeholder="/data/raw/receiver.ubx"
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('rawFile', 'data')}>
+                  <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('rawFile', 'data')}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
-              </FieldRow>
-              <FieldRow label="Receiver Format">
+              </FormRow>
+              <FormRow label="Receiver Format">
                 <Select
                   size="xs"
                   value={form.receiverFormat}
                   onChange={v => setForm(prev => ({ ...prev, receiverFormat: v || '' }))}
                   data={RECEIVER_FORMATS}
                 />
-              </FieldRow>
-              <FieldRow label="Receiver Options">
+              </FormRow>
+              <FormRow label="Receiver Options">
                 <TextInput
                   size="xs"
                   value={form.receiverOptions}
-                  onChange={e => setForm(prev => ({ ...prev, receiverOptions: e.currentTarget.value }))}
+                  onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, receiverOptions: value })); }}
                   placeholder="-ephall -tadj=1"
                 />
-              </FieldRow>
+              </FormRow>
 
               {/* Output Section */}
-              <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.06em', marginTop: 8 }}>Output</Text>
-              <FieldRow label="Observation File">
+              <SectionHeader title="Output" mt={6} />
+              <FormRow label="Observation File">
                 <Group wrap="nowrap" gap={4}>
                   <TextInput
                     size="xs"
                     value={form.observationFile}
-                    onChange={e => setForm(prev => ({ ...prev, observationFile: e.currentTarget.value }))}
+                    onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, observationFile: value })); }}
                     placeholder="auto-generated"
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('observationFile', 'workspace')}>
+                  <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('observationFile', 'workspace')}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
-              </FieldRow>
-              <FieldRow label="Navigation File">
+              </FormRow>
+              <FormRow label="Navigation File">
                 <Group wrap="nowrap" gap={4}>
                   <TextInput
                     size="xs"
                     value={form.navigationFile}
-                    onChange={e => setForm(prev => ({ ...prev, navigationFile: e.currentTarget.value }))}
+                    onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, navigationFile: value })); }}
                     placeholder="auto-generated"
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('navigationFile', 'workspace')}>
+                  <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('navigationFile', 'workspace')}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
-              </FieldRow>
-              <FieldRow label="RINEX Version">
+              </FormRow>
+              <FormRow label="RINEX Version">
                 <Select
                   size="xs"
                   value={form.rinexVersion}
                   onChange={v => setForm(prev => ({ ...prev, rinexVersion: v || '3.04' }))}
                   data={RINEX_VERSIONS}
                 />
-              </FieldRow>
-              <FieldRow label="Output Directory">
+              </FormRow>
+              <FormRow label="Output Directory">
                 <Group wrap="nowrap" gap={4}>
                   <TextInput
                     size="xs"
                     value={form.outputDirectory}
-                    onChange={e => setForm(prev => ({ ...prev, outputDirectory: e.currentTarget.value }))}
+                    onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, outputDirectory: value })); }}
                     style={{ flex: 1 }}
                   />
-                  <ActionIcon variant="filled" color="blue" size="lg" onClick={() => openFileBrowser('outputDirectory', 'workspace', true)}>
+                  <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('outputDirectory', 'workspace', true)}>
                     <IconFolder size={16} />
                   </ActionIcon>
                 </Group>
-              </FieldRow>
-              <FieldRow label="Station ID">
+              </FormRow>
+              <FormRow label="Station ID">
                 <TextInput
                   size="xs"
                   value={form.stationId}
-                  onChange={e => setForm(prev => ({ ...prev, stationId: e.currentTarget.value }))}
+                  onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, stationId: value })); }}
                 />
-              </FieldRow>
+              </FormRow>
 
               {/* Time Range (collapsible) */}
               <CollapsibleSection label="Time Range">
-                <FieldRow label="Time Start">
+                <FormRow label="Time Start">
                   <DateTimePicker
                     size="xs"
                     valueFormat="YYYY/MM/DD HH:mm:ss"
@@ -1029,10 +935,9 @@ export function ConversionPanel() {
                     value={form.timeStart ? dayjs(form.timeStart, 'YYYY/MM/DD HH:mm:ss').toDate() : null}
                     onChange={date => setForm(prev => ({ ...prev, timeStart: date ? dayjs(date).format('YYYY/MM/DD HH:mm:ss') : '' }))}
                     style={{ flex: 1 }}
-                    styles={{ input: { fontSize: '11px' } }}
                   />
-                </FieldRow>
-                <FieldRow label="Time End">
+                </FormRow>
+                <FormRow label="Time End">
                   <DateTimePicker
                     size="xs"
                     valueFormat="YYYY/MM/DD HH:mm:ss"
@@ -1042,10 +947,9 @@ export function ConversionPanel() {
                     value={form.timeEnd ? dayjs(form.timeEnd, 'YYYY/MM/DD HH:mm:ss').toDate() : null}
                     onChange={date => setForm(prev => ({ ...prev, timeEnd: date ? dayjs(date).format('YYYY/MM/DD HH:mm:ss') : '' }))}
                     style={{ flex: 1 }}
-                    styles={{ input: { fontSize: '11px' } }}
                   />
-                </FieldRow>
-                <FieldRow label="RTCM Ref Time">
+                </FormRow>
+                <FormRow label="RTCM Ref Time">
                   <DateTimePicker
                     size="xs"
                     valueFormat="YYYY/MM/DD HH:mm:ss"
@@ -1055,10 +959,9 @@ export function ConversionPanel() {
                     value={form.rtcmRefTime ? dayjs(form.rtcmRefTime, 'YYYY/MM/DD HH:mm:ss').toDate() : null}
                     onChange={date => setForm(prev => ({ ...prev, rtcmRefTime: date ? dayjs(date).format('YYYY/MM/DD HH:mm:ss') : '' }))}
                     style={{ flex: 1 }}
-                    styles={{ input: { fontSize: '11px' } }}
                   />
-                </FieldRow>
-                <Group wrap="nowrap" align="center" gap="xs">
+                </FormRow>
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Interval / Tol / Span" style={LABEL_STYLE}
                     fields={[{ name: 'Interval (s)' }, { name: 'Epoch Tolerance (s)' }, { name: 'Time Span (s)' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
@@ -1101,7 +1004,7 @@ export function ConversionPanel() {
 
               {/* Signal Options (collapsible) */}
               <CollapsibleSection label="Signal Options">
-                <FieldRow label="Frequencies">
+                <FormRow label="Frequencies">
                   <NumberInput
                     size="xs"
                     value={form.frequencies}
@@ -1109,123 +1012,137 @@ export function ConversionPanel() {
                     min={1}
                     max={7}
                   />
-                </FieldRow>
-                <Group justify="space-between" gap="md" align="center" mih={30}>
-                  <Switch
-                    size="xs"
-                    label="Include Doppler"
-                    styles={{ label: { fontSize: '10px' } }}
-                    checked={form.includeDoppler}
-                    onChange={e => setForm(prev => ({ ...prev, includeDoppler: e.currentTarget.checked }))}
-                  />
-                  <Switch
-                    size="xs"
-                    label="Include SNR"
-                    styles={{ label: { fontSize: '10px' } }}
-                    checked={form.includeSnr}
-                    onChange={e => setForm(prev => ({ ...prev, includeSnr: e.currentTarget.checked }))}
-                  />
-                  <Switch
-                    size="xs"
-                    label="Iono Correction"
-                    styles={{ label: { fontSize: '10px' } }}
-                    checked={form.ionoCorrection}
-                    onChange={e => setForm(prev => ({ ...prev, ionoCorrection: e.currentTarget.checked }))}
-                  />
-                  <Switch
-                    size="xs"
-                    label="Time Correction"
-                    styles={{ label: { fontSize: '10px' } }}
-                    checked={form.timeCorrection}
-                    onChange={e => setForm(prev => ({ ...prev, timeCorrection: e.currentTarget.checked }))}
-                  />
-                  <Switch
-                    size="xs"
-                    label="Leap Seconds"
-                    styles={{ label: { fontSize: '10px' } }}
-                    checked={form.leapSeconds}
-                    onChange={e => setForm(prev => ({ ...prev, leapSeconds: e.currentTarget.checked }))}
-                  />
-                  <Switch
-                    size="xs"
-                    label="Half-cycle Corr"
-                    styles={{ label: { fontSize: '10px' } }}
-                    checked={form.halfCycleCorr}
-                    onChange={e => setForm(prev => ({ ...prev, halfCycleCorr: e.currentTarget.checked }))}
-                  />
-                </Group>
-                <FieldRow label="Exclude Satellites">
+                </FormRow>
+                <FormRow label={null}>
+                  <SimpleGrid cols={2} spacing={FORM_LABEL_GAP} verticalSpacing={6}>
+                    <Box style={OPTION_CELL}>
+                      <Switch
+                        size="xs"
+                        label="Include Doppler"
+                        styles={{ label: { fontSize: FONT_SIZE.label } }}
+                        checked={form.includeDoppler}
+                        onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, includeDoppler: checked })); }}
+                      />
+                    </Box>
+                    <Box style={OPTION_CELL}>
+                      <Switch
+                        size="xs"
+                        label="Include SNR"
+                        styles={{ label: { fontSize: FONT_SIZE.label } }}
+                        checked={form.includeSnr}
+                        onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, includeSnr: checked })); }}
+                      />
+                    </Box>
+                    <Box style={OPTION_CELL}>
+                      <Switch
+                        size="xs"
+                        label="Iono Correction"
+                        styles={{ label: { fontSize: FONT_SIZE.label } }}
+                        checked={form.ionoCorrection}
+                        onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, ionoCorrection: checked })); }}
+                      />
+                    </Box>
+                    <Box style={OPTION_CELL}>
+                      <Switch
+                        size="xs"
+                        label="Time Correction"
+                        styles={{ label: { fontSize: FONT_SIZE.label } }}
+                        checked={form.timeCorrection}
+                        onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, timeCorrection: checked })); }}
+                      />
+                    </Box>
+                    <Box style={OPTION_CELL}>
+                      <Switch
+                        size="xs"
+                        label="Leap Seconds"
+                        styles={{ label: { fontSize: FONT_SIZE.label } }}
+                        checked={form.leapSeconds}
+                        onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, leapSeconds: checked })); }}
+                      />
+                    </Box>
+                    <Box style={OPTION_CELL}>
+                      <Switch
+                        size="xs"
+                        label="Half-cycle Corr"
+                        styles={{ label: { fontSize: FONT_SIZE.label } }}
+                        checked={form.halfCycleCorr}
+                        onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, halfCycleCorr: checked })); }}
+                      />
+                    </Box>
+                  </SimpleGrid>
+                </FormRow>
+                <FormRow label="Exclude Satellites">
                   <TextInput
                     size="xs"
                     value={form.excludeSatellites}
-                    onChange={e => setForm(prev => ({ ...prev, excludeSatellites: e.currentTarget.value }))}
+                    onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, excludeSatellites: value })); }}
                     placeholder="G04 G05 R09"
                   />
-                </FieldRow>
-                <FieldRow label="Signal Mask">
+                </FormRow>
+                <FormRow label="Signal Mask">
                   <TextInput
                     size="xs"
                     value={form.signalMask}
-                    onChange={e => setForm(prev => ({ ...prev, signalMask: e.currentTarget.value }))}
+                    onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, signalMask: value })); }}
                   />
-                </FieldRow>
+                </FormRow>
               </CollapsibleSection>
 
               {/* RINEX Header (collapsible) */}
               <CollapsibleSection label="RINEX Header">
-                <FieldRow label="Comment">
-                  <TextInput size="xs" value={form.comment} onChange={e => setForm(prev => ({ ...prev, comment: e.currentTarget.value }))} />
-                </FieldRow>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <FormRow label="Comment">
+                  <TextInput size="xs" value={form.comment} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, comment: value })); }} />
+                </FormRow>
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Marker" style={LABEL_STYLE}
                     fields={[{ name: 'Name' }, { name: 'Number' }, { name: 'Type' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <TextInput size="xs" title="Marker Name" aria-label="Marker Name" placeholder="Name" value={form.markerName} onChange={e => setForm(prev => ({ ...prev, markerName: e.currentTarget.value }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="Marker Number" aria-label="Marker Number" placeholder="Number" value={form.markerNumber} onChange={e => setForm(prev => ({ ...prev, markerNumber: e.currentTarget.value }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="Marker Type" aria-label="Marker Type" placeholder="Type" value={form.markerType} onChange={e => setForm(prev => ({ ...prev, markerType: e.currentTarget.value }))} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Marker Name" aria-label="Marker Name" placeholder="Name" value={form.markerName} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, markerName: value })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Marker Number" aria-label="Marker Number" placeholder="Number" value={form.markerNumber} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, markerNumber: value })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Marker Type" aria-label="Marker Type" placeholder="Type" value={form.markerType} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, markerType: value })); }} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
-                <FieldRow label="Observer/Agency">
-                  <TextInput size="xs" value={form.observerAgency} onChange={e => setForm(prev => ({ ...prev, observerAgency: e.currentTarget.value }))} />
-                </FieldRow>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <FormRow label="Observer/Agency">
+                  <TextInput size="xs" value={form.observerAgency} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, observerAgency: value })); }} />
+                </FormRow>
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Receiver / Antenna" style={LABEL_STYLE}
                     fields={[{ name: 'Receiver' }, { name: 'Antenna' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <TextInput size="xs" title="Receiver" aria-label="Receiver" placeholder="Receiver" value={form.receiver} onChange={e => setForm(prev => ({ ...prev, receiver: e.currentTarget.value }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="Antenna" aria-label="Antenna" placeholder="Antenna" value={form.antenna} onChange={e => setForm(prev => ({ ...prev, antenna: e.currentTarget.value }))} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Receiver" aria-label="Receiver" placeholder="Receiver" value={form.receiver} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, receiver: value })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Antenna" aria-label="Antenna" placeholder="Antenna" value={form.antenna} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, antenna: value })); }} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Approx Position" style={LABEL_STYLE}
                     fields={[{ name: 'X (m)' }, { name: 'Y (m)' }, { name: 'Z (m)' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <TextInput size="xs" title="X" aria-label="X" placeholder="X" value={xyz(form.approxPosition)[0]} onChange={e => setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 0, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="Y" aria-label="Y" placeholder="Y" value={xyz(form.approxPosition)[1]} onChange={e => setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 1, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="Z" aria-label="Z" placeholder="Z" value={xyz(form.approxPosition)[2]} onChange={e => setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 2, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="X" aria-label="X" placeholder="X" value={xyz(form.approxPosition)[0]} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 0, value) })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Y" aria-label="Y" placeholder="Y" value={xyz(form.approxPosition)[1]} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 1, value) })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Z" aria-label="Z" placeholder="Z" value={xyz(form.approxPosition)[2]} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 2, value) })); }} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
-                <Group wrap="nowrap" align="center" gap="xs">
+                <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Antenna Delta" style={LABEL_STYLE}
                     fields={[{ name: 'H (m)' }, { name: 'E (m)' }, { name: 'N (m)' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <TextInput size="xs" title="H" aria-label="H" placeholder="H" value={xyz(form.antennaDelta)[0]} onChange={e => setForm(prev => ({ ...prev, antennaDelta: setXyz(prev.antennaDelta, 0, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="E" aria-label="E" placeholder="E" value={xyz(form.antennaDelta)[1]} onChange={e => setForm(prev => ({ ...prev, antennaDelta: setXyz(prev.antennaDelta, 1, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="N" aria-label="N" placeholder="N" value={xyz(form.antennaDelta)[2]} onChange={e => setForm(prev => ({ ...prev, antennaDelta: setXyz(prev.antennaDelta, 2, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="H" aria-label="H" placeholder="H" value={xyz(form.antennaDelta)[0]} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, antennaDelta: setXyz(prev.antennaDelta, 0, value) })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="E" aria-label="E" placeholder="E" value={xyz(form.antennaDelta)[1]} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, antennaDelta: setXyz(prev.antennaDelta, 1, value) })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="N" aria-label="N" placeholder="N" value={xyz(form.antennaDelta)[2]} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, antennaDelta: setXyz(prev.antennaDelta, 2, value) })); }} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
               </CollapsibleSection>
 
               {/* Debug (collapsible) */}
               <CollapsibleSection label="Debug">
-                <FieldRow label="Trace Level">
+                <FormRow label="Trace Level">
                   <Select
                     size="xs"
                     value={form.traceLevel}
                     onChange={v => setForm(prev => ({ ...prev, traceLevel: v || '0' }))}
                     data={TRACE_LEVELS}
                   />
-                </FieldRow>
+                </FormRow>
               </CollapsibleSection>
             </Stack>
           </ScrollArea>
@@ -1250,7 +1167,7 @@ export function ConversionPanel() {
                   onClick={() => setRightTab('console')}
                   style={{
                     padding: '2px 10px',
-                    fontSize: 12,
+                    fontSize: FONT_SIZE.body,
                     fontWeight: rightTab === 'console' ? 600 : 400,
                     color: rightTab === 'console' ? 'var(--mantine-color-text)' : 'var(--mantine-color-dimmed)',
                     borderBottom: rightTab === 'console' ? '2px solid var(--mantine-primary-color-filled)' : '2px solid transparent',
@@ -1262,7 +1179,7 @@ export function ConversionPanel() {
                   onClick={() => { if (previewEnabled) setRightTab('preview'); }}
                   style={{
                     padding: '2px 10px',
-                    fontSize: 12,
+                    fontSize: FONT_SIZE.body,
                     fontWeight: rightTab === 'preview' ? 600 : 400,
                     color: !previewEnabled ? 'var(--mantine-color-dimmed)' : rightTab === 'preview' ? 'var(--mantine-color-text)' : 'var(--mantine-color-dimmed)',
                     borderBottom: rightTab === 'preview' ? '2px solid var(--mantine-primary-color-filled)' : '2px solid transparent',
@@ -1277,22 +1194,9 @@ export function ConversionPanel() {
                 </UnstyledButton>
               </Group>
               <Group gap={4}>
-                {rightTab === 'console' ? (
-                  <>
-                    <Tooltip label="Copy">
-                      <ActionIcon size="xs" variant="subtle" onClick={handleCopyLog}>
-                        <IconCopy size={12} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label="Clear">
-                      <ActionIcon size="xs" variant="subtle" onClick={handleClearLog}>
-                        <IconTrash size={12} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </>
-                ) : rightTab === 'preview' && currentPreview ? (
+                {rightTab === 'preview' && currentPreview ? (
                   <Tooltip label="Download">
-                    <ActionIcon size="xs" variant="subtle" onClick={handleDownloadPreview}>
+                    <ActionIcon aria-label="Download" size="xs" variant="subtle" onClick={handleDownloadPreview}>
                       <IconDownload size={12} />
                     </ActionIcon>
                   </Tooltip>
@@ -1303,39 +1207,15 @@ export function ConversionPanel() {
             {/* Console body (shown when tab is 'console') */}
             {rightTab === 'console' && (
               <>
-                <ScrollArea
-                  style={{ flex: 1, minHeight: 0 }}
-                  viewportRef={consoleRef}
-                  styles={{
-                    viewport: {
-                      backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)',
-                      padding: '8px 12px',
-                    },
-                  }}
-                >
-                  {logLines.length === 0 ? (
-                    <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
-                      Waiting for output...
-                    </Text>
-                  ) : (
-                    logLines.map((line, i) => (
-                      <Text
-                        key={i}
-                        size="xs"
-                        c="gray.4"
-                        style={{
-                          fontFamily: "'IBM Plex Mono', monospace",
-                          fontSize: '11px',
-                          lineHeight: 1.5,
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-all',
-                        }}
-                      >
-                        {line}
-                      </Text>
-                    ))
-                  )}
-                </ScrollArea>
+                <Box style={{ flex: 1, minHeight: 0, padding: '6px 8px 0' }}>
+                  <LogView
+                    lines={logLines}
+                    wrap
+                    severity
+                    running={status === 'converting'}
+                    startLabel="Convert"
+                  />
+                </Box>
 
                 {/* Command preview strip */}
                 <Box
@@ -1343,17 +1223,17 @@ export function ConversionPanel() {
                   py={6}
                   style={{
                     borderTop: '1px solid var(--mantine-color-default-border)',
-                    backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)',
+                    backgroundColor: 'var(--app-console-bg)',
                   }}
                 >
                   <Group gap={6} wrap="nowrap">
-                    <Text size="xs" c="dimmed" style={{ flexShrink: 0, fontSize: '10px' }}>Command Preview</Text>
+                    <Text size="xs" c="dimmed" style={{ flexShrink: 0, fontSize: FONT_SIZE.label }}>Command Preview</Text>
                     <Text
                       size="xs"
-                      c="gray.5"
+                      c="var(--app-console-fg)"
                       style={{
-                        fontFamily: "'IBM Plex Mono', monospace",
-                        fontSize: '9px',
+                        fontFamily: MONO,
+                        fontSize: FONT_SIZE.label,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -1391,8 +1271,8 @@ export function ConversionPanel() {
                 ) : currentPreview ? (
                   <>
                     {/* Info bar */}
-                    <Box px="sm" py={4} style={{ borderBottom: '0.5px solid var(--mantine-color-default-border)', fontSize: 11, color: 'var(--mantine-color-dimmed)' }}>
-                      <Text size="xs" c="dimmed" style={{ fontSize: 11 }}>
+                    <Box px="sm" py={4} style={{ borderBottom: '0.5px solid var(--mantine-color-default-border)', fontSize: FONT_SIZE.label, color: 'var(--mantine-color-dimmed)' }}>
+                      <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label }}>
                         {currentPreview.filename} — RINEX {currentPreview.rinexType} — {currentPreview.totalLines.toLocaleString()} lines
                         <span style={{ marginLeft: 8 }}>
                           Showing header ({currentPreview.headerLines} lines) + first 5 epochs
@@ -1403,8 +1283,8 @@ export function ConversionPanel() {
                     {/* RINEX content */}
                     <ScrollArea style={{ flex: 1, minHeight: 0 }}>
                       <Code block style={{
-                        fontFamily: "'IBM Plex Mono', monospace",
-                        fontSize: 11,
+                        fontFamily: MONO,
+                        fontSize: FONT_SIZE.label,
                         lineHeight: 1.5,
                         whiteSpace: 'pre',
                         background: 'transparent',
@@ -1419,7 +1299,7 @@ export function ConversionPanel() {
                     {currentPreview.truncated && (
                       <Box style={{
                         padding: '6px 12px',
-                        fontSize: 10,
+                        fontSize: FONT_SIZE.label,
                         color: 'var(--mantine-color-dimmed)',
                         borderTop: '0.5px solid var(--mantine-color-default-border)',
                         fontStyle: 'italic',
@@ -1439,7 +1319,6 @@ export function ConversionPanel() {
             )}
           </Box>
         </Box>
-      </Box>
 
       {/* File Browser Modal */}
       <FileBrowserModal

@@ -26,6 +26,7 @@ import {
   IconHistory,
   IconRefresh,
 } from '@tabler/icons-react';
+import { FONT_SIZE, MONO } from '../../utils/typography';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -133,7 +134,6 @@ const AC_OPTIONS = [
   { value: 'ESA', label: 'ESA' },
 ];
 
-const MONO_FONT = 'IBM Plex Mono, monospace';
 
 // ── Component ────────────────────────────────────────────────────────────
 
@@ -501,7 +501,6 @@ export function DataDownloader() {
               {!earthdataConfigured && (
                 <Group gap="xs" align="flex-end">
                   <TextInput
-                    size="sm"
                     label="Username"
                     placeholder="Earthdata username"
                     value={earthdataUser}
@@ -509,7 +508,6 @@ export function DataDownloader() {
                     style={{ flex: 1 }}
                   />
                   <TextInput
-                    size="sm"
                     label="Password"
                     type="password"
                     placeholder="Earthdata password"
@@ -518,7 +516,7 @@ export function DataDownloader() {
                     style={{ flex: 1 }}
                   />
                   <Button
-                    size="sm"
+                    size="xs"
                     onClick={() => handleSaveCredential('earthdata')}
                     loading={savingCred === 'earthdata'}
                   >
@@ -545,7 +543,6 @@ export function DataDownloader() {
               {!gsiConfigured && (
                 <Group gap="xs" align="flex-end">
                   <TextInput
-                    size="sm"
                     label="Username"
                     placeholder="GSI username"
                     value={gsiUser}
@@ -553,7 +550,6 @@ export function DataDownloader() {
                     style={{ flex: 1 }}
                   />
                   <TextInput
-                    size="sm"
                     label="Password"
                     type="password"
                     placeholder="GSI password"
@@ -562,7 +558,7 @@ export function DataDownloader() {
                     style={{ flex: 1 }}
                   />
                   <Button
-                    size="sm"
+                    size="xs"
                     onClick={() => handleSaveCredential('gsi')}
                     loading={savingCred === 'gsi'}
                   >
@@ -592,7 +588,6 @@ export function DataDownloader() {
 
           <Group gap="sm" grow>
             <NumberInput
-              size="sm"
               label="Year"
               value={qzssYear}
               onChange={(v) => setQzssYear(typeof v === 'number' ? v : new Date().getFullYear())}
@@ -600,7 +595,6 @@ export function DataDownloader() {
               max={2099}
             />
             <NumberInput
-              size="sm"
               label="DoY"
               value={qzssDoy}
               onChange={(v) => setQzssDoy(typeof v === 'number' ? v : 1)}
@@ -608,7 +602,6 @@ export function DataDownloader() {
               max={366}
             />
             <Select
-              size="sm"
               label="Session"
               data={SESSION_OPTIONS}
               value={qzssSession}
@@ -616,7 +609,6 @@ export function DataDownloader() {
             />
             {qzssType === 'MADOCA' && (
               <Select
-                size="sm"
                 label="PRN"
                 data={PRN_OPTIONS}
                 value={qzssPrn}
@@ -626,11 +618,10 @@ export function DataDownloader() {
           </Group>
 
           <TextInput
-            size="sm"
             label="Destination directory"
             value={qzssDestDir}
             onChange={(e) => setQzssDestDir(e.currentTarget.value)}
-            styles={{ input: { fontFamily: MONO_FONT } }}
+            styles={{ input: { fontFamily: MONO } }}
           />
 
           <Group gap="sm" justify="space-between">
@@ -638,7 +629,7 @@ export function DataDownloader() {
               {qzssFileCount} file{qzssFileCount !== 1 ? 's' : ''} to download
             </Text>
             <Button
-              size="sm"
+              size="xs"
               leftSection={<IconDownload size={16} />}
               onClick={handleQzssDownload}
               loading={qzssLoading}
@@ -670,14 +661,12 @@ export function DataDownloader() {
 
           <Group gap="sm" grow>
             <Select
-              size="sm"
               label="Product type"
               data={PRODUCT_TYPE_OPTIONS}
               value={igsProductType}
               onChange={(v) => setIgsProductType(v ?? 'brdc')}
             />
             <Select
-              size="sm"
               label="Analysis center"
               data={AC_OPTIONS}
               value={igsAc}
@@ -687,7 +676,6 @@ export function DataDownloader() {
 
           <Group gap="sm" grow>
             <NumberInput
-              size="sm"
               label="Year"
               value={igsYear}
               onChange={(v) => setIgsYear(typeof v === 'number' ? v : new Date().getFullYear())}
@@ -695,7 +683,6 @@ export function DataDownloader() {
               max={2099}
             />
             <NumberInput
-              size="sm"
               label="DoY"
               value={igsDoy}
               onChange={(v) => setIgsDoy(typeof v === 'number' ? v : 1)}
@@ -705,11 +692,10 @@ export function DataDownloader() {
           </Group>
 
           <TextInput
-            size="sm"
             label="Destination directory"
             value={igsDestDir}
             onChange={(e) => setIgsDestDir(e.currentTarget.value)}
-            styles={{ input: { fontFamily: MONO_FONT } }}
+            styles={{ input: { fontFamily: MONO } }}
           />
 
           {!earthdataConfigured && (
@@ -725,7 +711,7 @@ export function DataDownloader() {
 
           <Group gap="sm" justify="flex-end">
             <Button
-              size="sm"
+              size="xs"
               leftSection={<IconDownload size={16} />}
               onClick={handleIgsDownload}
               loading={igsLoading}
@@ -747,7 +733,6 @@ export function DataDownloader() {
 
           <Group gap="sm" grow>
             <TextInput
-              size="sm"
               label="Station (4 digits)"
               placeholder="e.g. 0200"
               value={gsiStation}
@@ -755,7 +740,6 @@ export function DataDownloader() {
               maxLength={4}
             />
             <NumberInput
-              size="sm"
               label="Year"
               value={gsiYear}
               onChange={(v) => setGsiYear(typeof v === 'number' ? v : new Date().getFullYear())}
@@ -763,7 +747,6 @@ export function DataDownloader() {
               max={2099}
             />
             <NumberInput
-              size="sm"
               label="DoY"
               value={gsiDoy}
               onChange={(v) => setGsiDoy(typeof v === 'number' ? v : 1)}
@@ -773,11 +756,10 @@ export function DataDownloader() {
           </Group>
 
           <TextInput
-            size="sm"
             label="Destination directory"
             value={gsiDestDir}
             onChange={(e) => setGsiDestDir(e.currentTarget.value)}
-            styles={{ input: { fontFamily: MONO_FONT } }}
+            styles={{ input: { fontFamily: MONO } }}
           />
 
           {!gsiConfigured && (
@@ -793,7 +775,7 @@ export function DataDownloader() {
 
           <Group gap="sm" justify="flex-end">
             <Button
-              size="sm"
+              size="xs"
               leftSection={<IconDownload size={16} />}
               onClick={handleGsiDownload}
               loading={gsiLoading}
@@ -848,10 +830,10 @@ export function DataDownloader() {
                     <Table.Td style={{ textAlign: 'center' }}>
                       {statusIcon(entry.status)}
                     </Table.Td>
-                    <Table.Td style={{ fontFamily: MONO_FONT }}>
+                    <Table.Td style={{ fontFamily: MONO }}>
                       {entry.filename}
                     </Table.Td>
-                    <Table.Td style={{ fontFamily: MONO_FONT }}>
+                    <Table.Td style={{ fontFamily: MONO }}>
                       {entry.size_bytes > 0 ? formatBytes(entry.size_bytes) : '-'}
                     </Table.Td>
                     <Table.Td>
@@ -863,7 +845,7 @@ export function DataDownloader() {
                         {entry.status}
                       </Badge>
                     </Table.Td>
-                    <Table.Td style={{ fontFamily: MONO_FONT, fontSize: 11 }}>
+                    <Table.Td style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
                       {new Date(entry.timestamp).toLocaleString()}
                     </Table.Td>
                   </Table.Tr>

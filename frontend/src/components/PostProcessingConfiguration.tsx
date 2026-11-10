@@ -9,7 +9,6 @@ import {
   Button,
   ActionIcon,
   Tooltip,
-  Badge,
 } from '@mantine/core';
 import {
   IconPlayerPlay,
@@ -27,7 +26,10 @@ import { ProcessingConfigPanel, TomlDrawer } from './ProcessingConfigTabs';
 import { PresetPanel } from './PresetPanel';
 import { ConfigAssistantModal } from './ConfigAssistantModal';
 import { ConfigCollapseButton } from './ConsoleFrame';
+import { StatusBadge } from './common/StatusBadge';
+import { processTone, type ProcessState } from '../utils/status';
 import { tomlToConfig } from '../utils/tomlImport';
+import { PRIMARY_MIN_WIDTH } from '../utils/formLayout';
 
 interface PostProcessingConfigurationProps {
   onConfigChange: (config: MrtkPostConfig) => void;
@@ -45,7 +47,7 @@ interface PostProcessingConfigurationProps {
   outputFile: string;
   onOutputFileChange: (v: string) => void;
   needsBase: boolean;
-  processStatus: string;
+  processStatus: ProcessState;
   isLoading: boolean;
   onExecute: () => void;
   onStop: () => void;
@@ -140,59 +142,46 @@ export function PostProcessingConfiguration({
 
   return (
     <>
-    <Card withBorder p="xs">
-      <Stack gap={4}>
+    <Card withBorder p="xs" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Stack gap={4} style={{ flex: 1, minHeight: 0 }}>
         {/* Header: title + status + buttons */}
         <Group justify="space-between">
           <Group gap="xs">
             {onCollapse && <ConfigCollapseButton onClick={onCollapse} />}
-            <Title order={6} size="xs">Processing Configuration</Title>
+            <Title order={6} size="sm">Processing Configuration</Title>
           </Group>
           <Group gap="xs">
-            {processStatus !== 'idle' && (
-              <Badge color={processStatus === 'running' ? 'green' : processStatus === 'success' ? 'blue' : 'red'} variant="dot" size="sm">
-                {processStatus}
-              </Badge>
-            )}
-            {processStatus === 'running' ? (
-              <Button size="xs" color="red" leftSection={<IconPlayerStop size={12} />} onClick={onStop} loading={isLoading}>
-                Stop
-              </Button>
-            ) : (
-              <Button size="xs" color="green" leftSection={<IconPlayerPlay size={12} />} onClick={handleExecute} loading={isLoading}>
-                Execute
-              </Button>
-            )}
+            <StatusBadge tone={processTone(processStatus)}>{processStatus}</StatusBadge>
             <Tooltip label="Presets">
-              <ActionIcon variant="light" color="gray" size="lg" onClick={openPresets}>
+              <ActionIcon aria-label="Presets" variant="light" color="gray" size={30} onClick={openPresets}>
                 <IconBookmark size={16} />
               </ActionIcon>
             </Tooltip>
             {aiConfigured ? (
               <Tooltip label="Config Assistant">
-                <ActionIcon variant="light" color="yellow" size="lg" onClick={openAssistant}>
+                <ActionIcon aria-label="Config Assistant" variant="light" color="gray" size={30} onClick={openAssistant}>
                   <IconSparkles size={16} />
                 </ActionIcon>
               </Tooltip>
             ) : (
               <Tooltip label="Configure API key in Tools → AI Settings">
-                <ActionIcon variant="light" color="gray" size="lg" onClick={onNavigateToAiSettings}>
+                <ActionIcon aria-label="Configure API key in Tools → AI Settings" variant="light" color="gray" size={30} onClick={onNavigateToAiSettings}>
                   <IconSparkles size={16} />
                 </ActionIcon>
               </Tooltip>
             )}
             <Tooltip label="Import TOML">
-              <ActionIcon variant="light" color="gray" size="lg" onClick={() => importFileRef.current?.click()}>
+              <ActionIcon aria-label="Import TOML" variant="light" color="gray" size={30} onClick={() => importFileRef.current?.click()}>
                 <IconUpload size={16} />
               </ActionIcon>
             </Tooltip>
             <Tooltip label="TOML Preview">
-              <ActionIcon variant="light" color="gray" size="lg" onClick={openToml}>
+              <ActionIcon aria-label="TOML Preview" variant="light" color="gray" size={30} onClick={openToml}>
                 <IconCode size={16} />
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Download TOML">
-              <ActionIcon variant="light" color="blue" size="lg" onClick={onExportConf} disabled={processStatus === 'running'}>
+              <ActionIcon aria-label="Download TOML" variant="light" color="gray" size={30} onClick={onExportConf} disabled={processStatus === 'running'}>
                 <IconDownload size={16} />
               </ActionIcon>
             </Tooltip>
@@ -207,6 +196,15 @@ export function PostProcessingConfiguration({
                 e.target.value = '';
               }}
             />
+            {processStatus === 'running' ? (
+              <Button size="xs" miw={PRIMARY_MIN_WIDTH} color="red" leftSection={<IconPlayerStop size={12} />} onClick={onStop} loading={isLoading}>
+                Stop
+              </Button>
+            ) : (
+              <Button size="xs" miw={PRIMARY_MIN_WIDTH} color="green" leftSection={<IconPlayerPlay size={12} />} onClick={handleExecute} loading={isLoading}>
+                Execute
+              </Button>
+            )}
           </Group>
         </Group>
 

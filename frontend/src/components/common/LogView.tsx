@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { ActionIcon, Box, Checkbox, Group, ScrollArea, Text, TextInput } from '@mantine/core';
-import { IconChevronDown, IconChevronUp, IconSearch, IconX } from '@tabler/icons-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ActionIcon, Box, Checkbox, Group, ScrollArea, Text, TextInput, Tooltip } from '@mantine/core';
+import { IconChevronDown, IconChevronUp, IconCopy, IconSearch, IconX } from '@tabler/icons-react';
+import { useFollowScroll } from '../../hooks/useFollowScroll';
+import { logSeverity } from '../../utils/logSeverity';
+import { maskLogLine } from '../../utils/maskPath';
+import { STATUS_COLOR } from '../../utils/status';
+import { FONT_SIZE, MONO } from '../../utils/typography';
+import { JumpToLatest } from './JumpToLatest';
 
-const MONO = "'IBM Plex Mono', monospace";
-const CONSOLE_BG = 'var(--mantine-color-dark-8, #1a1b1e)';
+const CONSOLE_BG = 'var(--app-console-bg)';
 const TOOLBAR_H = 30;
 const MARK_BG = 'rgba(250, 176, 5, 0.35)';
 const MARK_CURRENT_BG = 'var(--mantine-color-yellow-5)';
@@ -56,59 +61,70 @@ function Highlighted({ line, q, currentStart }: { line: string; q: string; curre
   return <>{parts}</>;
 }
 
-interface TraceLogViewProps {
-  /** Lines to show (and search). */
+interface LogViewProps {
+  /** Lines to show and search. Masked here, so no caller can forget it. */
   lines: string[];
-  /** Total height, toolbar included. */
-  height: number;
-  /** Shown instead of the lines while `lines` is empty. */
-  placeholder?: ReactNode;
-  /** Wrap long lines (RT) or scroll horizontally (PP). */
+  /** Total height, toolbar included. Omit to fill a parent with a definite height. */
+  height?: number;
+  /** The panel is visible: following needs a layout to scroll. */
+  active?: boolean;
+  /** Live lines: offer "Jump to latest" while scrolled up. */
+  live?: boolean;
   wrap?: boolean;
-  /** ScrollArea viewport ref, e.g. from useFollowScroll. */
-  viewportRef?: RefObject<HTMLDivElement | null>;
-  onScrollPositionChange?: (pos: { x: number; y: number }) => void;
-  /** Overlay inside the scroll box (e.g. JumpToLatest). */
-  overlay?: ReactNode;
-  /** Extra note at the right of the toolbar. */
+  /** Offer a Wrap checkbox, starting from `wrap`. */
+  wrapToggle?: boolean;
+  /** Colour [ERROR] and [WARN] lines. */
+  severity?: boolean;
+  /** The process is running, for the empty message. */
+  running?: boolean;
+  /** The button that starts it, for the empty message. */
+  startLabel?: string;
+  /** Replaces the empty message. */
+  emptyText?: string;
+  /** Lines the buffer keeps; says so once it is full. */
+  cap?: number;
+  /** After the search controls, e.g. the file being shown. */
   note?: ReactNode;
-  /** Called when a match is selected; a live view holds here (useFollowScroll
-   *  `hold`), so new lines cannot replace the lines the selection is on. */
-  onMatchSelect?: () => void;
+  /** Before Copy, e.g. a download button. */
+  actions?: ReactNode;
 }
 
 /**
- * Monospace log view with a search toolbar: highlight matches, step through
- * them, and optionally show only the matching lines. Search is client-side
- * over `lines`.
+ * The one log view: Console, Solution and Trace on every screen. A search
+ * toolbar over monospace lines that follow the end as they arrive.
  *
- * With an empty query the lines render as one joined text node, as before:
- * live views (RT trace) re-render on every poll and per-line nodes are only
- * worth their cost while searching.
+ * Without a search or severity colours the lines render as one joined text
+ * node: live views re-render on every poll and per-line nodes are only worth
+ * their cost when something differs per line.
  *
- * Selecting a match calls `onMatchSelect`; a useFollowScroll view passes
- * its `hold`, so it holds still (its snapshot is what is searched) until the
- * user resumes, even when the match is near the bottom.
+ * Selecting a match holds the view, so new lines cannot replace the lines the
+ * selection is on, until the user resumes.
  */
-export function TraceLogView({
-  lines,
+export function LogView({
+  lines: rawLines,
   height,
-  placeholder,
-  wrap = false,
-  viewportRef,
-  onScrollPositionChange,
-  overlay,
+  active = true,
+  live = true,
+  wrap: wrapDefault = false,
+  wrapToggle = false,
+  severity = false,
+  running = false,
+  startLabel = 'Start',
+  emptyText,
+  cap,
   note,
-  onMatchSelect,
-}: TraceLogViewProps) {
+  actions,
+}: LogViewProps) {
+  const masked = useMemo(() => rawLines.map(maskLogLine), [rawLines]);
+  const { scrollProps, shown: lines, held, resume, hold: onMatchSelect } = useFollowScroll(active, masked);
+  const { viewportRef: vpRef, onScrollPositionChange } = scrollProps;
+  const [wrap, setWrap] = useState(wrapDefault);
   const [query, setQuery] = useState('');
   const [matchOnly, setMatchOnly] = useState(false);
   // Selected occurrence: an index into `matches`, valid only for the `lines` it
   // was chosen on. A live view that keeps following gets new lines every
   // poll, and the same index would then point at a different line.
   const [sel, setSel] = useState<{ lines: string[]; idx: number } | null>(null);
-  const ownViewportRef = useRef<HTMLDivElement | null>(null);
-  const vpRef = viewportRef ?? ownViewportRef;
   // Set before a query / filter change that switches the rendering mode, so a
   // view sitting at the bottom (following) stays there.
   const pinBottomRef = useRef(false);
@@ -177,45 +193,58 @@ export function TraceLogView({
 
   const textStyle = {
     fontFamily: MONO,
-    fontSize: '11px',
+    fontSize: FONT_SIZE.label,
     lineHeight: 1.5,
     whiteSpace: wrap ? 'pre-wrap' : 'pre',
     wordBreak: wrap ? 'break-all' : undefined,
   } as const;
 
+  const perLine = !!q || severity;
+  const renderLine = (i: number) => {
+    const level = severity ? logSeverity(lines[i]) : null;
+    return (
+      <div
+        key={i}
+        style={{
+          backgroundColor: i === currentLine ? LINE_CURRENT_BG : undefined,
+          color: level === 'error' ? STATUS_COLOR.error : level === 'warn' ? STATUS_COLOR.warn : undefined,
+          // Pulled out by its own width, so the text stays in line with the others.
+          ...(level === 'error' ? { borderLeft: '2px solid currentColor', marginLeft: -8, paddingLeft: 6 } : null),
+        }}
+      >
+        {q
+          ? <Highlighted line={lines[i]} q={q} currentStart={i === currentLine && current ? current.start : -1} />
+          : lines[i] || ' '}
+      </div>
+    );
+  };
+
   let body: ReactNode;
   if (lines.length === 0) {
     body = (
-      <Text c="dimmed" fs="italic" style={textStyle}>
-        {placeholder}
+      <Text c="dimmed" style={textStyle}>
+        {emptyText ?? (running ? 'Waiting for output…' : `No output yet. Press ${startLabel}.`)}
       </Text>
     );
-  } else if (!q) {
+  } else if (!perLine) {
     body = (
-      <Text c="gray.4" style={textStyle}>
+      <Text c="var(--app-console-fg)" style={textStyle}>
         {lines.join('\n')}
       </Text>
     );
   } else {
-    const shown = matchOnly ? matchLines : null;
-    const render = (i: number) => (
-      <div key={i} style={i === currentLine ? { backgroundColor: LINE_CURRENT_BG } : undefined}>
-        <Highlighted line={lines[i]} q={q} currentStart={i === currentLine && current ? current.start : -1} />
-      </div>
-    );
+    const shown = q && matchOnly ? matchLines : null;
     body = (
-      <Box c="gray.4" style={textStyle}>
-        {shown ? shown.map(render) : lines.map((_, i) => render(i))}
-        {shown && shown.length === 0 && (
-          <Text c="dimmed" fs="italic" style={textStyle}>No matching lines</Text>
-        )}
+      <Box c="var(--app-console-fg)" style={textStyle}>
+        {shown ? shown.map(renderLine) : lines.map((_, i) => renderLine(i))}
+        {shown && shown.length === 0 && <Text c="dimmed" style={textStyle}>No matching lines</Text>}
       </Box>
     );
   }
 
   return (
-    <Box>
-      <Group gap={6} wrap="nowrap" h={TOOLBAR_H} pb={4}>
+    <Box style={{ height: height ?? '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <Group gap={6} wrap="nowrap" h={TOOLBAR_H} pb={4} style={{ flexShrink: 0 }}>
         <TextInput
           size="xs"
           placeholder="Search"
@@ -246,13 +275,13 @@ export function TraceLogView({
               </ActionIcon>
             ) : null
           }
-          styles={{ input: { fontFamily: MONO, fontSize: '11px' } }}
-          style={{ width: 240, minWidth: 0, flexShrink: 1 }}
+          styles={{ input: { fontFamily: MONO } }}
+          style={{ width: 180, minWidth: 80, flexShrink: 1 }}
         />
         <Text
           size="xs"
-          c={q && matches.length === 0 ? 'red.5' : 'dimmed'}
-          style={{ fontFamily: MONO, fontSize: '11px', whiteSpace: 'nowrap', minWidth: 64 }}
+          c={q && matches.length === 0 ? STATUS_COLOR.error : 'dimmed'}
+          style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, whiteSpace: 'nowrap', minWidth: 48 }}
         >
           {q ? `${cur >= 0 ? cur + 1 : '–'} / ${matches.length}` : ''}
         </Text>
@@ -286,20 +315,47 @@ export function TraceLogView({
             keepBottom();
             setMatchOnly(e.currentTarget.checked);
           }}
-          styles={{ label: { fontSize: '11px', paddingLeft: 6, whiteSpace: 'nowrap' } }}
+          styles={{ label: { fontSize: FONT_SIZE.label, paddingLeft: 6, whiteSpace: 'nowrap' } }}
         />
-        {note && <Box style={{ flex: 1, minWidth: 0 }}>{note}</Box>}
+        {wrapToggle && (
+          <Checkbox
+            size="xs"
+            label="Wrap"
+            checked={wrap}
+            onChange={(e) => setWrap(e.currentTarget.checked)}
+            styles={{ label: { fontSize: FONT_SIZE.label, paddingLeft: 6 } }}
+          />
+        )}
+        <Box style={{ flex: 1, minWidth: 0 }}>{note}</Box>
+        {cap !== undefined && rawLines.length >= cap && (
+          <Text c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, whiteSpace: 'nowrap' }}>
+            last {cap} lines
+          </Text>
+        )}
+        {actions}
+        <Tooltip label="Copy">
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            color="gray"
+            aria-label="Copy"
+            disabled={lines.length === 0}
+            onClick={() => void navigator.clipboard.writeText(lines.join('\n'))}
+          >
+            <IconCopy size={14} />
+          </ActionIcon>
+        </Tooltip>
       </Group>
-      <Box pos="relative">
+      <Box pos="relative" style={{ flex: 1, minHeight: 0 }}>
         <ScrollArea
-          h={height - TOOLBAR_H}
+          h="100%"
           viewportRef={vpRef}
           onScrollPositionChange={onScrollPositionChange}
           styles={{ viewport: { backgroundColor: CONSOLE_BG, padding: '8px 12px' } }}
         >
           {body}
         </ScrollArea>
-        {overlay}
+        {live && held && <JumpToLatest onClick={resume} />}
       </Box>
     </Box>
   );

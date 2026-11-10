@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Text, Group, Badge, useMantineColorScheme } from '@mantine/core';
 import { qualityColor, qualityLabel } from '../utils/quality';
+import { FONT_SIZE } from '../utils/typography';
 
 export interface PositionPoint {
   lat: number;
@@ -21,9 +22,11 @@ const DEG_TO_M_LAT = 111320;
 interface PositionScatterProps {
   points: PositionPoint[];
   maxPoints?: number;
+  /** Fit a parent with a definite height, staying square. */
+  fit?: boolean;
 }
 
-export function PositionScatter({ points, maxPoints = 3600 }: PositionScatterProps) {
+export function PositionScatter({ points, maxPoints = 3600, fit = false }: PositionScatterProps) {
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -64,8 +67,15 @@ export function PositionScatter({ points, maxPoints = 3600 }: PositionScatterPro
   // Sort quality keys for consistent rendering order
   const qualityKeys = Object.keys(datasets).map(Number).sort();
 
-  return (
-    <div style={{ width: '100%', maxWidth: 400, aspectRatio: '1', margin: '0 auto' }}>
+  const plot = (
+    <div
+      style={{
+        ...(fit ? { width: 'min(100cqw, 100cqh, 400px)' } : { width: '100%', maxWidth: 400, margin: '0 auto' }),
+        aspectRatio: '1',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       {/* Quality legend */}
       <Group gap={8} justify="center" mb={4}>
         {qualityKeys.map(q => (
@@ -80,7 +90,8 @@ export function PositionScatter({ points, maxPoints = 3600 }: PositionScatterPro
         ))}
       </Group>
 
-      <ResponsiveContainer width="100%" height="90%">
+      <div style={{ flex: 1, minHeight: 0 }}>
+      <ResponsiveContainer width="100%" height="100%">
         <ScatterChart margin={{ top: 5, right: 15, bottom: 20, left: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#444' : '#ddd'} />
           <XAxis
@@ -88,24 +99,24 @@ export function PositionScatter({ points, maxPoints = 3600 }: PositionScatterPro
             dataKey="e"
             name="East"
             domain={[-range, range]}
-            tick={{ fontSize: 9 }}
+            tick={{ fontSize: FONT_SIZE.caption }}
             tickFormatter={(v: number) => v.toFixed(1)}
-            label={{ value: 'East (m)', position: 'bottom', fontSize: 9, offset: 5 }}
+            label={{ value: 'East (m)', position: 'bottom', fontSize: FONT_SIZE.label, offset: 5 }}
           />
           <YAxis
             type="number"
             dataKey="n"
             name="North"
             domain={[-range, range]}
-            tick={{ fontSize: 9 }}
+            tick={{ fontSize: FONT_SIZE.caption }}
             tickFormatter={(v: number) => v.toFixed(1)}
-            label={{ value: 'North (m)', angle: -90, position: 'insideLeft', fontSize: 9 }}
+            label={{ value: 'North (m)', angle: -90, position: 'insideLeft', fontSize: FONT_SIZE.label }}
           />
           <Tooltip
             formatter={(value: unknown) => `${Number(value).toFixed(3)} m`}
             labelFormatter={() => ''}
             contentStyle={{
-              fontSize: '10px',
+              fontSize: FONT_SIZE.label,
               backgroundColor: isDark ? '#1a1b2e' : '#fff',
               border: `1px solid ${isDark ? '#444' : '#ddd'}`,
             }}
@@ -123,6 +134,11 @@ export function PositionScatter({ points, maxPoints = 3600 }: PositionScatterPro
           ))}
         </ScatterChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
+
+  return fit
+    ? <div style={{ height: '100%', containerType: 'size', display: 'flex', justifyContent: 'center' }}>{plot}</div>
+    : plot;
 }

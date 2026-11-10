@@ -95,29 +95,14 @@ def test_history_is_capped():
     ],
 )
 def test_build_relay_args(kind, path, uri):
-    args, raw = build_relay_args(kind, path, None, 41000)
-    assert args == ["-in", uri, "-out", "tcpsvr://:41000"] and raw is None
-
-
-def test_raw_log_is_numbered_instead_of_overwritten(tmp_path):
-    (tmp_path / "mon.raw").write_bytes(b"old")
-    args, raw = build_relay_args("tcpcli", "h:1", str(tmp_path / "mon.raw"), 41000)
-    assert raw == str(tmp_path / "mon_2.raw")
-    assert args[-2:] == ["-out", f"file://{tmp_path / 'mon_2.raw'}"]
+    assert build_relay_args(kind, path, 41000) == ["-in", uri, "-out", "tcpsvr://:41000"]
 
 
 @pytest.mark.parametrize("kind, path", [("udpcli", "h:1"), ("tcpcli", "  ")])
 def test_build_relay_args_rejects(kind, path):
     with pytest.raises(ValueError):
-        build_relay_args(kind, path, None, 41000)
+        build_relay_args(kind, path, 41000)
 
-
-def test_raw_log_with_a_format_tag_is_rejected(tmp_path):
-    # mrtk relay strips "#ubx" and would open (and truncate) mon.ubx, which the
-    # numbering never checked.
-    (tmp_path / "mon.ubx").write_bytes(b"old")
-    with pytest.raises(ValueError, match="#"):
-        build_relay_args("tcpcli", "h:1", f"{tmp_path / 'mon.ubx'}#ubx", 41000)
 
 
 # ── API + WebSocket with a fake relay ───────────────────────────────────────
@@ -278,8 +263,6 @@ def test_relay_exit_ends_the_session_with_an_error(relay, client):
         ({"input": {"type": "udp", "path": "x"}}, 400),
         ({"input": {"type": "file", "path": "/etc/passwd"}}, 403),
         ({"input": {"type": "file", "path": "/workspace/.credentials.toml"}}, 403),
-        ({"input": {"type": "tcpcli", "path": "h:1"}, "raw_log": "/tmp/x.raw"}, 403),
-        ({"input": {"type": "tcpcli", "path": "h:1"}, "raw_log": "/workspace/m.ubx#ubx"}, 400),
     ],
 )
 def test_start_rejects_bad_requests(relay, client, body, code):
@@ -479,7 +462,6 @@ def test_paced_file_without_epochs_still_yields(tmp_path):
     [
         ({"input": {"type": "file", "path": "{root}/missing.ubx"}}, 400),
         ({"input": {"type": "file", "path": "{root}/rcv.nmea::T::x2"}}, 400),
-        ({"input": {"type": "file", "path": "{root}/rcv.nmea"}, "raw_log": "/workspace/x.raw"}, 400),
         ({"input": {"type": "file", "path": "{root}/rcv.nmea"}, "file_speed": 0}, 422),
         ({"input": {"type": "file", "path": "/etc/hosts"}}, 403),
     ],
@@ -578,14 +560,6 @@ def test_a_stopped_session_replays_no_message_rows(relay, client):
         ws.send_text(json.dumps({"type": "select_message", "label": label}))
         rows = _receive_until(ws, lambda m: m["type"] == "message_rows")
         assert rows["reset"] and rows["rows"] == []
-
-
-def test_two_streams_get_different_raw_logs(tmp_path):
-    raw = str(tmp_path / "mon_%Y.raw")
-    now = datetime(2026, 11, 9, 4, 0, 0, tzinfo=timezone.utc)
-    _, first = build_relay_args("tcpcli", "h:1", raw, 41000, now=now)
-    _, second = build_relay_args("tcpcli", "h:2", raw, 41001, now=now, other_raw_logs=[first])
-    assert first != second and "_2" in second
 
 
 def test_free_port_skips_excluded_ports():

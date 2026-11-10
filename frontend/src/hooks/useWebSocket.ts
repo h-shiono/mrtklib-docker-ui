@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface LogMessage {
-  type: 'log' | 'status' | 'connected' | 'ack' | 'progress' | 'clas_pvt' | 'clas_flow';
+  type: 'log' | 'status' | 'connected' | 'ack' | 'progress';
   process_id?: string;
   message?: string;
   status?: string;
@@ -11,19 +11,6 @@ export interface LogMessage {
   quality?: number;
   ns?: number | null;
   ratio?: number | null;
-  // CLAS pipeline PVT fix (type === 'clas_pvt')
-  time_gpst?: string;
-  lat?: number;
-  lon?: number;
-  hgt?: number;
-  age?: number;
-  // CLAS pipeline flow stats (type === 'clas_flow')
-  bytes_total?: number;
-  blocks_total?: number;
-  bytes_per_sec?: number;
-  msg_per_sec?: number;
-  last_block_at?: string | null;
-  last_pvt_at?: string | null;
 }
 
 export interface UseWebSocketOptions {

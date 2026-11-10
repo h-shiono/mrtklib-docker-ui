@@ -6,6 +6,113 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.8-alpha] - 2026-11-10
+
+No configuration change is needed to upgrade from 0.4.7-alpha. Two things
+move:
+
+- **Stream Monitor no longer saves a raw log.** Save the stream in Stream
+  Relay (a File output, restart-safe) with a `tcpsvr://:PORT` output as well,
+  and pick that relay in the Stream Monitor under the input type
+  **Stream Relay**.
+- **CLAS Pipeline is now CLAS to RTCM3.** "Record raw SBF" is a File output
+  in its Outputs list, and the serial baud rate is part of the input path
+  (`ttyACM0:115200`). Its position plot moved to the Stream Monitor
+  (`CLAS to RTCM3 · :9870`).
+
+### Added
+- A Stream Relay stream can have no outputs, to check that its input
+  receives: the console shows the byte count and the data is not kept.
+- Stream Relay file outputs are restart-safe, as Real-time files already
+  were: if the file exists, or another running relay writes it, the relay
+  writes to `_2`, `_3`, … instead of overwriting it, and says so in its log.
+- Stream Monitor input type **Stream Relay**: pick a running relay's TCP
+  Server output by its name instead of typing `127.0.0.1:PORT`. The input
+  takes one row (type, then path or relay output), like a Stream Relay input.
+
+### Changed
+- CLAS Pipeline is renamed **CLAS to RTCM3** (it converts CLAS to RTCM3 for
+  the receiver's own RTK engine; "VRS" is left to MRTKLIB's own VRS-RTK
+  mode). Its header matches the other screens: title, `?` (the description
+  and the device passthrough note), state badge with the relay and
+  cssr2rtcm3 states in its tooltip, and Start / Stop at the far right.
+  "Record raw SBF" and the advanced bridge port become an Outputs list as
+  in Stream Relay: the bridge to cssr2rtcm3 first (fixed, port editable),
+  then files (restart-safe) or TCP servers added with +. The input is one
+  row as in Stream Relay: Serial (`ttyACM0:115200`, the baud rate in the
+  path) or TCP Client (`host:port`, e.g. a relay serving the receiver's
+  port from another machine), instead of Serial port and Baud rate rows.
+- Real-time raw logs (Rover, Base, Correction) take one row each: a switch
+  and the path. File options such as `::T` (time tag) and `::S=` (swap hours)
+  are typed in the path, which starts as `...::S=1`; the Time tag switch is
+  gone, and the hourly swap that was added out of sight is now visible.
+- Stream Monitor reads the GGA station id as the CLAS L6 source with an
+  **L6** toggle beside the id in the status footer, shown once a station id
+  arrives, instead of a form row every user saw. Station ID and L6 source
+  are one cell. The Monitor's charts and map no longer mark L6 source
+  changes; the footer shows the current source.
+- Colours follow a single design policy (`DESIGN.md`). Filled buttons,
+  placeholders, field outlines and off switches are readable in both themes,
+  and the light theme, including the console, is usable in bright surroundings.
+- A process or stream state has one colour on every screen: grey when off,
+  blue when starting, green when running or finished, amber for a warning,
+  red for an error (shown with an icon). Colour outside controls now only
+  reports a state, so browse buttons and toolbar icons are neutral.
+- Text uses one size scale on every screen. Labels and help text below 11 px
+  grew to 11 px; only uppercase captions and chart tick labels stay at 10 px.
+- Forms share one layout: labels on the left at the same width, every field
+  and small button 30 px tall. Post-processing Input and Data Files and the
+  Stream Relay streams move to it, and paths use the monospace font.
+- Stream Monitor shows every stream as a card like Stream Relay, also with one
+  stream, and streams are named Stream 1 and Stream 2 instead of A and B.
+- Every screen fits the window and scrolls inside its columns. Charts and
+  consoles fill the space, and changing a setting no longer moves the
+  workspace, so the Streaming status stays on screen on a laptop.
+- Real-time, Post-processing and Stream Monitor share one tab bar and toolbar
+  order, with Start, Stop or Execute at the far right. Chart views are chips
+  shown only on the Chart tab, so Post-processing can show 2D, ENU and Map side
+  by side. The empty Fix / Float / Single bar in Post-processing is gone.
+- The Real-time and Stream Monitor summary and Streaming status take far less
+  height, so charts have more room, also with two streams on a laptop.
+  Satellites per constellation are shown as text (`G 8/10`), and the less
+  urgent status details moved to tooltips.
+- Console, Solution and Trace use one log view on every screen, including
+  Stream Relay, Conversion and CLAS to RTCM3: search and copy, following that
+  pauses while you read, `[ERROR]` and `[WARN]` in colour, and a count on
+  the Console tab for errors that arrive while another tab is open.
+- Real-time: a run that ends stays on screen, dimmed and captioned "Last
+  session", until the next Start. A run that dies shows `exited (code n)`
+  instead of looking as if it never started, and Start no longer turns into
+  Stop before the run is confirmed.
+- Every configuration field now has a name for screen readers, and clicking
+  a row's label focuses its field.
+- ENU charts: rows are told apart by alternating background instead of lines,
+  and side-by-side views are separated by space instead of a line.
+- Conversion moved into Tools, as its first group (RINEX Converter, Hatanaka).
+  A running conversion keeps going while another tool is open.
+- Conversion: the Hatanaka and Signal Options switches sit in the field column
+  at the height of the input rows, instead of in short rows under the labels.
+
+### Removed
+- CLAS to RTCM3's throughput meter and position scatter (and the SBF
+  sniffer behind them): the Stream Monitor shows the receiver's position and
+  messages from the same bridge, picked as `CLAS to RTCM3 · :9870` under the
+  Stream Relay input type.
+- Stream Monitor's raw log. Raw streams are saved in Stream Relay, as
+  with RTKLIB's STRSVR and RTKPLOT: relay the input to a file and to
+  `tcpsvr://:PORT`, and monitor it with the Stream Relay input type.
+- The clear-log buttons in Post-processing, Stream Relay and Conversion. A new
+  run starts its own log, and a cleared Stream Relay log came back on reload.
+
+### Fixed
+- Real-time: the TOML Preview showed NTRIP passwords in plain text, while the
+  fields and the console mask them. It now shows `user:***@…`; Download TOML
+  still writes the real value.
+- Conversion: typing in a text field could blank the whole page (the event
+  was read inside a state updater that React may run later).
+- Observation QC: switching the SNR plot to Elevation without a NAV file could
+  crash the dialog.
+
 ## [0.4.7-alpha] - 2026-11-09
 
 No action is needed to upgrade from 0.4.6-alpha.

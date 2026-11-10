@@ -181,3 +181,36 @@ def test_overlapping_start_cannot_silence_running_trace(monkeypatch):
     asyncio.run(scenario())
     assert list(mrtk_run._trace_history) == ["live"]
     mrtk_run._clear_history()
+
+
+@pytest.mark.parametrize(
+    ("returncode", "level"),
+    [(3, "[ERROR]"), (0, "[INFO]")],
+)
+def test_poll_reports_exit_code(monkeypatch, returncode, level):
+    from types import SimpleNamespace
+
+    from mrtklib_web_ui.services import mrtk_run_service as module
+
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr(module.asyncio, "sleep", no_sleep)
+    service = module.MrtkRunService()
+    service._process = SimpleNamespace(returncode=returncode)
+    statuses: list = []
+    logs: list = []
+
+    async def on_status(status):
+        statuses.append(status)
+
+    async def on_log(line):
+        logs.append(line)
+
+    service._status_callback = on_status
+    service._log_callback = on_log
+    asyncio.run(service._poll_status())
+
+    assert statuses[-1]["exited"] is True
+    assert statuses[-1]["exit_code"] == returncode
+    assert logs[-1].startswith(level)

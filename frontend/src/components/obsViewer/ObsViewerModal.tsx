@@ -16,6 +16,7 @@ import { analyzeObs } from '../../api/obsQc';
 import type { ObsQcResponse } from '../../api/obsQc';
 import { SatVisibilityChart } from './SatVisibilityChart';
 import { SnrChart } from './SnrChart';
+import { FONT_SIZE } from '../../utils/typography';
 
 interface ObsViewerModalProps {
   opened: boolean;
@@ -89,6 +90,7 @@ export function ObsViewerModal({
     if (!opened || !obsFile) return;
 
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- marks the request this effect starts
     setLoading(true);
     setError(null);
 
@@ -160,7 +162,7 @@ export function ObsViewerModal({
       size="xl"
       styles={{
         body: { padding: '0 16px 16px' },
-        title: { fontWeight: 600, fontSize: '14px' },
+        title: { fontWeight: 600, fontSize: FONT_SIZE.title },
       }}
     >
       {/* Initial loading (no data yet) */}
@@ -232,9 +234,6 @@ export function ObsViewerModal({
                 data={signalOptions}
                 clearable
                 w={160}
-                styles={{
-                  input: { fontSize: '11px' },
-                }}
               />
 
               <Checkbox.Group
@@ -247,7 +246,7 @@ export function ObsViewerModal({
                       key={c.value}
                       value={c.value}
                       label={
-                        <Text size="xs" style={{ color: c.color, fontSize: '10px' }}>
+                        <Text size="xs" style={{ color: c.color, fontSize: FONT_SIZE.label }}>
                           {c.label}
                         </Text>
                       }

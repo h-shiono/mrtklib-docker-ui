@@ -1,6 +1,7 @@
 """API endpoints for stream relay control (mrtk relay, formerly str2str)."""
 
 import re
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -8,7 +9,11 @@ from pydantic import BaseModel, Field
 
 from mrtklib_web_ui.paths import WORKSPACE_ROOT, has_hidden_component, is_allowed_path, is_within
 from mrtklib_web_ui.services import process_manager
-from mrtklib_web_ui.services.mrtk_run_service import expand_path_keywords, gpst_now
+from mrtklib_web_ui.services.mrtk_run_service import (
+    expand_path_keywords,
+    gpst_now,
+    number_file_stream_path,
+)
 
 router = APIRouter()
 
@@ -87,6 +92,34 @@ def _mask_stream_arg(arg: str) -> str:
     return scheme + sep + _STREAM_PASSWORD.sub(r"\1:***@", rest)
 
 
+# With no -out, mrtk relay writes the input to its stdout, which would flood
+# the console with binary. A relay started with no outputs only receives,
+# to check the input: the server adds this output to discard the data.
+# Users cannot send it themselves: file outputs must be inside /workspace.
+DISCARD_OUTPUT = "file:///dev/null"
+
+
+def _with_discard_output(args: list[str]) -> list[str]:
+    """Add the discard output to a relay with an input and no output."""
+    flags = [_ALIASES.get(a, a) for a in args]
+    if "-in" in flags and "-out" not in flags:
+        return [*args, "-out", DISCARD_OUTPUT]
+    return args
+
+
+def _without_discard_output(args: list[str]) -> list[str]:
+    """The arguments as the user gave them, without the discard output."""
+    out: list[str] = []
+    i = 0
+    while i < len(args):
+        if args[i] == "-out" and i + 1 < len(args) and args[i + 1] == DISCARD_OUTPUT:
+            i += 2
+            continue
+        out.append(args[i])
+        i += 1
+    return out
+
+
 def _to_response(info) -> ProcessStatusResponse:
     """Convert ProcessInfo to response model."""
     return ProcessStatusResponse(
@@ -98,7 +131,7 @@ def _to_response(info) -> ProcessStatusResponse:
         started_at=info.started_at.isoformat() if info.started_at else None,
         stopped_at=info.stopped_at.isoformat() if info.stopped_at else None,
         error_message=info.error_message,
-        args=[_mask_stream_arg(a) for a in info.args],
+        args=[_mask_stream_arg(a) for a in _without_discard_output(info.args)],
     )
 
 
@@ -134,6 +167,63 @@ def _stream_file_path(stream: str) -> str | None:
             return None
         stream = stream.split("://", 1)[1]
     return stream.split("::", 1)[0].strip()
+
+
+def _split_file_stream(stream: str) -> tuple[str, str, str]:
+    """Split a file stream argument into (scheme prefix, path with ::options, #format).
+
+    The inverse of the parsing in `_stream_file_path`: the parts joined give
+    the argument back.
+    """
+    fmt = ""
+    head, sep, tail = stream.rpartition("#")
+    if sep and sep + tail in _STREAM_FORMATS:
+        stream, fmt = head, sep + tail
+    prefix = ""
+    if "://" in stream:
+        scheme, _, stream = stream.partition("://")
+        prefix = scheme + "://"
+    return prefix, stream, fmt
+
+
+def _file_outputs(args: list[str]) -> list[int]:
+    """Indexes of the file output values in `args`, not the discard output."""
+    return [
+        i + 1 for i, a in enumerate(args[:-1])
+        if _ALIASES.get(a, a) == "-out"
+        and args[i + 1] != DISCARD_OUTPUT
+        and _stream_file_path(args[i + 1])
+    ]
+
+
+def _number_file_outputs(args: list[str], reserved: set[str], now: datetime) -> list[str]:
+    """Number file outputs that would overwrite an existing file.
+
+    mrtk relay opens file outputs with "wb", so a restart within the same
+    keyword period (or with a fixed name) would truncate the earlier file.
+    As for Real-time logs and Stream Monitor raw logs, _2, _3, ... is
+    inserted instead (`number_file_stream_path`). `reserved` holds the
+    files other relays write; this relay's outputs are added to it.
+    """
+    out = list(args)
+    for i in _file_outputs(args):
+        prefix, path, fmt = _split_file_stream(args[i])
+        out[i] = prefix + number_file_stream_path(path, now, reserved) + fmt
+    return out
+
+
+def _running_relay_files(now: datetime) -> set[str]:
+    """Files the running relays write (Stream Relay, CLAS to RTCM3), as resolved
+    paths, each with its .tag companion (as `number_file_stream_path` reserves):
+    a relay that has not created them yet still owns both."""
+    files: set[str] = set()
+    for info in process_manager.get_all_processes():
+        if info.command != "str2str" or info.state.value not in ("starting", "running"):
+            continue
+        for i in _file_outputs(info.args):
+            path = str(Path(expand_path_keywords(_stream_file_path(info.args[i]), now)).resolve())
+            files.update((path, f"{path}.tag"))
+    return files
 
 
 def _check_local_path(label: str, value: str, write: bool) -> str | None:
@@ -191,13 +281,21 @@ async def start_relay(request: MrtkRelayStartRequest) -> ProcessStatusResponse:
     """Start stream relay process (mrtk relay).
 
     If no arguments are provided, mrtk relay will print its help message.
+    An input with no output only receives: the data is discarded. A file
+    output that would overwrite an existing file gets _2, _3, ...; the
+    returned args name the files written.
     """
     if err := _validate_relay_args(request.args):
         raise HTTPException(status_code=403, detail=err)
+    now = gpst_now()
+    try:
+        args = _number_file_outputs(request.args, _running_relay_files(now), now)
+    except (RuntimeError, OSError) as e:  # no free _N name; unresolvable path
+        raise HTTPException(status_code=409, detail=str(e))
     try:
         info = await process_manager.start(
             command="str2str",
-            args=request.args,
+            args=_with_discard_output(args),
             process_id=request.process_id,
         )
         _stream_names[info.id] = request.name or info.id

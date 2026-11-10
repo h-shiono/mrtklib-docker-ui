@@ -11,7 +11,7 @@ GNSS positioning capabilities. No compilation required — just
 ![React](https://img.shields.io/badge/react-19-blue.svg)
 ![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.17-green.svg)
 
-> **Status**: v0.4.7-alpha — core features are functional.
+> **Status**: v0.4.8-alpha — core features are functional.
 > Known limitations are listed in [Known Issues](#known-issues).
 
 ![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
@@ -34,10 +34,10 @@ GNSS positioning capabilities. No compilation required — just
   and position / quality charts — reads **LLH, XYZ-ECEF, and NMEA-0183**
   solution outputs (auto-detected)
 - CLAS PPP-RTK: the L6 source of the corrections (L6 PRN and facility,
-  from the NMEA GGA station id) is marked on the ENU charts where it
-  changes (QZSS handover, facility switch), in the Result Viewer
-  (PPP-RTK configurations) and live in the Stream Monitor (**CLAS L6
-  source** switch). NMEA output only; LLH / XYZ `.pos` files do not
+  from the NMEA GGA station id) is marked on the ENU charts of the Result
+  Viewer where it changes (QZSS handover, facility switch; PPP-RTK
+  configurations), and shown live in the Stream Monitor's status footer
+  (the **L6** toggle beside the station id). NMEA output only; LLH / XYZ `.pos` files do not
   carry it
 - Compressed inputs (`.gz`, `.Z`, single-file `.zip`, `.tar`) and
   Hatanaka-compressed RINEX (`.crx`, `.??d`, e.g. `.crx.gz`) are
@@ -61,10 +61,10 @@ GNSS positioning capabilities. No compilation required — just
   (receiving, connecting, stalled, no decode, error with a readable
   cause such as an unknown NTRIP mountpoint)
 - Reattaches to a running `mrtk run` after a page reload or a closed tab
-- **Raw input logging**: per-input "Save Raw" switch (Rover / Base /
-  Correction) records the received bytes before decoding, hourly
-  files under `/workspace/rtlog/%Y/%n/` (e.g. `rovr_%n%H.sbf`),
-  optional time tag (`.tag`) for real-time replay
+- **Raw input logging**: per-input "Raw Log" switch and path (Rover /
+  Base / Correction) records the received bytes before decoding, hourly
+  files under `/workspace/rtlog/%Y/%n/` (e.g. `rovr_%n%H.sbf::S=1`);
+  add `::T` to the path for a time tag (`.tag`) for real-time replay
 - Restart-safe file outputs: if a solution or raw-log file already
   exists, the run writes to `_2`, `_3`, … instead of overwriting it
 
@@ -72,18 +72,35 @@ GNSS positioning capabilities. No compilation required — just
 - Multi-stream configuration (up to 4 simultaneous streams)
 - Per-stream Start / Stop control with live console output
 - Running relays are restored after a page reload and can still be stopped
+- Saves raw streams: a file output (with `::T`, `::S=` options) is
+  restart-safe — if the file already exists, or another relay writes
+  it, the relay writes to `_2`, `_3`, … instead of overwriting it
+- No outputs: the relay only receives, to check that the input works
+  (the console shows the byte count; the data is not kept)
+- With a `tcpsvr://:PORT` output, the Stream Monitor can watch the same
+  stream while it is saved (Stream Monitor input type **Stream Relay**)
 
-### CLAS Pipeline (`mrtk relay` + `mrtk cssr2rtcm3`)
+### CLAS to RTCM3 (`mrtk relay` + `mrtk cssr2rtcm3`)
 - One-form Wizard for the SBC + receiver + CLAS workflow (supported
   by MRTKLIB since v0.6.5; the image bundles the pinned version)
 - Pipes Septentrio SBF (with QZSS L6 CLAS) → cssr2rtcm3 → RTCM3 →
   back to the receiver, which runs VRS-RTK on its own engine
-- Live throughput meter, position scatter (parsed from SBF
-  PVTGeodetic), and split logs for both child processes
+- Input as in Stream Relay: Serial (`ttyACM0:115200`) or TCP Client
+  (`host:port`) — e.g. on macOS, where Docker cannot reach USB serial,
+  serve the port from the host with
+  `mrtk relay -in serial://cu.usbmodem…:115200 -b 1 -out tcpsvr://:9001`
+  and use TCP Client `host.docker.internal:9001`
+- Outputs as in Stream Relay: the first is the bridge to cssr2rtcm3
+  (`tcpsvr`, port editable); add a file to record the raw SBF
+  (restart-safe `_2`, `_3`, …) or a TCP server to hand it to other apps
+- Split logs for both child processes; watch the receiver's position
+  and messages in the **Stream Monitor** (input type Stream Relay →
+  `CLAS to RTCM3 · :9870`)
 - Currently ships with a mosaic-G5 preset; request more receivers
   via the GitHub Issue template
 
 ### RINEX Conversion (`mrtk convert`, `rnx2crx` / `crx2rnx`)
+- In **Tools → Conversion** (RINEX Converter, Hatanaka (CRX))
 - Supports all convbin formats: u-blox, Septentrio SBF,
   NovAtel, BINEX, Trimble RT17, RTCM2/3, RINEX re-processing
 - Collapsible option groups (Time Range, Signal Options,
@@ -116,7 +133,9 @@ GNSS positioning capabilities. No compilation required — just
   the latest frames of the selected type as a hex dump or text
 - Stream health: data rate, message counts, undecoded bytes / bad
   frames
-- Optional raw log of the received bytes under `/workspace`
+- Input type **Stream Relay**: watch a running relay's `tcpsvr://:PORT`
+  output, picked by relay name. To save a stream while watching it, relay
+  it with Stream Relay to a file and to `tcpsvr://:PORT`
 - Reattaches to a running session after a page reload
 
 ### Tools
@@ -154,10 +173,10 @@ Images are published for both `linux/amd64` and `linux/arm64`
 1. **Pull the image**
    ```bash
    # Docker Hub
-   docker pull hatognss/mrtklib-docker-ui:0.4.7-alpha
+   docker pull hatognss/mrtklib-docker-ui:0.4.8-alpha
 
    # or GitHub Container Registry
-   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.7-alpha
+   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.8-alpha
    ```
 
 2. **Prepare host directories**
@@ -173,7 +192,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
      -e PUID="$(id -u)" -e PGID="$(id -g)" \
-     hatognss/mrtklib-docker-ui:0.4.7-alpha
+     hatognss/mrtklib-docker-ui:0.4.8-alpha
    ```
 
 4. **Open the UI** at <http://localhost:8080>
@@ -231,7 +250,7 @@ own IDs (`id -u` / `id -g`) in `.env`. On start, existing files under
 that ran as root) are chowned to `PUID:PGID`. `PUID=0` restores the
 old run-as-root behaviour.
 
-### Serial Device Passthrough (Stream Monitor, Stream Relay and CLAS Pipeline)
+### Serial Device Passthrough (Stream Monitor, Stream Relay and CLAS to RTCM3)
 
 To connect to a GNSS receiver via serial port, add the device
 to `docker-compose.yml`:
@@ -246,7 +265,7 @@ services:
       - /dev/serial:/dev/serial:ro
 ```
 
-The CLAS Pipeline tab uses **one** bidirectional serial device: the
+The CLAS to RTCM3 tab uses **one** bidirectional serial device: the
 receiver streams SBF (with L6 frames) out of the port and accepts the
 generated RTCM3 back on the same port. Configure the receiver port to
 do both (output SBF/L6, input RTCM3). Set `CLAS_INPUT_DEVICE` in
@@ -394,7 +413,8 @@ surface orphan state in its UI.
 | **v0.4.4-alpha** | MRTKLIB 0.7.17: SouthPAN PVS and BeiDou PPP-B2b correction sources, BeiDou PRN options (BDS-2 / GEO / IGSO), CLAS NMEA source id, Real-Time presets for PPP-B2b / Galileo HAS / SouthPAN PVS |
 | **v0.4.5-alpha** | Stream Monitor: live decode of a receiver or stream (NMEA, SBF, UBX, solution text) with the Real-Time views; Stream Server renamed Stream Relay |
 | **v0.4.6-alpha** | Stream Monitor: Result Viewer views (2D / ENU / Map) live, per-band SNR, constellation toggles, file playback; one quality colour table; CLAS L6 source (PRN / facility) marked in the Result Viewer and Stream Monitor |
-| **v0.4.7-alpha** (current) | Stream Monitor: two streams with overlaid 2D / ENU / Map, Message tab, Real-Time style layout; 2D plot with range rings around the reference; ENU chart options |
+| **v0.4.7-alpha** | Stream Monitor: two streams with overlaid 2D / ENU / Map, Message tab, Real-Time style layout; 2D plot with range rings around the reference; ENU chart options |
+| **v0.4.8-alpha** (current) | One design system across the app (`DESIGN.md`): colours, type scale, 30 px form rows, shared log view and toolbars; raw streams saved in Stream Relay (restart-safe files, receive-only streams), Stream Monitor reads a running relay; CLAS Pipeline renamed CLAS to RTCM3 with Stream Relay style input and outputs; Conversion moved into Tools |
 
 ---
 
@@ -426,7 +446,7 @@ Bug reports and feedback are very welcome — please
   not been exhaustively verified
 - **RINEX preview**: implemented but not tested across all
   receiver formats
-- **CLAS Pipeline**: uses a single bidirectional serial port; hardware
+- **CLAS to RTCM3**: uses a single bidirectional serial port; hardware
   passthrough validated only with the mosaic-G5 preset
 
 ### Platform notes

@@ -5,6 +5,12 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from mrtklib_web_ui.api.mrtk_relay import (
+    _number_file_outputs,
+    _running_relay_files,
+    _validate_relay_args,
+)
+from mrtklib_web_ui.services.mrtk_run_service import gpst_now
 from mrtklib_web_ui.services import (
     PipelineConfig,
     PipelineState,
@@ -24,14 +30,16 @@ class PipelineStartRequest(BaseModel):
     input_device: str = Field(examples=["/dev/ttyUSB0"])
     input_baud: int = Field(default=115200, gt=0)
     bridge_port: int = Field(default=DEFAULT_BRIDGE_PORT, gt=1024, lt=65536)
-    sbf_record_path: str | None = Field(
-        default=None,
+    outputs: list[str] = Field(
+        default_factory=list,
+        max_length=4,
         description=(
-            "Optional path under /workspace to record the raw SBF stream "
-            "(useful for post-mortem analysis). mrtk relay's time tokens "
-            "(%Y, %m, %d, %h, %M, %S) are expanded at write time."
+            "Further relay outputs after the bridge, as mrtk relay stream "
+            "arguments: a file under /workspace records the raw SBF (time "
+            "keywords and ::T / ::S= allowed; an existing file gets _2, _3, ...), "
+            "a TCP server hands it to other apps. No relay-back on these."
         ),
-        examples=["/workspace/clas/sbf_%Y%m%d_%h%M%S.sbf"],
+        examples=[["file:///workspace/clas/sbf_%Y%m%d_%h%M%S.sbf", "tcpsvr://:9871"]],
     )
 
 
@@ -42,6 +50,7 @@ class PipelineStatusResponse(BaseModel):
     started_at: str | None = None
     error_message: str | None = None
     bridge_port: int | None = None
+    outputs: list[str] = Field(default_factory=list, description="Further outputs, as written")
 
 
 def _to_status_response(status) -> PipelineStatusResponse:
@@ -52,7 +61,26 @@ def _to_status_response(status) -> PipelineStatusResponse:
         started_at=status.started_at.isoformat() if status.started_at else None,
         error_message=status.error_message,
         bridge_port=status.bridge_port,
+        outputs=status.outputs,
     )
+
+
+def _check_outputs(req: PipelineStartRequest) -> list[str]:
+    """Validate the further outputs as Stream Relay does, and number file outputs."""
+    args = [a for out in req.outputs for a in ("-out", out)]
+    if err := _validate_relay_args(args):
+        raise HTTPException(status_code=403, detail=err)
+    for out in req.outputs:
+        if out.startswith("tcpsvr://") and out.split("#")[0].rsplit(":", 1)[-1] == str(req.bridge_port):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Output {out} uses the bridge port {req.bridge_port}",
+            )
+    now = gpst_now()
+    try:
+        return _number_file_outputs(args, _running_relay_files(now), now)[1::2]
+    except (RuntimeError, OSError) as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.get("/receivers")
@@ -69,13 +97,13 @@ async def get_serial_ports() -> list[dict]:
 
 @router.post("/start", response_model=PipelineStatusResponse)
 async def start_pipeline(req: PipelineStartRequest) -> PipelineStatusResponse:
-    """Start the CLAS pipeline (relay + cssr2rtcm3 + SBF sniffer)."""
+    """Start CLAS to RTCM3 (relay + cssr2rtcm3)."""
     config = PipelineConfig(
         receiver_id=req.receiver_id,
         input_device=req.input_device,
         input_baud=req.input_baud,
         bridge_port=req.bridge_port,
-        sbf_record_path=req.sbf_record_path,
+        outputs=_check_outputs(req),
     )
     try:
         status = await clas_pipeline_service.start(config)

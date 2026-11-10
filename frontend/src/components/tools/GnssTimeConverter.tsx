@@ -24,6 +24,7 @@ import {
   getLeapSeconds,
   maxDoy,
 } from '../../utils/gnssTime';
+import { FONT_SIZE } from '../../utils/typography';
 
 // DateTimePicker uses local time internally.
 // We treat displayed values as GPS Time wall clock values.
@@ -103,13 +104,12 @@ export function GnssTimeConverter() {
         <Card withBorder p="sm">
           <Stack gap="xs">
             <Group justify="space-between">
-              <Title order={6} size="xs">Calendar (GPST)</Title>
+              <Title order={6} size="sm">Calendar (GPST)</Title>
               <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />} onClick={handleNow}>
                 Now
               </Button>
             </Group>
             <DateTimePicker
-              size="sm"
               valueFormat="YYYY/MM/DD HH:mm:ss"
               placeholder="Select date and time (GPST)"
               clearable
@@ -132,10 +132,9 @@ export function GnssTimeConverter() {
         {/* GPS Week / ToW */}
         <Card withBorder p="sm">
           <Stack gap="xs">
-            <Title order={6} size="xs">GPS Week / ToW</Title>
+            <Title order={6} size="sm">GPS Week / ToW</Title>
             <Group grow gap="xs">
               <NumberInput
-                size="sm"
                 label="GPS Week"
                 leftSection={<IconClock size={14} />}
                 value={wt?.week ?? ''}
@@ -145,7 +144,6 @@ export function GnssTimeConverter() {
                 hideControls
               />
               <NumberInput
-                size="sm"
                 label="Time of Week (s)"
                 value={wt ? Math.round(wt.tow * 1000) / 1000 : ''}
                 onChange={handleGpsTowChange}
@@ -162,10 +160,9 @@ export function GnssTimeConverter() {
         {/* Day of Year (GPST) */}
         <Card withBorder p="sm">
           <Stack gap="xs">
-            <Title order={6} size="xs">Day of Year (GPST)</Title>
+            <Title order={6} size="sm">Day of Year (GPST)</Title>
             <Group grow gap="xs">
               <NumberInput
-                size="sm"
                 label="Year"
                 value={doy?.year ?? ''}
                 onChange={handleDoyYearChange}
@@ -175,7 +172,6 @@ export function GnssTimeConverter() {
                 hideControls
               />
               <NumberInput
-                size="sm"
                 label="DoY"
                 value={doy?.doy ?? ''}
                 onChange={handleDoyDoyChange}
@@ -185,7 +181,6 @@ export function GnssTimeConverter() {
                 hideControls
               />
               <NumberInput
-                size="sm"
                 label="Hour"
                 value={doy?.hour ?? ''}
                 onChange={handleDoyHourChange}
@@ -195,7 +190,7 @@ export function GnssTimeConverter() {
                 hideControls
               />
               <div>
-                <Text size="sm" fw={500} mb={5}>Session</Text>
+                <Text size="xs" fw={500} mb={5}>Session</Text>
                 <Badge size="lg" variant="light" color="gray" fullWidth>
                   {doy ? hourToSession(doy.hour) : '—'}
                 </Badge>
@@ -209,10 +204,10 @@ export function GnssTimeConverter() {
       <Stack gap="md" style={{ minWidth: 0 }}>
         <Card withBorder p="sm">
           <Stack gap="xs">
-            <Title order={6} size="xs">Reference</Title>
+            <Title order={6} size="sm">Reference</Title>
             <div>
               <Text size="xs" c="dimmed">GPST − UTC (Leap Seconds)</Text>
-              <Text size="xl" fw={700}>{leapSec - 19} s</Text>
+              <Text size="md" fw={500}>{leapSec - 19} s</Text>
               <Text size="xs" c="dimmed" mt={2}>TAI − UTC = {leapSec} s</Text>
             </div>
           </Stack>
@@ -220,16 +215,16 @@ export function GnssTimeConverter() {
 
         <Card withBorder p="sm">
           <Stack gap="xs">
-            <Title order={6} size="xs">Formatted Outputs</Title>
+            <Title order={6} size="sm">Formatted Outputs</Title>
             <div>
               <Text size="xs" c="dimmed" mb={2}>GPS Time String</Text>
-              <Code block style={{ fontSize: '12px' }}>
+              <Code block style={{ fontSize: FONT_SIZE.body }}>
                 {wt ? `Week ${wt.week}, ToW ${(Math.round(wt.tow * 1000) / 1000).toFixed(3)} s` : '—'}
               </Code>
             </div>
             <div>
               <Text size="xs" c="dimmed" mb={2}>GPST Calendar</Text>
-              <Code block style={{ fontSize: '12px' }}>
+              <Code block style={{ fontSize: FONT_SIZE.body }}>
                 {valid
                   ? `${valid.getUTCFullYear()}/${String(valid.getUTCMonth() + 1).padStart(2, '0')}/${String(valid.getUTCDate()).padStart(2, '0')} ${String(valid.getUTCHours()).padStart(2, '0')}:${String(valid.getUTCMinutes()).padStart(2, '0')}:${String(valid.getUTCSeconds()).padStart(2, '0')}`
                   : '—'}
@@ -237,13 +232,13 @@ export function GnssTimeConverter() {
             </div>
             <div>
               <Text size="xs" c="dimmed" mb={2}>UTC (= GPST − {leapSec - 19} s)</Text>
-              <Code block style={{ fontSize: '12px' }}>
+              <Code block style={{ fontSize: FONT_SIZE.body }}>
                 {utcDate ? utcDate.toISOString() : '—'}
               </Code>
             </div>
             <div>
               <Text size="xs" c="dimmed" mb={2}>RINEX File Suffix</Text>
-              <Code block style={{ fontSize: '12px' }}>
+              <Code block style={{ fontSize: FONT_SIZE.body }}>
                 {doy ? `${String(doy.doy).padStart(3, '0')}${hourToSession(doy.hour)}` : '—'}
               </Code>
             </div>

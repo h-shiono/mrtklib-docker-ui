@@ -3,6 +3,7 @@ import { useElementSize } from '@mantine/hooks';
 import { useMantineColorScheme, Stack, Text } from '@mantine/core';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
+import { FONT_SIZE, CANVAS_MONO } from '../../utils/typography';
 
 interface SnrChartProps {
   /** SNR data: [[time, sat_idx, snr, el, az], ...] */
@@ -144,17 +145,6 @@ export function SnrChart({
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === 'dark';
 
-  // If elevation mode but no elevation data, show message
-  if (mode === 'elevation' && !hasElevation) {
-    return (
-      <Stack align="center" justify="center" h={height} gap="xs">
-        <Text size="sm" c="dimmed" fs="italic" ff="monospace">
-          NAV file required for SNR vs Elevation plot
-        </Text>
-      </Stack>
-    );
-  }
-
   // Filter and prepare data
   const plotData = useMemo(() => {
     const xArr: number[] = [];
@@ -163,7 +153,7 @@ export function SnrChart({
     const satIdArr: string[] = [];
 
     for (const row of snr) {
-      const [time, satIdx, snrVal, el, _az] = row;
+      const [time, satIdx, snrVal, el] = row;
       const satId = satellites[satIdx];
       if (!satId) continue;
       const constellation = satId[0];
@@ -225,7 +215,7 @@ export function SnrChart({
           stroke: textColor,
           grid: { stroke: gridColor },
           ticks: { stroke: axisColor },
-          font: '10px monospace',
+          font: `${FONT_SIZE.caption}px ${CANVAS_MONO}`,
           ...(mode === 'time'
             ? {
                 values: (_u: uPlot, vals: number[]) =>
@@ -243,7 +233,7 @@ export function SnrChart({
           stroke: textColor,
           grid: { stroke: gridColor },
           ticks: { stroke: axisColor },
-          font: '10px monospace',
+          font: `${FONT_SIZE.caption}px ${CANVAS_MONO}`,
           label: 'SNR (dBHz)',
           labelFont: '11px sans-serif',
           size: 50,
@@ -273,6 +263,17 @@ export function SnrChart({
       }
     };
   }, [plotData, width, height, isDark, mode]);
+
+  // After the hooks: they must run on every render.
+  if (mode === 'elevation' && !hasElevation) {
+    return (
+      <Stack align="center" justify="center" h={height} gap="xs">
+        <Text size="sm" c="dimmed" fs="italic" ff="monospace">
+          NAV file required for SNR vs Elevation plot
+        </Text>
+      </Stack>
+    );
+  }
 
   if (plotData.xArr.length === 0) {
     return (

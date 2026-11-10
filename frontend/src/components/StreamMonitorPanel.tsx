@@ -7,10 +7,9 @@
  * of the (up to two, #171) streams gets its own messages.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionIcon,
-  Badge,
   Box,
   Button,
   Card,
@@ -22,19 +21,16 @@ import {
   SegmentedControl,
   Select,
   Stack,
-  Switch,
   Tabs,
   Text,
-  TextInput,
   Title,
 } from '@mantine/core';
 import { useDisclosure, useElementSize, useLocalStorage } from '@mantine/hooks';
-import { IconPlayerPlay, IconPlayerStop, IconPlus, IconQuestionMark, IconTrash } from '@tabler/icons-react';
+import { IconPlayerPlay, IconPlayerStop, IconPlus, IconQuestionMark } from '@tabler/icons-react';
 import {
   streamMonitorApi,
   type MonitorMessage,
   type MonitorSatellite,
-  type MonitorState,
   type MonitorStreamId,
 } from '../api/streamMonitor';
 import {
@@ -44,32 +40,33 @@ import {
   inputLight,
   rtTimestamp,
   splitRelayLog,
+  streamLabel,
   toMetricsPosition,
   toPosEpoch,
 } from '../utils/streamMonitor';
-import { DEFAULT_RAW_LOG, INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
-import { maskLogLine } from '../utils/maskPath';
+import { INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
 import { decodeClasSource, formatClasSource } from '../utils/clasSource';
-import { useFollowScroll } from '../hooks/useFollowScroll';
+import * as mrtkRelayApi from '../api/mrtkRelay';
+import * as clasApi from '../api/clasPipeline';
 import { MaskedPathInput } from './common/MaskedPathInput';
-import { JumpToLatest } from './common/JumpToLatest';
 import { StreamPathHelp } from './StreamPathHelp';
 import { RtMetricsRow } from './RtMetricsRow';
 import { StreamMonitorStatusRow } from './StreamMonitorStatusRow';
 import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { SkySnrPanel } from './SkySnrPanel';
 import { StreamMessagePanel } from './StreamMessagePanel';
+import { StreamCardHeader } from './common/StreamCardHeader';
+import { processTone, STATUS_COLOR } from '../utils/status';
 import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
+import { FONT_SIZE, MONO } from '../utils/typography';
+import { FormRow } from './common/FormRow';
+import { FORM_LABEL_GAP, MIN_PANEL_HEIGHT, PRIMARY_MIN_WIDTH } from '../utils/formLayout';
+import { WorkspaceTabBar } from './common/WorkspaceTabBar';
+import { LogView } from './common/LogView';
+import { useUnseenErrors } from '../hooks/useUnseenErrors';
 
-const MONO = "'IBM Plex Mono', monospace";
 
 const NO_SATELLITES: MonitorSatellite[] = [];
-/** The workspace fills the window under the header (lessons L02: the config
- *  column has no tall content to stretch against). */
-const WORKSPACE_MIN_HEIGHT = 'calc(100vh - 114px)';
-/** Smallest chart / text area, enough for a legible Sky / SNR panel. The
- *  viewer takes a pixel height, so the area is measured. */
-const MIN_CHART_HEIGHT = 420;
 /** Padding above each tab panel. */
 const PANEL_TOP = 6;
 
@@ -93,7 +90,7 @@ function MonitorHelp() {
   return (
     <Popover opened={opened} onClose={close} position="bottom-start" width={380} shadow="md" withArrow>
       <Popover.Target>
-        <ActionIcon size={14} variant="subtle" radius="xl" onClick={toggle} style={{ opacity: 0.5 }}
+        <ActionIcon size={14} variant="subtle" color="gray" radius="xl" onClick={toggle}
           aria-label="About the Stream Monitor"
         >
           <IconQuestionMark size={10} />
@@ -102,8 +99,8 @@ function MonitorHelp() {
       <Popover.Dropdown p="xs">
         <Text size="xs">
           Decodes NMEA, Septentrio SBF, u-blox UBX and MRTKLIB solution text from a
-          receiver or another stream (e.g. <Code style={{ fontSize: 10 }}>mrtk run</Code> output)
-          through <Code style={{ fontSize: 10 }}>mrtk relay</Code>. A file is read directly, all
+          receiver or another stream (e.g. <Code style={{ fontSize: FONT_SIZE.label }}>mrtk run</Code> output)
+          through <Code style={{ fontSize: FONT_SIZE.label }}>mrtk relay</Code>. A file is read directly, all
           at once or paced by its epoch times.
         </Text>
       </Popover.Dropdown>
@@ -111,29 +108,65 @@ function MonitorHelp() {
   );
 }
 
-const STATE_COLOR: Record<MonitorState, string> = {
-  idle: 'gray',
-  starting: 'yellow',
-  running: 'green',
-  stopped: 'gray',
-  error: 'red',
-};
+const TCPSVR_PORT = /^tcpsvr:\/\/[^:#]*:(\d+)/;
 
-/** Label-left / input-right row (project form convention). */
-function Row({ label, children, minHeight }: {
-  label: string;
-  children: React.ReactNode;
-  /** Form rows whose control is shorter than an input (a switch) take the
-   *  input height, so every form row has the same pitch. */
-  minHeight?: number;
+/** TCP server outputs of the running relays, as TCP client paths
+ *  (`127.0.0.1:PORT`): Stream Relay relays by name (#192), and CLAS to RTCM3,
+ *  whose bridge carries the receiver's SBF (#197). The Monitor's relay only
+ *  reads, so the bridge's relay-back gets nothing from it. */
+async function relayOutputs(): Promise<{ value: string; label: string }[]> {
+  const [relays, clas] = await Promise.allSettled([mrtkRelayApi.listStreams(), clasApi.getPipelineStatus()]);
+  const out: { value: string; label: string }[] = [];
+  if (relays.status === 'fulfilled') {
+    for (const r of relays.value) {
+      if (r.state !== 'starting' && r.state !== 'running') continue;
+      r.args.forEach((a, i) => {
+        const m = r.args[i - 1] === '-out' ? TCPSVR_PORT.exec(a) : null;
+        if (m) out.push({ value: `127.0.0.1:${m[1]}`, label: `${r.name} · :${m[1]}` });
+      });
+    }
+  }
+  if (clas.status === 'fulfilled' && (clas.value.state === 'starting' || clas.value.state === 'running')) {
+    const ports = [
+      clas.value.bridge_port,
+      ...(clas.value.outputs ?? []).map((o) => TCPSVR_PORT.exec(o)?.[1]).filter(Boolean),
+    ].filter((p) => p != null);
+    for (const port of ports) {
+      out.push({ value: `127.0.0.1:${port}`, label: `CLAS to RTCM3 · :${port}` });
+    }
+  }
+  return out;
+}
+
+/** Path of the `relay` input type: pick a running relay's TCP server output.
+ *  The list is read when the type is chosen and each time it is opened. */
+function RelayOutputSelect({ value, onChange, disabled }: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
 }) {
+  const [options, setOptions] = useState<{ value: string; label: string }[]>([]);
+  const refresh = useCallback(() => {
+    relayOutputs().then(setOptions).catch(() => setOptions([]));
+  }, []);
+  useEffect(refresh, [refresh]);
+  // A saved choice whose relay is not running stays visible as such.
+  const data = value && !options.some((o) => o.value === value)
+    ? [...options, { value, label: `:${value.split(':').pop()} (not running)` }]
+    : options;
   return (
-    <Group justify="space-between" align="center" mb={6} wrap="nowrap" style={{ minHeight }}>
-      <Text size="xs" c="dimmed" style={{ width: 130, flexShrink: 0, fontSize: 11 }}>
-        {label}
-      </Text>
-      <Box style={{ flex: 1, minWidth: 0 }}>{children}</Box>
-    </Group>
+    <Select
+      aria-label="Relay output"
+      value={value || null}
+      onChange={(v) => onChange(v ?? '')}
+      onDropdownOpen={refresh}
+      data={data}
+      placeholder="A running relay with a TCP Server output"
+      nothingFoundMessage="No running relay has a TCP Server output"
+      disabled={disabled}
+      style={{ flex: 1, minWidth: 0 }}
+      styles={{ input: { fontFamily: MONO } }}
+    />
   );
 }
 
@@ -141,34 +174,36 @@ function Row({ label, children, minHeight }: {
  *  stream only: files with different start times cannot be aligned, #171). */
 function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
   return (
-    <>
-      <Row label="Input type">
-        <Select
-          size="xs"
-          value={s.typeMeta.value}
-          onChange={(v) => v && s.setInputType(v)}
-          data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
-          allowDeselect={false}
-          disabled={s.busy}
-        />
-      </Row>
-      <Row label="Path">
-        <Group gap={6} wrap="nowrap">
-          <Box style={{ flex: 1, minWidth: 0 }}>
+    <Stack gap={6}>
+      {/* One row, like a Stream Relay input: type, then the path or relay output */}
+      <FormRow label={<Group gap={4} wrap="nowrap">Input<StreamPathHelp /></Group>}>
+        <Group gap={FORM_LABEL_GAP} wrap="nowrap">
+          <Select
+            aria-label="Input type"
+            value={s.typeMeta.value}
+            onChange={(v) => v && s.setInputType(v)}
+            data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
+            allowDeselect={false}
+            disabled={s.busy}
+            style={{ width: 120, flexShrink: 0 }}
+          />
+          {s.isRelay ? (
+            <RelayOutputSelect value={s.relayPath} onChange={s.setRelayPath} disabled={s.busy} />
+          ) : (
             <MaskedPathInput
-              size="xs"
+              aria-label="Input path"
               value={s.inputPath}
               onChange={s.setInputPath}
               placeholder={s.typeMeta.placeholder}
               disabled={s.busy}
+              style={{ flex: 1, minWidth: 0 }}
               styles={{ input: { fontFamily: MONO } }}
             />
-          </Box>
-          <StreamPathHelp />
+          )}
         </Group>
-      </Row>
+      </FormRow>
       {s.isFile && (
-        <Row label="Playback">
+        <FormRow label="Playback">
           <Select
             size="xs"
             value={pacing ? s.fileSpeed : '0'}
@@ -178,44 +213,14 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
             disabled={s.busy || !pacing}
             title={pacing ? undefined : 'With two streams, files are read all at once'}
           />
-        </Row>
+        </FormRow>
       )}
-      {!s.isFile && (
-        <Row label="Save raw stream" minHeight={30}>
-          <Switch
-            size="xs"
-            checked={s.saveRaw}
-            onChange={(e) => s.setSaveRaw(e.currentTarget.checked)}
-            disabled={s.busy}
-          />
-        </Row>
-      )}
-      {!s.isFile && s.saveRaw && (
-        <Row label="Raw log file">
-          <TextInput
-            size="xs"
-            value={s.rawLog}
-            onChange={(e) => s.setRawLog(e.currentTarget.value)}
-            placeholder={DEFAULT_RAW_LOG}
-            disabled={s.busy}
-            styles={{ input: { fontFamily: MONO } }}
-          />
-        </Row>
-      )}
-      <Row label="CLAS L6 source" minHeight={30}>
-        <Switch
-          size="xs"
-          checked={s.clasSource}
-          onChange={(e) => s.setClasSource(e.currentTarget.checked)}
-          title="Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there."
-        />
-      </Row>
       {s.requestError && (
-        <Text size="sm" c="red" mt={4}>
+        <Text size="sm" c={STATUS_COLOR.error} mt={4}>
           {s.requestError}
         </Text>
       )}
-    </>
+    </Stack>
   );
 }
 
@@ -225,8 +230,8 @@ function StreamName({ s }: { s: MonitorStream }) {
   return (
     <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
       <Box style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: light.color }} />
-      <Text size="xs" fw={600} style={{ whiteSpace: 'nowrap' }}>Stream {s.id.toUpperCase()}</Text>
-      <Text c="dimmed" style={{ fontFamily: MONO, fontSize: 10, whiteSpace: 'nowrap' }}>{light.label}</Text>
+      <Text size="xs" fw={600} style={{ whiteSpace: 'nowrap' }}>{streamLabel(s.id)}</Text>
+      <Text c="dimmed" style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, whiteSpace: 'nowrap' }}>{light.label}</Text>
     </Group>
   );
 }
@@ -262,13 +267,13 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   } = selected;
 
   const anyRunning = streams.some((s) => s.running);
-  const startable = streams.filter((s) => !s.busy && s.inputPath.trim());
+  const startable = streams.filter((s) => !s.busy && s.canStart);
   const handleStartAll = () => startable.forEach((s) => void s.start(!twoStreams));
   const handleStopAll = () => streams.filter((s) => s.running).forEach((s) => void s.stop());
 
   const [tab, setTab] = useState<string | null>('chart');
   const { ref: panelsRef, height: panelsHeight } = useElementSize();
-  const chartHeight = Math.max(MIN_CHART_HEIGHT, panelsHeight - PANEL_TOP);
+  const chartHeight = Math.max(MIN_PANEL_HEIGHT, panelsHeight - PANEL_TOP);
   // Chart views, side by side; kept per browser. A stored value from an
   // older layout (e.g. 'position') is dropped (L28).
   const [storedViews, setChartViews] = useLocalStorage<string[]>({
@@ -383,10 +388,10 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   const positionOverlay = useMemo((): PositionOverlay | undefined => {
     if (!showOverlay) return undefined;
     return {
-      label: `Stream ${primary.id.toUpperCase()}`,
+      label: streamLabel(primary.id),
       color: STREAM_COLOR[primary.id],
       other: {
-        label: `Stream ${secondary.id.toUpperCase()}`,
+        label: streamLabel(secondary.id),
         color: STREAM_COLOR[secondary.id],
         epochs: secondaryEpochs,
         timeSystem: overlayTimeSystem,
@@ -398,15 +403,28 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
     `${primary.id}:${primary.status?.started_at ?? ''}`,
     showOverlay ? `${secondary.id}:${secondary.status?.started_at ?? ''}` : '',
   ].join('|');
-  const lastL6 = live && clasSource ? decodeClasSource(last?.refid) : null;
-  // Without a decoded source, a non-zero station id is still shown as is.
-  const lastStationId = live && !lastL6 && last?.refid ? String(last.refid).padStart(4, '0') : null;
+  // The footer's station id cell, read as the CLAS L6 source when its toggle
+  // is on. Shown while live, for a non-zero id or while decoding is on.
+  const lastL6 = clasSource ? decodeClasSource(last?.refid) : null;
+  const station = live && (clasSource || last?.refid)
+    ? { id: last?.refid ? String(last.refid).padStart(4, '0') : null, l6: lastL6 ? formatClasSource(lastL6) : null }
+    : null;
   const satellites = sats?.satellites ?? NO_SATELLITES;
   const satTime = sats?.time ? `${rtTimestamp(sats.time)} ${sats.time_sys}` : undefined;
 
   const relayLog = useMemo(() => splitRelayLog(logLines), [logLines]);
-  const solutionScroll = useFollowScroll(tab === 'solution', epochs);
-  const consoleScroll = useFollowScroll(tab === 'console', relayLog.console);
+  const solutionLines = useMemo(
+    () => epochs.map((e) => [
+                                  `${rtTimestamp(e.time)} ${e.time_sys}`,
+                                  e.lat.toFixed(8).padStart(13),
+                                  e.lon.toFixed(8).padStart(14),
+                                  (e.height != null ? e.height.toFixed(3) : '—').padStart(10),
+                                  `Q=${e.Q}`,
+                                  `ns=${e.ns ?? '—'}`,
+                                ].join('  ')),
+    [epochs],
+  );
+  const unseenErrors = useUnseenErrors(relayLog.console, tab === 'console');
 
   // The relay's status line is only current while it runs.
   const relayStatusLine = live ? relayLog.status : null;
@@ -416,11 +434,11 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
       configOpen={configOpen}
       onToggleConfig={onToggleConfig ?? (() => {})}
       config={
-        <Card withBorder p="xs" h="100%">
+        <Card withBorder p="xs" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <Group justify="space-between" mb="xs" wrap="nowrap">
             <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
               {onToggleConfig && <ConfigCollapseButton onClick={onToggleConfig} />}
-              <Title order={6} size="xs">Stream Monitor</Title>
+              <Title order={6} size="sm">Stream Monitor</Title>
               <MonitorHelp />
             </Group>
             <Group gap="xs" wrap="nowrap">
@@ -433,107 +451,70 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
               >
                 Add Stream
               </Button>
-              {!twoStreams && state !== 'idle' && (
-                <Badge color={STATE_COLOR[state]} variant="dot" size="sm">
-                  {state}
-                </Badge>
-              )}
               {anyRunning ? (
                 <Button
                   size="xs"
+                  miw={PRIMARY_MIN_WIDTH}
                   color="red"
                   leftSection={<IconPlayerStop size={14} />}
                   onClick={handleStopAll}
                   loading={!twoStreams && submitting}
                 >
-                  {twoStreams ? 'Stop All' : 'Stop'}
+                  Stop All
                 </Button>
               ) : (
                 <Button
                   size="xs"
+                  miw={PRIMARY_MIN_WIDTH}
                   color="green"
                   leftSection={<IconPlayerPlay size={14} />}
                   onClick={handleStartAll}
                   loading={!twoStreams && submitting}
                   disabled={startable.length === 0}
                 >
-                  {twoStreams ? 'Start All' : 'Start'}
+                  Start All
                 </Button>
               )}
             </Group>
           </Group>
-          {twoStreams ? (
-            <Stack gap="xs">
-              {streams.map((s) => (
-                <Card
-                  key={s.id}
-                  withBorder
-                  p="xs"
-                  onClick={() => setSelectedId(s.id)}
-                  style={{ borderColor: selected.id === s.id ? 'var(--mantine-color-blue-5)' : undefined }}
-                >
-                  <Group justify="space-between" wrap="nowrap" mb={6}>
-                    <StreamName s={s} />
-                    <Group gap={4} wrap="nowrap">
-                      {s.state !== 'idle' && (
-                        <Badge color={STATE_COLOR[s.state]} variant="dot" size="xs">{s.state}</Badge>
-                      )}
-                      {s.running ? (
-                        <ActionIcon
-                          variant="light"
-                          color="red"
-                          size="xs"
-                          onClick={() => void s.stop()}
-                          loading={s.submitting}
-                          title={`Stop stream ${s.id.toUpperCase()}`}
-                          aria-label={`Stop stream ${s.id.toUpperCase()}`}
-                        >
-                          <IconPlayerStop size={12} />
-                        </ActionIcon>
-                      ) : (
-                        <ActionIcon
-                          variant="light"
-                          color="green"
-                          size="xs"
-                          onClick={() => void s.start(false)}
-                          loading={s.submitting}
-                          disabled={!s.inputPath.trim()}
-                          title={`Start stream ${s.id.toUpperCase()}`}
-                          aria-label={`Start stream ${s.id.toUpperCase()}`}
-                        >
-                          <IconPlayerPlay size={12} />
-                        </ActionIcon>
-                      )}
-                      {s.id === 'b' && (
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          size="xs"
-                          onClick={(e) => {
-                            e.stopPropagation(); // the card would select this stream again
-                            setSecondAdded(false);
-                            setSelectedId('a');
-                          }}
-                          disabled={s.busy}
-                          title="Remove stream"
-                          aria-label="Remove stream"
-                        >
-                          <IconTrash size={12} />
-                        </ActionIcon>
-                      )}
-                    </Group>
-                  </Group>
-                  <StreamForm s={s} pacing={false} />
-                </Card>
-              ))}
-            </Stack>
-          ) : (
-            <StreamForm s={streamA} pacing />
-          )}
+          <ScrollArea style={{ flex: 1, minHeight: 0 }} offsetScrollbars>
+          <Stack gap="xs">
+            {streams.map((s) => (
+              <Card
+                key={s.id}
+                withBorder
+                p="xs"
+                onClick={() => setSelectedId(s.id)}
+                style={{ borderColor: selected.id === s.id ? 'var(--mantine-color-blue-5)' : undefined }}
+              >
+                <Stack gap="xs">
+                  <StreamCardHeader
+                    name={streamLabel(s.id)}
+                    dotColor={inputLight(s.status, s.state, s.live).color}
+                    tone={processTone(s.state)}
+                    status={s.state}
+                    running={s.running}
+                    loading={s.submitting}
+                    startDisabled={!s.canStart}
+                    removeDisabled={s.id === 'a' || s.busy}
+                    onStart={() => void s.start(!twoStreams)}
+                    onStop={() => void s.stop()}
+                    onRemove={(e) => {
+                      e.stopPropagation(); // the card would select this stream again
+                      setSecondAdded(false);
+                      setSelectedId('a');
+                    }}
+                  />
+                  <StreamForm s={s} pacing={!twoStreams} />
+                </Stack>
+              </Card>
+            ))}
+          </Stack>
+          </ScrollArea>
         </Card>
       }
       workspace={
-        <Card withBorder p="xs" style={{ display: 'flex', flexDirection: 'column', minHeight: WORKSPACE_MIN_HEIGHT }}>
+        <Card withBorder p="xs" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
           <Stack gap={6} style={{ flex: '1 1 auto', minHeight: 0 }}>
             {/* One selector for every per-stream view (#171) */}
             {twoStreams && (
@@ -551,14 +532,15 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
             />
 
             <Tabs value={tab} onChange={setTab} style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <Group justify="space-between" align="center" gap={0}>
-                <Tabs.List>
-                  <Tabs.Tab value="chart" style={{ fontSize: 11 }}>Chart</Tabs.Tab>
-                  <Tabs.Tab value="solution" style={{ fontSize: 11 }}>Solution</Tabs.Tab>
-                  <Tabs.Tab value="console" style={{ fontSize: 11 }}>Console</Tabs.Tab>
-                  <Tabs.Tab value="message" style={{ fontSize: 11 }}>Message</Tabs.Tab>
-                </Tabs.List>
-                <Group gap={6} wrap="nowrap">
+              <WorkspaceTabBar
+                tabs={[
+                  { value: 'chart', label: 'Chart' },
+                  { value: 'solution', label: 'Solution' },
+                  { value: 'console', label: 'Console', alert: unseenErrors },
+                  { value: 'message', label: 'Message' },
+                ]}
+                right={tab === 'chart' && (
+                  <>
                   {twoStreams && (
                     <Chip
                       size="xs"
@@ -571,18 +553,19 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                     </Chip>
                   )}
                   <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
-                    <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
+                    <Group gap={6} wrap="nowrap">
                       <Chip value="2d" size="xs" variant="light">2D</Chip>
                       <Chip value="enu" size="xs" variant="light">ENU</Chip>
                       <Chip value="map" size="xs" variant="light">Map</Chip>
                       <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
                     </Group>
                   </Chip.Group>
-                </Group>
-              </Group>
+                  </>
+                )}
+              />
 
               {/* A fixed basis, not its content: the measured height must not feed back. */}
-              <div ref={panelsRef} style={{ flex: `1 1 ${MIN_CHART_HEIGHT + PANEL_TOP}px`, minHeight: 0, overflow: 'hidden' }}>
+              <div ref={panelsRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                 <Tabs.Panel value="chart" pt={PANEL_TOP}>
                   <div style={{ display: 'flex', gap: 10, height: chartHeight, minHeight: 0 }}>
                     {positionViews.length > 0 && (
@@ -598,7 +581,6 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                           timeSystem={showOverlay ? overlayTimeSystem : primary.epochs[primary.epochs.length - 1]?.time_sys ?? 'GPST'}
                           emptyText={live ? 'Waiting for positions…' : 'No position data'}
                           views={positionViews}
-                          clasSource={primary.clasSource}
                           overlay={positionOverlay}
                         />
                       </div>
@@ -612,62 +594,26 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                 </Tabs.Panel>
 
                 <Tabs.Panel value="solution" pt={PANEL_TOP}>
-                  <Box pos="relative">
-                    <ScrollArea
-                      h={chartHeight}
-                      {...solutionScroll.scrollProps}
-                      styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-                    >
-                      <Text
-                        c={epochs.length > 0 ? 'gray.4' : 'dimmed'}
-                        fs={epochs.length > 0 ? undefined : 'italic'}
-                        style={{ fontFamily: MONO, whiteSpace: 'pre', fontSize: '11px', lineHeight: 1.5 }}
-                      >
-                        {solutionScroll.shown.length > 0
-                          ? solutionScroll.shown
-                              .map((e) =>
-                                [
-                                  `${rtTimestamp(e.time)} ${e.time_sys}`,
-                                  e.lat.toFixed(8).padStart(13),
-                                  e.lon.toFixed(8).padStart(14),
-                                  (e.height != null ? e.height.toFixed(3) : '—').padStart(10),
-                                  `Q=${e.Q}`,
-                                  `ns=${e.ns ?? '—'}`,
-                                ].join('  '),
-                              )
-                              .join('\n')
-                          : 'No solution data yet.'}
-                      </Text>
-                    </ScrollArea>
-                    {solutionScroll.held && <JumpToLatest onClick={solutionScroll.resume} />}
-                  </Box>
+                  <LogView
+                    lines={solutionLines}
+                    height={chartHeight}
+                    active={tab === 'solution'}
+                    running={live}
+                    emptyText="No solution data yet."
+                  />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="console" pt={PANEL_TOP}>
-                  <Box pos="relative">
-                    <ScrollArea
-                      h={chartHeight}
-                      {...consoleScroll.scrollProps}
-                      styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-                    >
-                      {consoleScroll.shown.length > 0 ? (
-                        consoleScroll.shown.map((line, i) => (
-                          <Text
-                            key={i}
-                            c="gray.4"
-                            style={{ fontFamily: MONO, fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
-                          >
-                            {maskLogLine(line)}
-                          </Text>
-                        ))
-                      ) : (
-                        <Text c="dimmed" fs="italic" style={{ fontFamily: MONO, fontSize: '11px' }}>
-                          No log output yet.
-                        </Text>
-                      )}
-                    </ScrollArea>
-                    {consoleScroll.held && <JumpToLatest onClick={consoleScroll.resume} />}
-                  </Box>
+                  <LogView
+                    lines={relayLog.console}
+                    height={chartHeight}
+                    active={tab === 'console'}
+                    wrap
+                    severity
+                    running={live}
+                    startLabel="Start All"
+                    cap={500}
+                  />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="message" pt={PANEL_TOP}>
@@ -692,8 +638,9 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
               state={state}
               live={live}
               wsOpen={wsOpen}
-              l6Source={lastL6 ? `${formatClasSource(lastL6)} (${String(last?.refid).padStart(4, '0')})` : null}
-              stationId={lastStationId}
+              station={station}
+              decodeL6={clasSource}
+              onDecodeL6Change={selected.setClasSource}
               relayLine={relayStatusLine}
             />
           </Stack>

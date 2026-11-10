@@ -1,8 +1,20 @@
 """mrtk relay file streams/options stay inside allowed roots (#38 item 4)."""
 
+from datetime import datetime, timezone
+
 import pytest
 
-from mrtklib_web_ui.api.mrtk_relay import _stream_file_path, _validate_relay_args
+from mrtklib_web_ui.api.mrtk_relay import (
+    DISCARD_OUTPUT,
+    _number_file_outputs,
+    _split_file_stream,
+    _stream_file_path,
+    _validate_relay_args,
+    _with_discard_output,
+    _without_discard_output,
+)
+
+NOW = datetime(2026, 11, 10, tzinfo=timezone.utc)
 
 
 def test_stream_file_path():
@@ -39,3 +51,60 @@ def test_allowed(args):
 ])
 def test_rejected(args):
     assert _validate_relay_args(args) is not None
+
+
+@pytest.mark.parametrize("args, expected", [
+    # an input with no output only receives: the data is discarded
+    (["-in", "tcpcli://h:1"], ["-in", "tcpcli://h:1", "-out", DISCARD_OUTPUT]),
+    (["--input", "tcpcli://h:1"], ["--input", "tcpcli://h:1", "-out", DISCARD_OUTPUT]),
+    (["-in", "tcpcli://h:1", "-out", "tcpsvr://:5000"], ["-in", "tcpcli://h:1", "-out", "tcpsvr://:5000"]),
+    (["-in", "tcpcli://h:1", "--output", "tcpsvr://:5000"], ["-in", "tcpcli://h:1", "--output", "tcpsvr://:5000"]),
+    ([], []),  # no input: mrtk relay prints its help
+])
+def test_with_discard_output(args, expected):
+    assert _with_discard_output(args) == expected
+    assert _without_discard_output(_with_discard_output(args)) == args
+
+
+def test_discard_output_is_not_a_user_output():
+    # users cannot ask for it: file outputs must be inside /workspace
+    assert _validate_relay_args(["-in", "tcpcli://h:1", "-out", DISCARD_OUTPUT]) is not None
+
+
+@pytest.mark.parametrize("arg", [
+    "file:///workspace/out_%Y%m%d.ubx::T::S=1#ubx",
+    "/workspace/a.rtcm3#rtcm3",
+    "/workspace/a#x",
+    "file:///workspace/plain.ubx",
+])
+def test_split_file_stream_round_trips(arg):
+    assert "".join(_split_file_stream(arg)) == arg
+
+
+def test_existing_relay_output_file_is_numbered(tmp_path):
+    (tmp_path / "out.ubx").write_bytes(b"old")
+    args = [
+        "-in", "tcpcli://h:1",
+        "-out", "tcpsvr://:5000",
+        "-out", f"file://{tmp_path / 'out.ubx'}::T::S=1#ubx",
+        "--output", str(tmp_path / "new.ubx"),
+        "-out", str(tmp_path / "new.ubx"),  # same file twice in one relay
+    ]
+    assert _number_file_outputs(args, set(), NOW) == [
+        "-in", "tcpcli://h:1",
+        "-out", "tcpsvr://:5000",
+        "-out", f"file://{tmp_path / 'out_2.ubx'}::T::S=1#ubx",
+        "--output", str(tmp_path / "new.ubx"),
+        "-out", str(tmp_path / "new_2.ubx"),
+    ]
+
+
+def test_relay_output_reserved_by_another_relay_is_numbered(tmp_path):
+    reserved = {str((tmp_path / "out.ubx").resolve())}
+    args = ["-in", "tcpcli://h:1", "-out", str(tmp_path / "out.ubx")]
+    assert _number_file_outputs(args, reserved, NOW)[-1] == str(tmp_path / "out_2.ubx")
+
+
+def test_discard_and_stdout_outputs_are_not_numbered():
+    args = ["-in", "tcpcli://h:1", "-out", DISCARD_OUTPUT, "-out", ""]
+    assert _number_file_outputs(args, set(), NOW) == args

@@ -1,42 +1,46 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
   Alert,
   Anchor,
   Autocomplete,
-  Badge,
-  Box,
   Button,
   Card,
-  Checkbox,
   Code,
-  Divider,
   Grid,
   Group,
   NumberInput,
-  ScrollArea,
+  Popover,
   Select,
   Stack,
   Tabs,
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import {
   IconAlertCircle,
-  IconInfoCircle,
+  IconLock,
   IconPlayerPlay,
   IconPlayerStop,
+  IconPlus,
+  IconQuestionMark,
   IconRefresh,
+  IconTrash,
 } from '@tabler/icons-react';
+import { StreamPathHelp } from './StreamPathHelp';
+import { randomUUID } from '../utils/uuid';
 import { useWebSocket, type LogMessage } from '../hooks';
 import * as clasApi from '../api/clasPipeline';
-import { ClasFlowMeter, type FlowStats } from './ClasFlowMeter';
-import { PositionScatter, type PositionPoint } from './PositionScatter';
-import { StatusIndicator, type ProcessStatus } from './StatusIndicator';
+import { StatusBadge } from './common/StatusBadge';
+import { processTone, type ProcessState } from '../utils/status';
+import { FONT_SIZE, MONO } from '../utils/typography';
+import { FormRow } from './common/FormRow';
+import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
+import { LogView } from './common/LogView';
 
-const ROW_LABEL_WIDTH = 130;
-const MAX_POSITION_POINTS = 3600;
 const MAX_LOG_LINES = 500;
 const RECEIVER_REQUEST_URL =
   'https://github.com/h-shiono/mrtklib-docker-ui/issues/new?template=receiver-request.yml';
@@ -44,32 +48,84 @@ const RECEIVER_REQUEST_URL =
 const RELAY_PROCESS_ID = 'clas-relay';
 const CSSR_PROCESS_ID = 'clas-cssr2rtcm3';
 
-function pipelineToProcessStatus(state: clasApi.PipelineStatus['state']): ProcessStatus {
-  switch (state) {
-    case 'running':
-      return 'running';
-    case 'starting':
-    case 'stopping':
-      return 'running';
-    case 'error':
-      return 'error';
-    case 'stopped':
-      return 'success';
-    default:
-      return 'idle';
-  }
-}
-
-function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
+/** What CLAS to RTCM3 does and what it needs, behind the ? next to its title. */
+function ClasHelp() {
+  const [opened, { toggle, close }] = useDisclosure(false);
+  const code = { fontSize: FONT_SIZE.label, whiteSpace: 'nowrap' } as const;
   return (
-    <Group justify="space-between" align="center" mb={6} wrap="nowrap">
-      <Text size="sm" c="dimmed" style={{ width: ROW_LABEL_WIDTH, flexShrink: 0 }}>
-        {label}
-      </Text>
-      <Box style={{ flex: 1, minWidth: 0 }}>{children}</Box>
-    </Group>
+    <Popover opened={opened} onClose={close} position="bottom-start" width={400} shadow="md" withArrow>
+      <Popover.Target>
+        <ActionIcon size={14} variant="subtle" color="gray" radius="xl" onClick={toggle}
+          aria-label="About CLAS to RTCM3"
+        >
+          <IconQuestionMark size={10} />
+        </ActionIcon>
+      </Popover.Target>
+      <Popover.Dropdown p="xs">
+        <Stack gap={6}>
+          <Text size="xs">
+            For the receiver's own RTK engine: converts CLAS (the QZSS L6 message in
+            the receiver's raw SBF) to RTCM3 with <Code style={code}>mrtk cssr2rtcm3</Code> and
+            sends it back to the receiver. <Code style={code}>mrtk relay</Code> runs
+            bidirectionally (<Code style={code}>-b 1</Code>), so one serial port carries
+            both the SBF uplink and the RTCM3 downlink.
+          </Text>
+          <Text size="xs">
+            To watch the receiver's position and messages, open the Stream Monitor
+            with input type <b>Stream Relay</b> and pick <b>CLAS to RTCM3</b> (the
+            bridge, or another TCP Server output).
+          </Text>
+          <Text size="xs">
+            Pass the serial device through to the container
+            (e.g. <Code style={code}>--device=/dev/ttyUSB0</Code>) and configure the receiver
+            to output SBF and accept RTCM3 on that same port.
+          </Text>
+        </Stack>
+      </Popover.Dropdown>
+    </Popover>
   );
 }
+
+/** Further relay outputs: record the raw SBF, or hand it to other apps. */
+type OutputType = 'file' | 'tcpsvr';
+interface ClasOutput { id: string; type: OutputType; path: string }
+
+const OUTPUT_TYPES = [
+  { value: 'file', label: 'File' },
+  { value: 'tcpsvr', label: 'TCP Server' },
+];
+const OUTPUT_DEFAULT: Record<OutputType, string> = {
+  file: '/workspace/clas/sbf_%Y%m%d_%h%M%S.sbf',
+  tcpsvr: ':9871',
+};
+const MAX_OUTPUTS = 4;
+
+const outputArg = (o: ClasOutput) => `${o.type}://${o.path.trim()}`;
+
+/** The receiver input: a serial port (`device[:baud]`, as in Stream Relay) or
+ *  a TCP client (`host:port`), e.g. a relay on another machine that serves
+ *  the receiver's serial port with `-b 1`. */
+type InputType = 'serial' | 'tcpcli';
+const INPUT_TYPES = [
+  { value: 'serial', label: 'Serial' },
+  { value: 'tcpcli', label: 'TCP Client' },
+];
+const INPUT_PLACEHOLDER: Record<InputType, string> = {
+  serial: 'ttyACM0:115200',
+  tcpcli: 'host.docker.internal:9001',
+};
+const DEFAULT_BAUD = 115200;
+
+/** Split `device[:baud]`; a missing baud takes the receiver's default. */
+function splitSerialPath(path: string, defaultBaud: number): { device: string; baud: number } {
+  const m = /^(.*):(\d+)$/.exec(path.trim());
+  return m ? { device: m[1], baud: Number(m[2]) } : { device: path.trim(), baud: defaultBaud };
+}
+
+const STATE_LABEL: Record<string, string> = {
+  idle: 'Idle', starting: 'Starting', running: 'Running',
+  stopping: 'Stopping', stopped: 'Stopped', error: 'Error',
+};
 
 export function ClasPipelinePanel() {
   // --- Reference data ---
@@ -79,14 +135,10 @@ export function ClasPipelinePanel() {
 
   // --- Form state ---
   const [receiverId, setReceiverId] = useState<string>('septentrio-mosaic-g5');
-  const [inputDevice, setInputDevice] = useState<string>('');
-  const [inputBaud, setInputBaud] = useState<number>(115200);
+  const [inputType, setInputType] = useState<InputType>('serial');
+  const [inputPath, setInputPath] = useState<string>('');
   const [bridgePort, setBridgePort] = useState<number>(9870);
-  const [recordSbf, setRecordSbf] = useState<boolean>(false);
-  const [sbfRecordPath, setSbfRecordPath] = useState<string>(
-    '/workspace/clas/sbf_%Y%m%d_%h%M%S.sbf',
-  );
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [outputs, setOutputs] = useState<ClasOutput[]>([]);
 
   // --- Pipeline runtime state ---
   const [pipelineStatus, setPipelineStatus] = useState<clasApi.PipelineStatus>({
@@ -99,14 +151,10 @@ export function ClasPipelinePanel() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // --- Streamed visualization state ---
-  const [points, setPoints] = useState<PositionPoint[]>([]);
-  const [flowStats, setFlowStats] = useState<FlowStats | null>(null);
+  // --- Logs of the two processes ---
   const [relayLog, setRelayLog] = useState<string[]>([]);
   const [cssrLog, setCssrLog] = useState<string[]>([]);
 
-  const relayScrollRef = useRef<HTMLDivElement>(null);
-  const cssrScrollRef = useRef<HTMLDivElement>(null);
 
   // --- Initial load (mount only — refreshSerialPorts is intentionally
   // excluded from deps to avoid re-fetching on every input edit) ---
@@ -123,7 +171,7 @@ export function ClasPipelinePanel() {
         const ports = await clasApi.listSerialPorts();
         setSerialPorts(ports);
         if (ports.length > 0) {
-          setInputDevice((cur) => cur || ports[0].path);
+          setInputPath((cur) => cur || `${ports[0].path}:${DEFAULT_BAUD}`);
         }
       } catch {
         setSerialPorts([]);
@@ -138,28 +186,20 @@ export function ClasPipelinePanel() {
     })();
   }, []);
 
-  // --- When the receiver preset changes, refresh defaults ---
-  useEffect(() => {
-    const preset = receivers.find((r) => r.id === receiverId);
-    if (preset) {
-      setInputBaud(preset.default_input_baud);
-    }
-  }, [receivers, receiverId]);
-
   const refreshSerialPorts = useCallback(async () => {
     setRefreshingPorts(true);
     try {
       const ports = await clasApi.listSerialPorts();
       setSerialPorts(ports);
       if (ports.length > 0) {
-        if (!inputDevice) setInputDevice(ports[0].path);
+        setInputPath((cur) => cur || `${ports[0].path}:${DEFAULT_BAUD}`);
       }
     } catch {
       setSerialPorts([]);
     } finally {
       setRefreshingPorts(false);
     }
-  }, [inputDevice]);
+  }, []);
 
   // --- WebSocket: receive logs, status, PVT, flow stats ---
   const handleMessage = useCallback((msg: LogMessage) => {
@@ -178,60 +218,42 @@ export function ClasPipelinePanel() {
           setPipelineStatus(await clasApi.getPipelineStatus());
         } catch { /* ignore */ }
       })();
-    } else if (msg.type === 'clas_pvt' && msg.lat !== undefined && msg.lon !== undefined) {
-      setPoints((prev) => {
-        const next = [
-          ...prev,
-          {
-            lat: msg.lat!,
-            lon: msg.lon!,
-            height: msg.hgt ?? 0,
-            quality: msg.quality ?? 5,
-            timestamp: msg.time_gpst ?? msg.timestamp,
-          },
-        ];
-        return next.length > MAX_POSITION_POINTS
-          ? next.slice(next.length - MAX_POSITION_POINTS)
-          : next;
-      });
-    } else if (msg.type === 'clas_flow') {
-      setFlowStats({
-        bytes_total: msg.bytes_total ?? 0,
-        blocks_total: msg.blocks_total ?? 0,
-        bytes_per_sec: msg.bytes_per_sec ?? 0,
-        msg_per_sec: msg.msg_per_sec ?? 0,
-        last_block_at: msg.last_block_at ?? null,
-        last_pvt_at: msg.last_pvt_at ?? null,
-      });
     }
   }, []);
 
   useWebSocket({ onMessage: handleMessage });
 
-  // --- Auto-scroll log viewports ---
-  useEffect(() => {
-    relayScrollRef.current?.scrollTo({ top: relayScrollRef.current.scrollHeight });
-  }, [relayLog]);
-  useEffect(() => {
-    cssrScrollRef.current?.scrollTo({ top: cssrScrollRef.current.scrollHeight });
-  }, [cssrLog]);
-
   // --- Actions ---
+  /** The API's input: a serial device and baud, or a TCP client URL. */
+  const startInput = (): { input_device: string; input_baud: number } => {
+    if (inputType === 'tcpcli') {
+      return { input_device: `tcpcli://${inputPath.trim()}`, input_baud: DEFAULT_BAUD };
+    }
+    const defaultBaud = receivers.find((r) => r.id === receiverId)?.default_input_baud ?? DEFAULT_BAUD;
+    const { device, baud } = splitSerialPath(inputPath, defaultBaud);
+    // A bare name (ttyACM0), as Stream Relay paths take it, is under /dev.
+    return { input_device: device.startsWith('/') ? device : `/dev/${device}`, input_baud: baud };
+  };
+
   const handleStart = async () => {
     setSubmitting(true);
     setRelayLog([]);
     setCssrLog([]);
-    setPoints([]);
-    setFlowStats(null);
     try {
       const status = await clasApi.startPipeline({
         receiver_id: receiverId,
-        input_device: inputDevice,
-        input_baud: inputBaud,
+        ...startInput(),
         bridge_port: bridgePort,
-        sbf_record_path: recordSbf ? sbfRecordPath : null,
+        outputs: outputs.map(outputArg),
       });
       setPipelineStatus(status);
+      // A file output that would overwrite an existing file is numbered
+      // (_2, _3, ...) by the server; say which file is written.
+      const numbered = outputs.flatMap((o, i) => {
+        const written = status.outputs?.[i];
+        return written && written !== outputArg(o) ? [`[INFO] Target in use, writing to ${written}`] : [];
+      });
+      if (numbered.length) setRelayLog((prev) => [...prev, ...numbered]);
     } catch (e) {
       setPipelineStatus((prev) => ({
         ...prev,
@@ -262,11 +284,12 @@ export function ClasPipelinePanel() {
   // --- Derived values ---
   const isRunning =
     pipelineStatus.state === 'running' || pipelineStatus.state === 'starting';
-  const canStart = !isRunning && !!inputDevice && !submitting;
-  const portOptions = useMemo(
-    () => serialPorts.map((p) => ({ value: p.path, label: p.label })),
-    [serialPorts],
-  );
+  const canStart = !isRunning && !!inputPath.trim() && !submitting;
+  // Serial ports with the receiver's default baud, as `device:baud`.
+  const portOptions = useMemo(() => {
+    const baud = receivers.find((r) => r.id === receiverId)?.default_input_baud ?? DEFAULT_BAUD;
+    return serialPorts.map((p) => ({ value: `${p.path}:${baud}`, label: `${p.label}:${baud}` }));
+  }, [serialPorts, receivers, receiverId]);
   const receiverOptions = useMemo(
     () => receivers.map((r) => ({ value: r.id, label: r.label })),
     [receivers],
@@ -274,27 +297,55 @@ export function ClasPipelinePanel() {
   const selectedReceiver = receivers.find((r) => r.id === receiverId);
 
   return (
-    <Grid gutter="md" align="stretch">
+    <Grid gutter="md" align="stretch" overflow="hidden" h={{ base: 'auto', md: '100%' }} styles={{ inner: { height: 'calc(100% + var(--mantine-spacing-md))' } }}>
       {/* Left column: form + status + actions */}
-      <Grid.Col span={{ base: 12, md: 6 }}>
-      <Card withBorder p="md" h="100%">
-        <Stack gap="xs">
-          <Title order={5}>CLAS Pipeline</Title>
-          <Text size="xs" c="dimmed">
-            Wraps <Code>mrtk relay</Code> and <Code>mrtk cssr2rtcm3</Code> into
-            a single workflow. Forward raw SBF (with the QZSS L6 CLAS message)
-            from the receiver, decode it to RTCM3 with cssr2rtcm3, and send it
-            back so the receiver can run VRS-RTK on its own engine. The relay
-            runs bidirectionally (<Code>-b 1</Code>), so a single serial port
-            carries both the SBF uplink and the RTCM3 downlink.
-          </Text>
-
-          <Divider my={4} />
-
+      <Grid.Col span={{ base: 12, md: 6 }} h={{ base: 'auto', md: '100%' }}>
+      <Card withBorder p="xs" h="100%" style={{ overflowY: 'auto' }}>
+        {/* Header: title, ?, state, then Start / Stop at the far right */}
+        <Group justify="space-between" mb="xs" wrap="nowrap">
+          <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+            <Title order={5} size="sm">CLAS to RTCM3</Title>
+            <ClasHelp />
+            <Tooltip
+              label={`mrtk relay: ${pipelineStatus.relay_state} · mrtk cssr2rtcm3: ${pipelineStatus.cssr_state}`}
+              openDelay={300}
+            >
+              <div>
+                <StatusBadge tone={processTone(pipelineStatus.state as ProcessState)}>
+                  {STATE_LABEL[pipelineStatus.state] ?? pipelineStatus.state}
+                </StatusBadge>
+              </div>
+            </Tooltip>
+          </Group>
+          {isRunning ? (
+            <Button
+              variant="filled"
+              color="red"
+              size="compact-xs"
+              leftSection={<IconPlayerStop size={12} />}
+              onClick={handleStop}
+              loading={submitting}
+            >
+              Stop
+            </Button>
+          ) : (
+            <Button
+              variant="filled"
+              color="green"
+              size="compact-xs"
+              leftSection={<IconPlayerPlay size={12} />}
+              onClick={handleStart}
+              loading={submitting}
+              disabled={!canStart}
+            >
+              Start
+            </Button>
+          )}
+        </Group>
+        <Stack gap={6}>
           {/* Receiver picker */}
           <FormRow label="Receiver">
             <Select
-              size="sm"
               value={receiverId}
               onChange={(v) => v && setReceiverId(v)}
               data={receiverOptions}
@@ -302,143 +353,150 @@ export function ClasPipelinePanel() {
               allowDeselect={false}
             />
           </FormRow>
-          {selectedReceiver && (
-            <Text size="xs" c="dimmed" pl={ROW_LABEL_WIDTH + 8}>
-              {selectedReceiver.notes}
-            </Text>
-          )}
-          <Text size="xs" pl={ROW_LABEL_WIDTH + 8}>
-            <Anchor href={RECEIVER_REQUEST_URL} target="_blank" rel="noreferrer">
-              Don&apos;t see your receiver? Request one →
+          <Text c="dimmed" pl={FORM_LABEL_WIDTH + FORM_LABEL_GAP} style={{ fontSize: FONT_SIZE.label }}>
+            {selectedReceiver?.notes}{selectedReceiver?.notes ? ' ' : ''}
+            <Anchor href={RECEIVER_REQUEST_URL} target="_blank" rel="noreferrer" inherit>
+              Request another receiver
             </Anchor>
           </Text>
 
-          <Divider my={4} />
-
-          {/* Serial port — single bidirectional port for SBF in / RTCM3 out */}
-          <FormRow label="Serial port">
-            <Group gap="xs" wrap="nowrap" style={{ width: '100%' }}>
-              <Box style={{ flex: 1, minWidth: 0 }}>
-                <Autocomplete
-                  size="sm"
-                  value={inputDevice}
-                  onChange={setInputDevice}
-                  data={portOptions}
-                  placeholder="/dev/ttyUSB0  or  tcpcli://host:9000  or  ntripcli://user:pass@host:2101/MOUNT"
-                  disabled={isRunning}
-                />
-              </Box>
-              <ActionIcon
-                variant="subtle"
-                size="lg"
-                onClick={refreshSerialPorts}
-                loading={refreshingPorts}
-                disabled={isRunning}
-                title="Re-enumerate serial ports"
-              >
-                <IconRefresh size={16} />
-              </ActionIcon>
-            </Group>
-          </FormRow>
-          <FormRow label="Baud rate">
-            <NumberInput
-              size="sm"
-              value={inputBaud}
-              onChange={(v) => setInputBaud(typeof v === 'number' ? v : 115200)}
-              min={1200}
-              max={3000000}
-              disabled={isRunning}
-            />
-          </FormRow>
-
-          <Divider my={4} />
-
-          {/* SBF recording — tee the relay's SBF stream to a file */}
-          <FormRow label="Record raw SBF">
-            <Checkbox
-              size="sm"
-              checked={recordSbf}
-              onChange={(e) => setRecordSbf(e.currentTarget.checked)}
-              disabled={isRunning}
-              label="Save the SBF stream to /workspace for post-mortem analysis"
-            />
-          </FormRow>
-          {recordSbf && (
-            <FormRow label="SBF file path">
-              <TextInput
-                size="sm"
-                value={sbfRecordPath}
-                onChange={(e) => setSbfRecordPath(e.currentTarget.value)}
-                disabled={isRunning}
-                placeholder="/workspace/clas/sbf_%Y%m%d_%h%M%S.sbf"
-                description="mrtk relay expands %Y %m %d %h %M %S at write time."
-                styles={{
-                  input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: '11px' },
-                  description: { fontSize: '10px' },
-                }}
-              />
-            </FormRow>
-          )}
-
-          {/* Advanced */}
-          <Anchor
-            size="xs"
-            component="button"
-            type="button"
-            onClick={() => setShowAdvanced((v) => !v)}
+          {/* Input, as in Stream Relay: one bidirectional stream, SBF in and
+              RTCM3 back. The baud rate is part of a serial path. */}
+          <FormRow
+            label={<Group gap={4} wrap="nowrap">Input<StreamPathHelp /></Group>}
+            trailing={
+              <Tooltip label="Re-enumerate serial ports" openDelay={300}>
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size={30}
+                  onClick={refreshSerialPorts}
+                  loading={refreshingPorts}
+                  disabled={isRunning || inputType !== 'serial'}
+                  aria-label="Re-enumerate serial ports"
+                >
+                  <IconRefresh size={16} />
+                </ActionIcon>
+              </Tooltip>
+            }
           >
-            {showAdvanced ? 'Hide' : 'Show'} advanced
-          </Anchor>
-          {showAdvanced && (
-            <FormRow label="Bridge TCP port">
-              <NumberInput
-                size="sm"
-                value={bridgePort}
-                onChange={(v) => setBridgePort(typeof v === 'number' ? v : 9870)}
-                min={1025}
-                max={65535}
+            <Group gap={FORM_LABEL_GAP} wrap="nowrap">
+              <Select
+                aria-label="Input type"
+                value={inputType}
+                onChange={(v) => {
+                  if (!v || v === inputType) return;
+                  setInputType(v as InputType);
+                  setInputPath('');
+                }}
+                data={INPUT_TYPES}
+                allowDeselect={false}
                 disabled={isRunning}
-                description="Loopback port between mrtk relay and mrtk cssr2rtcm3."
+                style={{ width: 120, flexShrink: 0 }}
               />
-            </FormRow>
-          )}
-
-          <Divider my={4} />
-
-          {/* Action row */}
-          <Group justify="space-between">
-            <Group gap="md">
-              <StatusIndicator
-                status={pipelineToProcessStatus(pipelineStatus.state)}
-                label={pipelineStatus.state}
+              <Autocomplete
+                aria-label="Input path"
+                value={inputPath}
+                onChange={setInputPath}
+                data={inputType === 'serial' ? portOptions : []}
+                placeholder={INPUT_PLACEHOLDER[inputType]}
+                disabled={isRunning}
+                style={{ flex: 1, minWidth: 0 }}
+                styles={{ input: { fontFamily: MONO } }}
               />
-              <Badge size="sm" variant="light" color="gray">
-                relay: {pipelineStatus.relay_state}
-              </Badge>
-              <Badge size="sm" variant="light" color="gray">
-                cssr2rtcm3: {pipelineStatus.cssr_state}
-              </Badge>
             </Group>
-            {isRunning ? (
-              <Button
-                color="red"
-                leftSection={<IconPlayerStop size={16} />}
-                onClick={handleStop}
-                loading={submitting}
+          </FormRow>
+
+          {/* Outputs, as in Stream Relay. The first is the bridge to
+              cssr2rtcm3 and must stay first: -b 1 relays back from it. */}
+          <FormRow
+            label={<Group gap={4} wrap="nowrap">Outputs<StreamPathHelp /></Group>}
+            align="flex-start"
+            trailing={
+              <ActionIcon
+                variant="light"
+                color="blue"
+                size="xs"
+                onClick={() => setOutputs((prev) => [...prev, { id: randomUUID(), type: 'file', path: OUTPUT_DEFAULT.file }])}
+                disabled={isRunning || outputs.length >= MAX_OUTPUTS}
+                aria-label="Add output"
               >
-                Stop pipeline
-              </Button>
-            ) : (
-              <Button
-                leftSection={<IconPlayerPlay size={16} />}
-                onClick={handleStart}
-                loading={submitting}
-                disabled={!canStart}
-              >
-                Start pipeline
-              </Button>
-            )}
-          </Group>
+                <IconPlus size={10} />
+              </ActionIcon>
+            }
+          >
+            <Stack gap={6}>
+              <Group gap={FORM_LABEL_GAP} wrap="nowrap">
+                <Select
+                  aria-label="Bridge output type"
+                  value="tcpsvr"
+                  data={OUTPUT_TYPES}
+                  disabled
+                  style={{ width: 120, flexShrink: 0 }}
+                />
+                <NumberInput
+                  aria-label="Bridge port"
+                  value={bridgePort}
+                  onChange={(v) => setBridgePort(typeof v === 'number' ? v : 9870)}
+                  min={1025}
+                  max={65535}
+                  hideControls
+                  prefix=":"
+                  disabled={isRunning}
+                  style={{ flex: 1, minWidth: 0 }}
+                  styles={{ input: { fontFamily: MONO } }}
+                />
+                <Tooltip
+                  label="Bridge: feeds mrtk cssr2rtcm3 and takes its RTCM3 back to the receiver (relay-back). Always the first output."
+                  multiline
+                  w={260}
+                  openDelay={300}
+                >
+                  <ActionIcon variant="subtle" color="gray" size="xs" aria-label="About the bridge output" style={{ flexShrink: 0 }}>
+                    <IconLock size={10} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+              {outputs.map((o) => (
+                <Group key={o.id} gap={FORM_LABEL_GAP} wrap="nowrap">
+                  <Select
+                    aria-label="Output type"
+                    value={o.type}
+                    onChange={(v) => v && setOutputs((prev) => prev.map((x) => (
+                      x.id === o.id ? { ...x, type: v as OutputType, path: OUTPUT_DEFAULT[v as OutputType] } : x
+                    )))}
+                    data={OUTPUT_TYPES}
+                    allowDeselect={false}
+                    disabled={isRunning}
+                    style={{ width: 120, flexShrink: 0 }}
+                  />
+                  <TextInput
+                    aria-label="Output path"
+                    value={o.path}
+                    onChange={(e) => {
+                      const path = e.currentTarget.value;
+                      setOutputs((prev) => prev.map((x) => (x.id === o.id ? { ...x, path } : x)));
+                    }}
+                    placeholder={OUTPUT_DEFAULT[o.type]}
+                    disabled={isRunning}
+                    style={{ flex: 1, minWidth: 0 }}
+                    styles={{ input: { fontFamily: MONO } }}
+                  />
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    size="xs"
+                    onClick={() => setOutputs((prev) => prev.filter((x) => x.id !== o.id))}
+                    disabled={isRunning}
+                    aria-label="Remove output"
+                    style={{ flexShrink: 0 }}
+                  >
+                    <IconTrash size={10} />
+                  </ActionIcon>
+                </Group>
+              ))}
+            </Stack>
+          </FormRow>
 
           {pipelineStatus.error_message && (
             <Alert
@@ -446,82 +504,33 @@ export function ClasPipelinePanel() {
               icon={<IconAlertCircle size={16} />}
               title="Pipeline error"
             >
-              <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+              <Text size="xs" style={{ whiteSpace: 'pre-wrap' }}>
                 {pipelineStatus.error_message}
               </Text>
             </Alert>
           )}
 
-          {pipelineStatus.state === 'idle' && (
-            <Alert
-              color="blue"
-              variant="light"
-              icon={<IconInfoCircle size={16} />}
-            >
-              <Text size="xs">
-                Make sure the serial device is passed through to the container
-                (e.g. <Code>--device=/dev/ttyUSB0</Code>) and that the receiver
-                is configured to output SBF and accept RTCM3 on that same port.
-              </Text>
-            </Alert>
-          )}
         </Stack>
       </Card>
       </Grid.Col>
 
-      {/* Right column: live monitoring (flow meter, scatter, logs) */}
-      <Grid.Col span={{ base: 12, md: 6 }}>
-      <Stack gap="md" h="100%" style={{ minHeight: 0 }}>
-        <ClasFlowMeter stats={flowStats} />
-        <Card withBorder p="sm">
-          <Stack gap="xs">
-            <Text size="sm" fw={600}>
-              Position (from SBF PVTGeodetic)
-            </Text>
-            <PositionScatter points={points} />
-          </Stack>
-        </Card>
-        <Card withBorder p="sm" style={{ flex: 1, minHeight: 0 }}>
-          <Tabs defaultValue="relay">
+      {/* Right column: the two processes' logs. Positions are watched in the
+          Stream Monitor, which reads the bridge like any relay output. */}
+      <Grid.Col span={{ base: 12, md: 6 }} h={{ base: 'auto', md: '100%' }}>
+        <Card withBorder p="sm" h="100%" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Tabs defaultValue="relay" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Tabs.List>
               <Tabs.Tab value="relay">mrtk relay</Tabs.Tab>
               <Tabs.Tab value="cssr">mrtk cssr2rtcm3</Tabs.Tab>
             </Tabs.List>
-            <Tabs.Panel value="relay" pt="xs">
-              <ScrollArea h={260} viewportRef={relayScrollRef}>
-                <Code
-                  block
-                  style={{
-                    whiteSpace: 'pre-wrap',
-                    fontSize: '11px',
-                    fontFamily: 'var(--mantine-font-family-monospace)',
-                  }}
-                >
-                  {relayLog.length === 0
-                    ? 'Waiting for relay output…'
-                    : relayLog.join('\n')}
-                </Code>
-              </ScrollArea>
+            <Tabs.Panel value="relay" pt="xs" style={{ flex: 1, minHeight: 0 }}>
+              <LogView lines={relayLog} wrap severity running={isRunning} startLabel="Start" cap={MAX_LOG_LINES} />
             </Tabs.Panel>
-            <Tabs.Panel value="cssr" pt="xs">
-              <ScrollArea h={260} viewportRef={cssrScrollRef}>
-                <Code
-                  block
-                  style={{
-                    whiteSpace: 'pre-wrap',
-                    fontSize: '11px',
-                    fontFamily: 'var(--mantine-font-family-monospace)',
-                  }}
-                >
-                  {cssrLog.length === 0
-                    ? 'Waiting for cssr2rtcm3 output…'
-                    : cssrLog.join('\n')}
-                </Code>
-              </ScrollArea>
+            <Tabs.Panel value="cssr" pt="xs" style={{ flex: 1, minHeight: 0 }}>
+              <LogView lines={cssrLog} wrap severity running={isRunning} startLabel="Start" cap={MAX_LOG_LINES} />
             </Tabs.Panel>
           </Tabs>
         </Card>
-      </Stack>
       </Grid.Col>
     </Grid>
   );

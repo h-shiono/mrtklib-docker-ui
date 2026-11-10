@@ -1,5 +1,6 @@
 import { Stack, Group, Text, ScrollArea, UnstyledButton } from '@mantine/core';
-import { IconClock, IconDownload, IconTools, IconDatabase, IconSparkles, IconSettings, IconCheck, IconAlertCircle } from '@tabler/icons-react';
+import { IconClock, IconDownload, IconFileCode, IconFileZip, IconRefresh, IconTools, IconDatabase, IconSparkles, IconSettings, IconCheck, IconAlertCircle } from '@tabler/icons-react';
+import { FONT_SIZE } from '../../utils/typography';
 
 interface ToolsSidebarProps {
   selected: string;
@@ -15,14 +16,14 @@ function SidebarGroup({ label, icon, children }: { label: string; icon: React.Re
         style={{
           textTransform: 'uppercase',
           letterSpacing: '0.08em',
-          fontSize: '10px',
+          fontSize: FONT_SIZE.caption,
           padding: '12px 8px 4px',
           userSelect: 'none',
           color: 'var(--mantine-color-dimmed)',
         }}
       >
         {icon}
-        <Text size="xs" fw={600} c="dimmed" style={{ fontSize: '10px' }}>{label}</Text>
+        <Text size="xs" fw={600} c="dimmed" style={{ fontSize: FONT_SIZE.caption }}>{label}</Text>
       </Group>
       {children}
     </>
@@ -46,7 +47,7 @@ function SidebarItem({ label, icon, section, active, onClick }: {
         gap: 8,
         width: '100%',
         padding: '6px 8px',
-        fontSize: '11px',
+        fontSize: FONT_SIZE.label,
         borderLeft: isActive ? '2px solid var(--mantine-primary-color-filled)' : '2px solid transparent',
         backgroundColor: isActive ? 'var(--mantine-color-default-hover)' : undefined,
         color: isActive ? 'var(--mantine-color-text)' : 'var(--mantine-color-dimmed)',
@@ -63,6 +64,10 @@ export function ToolsSidebar({ selected, onSelect, aiConfigured }: ToolsSidebarP
   return (
     <ScrollArea style={{ width: '100%', height: '100%' }}>
       <Stack gap={0}>
+        <SidebarGroup label="CONVERSION" icon={<IconFileCode size={12} />}>
+          <SidebarItem label="RINEX Converter" icon={<IconRefresh size={14} />} section="convbin" active={selected} onClick={onSelect} />
+          <SidebarItem label="Hatanaka (CRX)" icon={<IconFileZip size={14} />} section="hatanaka" active={selected} onClick={onSelect} />
+        </SidebarGroup>
         <SidebarGroup label="UTILITIES" icon={<IconTools size={12} />}>
           <SidebarItem label="Time Converter" icon={<IconClock size={14} />} section="time-converter" active={selected} onClick={onSelect} />
         </SidebarGroup>
@@ -79,7 +84,7 @@ export function ToolsSidebar({ selected, onSelect, aiConfigured }: ToolsSidebarP
               gap: 8,
               width: '100%',
               padding: '6px 8px',
-              fontSize: '11px',
+              fontSize: FONT_SIZE.label,
               borderLeft: selected === 'ai-settings' ? '2px solid var(--mantine-primary-color-filled)' : '2px solid transparent',
               backgroundColor: selected === 'ai-settings' ? 'var(--mantine-color-default-hover)' : undefined,
               color: selected === 'ai-settings' ? 'var(--mantine-color-text)' : 'var(--mantine-color-dimmed)',

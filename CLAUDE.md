@@ -4,14 +4,14 @@
 
 Web UI for [MRTKLIB](https://github.com/h-shiono/MRTKLIB) CLI tools,
 running in a Docker container. Users access GNSS post-processing,
-real-time positioning, stream relay (incl. the CLAS pipeline), RINEX
+real-time positioning, stream relay (incl. CLAS to RTCM3), RINEX
 conversion, and data tools from a browser without compiling anything.
 
 - **MRTKLIB version:** 0.7.17 (pinned in `.mrtklib-version`)
 - **Unified binary:** `mrtk` with subcommands (`post`, `run`, `relay`,
   `convert`, `ssr2obs`, `ssr2osr`, `bias`, `dump`, `cssr2rtcm3`,
   `l6extract`)
-- **UI version:** v0.4.7-alpha (next: v0.5.0 — drops the alpha suffix)
+- **UI version:** v0.4.8-alpha (next: v0.5.0 — drops the alpha suffix)
 
 ## Tech Stack
 
@@ -74,25 +74,26 @@ mrtklib-docker-ui/
 ### Navigation
 The header has a mode switch for the two primary modes,
 **Real-time | Post-processing**, and separate header buttons for
-**Stream Relay** (Multi-Stream, CLAS Pipeline) | **Stream Monitor** |
-**Conversion** | **Tools** (Time Converter, Data Downloader, AI Settings).
+**Stream Relay** (Multi-Stream, CLAS to RTCM3) | **Stream Monitor** |
+**Tools** (Conversion: RINEX Converter, Hatanaka; Time Converter, Data
+Downloader, AI Settings). One-shot file tools (ssr2obs, dump, l6extract, ...)
+belong in Tools too.
 
 Real-time and Post-processing use `ConsoleFrame`: a collapsible
 Config column (left) and a Workspace column (right: Chart / Solution /
 Console / Trace sub-tabs). The config panels use a section rail + form
-layout like VS Code Settings. Tools uses `ToolsSidebar` + panel.
+layout like VS Code Settings. Tools uses `ToolsSidebar` + panel; the
+Conversion panel stays mounted while another tool is open, so a running
+conversion keeps its log.
 
 ### Form layout convention
-All config panels use **label-left / input-right** (130px label width):
+All config panels use **label-left / input-right** through the shared
+`FormRow` (130px label, 30px field), inside a `<Stack gap={6}>`. Inputs take
+their size from the theme, so do not set `size`. See `DESIGN.md`.
 ```tsx
-<Group justify="space-between" align="center" mb={6}>
-  <Text size="sm" c="dimmed" style={{ width: 130, flexShrink: 0 }}>
-    Label
-  </Text>
-  <Box style={{ flex: 1 }}>
-    <Select ... />
-  </Box>
-</Group>
+<FormRow label="Label" trailing={<ActionIcon size={30} ... />}>
+  <Select ... />
+</FormRow>
 ```
 
 ### Section headers

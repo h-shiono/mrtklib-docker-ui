@@ -7,6 +7,7 @@
 import type { MonitorEpoch, MonitorState, MonitorStatus, MonitorStreamId } from '../api/streamMonitor';
 import type { MetricsPosition } from '../components/RtMetricsRow';
 import type { PosEpoch } from '../components/viewer';
+import { STATUS_COLOR } from './status';
 
 /** Colour of each stream when overlaid (#171). Fixed per stream, whichever is
  *  selected; apart under colour-vision deficiency on both themes. */
@@ -78,23 +79,28 @@ export function splitRelayLog(lines: string[]): { console: string[]; status: str
   return { console: out, status };
 }
 
+/** Name shown for a stream; the ids stay a / b in the API and saved settings. */
+export function streamLabel(id: MonitorStreamId): string {
+  return `Stream ${id === 'a' ? 1 : 2}`;
+}
+
 /** State of the input. `connected` is the backend's link to the relay, not
  *  the relay's input: the input is judged by the bytes arriving. */
 export function inputLight(status: MonitorStatus | null, state: MonitorState, live: boolean) {
   if (live && status?.file) {
     return status.file.eof
-      ? { label: 'END OF FILE', color: 'var(--color-single)', dimmed: true }
-      : { label: 'READING', color: 'var(--color-fix)', dimmed: false };
+      ? { label: 'END OF FILE', color: STATUS_COLOR.off, dimmed: true }
+      : { label: 'READING', color: STATUS_COLOR.ok, dimmed: false };
   }
   if (live && status) {
-    if (status.bytes_per_sec > 0) return { label: 'RECEIVING', color: 'var(--color-fix)', dimmed: false };
+    if (status.bytes_per_sec > 0) return { label: 'RECEIVING', color: STATUS_COLOR.ok, dimmed: false };
     return status.connected
-      ? { label: 'NO DATA', color: 'var(--color-float)', dimmed: false }
-      : { label: 'STARTING RELAY', color: 'var(--color-live)', dimmed: false };
+      ? { label: 'NO DATA', color: STATUS_COLOR.warn, dimmed: false }
+      : { label: 'STARTING RELAY', color: STATUS_COLOR.starting, dimmed: false };
   }
-  if (state === 'error') return { label: 'ERROR', color: 'var(--mantine-color-red-6)', dimmed: false };
-  if (state === 'starting') return { label: 'STARTING', color: 'var(--color-live)', dimmed: false };
-  return { label: 'STOPPED', color: 'var(--color-single)', dimmed: true };
+  if (state === 'error') return { label: 'ERROR', color: STATUS_COLOR.error, dimmed: false };
+  if (state === 'starting') return { label: 'STARTING', color: STATUS_COLOR.starting, dimmed: false };
+  return { label: 'STOPPED', color: STATUS_COLOR.off, dimmed: true };
 }
 
 /** Seconds from a time system to GPST. GPST - UTC is 18 s since 2017. */

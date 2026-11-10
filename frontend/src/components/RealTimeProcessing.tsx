@@ -1,7 +1,6 @@
-import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { useLocalStorage, useDisclosure, useElementSize } from '@mantine/hooks';
 import {
-  Box,
   Card,
   Stack,
   Select,
@@ -14,8 +13,6 @@ import {
   Button,
   ActionIcon,
   Tooltip,
-  Badge,
-  ScrollArea,
   Tabs,
   Chip,
 } from '@mantine/core';
@@ -58,13 +55,19 @@ import type { Satellite } from '../types/satellite';
 import { TimeSeriesChart, type TimeSeriesPoint } from './TimeSeriesChart';
 import { MaskedPathInput } from './common/MaskedPathInput';
 import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
-import { RtMetricsRow } from './RtMetricsRow';
+import { ENDED_OPACITY, RtMetricsRow } from './RtMetricsRow';
 import { RtInputStatusRow } from './RtInputStatusRow';
 import { MapView, type PosEpoch } from './viewer';
-import { maskLogLine } from '../utils/maskPath';
-import { useFollowScroll } from '../hooks/useFollowScroll';
-import { JumpToLatest } from './common/JumpToLatest';
-import { TraceLogView } from './common/TraceLogView';
+import { StatusBadge } from './common/StatusBadge';
+import { processTone } from '../utils/status';
+import { FONT_SIZE, MONO } from '../utils/typography';
+import { FormRow } from './common/FormRow';
+import { FORM_LABEL_GAP, MIN_PANEL_HEIGHT } from '../utils/formLayout';
+import { SectionHeader } from './common/SectionHeader';
+import { WorkspaceTabBar } from './common/WorkspaceTabBar';
+import { PRIMARY_MIN_WIDTH } from '../utils/formLayout';
+import { LogView } from './common/LogView';
+import { useUnseenErrors } from '../hooks/useUnseenErrors';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -93,11 +96,8 @@ const OUTPUT_FORMATS: { value: StreamFormat; label: string }[] = [
   { value: 'nmea', label: 'NMEA' },
 ];
 
-const LABEL_STYLE = { width: 90, flexShrink: 0, fontSize: '11px' } as const;
-
-// Switch rows: match the xs input height of the neighboring Select/TextInput
-// rows. --input-height-xs is scoped to Mantine's Input, so use its value.
-const SWITCH_ROW_STYLE = { minHeight: 'calc(1.875rem * var(--mantine-scale))' } as const;
+/** Padding above each tab panel. */
+const PANEL_TOP = 6;
 
 function StreamEditor({
   label,
@@ -118,16 +118,14 @@ function StreamEditor({
   const baseStream = stream as BaseStreamConfig;
 
   return (
-    <Stack gap={4}>
+    <Stack gap={6}>
       <Text size="xs" fw={600} mb={2}>{label}</Text>
-      <Group wrap="nowrap" align="center" gap="xs">
-        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Type</Text>
+      <FormRow label="Type">
         <Select size="xs" value={stream.type}
           onChange={(v) => onChange({ ...stream, type: v as StreamType })}
           data={STREAM_TYPES} style={{ flex: 1 }} />
-      </Group>
-      <Group wrap="nowrap" align="center" gap="xs">
-        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Path</Text>
+      </FormRow>
+      <FormRow label="Path">
         <MaskedPathInput size="xs" value={stream.path}
           onChange={(v) => onChange({ ...stream, path: v })}
           placeholder={isOff ? '' : ({
@@ -139,33 +137,29 @@ function StreamEditor({
             off: '',
           } as Record<string, string>)[stream.type] || 'e.g. host:port'}
           disabled={isOff} style={{ flex: 1 }}
-          styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }} />
-      </Group>
-      <Group wrap="nowrap" align="center" gap="xs">
-        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Format</Text>
+          styles={{ input: { fontFamily: MONO } }} />
+      </FormRow>
+      <FormRow label="Format">
         <Select size="xs" value={stream.format}
           onChange={(v) => onChange({ ...stream, format: v as StreamFormat })}
           data={formats} disabled={isOff} style={{ flex: 1 }} />
-      </Group>
+      </FormRow>
       {showNmea && !isOff && (
         <>
-          <Group wrap="nowrap" align="center" gap="xs" style={SWITCH_ROW_STYLE}>
-            <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Req.</Text>
+          <FormRow label="NMEA Req.">
             <Switch size="xs" checked={baseStream.nmeareq ?? false}
               onChange={(e) => onChange({ ...baseStream, nmeareq: e.currentTarget.checked })} />
-          </Group>
-          <Group wrap="nowrap" align="center" gap="xs">
-            <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Lat</Text>
+          </FormRow>
+          <FormRow label="NMEA Lat">
             <NumberInput size="xs" value={baseStream.nmealat ?? 0}
               onChange={(v) => onChange({ ...baseStream, nmealat: Number(v) })}
               decimalScale={6} disabled={!baseStream.nmeareq} style={{ flex: 1 }} />
-          </Group>
-          <Group wrap="nowrap" align="center" gap="xs">
-            <Text size="xs" c="dimmed" style={LABEL_STYLE}>NMEA Lon</Text>
+          </FormRow>
+          <FormRow label="NMEA Lon">
             <NumberInput size="xs" value={baseStream.nmealon ?? 0}
               onChange={(v) => onChange({ ...baseStream, nmealon: Number(v) })}
               decimalScale={6} disabled={!baseStream.nmeareq} style={{ flex: 1 }} />
-          </Group>
+          </FormRow>
         </>
       )}
       {footer}
@@ -196,13 +190,9 @@ function defaultRawLogBase(input: RawLogInput, format: StreamFormat): string {
   return `/workspace/rtlog/%Y/%n/${RAW_LOG_PREFIX[input]}_%n%H.${RAW_LOG_EXT[format] ?? 'raw'}`;
 }
 
-function parseRawLogPath(path: string): { base: string; timetag: boolean } {
-  const [base, ...opts] = path.split('::');
-  return { base, timetag: opts.includes('T') };
-}
-
-function composeRawLogPath(base: string, timetag: boolean): string {
-  return `${base}::S=1${timetag ? '::T' : ''}`;
+/** The path a raw log starts with. File options (::T, ::S=) are typed in the path. */
+function defaultRawLogPath(input: RawLogInput, format: StreamFormat): string {
+  return `${defaultRawLogBase(input, format)}::S=1`;
 }
 
 /**
@@ -219,11 +209,14 @@ function asRawLogFile(log: StreamConfig): StreamConfig {
 function syncRawLogFormat(
   log: StreamConfig, input: RawLogInput, oldFormat: StreamFormat, newFormat: StreamFormat,
 ): StreamConfig {
-  const { base, timetag } = parseRawLogPath(log.path);
+  const sep = log.path.indexOf('::');
+  const base = sep < 0 ? log.path : log.path.slice(0, sep);
+  const opts = sep < 0 ? '' : log.path.slice(sep);
   if (oldFormat === newFormat || base !== defaultRawLogBase(input, oldFormat)) return log;
-  return { ...log, path: composeRawLogPath(defaultRawLogBase(input, newFormat), timetag) };
+  return { ...log, path: defaultRawLogBase(input, newFormat) + opts };
 }
 
+/** One row: the switch saves the input's raw data to the path beside it. */
 function RawLogEditor({
   input,
   inputStream,
@@ -236,39 +229,24 @@ function RawLogEditor({
   onChange: (s: StreamConfig) => void;
 }) {
   const enabled = log.type !== 'off';
-  const { base, timetag } = parseRawLogPath(log.path);
+  const defaultPath = defaultRawLogPath(input, inputStream.format);
 
   return (
-    <>
-      <Group wrap="nowrap" align="center" gap="xs" style={SWITCH_ROW_STYLE}>
-        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Save Raw</Text>
-        <Switch size="xs" checked={enabled}
+    <FormRow label="Raw Log">
+      <Group gap={FORM_LABEL_GAP} wrap="nowrap">
+        <Switch size="xs" aria-label="Save raw log" checked={enabled}
           disabled={!enabled && inputStream.type === 'off'}
           onChange={(e) => onChange(e.currentTarget.checked
-            ? {
-                type: 'file',
-                path: composeRawLogPath(base || defaultRawLogBase(input, inputStream.format), timetag),
-                format: '',
-              }
+            ? { type: 'file', path: log.path || defaultPath, format: '' }
             : { ...log, type: 'off' })} />
-        <Tooltip label="Write a .tag file so the log can be replayed in real time (file::T)" openDelay={300}>
-          <div>
-            <Switch size="xs" label="Time tag" checked={timetag} disabled={!enabled}
-              onChange={(e) => onChange({ ...log, type: 'file', path: composeRawLogPath(base, e.currentTarget.checked) })}
-              styles={{ label: { fontSize: '11px' } }} />
-          </div>
-        </Tooltip>
-      </Group>
-      <Group wrap="nowrap" align="center" gap="xs">
-        <Text size="xs" c="dimmed" style={LABEL_STYLE}>Raw Path</Text>
-        <TextInput size="xs" value={enabled ? base : ''}
-          onChange={(e) => onChange({ ...log, type: 'file', path: composeRawLogPath(e.currentTarget.value, timetag) })}
-          placeholder={defaultRawLogBase(input, inputStream.format)}
+        <TextInput aria-label="Raw log path" value={log.path}
+          onChange={(e) => onChange({ ...log, type: 'file', path: e.currentTarget.value })}
+          placeholder={defaultPath}
           disabled={!enabled}
           style={{ flex: 1, minWidth: 0 }}
-          styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }} />
+          styles={{ input: { fontFamily: MONO } }} />
       </Group>
-    </>
+    </FormRow>
   );
 }
 
@@ -358,6 +336,17 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   // A ref so the WebSocket onmessage closure (created once with empty deps)
   // never reads a stale value.
   const startingRef = useRef(false);
+  // A run that has ended stays on screen, dimmed, until the next one starts.
+  const [ended, setEndedState] = useState<{ at: string; exitCode: number | null } | null>(null);
+  const endedRef = useRef(ended);
+  const setEnded = useCallback((value: typeof ended) => {
+    endedRef.current = value;
+    setEndedState(value);
+  }, []);
+  const runStatusRef = useRef(runStatus);
+  useLayoutEffect(() => {
+    runStatusRef.current = runStatus;
+  });
   const [lastPosition, setLastPosition] = useState<PositionUpdate | null>(null);
   const [positionHistory, setPositionHistory] = useState<PositionPoint[]>([]);
   const [timeSeriesHistory, setTimeSeriesHistory] = useState<TimeSeriesPoint[]>([]);
@@ -378,6 +367,8 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const MAX_TRACE_LINES = 1000;
 
   // Measured height for the live map (leaflet needs an explicit pixel height).
+  const { ref: panelsRef, height: panelsHeight } = useElementSize();
+  const panelHeight = Math.max(MIN_PANEL_HEIGHT, panelsHeight - PANEL_TOP);
   const { ref: mapWrapRef, height: mapHeight } = useElementSize();
 
   // Adapt the RT position history to the viewer's PosEpoch shape so the
@@ -414,14 +405,16 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
   // Keep the Solution / Console / Trace panels at their latest line, and
   // hold them still while the user scrolls up to read.
-  const solutionScroll = useFollowScroll(monitorTab === 'solution', positionHistory);
-  const consoleScroll = useFollowScroll(monitorTab === 'console', logLines);
-  const traceScroll = useFollowScroll(monitorTab === 'trace', traceLines);
+  const unseenErrors = useUnseenErrors(logLines, monitorTab === 'console');
+  const solutionLines = useMemo(
+    () => positionHistory.map((p, i) => `${p.timestamp || i}  ${p.lat.toFixed(8)}  ${p.lon.toFixed(8)}  ${p.height.toFixed(3)}  Q=${p.quality}`),
+    [positionHistory],
+  );
 
   // Feed live status to the global bottom status bar (null clears it on stop).
   useEffect(() => {
     if (!onLiveStatus) return;
-    if (!lastPosition) {
+    if (!lastPosition || ended) {
       onLiveStatus(null);
       return;
     }
@@ -435,7 +428,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       age: lastPosition.age,
       satsVisible: satellites.length,
     });
-  }, [lastPosition, satellites, onLiveStatus]);
+  }, [lastPosition, ended, satellites, onLiveStatus]);
 
   // Build backend-compatible streams config
   const buildStreamsPayload = useCallback(() => ({
@@ -452,6 +445,23 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   // WebSocket for real-time updates. Connected for the component's whole
   // lifetime (not per run) and re-established on drop, so a reloaded page or a
   // reconnected SSH tunnel reattaches to a run the backend is still doing.
+  const endSession = useCallback((exitCode: number | null) => {
+    if (!endedRef.current) {
+      setEnded({ at: new Date().toLocaleTimeString('en-GB', { hour12: false }), exitCode });
+    }
+    setRunStatus(exitCode ? 'exited' : 'stopped');
+    setInputStreams([]);
+  }, [setEnded]);
+
+  const clearSession = useCallback(() => {
+    setEnded(null);
+    setLastPosition(null);
+    setPositionHistory([]);
+    setTimeSeriesHistory([]);
+    setSatellites([]);
+    setInputStreams([]);
+  }, [setEnded]);
+
   const connectWs = useCallback(() => {
     if (wsRef.current || unmountedRef.current) return;
     const ws = mrtkRunApi.connectWs();
@@ -468,13 +478,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           setTraceLines(Array.isArray(msg.traces) ? (msg.traces as string[]) : []);
           setTraceFile(typeof msg.trace_file === 'string' ? msg.trace_file : null);
           const positions = (Array.isArray(msg.positions) ? msg.positions : []) as PositionUpdate[];
-          if (positions.length === 0) {
-            setLastPosition(null);
-            setPositionHistory([]);
-            setTimeSeriesHistory([]);
-            setSatellites([]);
-            setInputStreams([]);
-          } else {
+          // Empty: nothing new to show. A run that ended while we were away is
+          // ended by the status that follows, and stays on screen.
+          if (positions.length > 0) {
+            setEnded(null);
             const pts = positions.map((p) => ({
               timestamp: p.timestamp || '',
               lat: p.lat,
@@ -501,24 +508,19 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           // what flipped the button back to Start the moment solutions appeared.
           if (msg.running === true) {
             // Positive confirmation the managed process is up (e.g. WS reconnect
-            // while a run is active).
+            // while a run is active). Started from another tab: the last
+            // session goes, as on a local Start.
+            if (endedRef.current) clearSession();
             setRunStatus('running');
           } else if (msg.running === false) {
-            // Only return to idle on a genuine process exit, or when no start is
-            // in flight (stale "not running" sent right on WS connect during
-            // startup must be ignored so the button stays on Stop). Outside
-            // startup, a connect-time "not running" means the run ended while
-            // this client was disconnected.
-            if (msg.exited || !startingRef.current) {
-              // Same as a local Stop: drop the dead run's position so the map,
-              // charts and global status bar stop showing it as live (covers a
-              // process exit and a Stop issued from another tab).
-              setRunStatus('idle');
-              setLastPosition(null);
-              setPositionHistory([]);
-              setTimeSeriesHistory([]);
-              setSatellites([]);
-              setInputStreams([]);
+            // A genuine exit carries `exited`. Without it this is the status
+            // sent on connect, which ends a run we believed was live (it ended
+            // while this client was disconnected) and must not disturb a start
+            // in flight or a page that was idle.
+            if (msg.exited) {
+              endSession(typeof msg.exit_code === 'number' ? msg.exit_code : null);
+            } else if (!startingRef.current && (runStatusRef.current === 'running' || runStatusRef.current === 'stopping')) {
+              endSession(null);
             }
           }
           if (msg.lat !== undefined) {
@@ -577,7 +579,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
         connectWs();
       }, 2000);
     };
-  }, []);
+  }, [clearSession, endSession, setEnded]);
 
   useEffect(() => {
     unmountedRef.current = false;
@@ -594,6 +596,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
   const handleStart = async () => {
     startingRef.current = true;
+    clearSession();
     setRunStatus('starting');
     setLogLines(prev => [...prev, '[INFO] Starting mrtk run -s ...']);
     setTraceLines([]);
@@ -636,11 +639,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
     setLogLines(prev => [...prev, '[INFO] Stopping ...']);
     try {
       await mrtkRunApi.stop();
-      setRunStatus('idle');
-      setLastPosition(null);
-      setPositionHistory([]);
-      setTimeSeriesHistory([]);
-      setInputStreams([]);
+      endSession(null);
       setLogLines(prev => [...prev, '[INFO] Stopped']);
     } catch (err) {
       setRunStatus('error');
@@ -654,60 +653,47 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       configOpen={configOpen}
       onToggleConfig={onToggleConfig ?? (() => {})}
       config={
-        <Card withBorder p="xs">
-          <Stack gap={4}>
+        <Card withBorder p="xs" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <Stack gap={4} style={{ flex: 1, minHeight: 0 }}>
             <Group justify="space-between">
               <Group gap="xs">
                 {onToggleConfig && <ConfigCollapseButton onClick={onToggleConfig} />}
-                <Title order={6} size="xs">Processing Configuration</Title>
+                <Title order={6} size="sm">Processing Configuration</Title>
               </Group>
               <Group gap="xs">
-                {runStatus !== 'idle' && (
-                  <Badge color={isRunning ? 'green' : runStatus === 'error' ? 'red' : 'gray'} variant="dot" size="sm">
-                    {runStatus}
-                  </Badge>
-                )}
-                {!isRunning ? (
-                  <Button size="xs" color="green" leftSection={<IconPlayerPlay size={14} />}
-                    onClick={handleStart} disabled={streams.input.rover.type === 'off'}>
-                    Start
-                  </Button>
-                ) : (
-                  <Button size="xs" color="red" leftSection={<IconPlayerStop size={14} />}
-                    onClick={handleStop}>
-                    Stop
-                  </Button>
-                )}
+                <StatusBadge tone={processTone(runStatus)}>
+                  {runStatus === 'exited' ? `exited (code ${ended?.exitCode})` : runStatus}
+                </StatusBadge>
                 <Tooltip label="Presets">
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={openPresets}>
+                  <ActionIcon aria-label="Presets" variant="light" color="gray" size={30} onClick={openPresets}>
                     <IconBookmark size={16} />
                   </ActionIcon>
                 </Tooltip>
                 {aiConfigured ? (
                   <Tooltip label="Config Assistant">
-                    <ActionIcon variant="light" color="yellow" size="lg" onClick={openAssistant}>
+                    <ActionIcon aria-label="Config Assistant" variant="light" color="gray" size={30} onClick={openAssistant}>
                       <IconSparkles size={16} />
                     </ActionIcon>
                   </Tooltip>
                 ) : (
                   <Tooltip label="Configure API key in Tools → AI Settings">
-                    <ActionIcon variant="light" color="gray" size="lg" onClick={onNavigateToAiSettings}>
+                    <ActionIcon aria-label="Configure API key in Tools → AI Settings" variant="light" color="gray" size={30} onClick={onNavigateToAiSettings}>
                       <IconSparkles size={16} />
                     </ActionIcon>
                   </Tooltip>
                 )}
                 <Tooltip label="Import TOML">
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={() => importFileRef.current?.click()}>
+                  <ActionIcon aria-label="Import TOML" variant="light" color="gray" size={30} onClick={() => importFileRef.current?.click()}>
                     <IconUpload size={16} />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label="TOML Preview">
-                  <ActionIcon variant="light" color="gray" size="lg" onClick={openToml}>
+                  <ActionIcon aria-label="TOML Preview" variant="light" color="gray" size={30} onClick={openToml}>
                     <IconCode size={16} />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label="Download TOML">
-                  <ActionIcon variant="light" color="blue" size="lg" disabled={isRunning} onClick={async () => {
+                  <ActionIcon aria-label="Download TOML" variant="light" color="gray" size={30} disabled={isRunning} onClick={async () => {
                     try {
                       const backendCfg = configToBackend(config);
                       const payload = { config: backendCfg, streams: buildStreamsPayload() };
@@ -738,6 +724,17 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                     e.target.value = '';
                   }}
                 />
+                {runStatus !== 'running' && runStatus !== 'stopping' ? (
+                  <Button size="xs" miw={PRIMARY_MIN_WIDTH} color="green" leftSection={<IconPlayerPlay size={14} />}
+                    onClick={handleStart} loading={runStatus === 'starting'} disabled={streams.input.rover.type === 'off'}>
+                    Start
+                  </Button>
+                ) : (
+                  <Button size="xs" miw={PRIMARY_MIN_WIDTH} color="red" leftSection={<IconPlayerStop size={14} />}
+                    onClick={handleStop} loading={runStatus === 'stopping'}>
+                    Stop
+                  </Button>
+                )}
               </Group>
             </Group>
 
@@ -751,7 +748,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                   label: 'I/O Streams',
                   content: (
                     <Stack gap="xs">
-                      <Group gap={4}><Text size="xs" fw={600}>Input Streams</Text><StreamPathHelp /></Group>
+                      <SectionHeader title="Input Streams" help={<StreamPathHelp />} />
                       <StreamEditor label="Rover" stream={streams.input.rover}
                         onChange={(s) => setStreams({
                           ...streams,
@@ -777,16 +774,20 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                         footer={<RawLogEditor input="correction" inputStream={streams.input.correction} log={streams.log.stream3}
                           onChange={(l) => setStreams({ ...streams, log: { ...streams.log, stream3: l } })} />} />
 
-                      <Group justify="space-between" mt="xs">
-                        <Group gap={4}><Text size="xs" fw={600}>Output Streams</Text><StreamPathHelp /></Group>
-                        {outputLogCount < OUTPUT_LOG_SLOTS.length && (
+                      <SectionHeader
+                        title="Output Streams"
+                        mt={6}
+                        help={<>
+                          <StreamPathHelp />
+                          {outputLogCount < OUTPUT_LOG_SLOTS.length && (
                           <Tooltip label="Add output stream" openDelay={300}>
-                            <ActionIcon size="xs" variant="light" onClick={() => setShowOutput2(true)}>
+                            <ActionIcon aria-label="Add output stream" size="xs" variant="light" onClick={() => setShowOutput2(true)}>
                               <IconPlus size={12} />
                             </ActionIcon>
                           </Tooltip>
                         )}
-                      </Group>
+                        </>}
+                      />
                       {OUTPUT_LOG_SLOTS.slice(0, outputLogCount).map((slot, idx) => (
                         <Group key={slot.key} wrap="nowrap" align="flex-start" gap={4}>
                           <div style={{ flex: 1 }}>
@@ -798,7 +799,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                             />
                           </div>
                           {idx > 0 && (
-                            <ActionIcon
+                            <ActionIcon aria-label="Remove output stream"
                               variant="subtle"
                               color="red"
                               size="xs"
@@ -829,37 +830,39 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           <Stack gap={6} style={{ flex: 1, minHeight: 0 }}>
 
             {/* 1. Metrics row (Time · Position · Quality · Ratio · Age · Satellites) */}
-            <RtMetricsRow lastPosition={lastPosition} satellites={satellites} />
+            <RtMetricsRow lastPosition={lastPosition} satellites={satellites} endedAt={lastPosition ? ended?.at ?? null : null} />
 
             {/* 3. Tab bar + 4. Chart area */}
             <Tabs value={monitorTab} onChange={setMonitorTab} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <Group justify="space-between" align="center" gap={0}>
-                <Tabs.List>
-                  <Tabs.Tab value="chart" style={{ fontSize: 11 }}>Chart</Tabs.Tab>
-                  <Tabs.Tab value="solution" style={{ fontSize: 11 }}>Solution</Tabs.Tab>
-                  <Tabs.Tab value="console" style={{ fontSize: 11 }}>Console</Tabs.Tab>
-                  <Tabs.Tab value="trace" style={{ fontSize: 11 }}>Trace</Tabs.Tab>
-                </Tabs.List>
-                {/* Multi-select: show one or more charts side by side */}
+              <WorkspaceTabBar
+                tabs={[
+                  { value: 'chart', label: 'Chart' },
+                  { value: 'solution', label: 'Solution' },
+                  { value: 'console', label: 'Console', alert: unseenErrors },
+                  { value: 'trace', label: 'Trace' },
+                ]}
+                right={monitorTab === 'chart' && (
                 <Chip.Group
                   multiple
                   value={chartViews}
                   onChange={(v) => { if (v.length) setChartViews(v); }}
                 >
-                  <Group gap={6} wrap="nowrap" style={{ marginRight: 4 }}>
+                  <Group gap={6} wrap="nowrap">
                     <Chip value="scatter" size="xs" variant="light">2D</Chip>
                     <Chip value="map" size="xs" variant="light">Map</Chip>
                     <Chip value="skysnr" size="xs" variant="light">Sky / SNR</Chip>
                     <Chip value="series" size="xs" variant="light">Time series</Chip>
                   </Group>
                 </Chip.Group>
-              </Group>
+                )}
+              />
 
-              <Tabs.Panel value="chart" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
-                <div style={{ display: 'flex', gap: 10, height: '100%', minHeight: 0 }}>
+              <div ref={panelsRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              <Tabs.Panel value="chart" pt={PANEL_TOP}>
+                <div style={{ display: 'flex', gap: 10, height: panelHeight, minHeight: 0, opacity: ended ? ENDED_OPACITY : 1 }}>
                   {chartViews.includes('scatter') && (
                     <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                      <PositionScatter points={positionHistory} maxPoints={MAX_HISTORY} />
+                      <PositionScatter fit points={positionHistory} maxPoints={MAX_HISTORY} />
                     </div>
                   )}
                   {chartViews.includes('map') && (
@@ -880,76 +883,41 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                 </div>
               </Tabs.Panel>
 
-              <Tabs.Panel value="solution" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
-                <Box pos="relative">
-                  <ScrollArea
-                    h={300}
-                    {...solutionScroll.scrollProps}
-                    styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-                  >
-                    <Text
-                      c={positionHistory.length > 0 ? 'gray.4' : 'dimmed'}
-                      fs={positionHistory.length > 0 ? undefined : 'italic'}
-                      style={{ fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'pre-wrap', fontSize: '11px', lineHeight: 1.5, wordBreak: 'break-all' }}
-                    >
-                      {solutionScroll.shown.length > 0
-                        ? solutionScroll.shown.map((p, i) =>
-                            `${p.timestamp || i}  ${p.lat.toFixed(8)}  ${p.lon.toFixed(8)}  ${p.height.toFixed(3)}  Q=${p.quality}`
-                          ).join('\n')
-                        : 'No solution data yet.'}
-                    </Text>
-                  </ScrollArea>
-                  {solutionScroll.held && <JumpToLatest onClick={solutionScroll.resume} />}
-                </Box>
+              <Tabs.Panel value="solution" pt={PANEL_TOP}>
+                <LogView
+                  lines={solutionLines}
+                  height={panelHeight}
+                  active={monitorTab === 'solution'}
+                  running={isRunning}
+                  emptyText="No solution data yet."
+                />
               </Tabs.Panel>
 
-              <Tabs.Panel value="console" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
-                <Box pos="relative">
-                  <ScrollArea
-                    h={300}
-                    {...consoleScroll.scrollProps}
-                    styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-                  >
-                    {consoleScroll.shown.length > 0 ? (
-                      consoleScroll.shown.map((line, i) => (
-                        <Text
-                          key={i}
-                          size="xs"
-                          c="gray.4"
-                          style={{
-                            fontFamily: "'IBM Plex Mono', monospace",
-                            fontSize: '11px',
-                            lineHeight: 1.5,
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-all',
-                          }}
-                        >
-                          {maskLogLine(line)}
-                        </Text>
-                      ))
-                    ) : (
-                      <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
-                        No log output yet.
-                      </Text>
-                    )}
-                  </ScrollArea>
-                  {consoleScroll.held && <JumpToLatest onClick={consoleScroll.resume} />}
-                </Box>
+              <Tabs.Panel value="console" pt={PANEL_TOP}>
+                <LogView
+                  lines={logLines}
+                  height={panelHeight}
+                  active={monitorTab === 'console'}
+                  wrap
+                  severity
+                  running={isRunning}
+                  cap={500}
+                />
               </Tabs.Panel>
 
-              <Tabs.Panel value="trace" style={{ flex: 1, minHeight: 0, paddingTop: 6 }}>
-                {traceFile && (
-                  <Group gap={6} mb={4} wrap="nowrap">
-                    <Text
-                      size="xs"
-                      c="dimmed"
-                      truncate="start"
-                      title={traceFile}
-                      style={{ flex: 1, minWidth: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}
-                    >
+              <Tabs.Panel value="trace" pt={PANEL_TOP}>
+                <LogView
+                  lines={traceLines}
+                  height={panelHeight}
+                  active={monitorTab === 'trace'}
+                  wrap
+                  wrapToggle
+                  note={traceFile && (
+                    <Text c="dimmed" truncate="start" title={traceFile} style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
                       {traceFile}
                     </Text>
-                    {traceFile.startsWith('/workspace/') && (
+                  )}
+                  actions={traceFile && traceFile.startsWith('/workspace/') && (
                       <Button
                         variant="light"
                         leftSection={<IconDownload size={12} />}
@@ -962,16 +930,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                         Download
                       </Button>
                     )}
-                  </Group>
-                )}
-                <TraceLogView
-                  lines={traceScroll.shown}
-                  height={traceFile ? 278 : 300}
-                  wrap
-                  {...traceScroll.scrollProps}
-                  onMatchSelect={traceScroll.hold}
-                  overlay={traceScroll.held && <JumpToLatest onClick={traceScroll.resume} />}
-                  placeholder={
+                  emptyText={
                     traceFile
                       ? 'Waiting for trace output...'
                       : config.output.debugTrace === 'off'
@@ -982,6 +941,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                   }
                 />
               </Tabs.Panel>
+            </div>
             </Tabs>
 
             {/* 5. Streaming status (Rover · Base · Correction) */}

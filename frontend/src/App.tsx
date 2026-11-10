@@ -8,6 +8,7 @@ import {
   Group,
   ScrollArea,
   SegmentedControl,
+  Chip,
   Stack,
   Tabs,
   Text,
@@ -28,30 +29,25 @@ import {
   IconRefresh,
   IconDownload,
   IconInfoCircle,
-  IconChartDots,
-  IconFileText,
-  IconTerminal2,
   IconTrash,
-  IconCopy,
-  IconBug,
   IconPlus,
 } from '@tabler/icons-react';
 import { PostProcessingConfiguration  } from './components';
 import { ResultViewer } from './components/viewer';
 import { ConsoleFrame } from './components/ConsoleFrame';
 import { RealTimeProcessing, type RtLiveStatus } from './components/RealTimeProcessing';
-import { qualityColor, qualityLabel } from './utils/quality';
-import { ConversionPanel } from './components/ConversionPanel';
+import { qualityColor, qualityLabel, qualityTextColor } from './utils/quality';
+import { STATUS_COLOR } from './utils/status';
+import { StatusBadge } from './components/common/StatusBadge';
+import { ConversionPanel, type ConvertTool } from './components/ConversionPanel';
 import { StreamPathHelp } from './components/StreamPathHelp';
 import { ClasPipelinePanel } from './components/ClasPipelinePanel';
 import { StreamMonitorPanel } from './components/StreamMonitorPanel';
 import { MaskedPathInput } from './components/common/MaskedPathInput';
-import { maskLogLine } from './utils/maskPath';
 import { randomUUID } from './utils/uuid';
 import { GnssTimeConverter } from './components/tools/GnssTimeConverter';
 import { DataDownloader } from './components/tools/DataDownloader';
 import { ToolsSidebar } from './components/tools/ToolsSidebar';
-import { TraceLogView } from './components/common/TraceLogView';
 import { AiSettingsPanel } from './components/tools/AiSettingsPanel';
 import { configToBackend } from './utils/configToBackend';
 import { ObsViewerModal } from './components/obsViewer';
@@ -65,6 +61,15 @@ import { DEFAULT_MRTK_POST_CONFIG } from './types/mrtkPostConfig';
 import type { InputStream, OutputStream, StreamType } from './types/streamConfig';
 import type { BuilderConfig } from './types/streamConfig';
 import { generateRelayArgs, parseRelayArgs } from './utils/streamArgs';
+import { FONT_SIZE, MONO } from './utils/typography';
+import { FormRow } from './components/common/FormRow';
+import { StreamCardHeader } from './components/common/StreamCardHeader';
+import { FORM_LABEL_GAP, FORM_ROW_HEIGHT, MIN_PANEL_HEIGHT, SCREEN_HEIGHT } from './utils/formLayout';
+import { useElementSize, useLocalStorage } from '@mantine/hooks';
+import { WorkspaceTabBar } from './components/common/WorkspaceTabBar';
+import type { ViewMode } from './components/viewer';
+import { LogView } from './components/common/LogView';
+import { useUnseenErrors } from './hooks/useUnseenErrors';
 
 function ColorSchemeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -93,8 +98,10 @@ interface PostProcessingRightPanelProps {
   outputFile: string;
   /** The config writes the CLAS L6 source into the GGA station id. */
   clasSource: boolean;
-  onClearLog: () => void;
 }
+
+const PP_VIEWS: ViewMode[] = ['2d', 'enu', 'map'];
+const DEFAULT_PP_VIEWS: ViewMode[] = ['2d'];
 
 function PostProcessingRightPanel({
   processStatus,
@@ -102,22 +109,20 @@ function PostProcessingRightPanel({
   logLines,
   outputFile,
   clasSource,
-  onClearLog,
 }: PostProcessingRightPanelProps) {
   const [rightTab, setRightTab] = useState<string | null>('chart');
   const [refreshKey, setRefreshKey] = useState(0);
-  const consoleViewportRef = useRef<HTMLDivElement>(null);
   const [prevStatus, setPrevStatus] = useState(processStatus);
-
-  // Auto-scroll console when new lines arrive
-  useEffect(() => {
-    if (rightTab === 'console' && consoleViewportRef.current) {
-      consoleViewportRef.current.scrollTo({
-        top: consoleViewportRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
-    }
-  }, [logLines, rightTab]);
+  const { ref: contentRef, height: contentAreaHeight } = useElementSize();
+  const [storedViews, setChartViews] = useLocalStorage<string[]>({
+    key: 'mrtk-pp-chart-views',
+    defaultValue: DEFAULT_PP_VIEWS,
+  });
+  // A stored value may be stale or hand-edited (L28); at least one view shows.
+  const known = PP_VIEWS.filter((v) => Array.isArray(storedViews) && storedViews.includes(v));
+  const shownViews = known.length > 0 ? known : DEFAULT_PP_VIEWS;
+  const chartViews: string[] = shownViews;
+  const unseenErrors = useUnseenErrors(logLines, rightTab === 'console');
 
   // Auto-refresh chart when processing completes
   if (prevStatus !== processStatus) {
@@ -126,10 +131,6 @@ function PostProcessingRightPanel({
       setRefreshKey((k) => k + 1);
     }
   }
-
-  const handleCopyLog = useCallback(() => {
-    navigator.clipboard.writeText(logLines.join('\n'));
-  }, [logLines]);
 
   // Result summary strip content
   const renderSummaryStrip = () => {
@@ -142,7 +143,7 @@ function PostProcessingRightPanel({
                 <Badge size="sm" color={qualityColor(progress.quality)}>
                   {qualityLabel(progress.quality).toUpperCase()}
                 </Badge>
-                <Text size="xs" ff="monospace" style={{ fontSize: '11px' }}>
+                <Text size="xs" ff="monospace" style={{ fontSize: FONT_SIZE.label }}>
                   {progress.epoch}
                 </Text>
               </>
@@ -168,8 +169,8 @@ function PostProcessingRightPanel({
       return (
         <Group justify="space-between" px="sm" py={6}>
           <Group gap="xs">
-            <Badge size="sm" color="green">Complete</Badge>
-            <Code style={{ fontSize: '10px' }}>{outputFile}</Code>
+            <StatusBadge tone="ok">Complete</StatusBadge>
+            <Code style={{ fontSize: FONT_SIZE.label }}>{outputFile}</Code>
           </Group>
           <Button
             variant="light"
@@ -188,7 +189,7 @@ function PostProcessingRightPanel({
     if (processStatus === 'error') {
       return (
         <Group justify="center" px="sm" py={6}>
-          <Badge size="sm" color="red">Error</Badge>
+          <StatusBadge tone="error">Error</StatusBadge>
           <Text size="xs" c="dimmed">Processing failed. Check console for details.</Text>
         </Group>
       );
@@ -202,7 +203,7 @@ function PostProcessingRightPanel({
     );
   };
 
-  const CONTENT_HEIGHT = 540;
+  const contentHeight = Math.max(MIN_PANEL_HEIGHT, contentAreaHeight);
 
   return (
     <Card withBorder p={0} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -223,70 +224,23 @@ function PostProcessingRightPanel({
         keepMounted={false}
         style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
       >
-        <Group
-          justify="space-between"
-          wrap="nowrap"
+        <WorkspaceTabBar
           px="sm"
-          style={{
-            backgroundColor: 'var(--app-surface)',
-            borderBottom: '1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-6))',
-            flexShrink: 0,
-          }}
-        >
-          <Tabs.List style={{ borderBottom: 'none', flexWrap: 'nowrap' }}>
-            <Tabs.Tab
-              value="chart"
-              leftSection={<IconChartDots size={13} />}
-              style={{ fontSize: '11px', padding: '6px 10px' }}
-            >
-              Chart
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="solution"
-              leftSection={<IconFileText size={13} />}
-              style={{ fontSize: '11px', padding: '6px 10px' }}
-            >
-              Solution
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="console"
-              leftSection={<IconTerminal2 size={13} />}
-              style={{ fontSize: '11px', padding: '6px 10px' }}
-            >
-              Console
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="trace"
-              leftSection={<IconBug size={13} />}
-              style={{ fontSize: '11px', padding: '6px 10px' }}
-            >
-              Trace
-            </Tabs.Tab>
-          </Tabs.List>
-
-          {/* Action buttons for active tab */}
-          <Group gap="xs" wrap="nowrap">
-            {rightTab === 'console' && (
-              <>
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  onClick={handleCopyLog}
-                  title="Copy to clipboard"
-                >
-                  <IconCopy size={14} />
-                </ActionIcon>
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  onClick={onClearLog}
-                  title="Clear terminal"
-                >
-                  <IconTrash size={14} />
-                </ActionIcon>
-              </>
+          tabs={[
+            { value: 'chart', label: 'Chart' },
+            { value: 'solution', label: 'Solution' },
+            { value: 'console', label: 'Console', alert: unseenErrors },
+            { value: 'trace', label: 'Trace' },
+          ]}
+          right={<>
+            {rightTab === 'chart' && (
+              <Chip.Group multiple value={chartViews} onChange={(v) => { if (v.length) setChartViews(v); }}>
+                <Group gap={6} wrap="nowrap">
+                  <Chip value="2d" size="xs" variant="light">2D</Chip>
+                  <Chip value="enu" size="xs" variant="light">ENU</Chip>
+                  <Chip value="map" size="xs" variant="light">Map</Chip>
+                </Group>
+              </Chip.Group>
             )}
             {rightTab === 'solution' && (
               <ActionIcon
@@ -299,91 +253,58 @@ function PostProcessingRightPanel({
                 <IconRefresh size={14} />
               </ActionIcon>
             )}
-          </Group>
-        </Group>
+          </>}
+        />
 
         {/* Chart tab */}
-        <Tabs.Panel value="chart" style={{ flex: 1, minHeight: 0 }}>
+        <div ref={contentRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <Tabs.Panel value="chart">
           <ResultViewer
             filePath={outputFile}
-            maxHeight={CONTENT_HEIGHT}
+            maxHeight={contentHeight}
             refreshKey={refreshKey}
+            views={shownViews}
             clasSource={clasSource}
           />
         </Tabs.Panel>
 
         {/* Solution tab */}
-        <Tabs.Panel value="solution" style={{ flex: 1, minHeight: 0 }}>
+        <Tabs.Panel value="solution">
           <SolutionView
             outputFile={outputFile}
             refreshKey={refreshKey}
-            maxHeight={CONTENT_HEIGHT}
+            maxHeight={contentHeight}
           />
         </Tabs.Panel>
 
         {/* Console tab */}
-        <Tabs.Panel value="console" style={{ flex: 1, minHeight: 0 }}>
-          <ScrollArea
-            h={CONTENT_HEIGHT}
-            viewportRef={consoleViewportRef}
-            styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-          >
-            {logLines.length === 0 ? (
-              <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
-                Waiting for output...
-              </Text>
-            ) : (
-              logLines.map((line, index) => (
-                <Text
-                  key={index}
-                  size="xs"
-                  c="gray.4"
-                  style={{
-                    fontFamily: "'IBM Plex Mono', monospace",
-                    fontSize: '11px',
-                    lineHeight: 1.5,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all',
-                  }}
-                >
-                  {maskLogLine(line)}
-                </Text>
-              ))
-            )}
-          </ScrollArea>
+        <Tabs.Panel value="console">
+          <LogView
+            lines={logLines}
+            height={contentHeight}
+            active={rightTab === 'console'}
+            wrap
+            severity
+            running={processStatus === 'running'}
+            startLabel="Execute"
+            cap={500}
+          />
         </Tabs.Panel>
 
         {/* Trace tab */}
-        <Tabs.Panel value="trace" style={{ flex: 1, minHeight: 0 }}>
+        <Tabs.Panel value="trace">
           <SolutionView
             outputFile={outputFile ? outputFile + '.trace' : ''}
             refreshKey={refreshKey}
-            maxHeight={CONTENT_HEIGHT}
+            maxHeight={contentHeight}
             fromEnd
             noun="trace file"
-            searchable
+            wrapToggle
           />
         </Tabs.Panel>
+        </div>
       </Tabs>
 
-      {/* 4. Fix rate gauge bar (always visible) */}
-      <Box
-        px="sm"
-        py={4}
-        style={{
-          borderTop: '1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5))',
-          flexShrink: 0,
-          height: 32,
-          display: 'flex',
-          alignItems: 'center',
-        }}
-      >
-        <Group justify="center" style={{ width: '100%' }}>
-          <Text size="xs" c="dimmed">
-            Fix: --- | Float: --- | Single: ---
-          </Text>
-        </Group>
-      </Box>
     </Card>
   );
 }
@@ -400,21 +321,20 @@ function SolutionView({
   maxHeight,
   fromEnd = false,
   noun = 'solution file',
-  searchable = false,
+  wrapToggle = false,
 }: {
   outputFile: string;
   refreshKey: number;
   maxHeight: number;
   fromEnd?: boolean;
   noun?: string;
-  searchable?: boolean;
+  wrapToggle?: boolean;
 }) {
   // `path` is the server-resolved path (a relative entry resolves under /workspace).
   const [loaded, setContent] = useState<{ path: string; content: string; returned: number; total: number } | null>(null);
   const loadedContent = loaded?.content ?? null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
   const content = outputFile ? loadedContent : null;
   // Split once per load, so the search toolbar does not rescan on every render.
   const lines = useMemo(() => (content ? content.replace(/\n$/, '').split('\n') : []), [content]);
@@ -466,19 +386,12 @@ function SolutionView({
     return () => { cancelled = true; };
   }, [outputFile, refreshKey, fromEnd]);
 
-  // Auto-scroll to bottom on content change
-  useEffect(() => {
-    if (viewportRef.current) {
-      viewportRef.current.scrollTo({ top: viewportRef.current.scrollHeight });
-    }
-  }, [content]);
-
-  const consoleBg = 'var(--mantine-color-dark-8, #1a1b1e)';
+  const consoleBg = 'var(--app-console-bg)';
 
   if (loading) {
     return (
       <Stack align="center" justify="center" h={maxHeight} gap="xs" style={{ backgroundColor: consoleBg }}>
-        <Text size="xs" c="dimmed" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>Loading {noun}...</Text>
+        <Text size="xs" c="dimmed" style={{ fontFamily: MONO }}>Loading {noun}...</Text>
       </Stack>
     );
   }
@@ -486,7 +399,7 @@ function SolutionView({
   if (error) {
     return (
       <Stack align="center" justify="center" h={maxHeight} gap="xs" style={{ backgroundColor: consoleBg }}>
-        <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{error}</Text>
+        <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: MONO }}>{error}</Text>
       </Stack>
     );
   }
@@ -494,7 +407,7 @@ function SolutionView({
   if (!content) {
     return (
       <Stack align="center" justify="center" h={maxHeight} gap="xs" style={{ backgroundColor: consoleBg }}>
-        <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>No {noun} to display</Text>
+        <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: MONO }}>No {noun} to display</Text>
       </Stack>
     );
   }
@@ -507,9 +420,9 @@ function SolutionView({
     <>
       {partial && (
         <Group gap={6} wrap="nowrap" px={12} h={NOTE_H} style={{ backgroundColor: consoleBg }}>
-          <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }} truncate>
+          <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: FONT_SIZE.label }} truncate>
             Showing the {fromEnd ? 'last' : 'first'} {loaded.returned.toLocaleString()} of{' '}
-            {loaded.total.toLocaleString()} lines{searchable ? ' (search covers these only)' : ''}
+            {loaded.total.toLocaleString()} lines (search covers these only)
           </Text>
           {loaded.path.startsWith('/workspace/') && (
             <Button
@@ -526,31 +439,12 @@ function SolutionView({
           )}
         </Group>
       )}
-      {searchable ? (
-        <TraceLogView
-          lines={lines}
-          height={partial ? maxHeight - NOTE_H : maxHeight}
-          viewportRef={viewportRef}
-        />
-      ) : (
-        <ScrollArea
-          h={partial ? maxHeight - NOTE_H : maxHeight}
-          viewportRef={viewportRef}
-          styles={{ viewport: { backgroundColor: consoleBg, padding: '8px 12px' } }}
-        >
-          <Text
-            c="gray.4"
-            style={{
-              fontFamily: "'IBM Plex Mono', monospace",
-              whiteSpace: 'pre',
-              fontSize: '11px',
-              lineHeight: 1.5,
-            }}
-          >
-            {content}
-          </Text>
-        </ScrollArea>
-      )}
+      <LogView
+        lines={lines}
+        height={partial ? maxHeight - NOTE_H : maxHeight}
+        live={false}
+        wrapToggle={wrapToggle}
+      />
     </>
   );
 }
@@ -762,7 +656,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
       configOpen={configOpen}
       onToggleConfig={onToggleConfig ?? (() => {})}
       config={
-        <Stack gap="xs">
+        <Stack gap="xs" h="100%">
           <PostProcessingConfiguration
             onConfigChange={setConfig}
             onNavigateToAiSettings={onNavigateToAiSettings}
@@ -803,7 +697,6 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
           logLines={logLines}
           outputFile={outputFile}
           clasSource={config.positioning.positioningMode === 'ppp-rtk' && config.output.clasNmeaSourceId}
-          onClearLog={() => setLogLines([])}
         />
       }
     />
@@ -970,15 +863,6 @@ function MultiStreamPanel() {
     processMapRef.current = map;
   }, [streams]);
 
-  const consoleViewportRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll console
-  const activeStream = streams.find((s) => s.id === activeStreamId);
-  useEffect(() => {
-    if (consoleViewportRef.current) {
-      consoleViewportRef.current.scrollTo({ top: consoleViewportRef.current.scrollHeight, behavior: 'smooth' });
-    }
-  }, [activeStream?.logLines]);
 
   // WebSocket
   useWebSocket({
@@ -1066,7 +950,18 @@ function MultiStreamPanel() {
       const args = buildArgs(stream);
       const result = await mrtkRelayApi.startRelay({ args, name: stream.name });
       localChangeAtRef.current.set(result.id, performance.now());
-      updateStream(id, { processId: result.id, status: 'running', logLines: [`[INFO] Started (${result.id})`] });
+      const receiveOnly = stream.outputs.length === 0 ? ', receive only' : '';
+      // A file output that would overwrite an existing file is numbered
+      // (_2, _3, ...) by the server; the returned args name the file written.
+      const numbered = args.flatMap((a, i) => (
+        args[i - 1] === '-out' && result.args[i] && result.args[i] !== a
+          ? [`[INFO] Target in use, writing to ${result.args[i]}`] : []
+      ));
+      updateStream(id, {
+        processId: result.id,
+        status: 'running',
+        logLines: [`[INFO] Started (${result.id}${receiveOnly})`, ...numbered],
+      });
     } catch (err) {
       updateStream(id, { status: 'error', logLines: [...stream.logLines, `[ERROR] ${err instanceof Error ? err.message : 'Failed to start'}`] });
     } finally {
@@ -1151,27 +1046,18 @@ function MultiStreamPanel() {
 
   const statusDotColor = (status: RelayStream['status']) => {
     switch (status) {
-      case 'running': return '#22c55e';
-      case 'error': return '#ef4444';
-      default: return '#6b7280';
+      case 'running': return STATUS_COLOR.ok;
+      case 'error': return STATUS_COLOR.error;
+      default: return STATUS_COLOR.off;
     }
   };
 
-  const handleCopyLog = useCallback(() => {
-    if (activeStream) navigator.clipboard.writeText(activeStream.logLines.join('\n'));
-  }, [activeStream]);
-
-  const handleClearLog = useCallback(() => {
-    if (activeStreamId) updateStream(activeStreamId, { logLines: [] });
-  }, [activeStreamId, updateStream]);
-
   const runningCount = streams.filter((s) => s.status === 'running').length;
-  const CONSOLE_HEIGHT = 540;
 
   return (
-    <Grid gutter="md">
+    <Grid gutter="md" overflow="hidden" h={{ base: 'auto', md: '100%' }} styles={{ inner: { height: 'calc(100% + var(--mantine-spacing-md))' } }}>
       {/* Left Pane: Stream Cards */}
-      <Grid.Col span={{ base: 12, md: 6 }}>
+      <Grid.Col span={{ base: 12, md: 6 }} h={{ base: 'auto', md: '100%' }}>
         <Card withBorder p="xs" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           {/* Header */}
           <Group justify="space-between" mb="xs">
@@ -1216,124 +1102,72 @@ function MultiStreamPanel() {
               {streams.map((stream) => (
                 <Card key={stream.id} withBorder p="xs" style={{ borderColor: activeStreamId === stream.id ? 'var(--mantine-color-blue-5)' : undefined }}>
                   <Stack gap="xs">
-                    {/* Stream header row */}
-                    <Group justify="space-between">
-                      <Group gap="xs">
-                        <Box
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            backgroundColor: statusDotColor(stream.status),
-                            flexShrink: 0,
-                          }}
-                        />
-                        <Text size="xs" fw={600}>{stream.name}</Text>
-                        <Badge
-                          size="xs"
-                          variant="light"
-                          color={stream.status === 'running' ? 'green' : stream.status === 'error' ? 'red' : 'gray'}
-                        >
-                          {stream.status === 'running' ? 'Running' : stream.status === 'error' ? 'Error' : 'Idle'}
-                        </Badge>
-                      </Group>
-                      <Group gap={4}>
-                        {stream.status === 'running' ? (
-                          <ActionIcon
-                            variant="light"
-                            color="red"
-                            size="xs"
-                            onClick={() => handleStopStream(stream.id)}
-                            loading={loadingIds.has(stream.id)}
-                            title="Stop"
-                          >
-                            <IconPlayerStop size={12} />
-                          </ActionIcon>
-                        ) : (
-                          <ActionIcon
-                            variant="light"
-                            color="green"
-                            size="xs"
-                            onClick={() => handleStartStream(stream.id)}
-                            loading={loadingIds.has(stream.id)}
-                            title="Start"
-                          >
-                            <IconPlayerPlay size={12} />
-                          </ActionIcon>
-                        )}
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          size="xs"
-                          onClick={() => handleRemoveStream(stream.id)}
-                          disabled={streams.length <= 1 || stream.status === 'running'}
-                          title="Remove stream"
-                        >
-                          <IconTrash size={12} />
-                        </ActionIcon>
-                      </Group>
-                    </Group>
+                    <StreamCardHeader
+                      name={stream.name}
+                      dotColor={statusDotColor(stream.status)}
+                      tone={stream.status === 'running' ? 'ok' : stream.status === 'error' ? 'error' : 'off'}
+                      status={stream.status === 'running' ? 'Running' : stream.status === 'error' ? 'Error' : 'Idle'}
+                      running={stream.status === 'running'}
+                      loading={loadingIds.has(stream.id)}
+                      removeDisabled={streams.length <= 1 || stream.status === 'running'}
+                      onStart={() => handleStartStream(stream.id)}
+                      onStop={() => handleStopStream(stream.id)}
+                      onRemove={() => handleRemoveStream(stream.id)}
+                    />
+
 
                     {/* Input */}
-                    <Box>
-                      <Group gap={4} mb={2}><Text size="xs" fw={500}>Input</Text><StreamPathHelp /></Group>
-                      <Group gap="xs" grow>
+                    <FormRow label={<Group gap={4} wrap="nowrap">Input<StreamPathHelp /></Group>}>
+                      <Group gap={FORM_LABEL_GAP} wrap="nowrap">
                         <Select
-                          size="xs"
                           value={stream.input.type}
                           onChange={(v) => handleInputTypeChange(stream.id, v as StreamType)}
                           data={STREAM_TYPE_OPTIONS}
-                          style={{ maxWidth: 120 }}
+                          style={{ width: 120, flexShrink: 0 }}
                         />
                         <MaskedPathInput
-                          size="xs"
                           value={stream.input.path}
                           onChange={(v) => handleInputPathChange(stream.id, v)}
                           placeholder={PATH_PLACEHOLDER_FOR_TYPE[stream.input.type]}
-                          styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }}
+                          styles={{ input: { fontFamily: MONO } }}
+                          style={{ flex: 1, minWidth: 0 }}
                         />
                       </Group>
-                    </Box>
+                    </FormRow>
 
                     {/* Outputs */}
-                    <Box>
-                      <Group justify="space-between" mb={2}>
-                        <Group gap={4}><Text size="xs" fw={500}>Outputs</Text><StreamPathHelp /></Group>
-                        <ActionIcon variant="light" color="blue" size="xs" onClick={() => handleAddOutput(stream.id)}>
-                          <IconPlus size={10} />
-                        </ActionIcon>
-                      </Group>
-                      <Stack gap={4}>
+                    <FormRow
+                      label={<Group gap={4} wrap="nowrap">Outputs<StreamPathHelp /></Group>}
+                      align="flex-start"
+                      trailing={<ActionIcon variant="light" color="blue" size="xs" onClick={() => handleAddOutput(stream.id)} aria-label="Add output"> <IconPlus size={10} /> </ActionIcon>}
+                    >
+                      <Stack gap={6}>
+                        {/* No outputs: the relay only receives, to check the input (the server discards the data) */}
+                        {stream.outputs.length === 0 && (
+                          <Text c="dimmed" style={{ fontSize: FONT_SIZE.label, lineHeight: `${FORM_ROW_HEIGHT}px` }}>
+                            None: receive only. Checks the input; the data is not kept.
+                          </Text>
+                        )}
                         {stream.outputs.map((output) => (
-                          <Group key={output.id} gap="xs" grow wrap="nowrap">
+                          <Group key={output.id} gap={FORM_LABEL_GAP} wrap="nowrap">
                             <Select
-                              size="xs"
                               value={output.type}
                               onChange={(v) => handleOutputTypeChange(stream.id, output.id, v as StreamType)}
                               data={STREAM_TYPE_OPTIONS}
-                              style={{ maxWidth: 120, flexShrink: 0 }}
+                              style={{ width: 120, flexShrink: 0 }}
                             />
                             <MaskedPathInput
-                              size="xs"
                               value={output.path}
                               onChange={(v) => handleOutputPathChange(stream.id, output.id, v)}
                               placeholder={PATH_PLACEHOLDER_FOR_TYPE[output.type]}
-                              styles={{ input: { fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' } }}
+                              styles={{ input: { fontFamily: MONO } }}
+                              style={{ flex: 1, minWidth: 0 }}
                             />
-                            <ActionIcon
-                              variant="subtle"
-                              color="red"
-                              size="xs"
-                              onClick={() => handleRemoveOutput(stream.id, output.id)}
-                              disabled={stream.outputs.length <= 1}
-                              style={{ flexShrink: 0 }}
-                            >
-                              <IconTrash size={10} />
-                            </ActionIcon>
+                            <ActionIcon variant="subtle" color="red" size="xs" onClick={() => handleRemoveOutput(stream.id, output.id)} aria-label="Remove output" style={{ flexShrink: 0 }} > <IconTrash size={10} /> </ActionIcon>
                           </Group>
                         ))}
                       </Stack>
-                    </Box>
+                    </FormRow>
                   </Stack>
                 </Card>
               ))}
@@ -1343,7 +1177,7 @@ function MultiStreamPanel() {
       </Grid.Col>
 
       {/* Right Pane: Console */}
-      <Grid.Col span={{ base: 12, md: 6 }}>
+      <Grid.Col span={{ base: 12, md: 6 }} h={{ base: 'auto', md: '100%' }}>
         <Card withBorder p={0} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <Tabs
             value={activeStreamId}
@@ -1376,52 +1210,23 @@ function MultiStreamPanel() {
                         }}
                       />
                     }
-                    style={{ fontSize: '11px', padding: '6px 10px' }}
+                    style={{ fontSize: FONT_SIZE.label, padding: '6px 10px' }}
                   >
                     {stream.name}
                   </Tabs.Tab>
                 ))}
               </Tabs.List>
-              <Group gap="xs" wrap="nowrap">
-                <ActionIcon variant="subtle" color="gray" size="sm" onClick={handleCopyLog} title="Copy to clipboard">
-                  <IconCopy size={14} />
-                </ActionIcon>
-                <ActionIcon variant="subtle" color="gray" size="sm" onClick={handleClearLog} title="Clear terminal">
-                  <IconTrash size={14} />
-                </ActionIcon>
-              </Group>
             </Group>
 
             {streams.map((stream) => (
               <Tabs.Panel key={stream.id} value={stream.id} style={{ flex: 1, minHeight: 0 }}>
-                <ScrollArea
-                  h={CONSOLE_HEIGHT}
-                  viewportRef={stream.id === activeStreamId ? consoleViewportRef : undefined}
-                  styles={{ viewport: { backgroundColor: 'var(--mantine-color-dark-8, #1a1b1e)', padding: '8px 12px' } }}
-                >
-                  {stream.logLines.length === 0 ? (
-                    <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px' }}>
-                      Waiting for output...
-                    </Text>
-                  ) : (
-                    stream.logLines.map((line, index) => (
-                      <Text
-                        key={index}
-                        size="xs"
-                        c="gray.4"
-                        style={{
-                          fontFamily: "'IBM Plex Mono', monospace",
-                          fontSize: '11px',
-                          lineHeight: 1.5,
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-all',
-                        }}
-                      >
-                        {maskLogLine(line)}
-                      </Text>
-                    ))
-                  )}
-                </ScrollArea>
+                <LogView
+                  lines={stream.logLines}
+                  wrap
+                  severity
+                  running={stream.status === 'running'}
+                  cap={MAX_RELAY_LOG_LINES}
+                />
               </Tabs.Panel>
             ))}
           </Tabs>
@@ -1434,17 +1239,17 @@ function MultiStreamPanel() {
 function StreamRelayView() {
   const [mode, setMode] = useState<string | null>('multi-stream');
   return (
-    <Stack gap="sm">
+    <Stack gap="sm" h={SCREEN_HEIGHT}>
       <Tabs value={mode} onChange={setMode}>
         <Tabs.List>
           <Tabs.Tab value="multi-stream">Multi-Stream</Tabs.Tab>
-          <Tabs.Tab value="clas">CLAS Pipeline</Tabs.Tab>
+          <Tabs.Tab value="clas">CLAS to RTCM3</Tabs.Tab>
         </Tabs.List>
       </Tabs>
-      <div style={{ display: mode === 'multi-stream' ? undefined : 'none' }}>
+      <div style={{ display: mode === 'multi-stream' ? undefined : 'none', flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <MultiStreamPanel />
       </div>
-      <div style={{ display: mode === 'clas' ? undefined : 'none' }}>
+      <div style={{ display: mode === 'clas' ? undefined : 'none', flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <ClasPipelinePanel />
       </div>
     </Stack>
@@ -1464,14 +1269,15 @@ const PRIMARY_MODES = [
   { value: 'post-processing', label: 'Post-processing' },
 ] as const;
 
+/** The Tools entries that are converters (Tools → Conversion). */
+const isConverter = (id: string): id is ConvertTool => id === 'convbin' || id === 'hatanaka';
+
 const SECONDARY_VIEWS = [
   { value: 'stream-relay', label: 'Stream Relay' },
   { value: 'stream-monitor', label: 'Stream Monitor' },
-  { value: 'conversion', label: 'Conversion' },
   { value: 'tools', label: 'Tools' },
 ] as const;
 
-const MONO = "'IBM Plex Mono', monospace";
 
 /** Bottom status bar (console redesign Phase 2/4). Shows live RT solution
  *  values when a Real-time session is producing them; dashes otherwise. */
@@ -1481,7 +1287,7 @@ function StatusBar({ activeTab, mrtkVersion, rtStatus }: { activeTab: string; mr
     activeTab === 'post-processing' ? 'post-proc' :
     (SECONDARY_VIEWS.find((v) => v.value === activeTab)?.label.toLowerCase() ?? activeTab);
 
-  const cell = { fontFamily: MONO, fontSize: 10.5 } as const;
+  const cell = { fontFamily: MONO, fontSize: FONT_SIZE.label } as const;
   const sat = rtStatus
     ? (rtStatus.satsVisible > 0 ? `${rtStatus.ns}/${rtStatus.satsVisible}` : `${rtStatus.ns}`)
     : '—/—';
@@ -1492,14 +1298,14 @@ function StatusBar({ activeTab, mrtkVersion, rtStatus }: { activeTab: string; mr
       px="md"
       gap={18}
       wrap="nowrap"
-      style={{ fontFamily: MONO, fontSize: 10.5, color: 'var(--mantine-color-dimmed)', overflow: 'hidden' }}
+      style={{ fontFamily: MONO, fontSize: FONT_SIZE.label, color: 'var(--mantine-color-dimmed)', overflow: 'hidden' }}
     >
       {rtStatus ? (
-        <Text span style={{ ...cell, color: qualityColor(rtStatus.quality), fontWeight: 600 }}>
+        <Text span style={{ ...cell, color: qualityTextColor(rtStatus.quality), fontWeight: 600 }}>
           ● {qualityLabel(rtStatus.quality).toUpperCase()}
         </Text>
       ) : (
-        <Text span style={{ ...cell, color: 'var(--color-single)' }}>● —</Text>
+        <Text span style={{ ...cell, color: STATUS_COLOR.off }}>● —</Text>
       )}
       <Text span style={cell}>Sat {sat}</Text>
       <Text span style={cell}>ratio {rtStatus ? rtStatus.ratio.toFixed(1) : '—'}</Text>
@@ -1525,7 +1331,21 @@ function App() {
   const handleRtStatus = useCallback((s: RtLiveStatus | null) => setRtStatus(s), []);
   const [healthStatus, setHealthStatus] = useState<'loading' | 'ok' | 'error'>('loading');
   const [mrtkVersion, setMrtkVersion] = useState<string>('');
-  const [selectedTool, setSelectedTool] = useState('time-converter');
+  const [selectedTool, setSelectedToolState] = useState('convbin');
+  // The converter on screen. The panel stays mounted while another tool is
+  // open, so a running conversion and its log survive.
+  const [conversionTool, setConversionTool] = useState<ConvertTool>('convbin');
+  // A running conversion keeps its converter: the other converter's form
+  // would hide it, also when reached through another tool. Any other tool
+  // may be opened; the conversion keeps running.
+  const [conversionBusy, setConversionBusy] = useState(false);
+  const setSelectedTool = useCallback((id: string) => {
+    setSelectedToolState(conversionBusy && isConverter(id) ? conversionTool : id);
+  }, [conversionBusy, conversionTool]);
+  if (isConverter(selectedTool) && selectedTool !== conversionTool) {
+    setConversionTool(selectedTool);
+  }
+  const showConversion = isConverter(selectedTool);
 
   // Lifted AI configuration state — shared across sidebar, PP, RT, and settings panel
   const [aiConfigured, setAiConfigured] = useState(false);
@@ -1608,7 +1428,7 @@ function App() {
               })}
             </Group>
             <Badge
-              color={healthStatus === 'ok' ? 'green' : healthStatus === 'error' ? 'red' : 'gray'}
+              color={STATUS_COLOR[healthStatus === 'ok' ? 'ok' : healthStatus === 'error' ? 'error' : 'off']}
               variant="dot"
               size="lg"
               visibleFrom="sm"
@@ -1634,7 +1454,6 @@ function App() {
             <Tabs.Tab value="realtime">RT</Tabs.Tab>
             <Tabs.Tab value="stream-relay">Relay</Tabs.Tab>
             <Tabs.Tab value="stream-monitor">Monitor</Tabs.Tab>
-            <Tabs.Tab value="conversion">Convert</Tabs.Tab>
             <Tabs.Tab value="tools">Tools</Tabs.Tab>
           </Tabs.List>
         </Tabs>
@@ -1652,14 +1471,14 @@ function App() {
         <div style={{ display: activeTab === 'stream-monitor' ? undefined : 'none' }}>
           <StreamMonitorPanel configOpen={configOpen} onToggleConfig={toggleConfig} />
         </div>
-        <div style={{ display: activeTab === 'conversion' ? undefined : 'none' }}>
-          <ConversionPanel />
-        </div>
-        <div style={{ display: activeTab === 'tools' ? 'flex' : 'none', width: '100%', minHeight: 500, overflow: 'hidden', border: '1px solid var(--mantine-color-default-border)', borderRadius: 'var(--mantine-radius-md)', background: 'var(--mantine-color-default)' }}>
+        <div style={{ display: activeTab === 'tools' ? 'flex' : 'none', width: '100%', height: SCREEN_HEIGHT, overflow: 'hidden', border: '1px solid var(--mantine-color-default-border)', borderRadius: 'var(--mantine-radius-md)', background: 'var(--mantine-color-default)' }}>
           <div style={{ width: 160, flexShrink: 0, borderRight: '1px solid var(--mantine-color-default-border)', overflowY: 'auto' }}>
             <ToolsSidebar selected={selectedTool} onSelect={setSelectedTool} aiConfigured={aiConfigured} />
           </div>
-          <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '1.5rem 2rem' }}>
+          <div style={{ flex: 1, minWidth: 0, display: showConversion ? undefined : 'none' }}>
+            <ConversionPanel tool={conversionTool} onBusyChange={setConversionBusy} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '1.5rem 2rem', display: showConversion ? 'none' : undefined }}>
             {selectedTool === 'time-converter' && <GnssTimeConverter />}
             {selectedTool === 'downloader' && <DataDownloader />}
             {selectedTool === 'ai-settings' && <AiSettingsPanel onSettingsSaved={refreshAiConfigured} />}

@@ -66,7 +66,7 @@
   description: "README, Docker Hub Overview, in-repo docs, CLAUDE.md"
 - name: "module:clas-pipeline"
   color: "5319e7"
-  description: "CLAS Pipeline (mrtk relay + cssr2rtcm3, receiver presets)"
+  description: "CLAS to RTCM3 (mrtk relay + cssr2rtcm3, receiver presets)"
 
 # -----------------------------------------------------------------------------
 # area:* — which UI tab or feature surface is affected
@@ -81,7 +81,7 @@
   description: "Real-Time tab (mrtk run)"
 - name: "area:stream-server"
   color: "0e8a16"
-  description: "Stream Relay view: Multi-Stream, CLAS Pipeline (mrtk relay)"
+  description: "Stream Relay view: Multi-Stream, CLAS to RTCM3 (mrtk relay)"
 - name: "area:conversion"
   color: "0e8a16"
   description: "Conversion tab (mrtk convert / RINEX tools)"

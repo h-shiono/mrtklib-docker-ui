@@ -100,7 +100,9 @@ export function Plot2DView({ data, height, resetKey, color, overlay }: Plot2DVie
 
     const textColor = isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.7)';
     const ringColor = isDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.3)';
-    const bgColor = isDark ? '#1a1b1e' : '#ffffff';
+    // The chart background is the theme's band tone; a canvas cannot read the
+    // variable itself, so take its computed value.
+    const bgColor = getComputedStyle(canvas).getPropertyValue('--app-band').trim() || (isDark ? '#1B1F24' : '#F4F6F8');
 
     ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, size, size);

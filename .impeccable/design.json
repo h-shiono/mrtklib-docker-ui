@@ -1,0 +1,776 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-10T01:28:00Z",
+  "title": "Design System: MRTKLIB Web UI",
+  "extensions": {
+    "colorMeta": {
+      "primary-on-dark": {
+        "role": "primary",
+        "displayName": "Primary On Dark",
+        "canonical": "#4C8DFF",
+        "tonalRamp": [
+          "#000332",
+          "#001A66",
+          "#003898",
+          "#1A59C5",
+          "#3E7DEC",
+          "#66A3FF",
+          "#95C9FF",
+          "#CBF0FF"
+        ]
+      },
+      "primary-on-light": {
+        "role": "primary",
+        "displayName": "Primary On Light",
+        "canonical": "#2563EB",
+        "tonalRamp": [
+          "#000039",
+          "#001072",
+          "#002FA7",
+          "#1652D7",
+          "#3877FF",
+          "#609FFF",
+          "#90C7FF",
+          "#C7EFFF"
+        ]
+      },
+      "primary-tint-text-on-light": {
+        "role": "primary",
+        "displayName": "Primary Tint Text On Light",
+        "canonical": "#1D4ED8",
+        "tonalRamp": [
+          "#010039",
+          "#010D72",
+          "#082DA8",
+          "#1F50D8",
+          "#3E76FF",
+          "#659DFF",
+          "#93C6FF",
+          "#C9EEFF"
+        ]
+      },
+      "graphite-body": {
+        "role": "neutral",
+        "displayName": "Graphite Body",
+        "canonical": "#0F1217",
+        "tonalRamp": [
+          "#0A0B0E",
+          "#232529",
+          "#3F4248",
+          "#5E6168",
+          "#7E8389",
+          "#A1A5AC",
+          "#C6C9CF",
+          "#ECEFF2"
+        ]
+      },
+      "graphite-surface": {
+        "role": "neutral",
+        "displayName": "Graphite Surface",
+        "canonical": "#13161A",
+        "tonalRamp": [
+          "#0A0B0D",
+          "#232528",
+          "#3F4247",
+          "#5E6267",
+          "#7F8388",
+          "#A2A5AA",
+          "#C6C9CE",
+          "#ECEFF2"
+        ]
+      },
+      "graphite-input": {
+        "role": "neutral",
+        "displayName": "Graphite Input",
+        "canonical": "#1B1F24",
+        "tonalRamp": [
+          "#090B0E",
+          "#222529",
+          "#3E4248",
+          "#5D6268",
+          "#7E8389",
+          "#A1A5AC",
+          "#C5C9CF",
+          "#ECEFF2"
+        ]
+      },
+      "graphite-console": {
+        "role": "neutral",
+        "displayName": "Graphite Console",
+        "canonical": "#0C0E12",
+        "tonalRamp": [
+          "#0A0B0D",
+          "#232528",
+          "#404247",
+          "#5F6166",
+          "#808288",
+          "#A2A5AA",
+          "#C7C9CE",
+          "#EDEEF2"
+        ]
+      },
+      "band-on-dark": {
+        "role": "neutral",
+        "displayName": "Band On Dark",
+        "canonical": "#1B1F24",
+        "tonalRamp": [
+          "#090B0E",
+          "#222529",
+          "#3E4248",
+          "#5D6268",
+          "#7E8389",
+          "#A1A5AC",
+          "#C5C9CF",
+          "#ECEFF2"
+        ]
+      },
+      "ink-on-dark": {
+        "role": "neutral",
+        "displayName": "Ink On Dark",
+        "canonical": "#ECEEF1",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242527",
+          "#414244",
+          "#606164",
+          "#818285",
+          "#A3A5A8",
+          "#C8C9CB",
+          "#EDEEF0"
+        ]
+      },
+      "console-ink-on-dark": {
+        "role": "neutral",
+        "displayName": "Console Ink On Dark",
+        "canonical": "#C7CCD2",
+        "tonalRamp": [
+          "#0A0B0D",
+          "#222529",
+          "#3F4247",
+          "#5D6267",
+          "#7E8388",
+          "#A1A5AB",
+          "#C6C9CE",
+          "#ECEFF2"
+        ]
+      },
+      "dimmed-on-dark": {
+        "role": "neutral",
+        "displayName": "Dimmed On Dark",
+        "canonical": "#9CA3AB",
+        "tonalRamp": [
+          "#090B0E",
+          "#21252A",
+          "#3D4349",
+          "#5C6269",
+          "#7C838B",
+          "#9FA6AD",
+          "#C4CAD0",
+          "#EBEFF3"
+        ]
+      },
+      "placeholder-on-dark": {
+        "role": "neutral",
+        "displayName": "Placeholder On Dark",
+        "canonical": "#7A838E",
+        "tonalRamp": [
+          "#080B0F",
+          "#20262C",
+          "#3B434C",
+          "#5A626C",
+          "#7A838E",
+          "#9DA6B0",
+          "#C3CAD3",
+          "#EAEFF5"
+        ]
+      },
+      "disabled-ink-on-dark": {
+        "role": "neutral",
+        "displayName": "Disabled Ink On Dark",
+        "canonical": "#5F6873",
+        "tonalRamp": [
+          "#080B10",
+          "#20262D",
+          "#3B434C",
+          "#59626D",
+          "#7A838F",
+          "#9DA6B1",
+          "#C2CAD3",
+          "#EAEFF6"
+        ]
+      },
+      "disabled-fill-on-dark": {
+        "role": "neutral",
+        "displayName": "Disabled Fill On Dark",
+        "canonical": "#1F242B",
+        "tonalRamp": [
+          "#090B0E",
+          "#22252B",
+          "#3D4249",
+          "#5C626A",
+          "#7D838B",
+          "#A0A6AE",
+          "#C4CAD1",
+          "#EBEFF4"
+        ]
+      },
+      "input-border-on-dark": {
+        "role": "neutral",
+        "displayName": "Input Border On Dark",
+        "canonical": "#4A525C",
+        "tonalRamp": [
+          "#080B0F",
+          "#20262C",
+          "#3C434B",
+          "#5A626C",
+          "#7B838E",
+          "#9EA6B0",
+          "#C3CAD3",
+          "#EAEFF5"
+        ]
+      },
+      "daylight-body": {
+        "role": "neutral",
+        "displayName": "Daylight Body",
+        "canonical": "#F4F6F8",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242526",
+          "#414244",
+          "#606163",
+          "#818284",
+          "#A3A5A7",
+          "#C8C9CB",
+          "#EDEEEF"
+        ]
+      },
+      "daylight-surface": {
+        "role": "neutral",
+        "displayName": "Daylight Surface",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ]
+      },
+      "daylight-console": {
+        "role": "neutral",
+        "displayName": "Daylight Console",
+        "canonical": "#F7F8FA",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242526",
+          "#414243",
+          "#606163",
+          "#818284",
+          "#A4A5A7",
+          "#C8C9CA",
+          "#EEEEEF"
+        ]
+      },
+      "band-on-light": {
+        "role": "neutral",
+        "displayName": "Band On Light",
+        "canonical": "#F4F6F8",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242526",
+          "#414244",
+          "#606163",
+          "#818284",
+          "#A3A5A7",
+          "#C8C9CB",
+          "#EDEEEF"
+        ]
+      },
+      "console-ink-on-light": {
+        "role": "neutral",
+        "displayName": "Console Ink On Light",
+        "canonical": "#25292E",
+        "tonalRamp": [
+          "#0A0B0E",
+          "#222529",
+          "#3E4247",
+          "#5D6267",
+          "#7E8389",
+          "#A1A5AB",
+          "#C5C9CE",
+          "#ECEFF2"
+        ]
+      },
+      "dimmed-on-light": {
+        "role": "neutral",
+        "displayName": "Dimmed On Light",
+        "canonical": "#5C6670",
+        "tonalRamp": [
+          "#080C0F",
+          "#1F262C",
+          "#3B434C",
+          "#59626C",
+          "#79848E",
+          "#9CA6B0",
+          "#C2CAD3",
+          "#E9EFF5"
+        ]
+      },
+      "placeholder-on-light": {
+        "role": "neutral",
+        "displayName": "Placeholder On Light",
+        "canonical": "#6B7480",
+        "tonalRamp": [
+          "#080B10",
+          "#20262D",
+          "#3B434D",
+          "#59626E",
+          "#7A838F",
+          "#9DA6B2",
+          "#C2CAD4",
+          "#EAEFF6"
+        ]
+      },
+      "input-border-on-light": {
+        "role": "neutral",
+        "displayName": "Input Border On Light",
+        "canonical": "#8A939E",
+        "tonalRamp": [
+          "#080B0F",
+          "#20262C",
+          "#3C434B",
+          "#5A626C",
+          "#7B838E",
+          "#9EA6B0",
+          "#C3CAD3",
+          "#EAEFF5"
+        ]
+      },
+      "quality-fix": {
+        "role": "tertiary",
+        "displayName": "Quality Fix",
+        "canonical": "#22c55e",
+        "tonalRamp": [
+          "#001400",
+          "#003500",
+          "#005800",
+          "#007C11",
+          "#009F3B",
+          "#3CC265",
+          "#7FE395",
+          "#BFFFCB"
+        ]
+      },
+      "quality-float": {
+        "role": "tertiary",
+        "displayName": "Quality Float",
+        "canonical": "#f59e0b",
+        "tonalRamp": [
+          "#1F0000",
+          "#481000",
+          "#712A00",
+          "#994900",
+          "#BE6C00",
+          "#E0921A",
+          "#FDBA6A",
+          "#FFE5B0"
+        ]
+      },
+      "quality-sbas": {
+        "role": "tertiary",
+        "displayName": "Quality Sbas",
+        "canonical": "#a855f7",
+        "tonalRamp": [
+          "#180033",
+          "#390067",
+          "#5C009A",
+          "#7F23C8",
+          "#A24FEF",
+          "#C37BFF",
+          "#E2AAFF",
+          "#FFDBFF"
+        ]
+      },
+      "quality-dgps": {
+        "role": "tertiary",
+        "displayName": "Quality Dgps",
+        "canonical": "#6b7280",
+        "tonalRamp": [
+          "#090B10",
+          "#21252E",
+          "#3C424E",
+          "#5B616F",
+          "#7B8291",
+          "#9EA5B3",
+          "#C3C9D5",
+          "#EAEFF7"
+        ]
+      },
+      "quality-single": {
+        "role": "tertiary",
+        "displayName": "Quality Single",
+        "canonical": "#ef4444",
+        "tonalRamp": [
+          "#2A0000",
+          "#5B0000",
+          "#8C0000",
+          "#BA0017",
+          "#E33A3C",
+          "#FF6B65",
+          "#FF9D94",
+          "#FFD2CA"
+        ]
+      },
+      "quality-ppp": {
+        "role": "tertiary",
+        "displayName": "Quality Ppp",
+        "canonical": "#3b82f6",
+        "tonalRamp": [
+          "#000333",
+          "#001968",
+          "#00379A",
+          "#0F59C8",
+          "#377DEF",
+          "#61A3FF",
+          "#91CAFF",
+          "#C8F0FF"
+        ]
+      },
+      "quality-dr": {
+        "role": "tertiary",
+        "displayName": "Quality Dr",
+        "canonical": "#06b6d4",
+        "tonalRamp": [
+          "#00101C",
+          "#002E41",
+          "#004F68",
+          "#00718D",
+          "#0094B1",
+          "#35B7D2",
+          "#7BD9F0",
+          "#BDFAFF"
+        ]
+      },
+      "quality-fix-text-light": {
+        "role": "tertiary",
+        "displayName": "Quality Fix Text Light",
+        "canonical": "#15803d",
+        "tonalRamp": [
+          "#001200",
+          "#003103",
+          "#005318",
+          "#007534",
+          "#389855",
+          "#66BB7B",
+          "#97DDA6",
+          "#CDFDD6"
+        ]
+      },
+      "quality-float-text-light": {
+        "role": "tertiary",
+        "displayName": "Quality Float Text Light",
+        "canonical": "#b45309",
+        "tonalRamp": [
+          "#210000",
+          "#4B0700",
+          "#762200",
+          "#9F4000",
+          "#C56325",
+          "#E78A55",
+          "#FFB489",
+          "#FFE0C2"
+        ]
+      },
+      "quality-sbas-text-light": {
+        "role": "tertiary",
+        "displayName": "Quality Sbas Text Light",
+        "canonical": "#7e22ce",
+        "tonalRamp": [
+          "#170034",
+          "#38006A",
+          "#5B009E",
+          "#7D22CC",
+          "#9F4FF4",
+          "#BF7CFF",
+          "#DFAAFF",
+          "#FEDBFF"
+        ]
+      },
+      "quality-dgps-text-light": {
+        "role": "tertiary",
+        "displayName": "Quality Dgps Text Light",
+        "canonical": "#4b5563",
+        "tonalRamp": [
+          "#080B11",
+          "#1F262F",
+          "#3A434F",
+          "#586270",
+          "#798392",
+          "#9CA6B4",
+          "#C1CAD6",
+          "#E9EFF8"
+        ]
+      },
+      "quality-single-text-light": {
+        "role": "tertiary",
+        "displayName": "Quality Single Text Light",
+        "canonical": "#dc2626",
+        "tonalRamp": [
+          "#2B0000",
+          "#5D0000",
+          "#8E0000",
+          "#BD0002",
+          "#E63631",
+          "#FF695D",
+          "#FF9C8E",
+          "#FFD2C6"
+        ]
+      },
+      "quality-ppp-text-light": {
+        "role": "tertiary",
+        "displayName": "Quality Ppp Text Light",
+        "canonical": "#2563eb",
+        "tonalRamp": [
+          "#000039",
+          "#001072",
+          "#002FA7",
+          "#1652D7",
+          "#3877FF",
+          "#609FFF",
+          "#90C7FF",
+          "#C7EFFF"
+        ]
+      },
+      "quality-dr-text-light": {
+        "role": "tertiary",
+        "displayName": "Quality Dr Text Light",
+        "canonical": "#0e7490",
+        "tonalRamp": [
+          "#000F1A",
+          "#002B3E",
+          "#004B63",
+          "#006C87",
+          "#368EAB",
+          "#65B1CC",
+          "#96D4EB",
+          "#CCF6FF"
+        ]
+      },
+      "status-off-on-dark": {
+        "role": "tertiary",
+        "displayName": "Status Off On Dark",
+        "canonical": "#9CA3AB",
+        "tonalRamp": [
+          "#090B0E",
+          "#21252A",
+          "#3D4349",
+          "#5C6269",
+          "#7C838B",
+          "#9FA6AD",
+          "#C4CAD0",
+          "#EBEFF3"
+        ]
+      },
+      "status-off-on-light": {
+        "role": "tertiary",
+        "displayName": "Status Off On Light",
+        "canonical": "#5C6670",
+        "tonalRamp": [
+          "#080C0F",
+          "#1F262C",
+          "#3B434C",
+          "#59626C",
+          "#79848E",
+          "#9CA6B0",
+          "#C2CAD3",
+          "#E9EFF5"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Uppercase captions only; the size floor."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Field labels, tabs, status bar."
+      },
+      "log": {
+        "displayName": "Log",
+        "purpose": "Every console, solution and trace view."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Input contents and status text."
+      },
+      "value": {
+        "displayName": "Value",
+        "purpose": "Paths, hosts and numbers in fields."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section headers and panel titles."
+      },
+      "data": {
+        "displayName": "Data",
+        "purpose": "Coordinates and the timestamp."
+      },
+      "metric": {
+        "displayName": "Metric",
+        "purpose": "Quality, Ratio, Age and Satellites."
+      }
+    },
+    "shadows": [
+      {
+        "name": "floating",
+        "value": "Mantine shadow md",
+        "purpose": "Popovers and tooltips only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "status-pulse",
+        "value": "pulse 1.5s ease-in-out infinite",
+        "purpose": "Live status indicator only."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "48em"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one filled control in a toolbar, at the far right.",
+      "html": "<button class=\"ds-btn-primary\">Start</button>",
+      "css": ".ds-btn-primary{height:30px;min-width:84px;padding:0 14px;border:0;border-radius:8px;background:#69db7c;color:#0f1217;font:500 12px 'IBM Plex Sans',sans-serif;cursor:pointer}.ds-btn-primary:hover{background:#51cf66}.ds-btn-primary:focus-visible{outline:2px solid #4C8DFF;outline-offset:2px}"
+    },
+    {
+      "name": "Utility Button",
+      "kind": "button",
+      "refersTo": "button-utility",
+      "description": "Neutral 30px icon control. Browse buttons use this.",
+      "html": "<button class=\"ds-btn-util\" aria-label=\"Browse\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg></button>",
+      "css": ".ds-btn-util{width:30px;height:30px;display:inline-grid;place-items:center;border:0;border-radius:8px;background:#1B1F24;color:#9CA3AB;cursor:pointer}.ds-btn-util:hover{background:#262B32;color:#ECEEF1}.ds-btn-util:focus-visible{outline:2px solid #4C8DFF;outline-offset:2px}"
+    },
+    {
+      "name": "Form Row",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "130px label left, 30px field filling the rest.",
+      "html": "<div class=\"ds-row\"><label class=\"ds-label\" for=\"ds-p\">Path</label><input id=\"ds-p\" class=\"ds-input\" placeholder=\"192.168.1.100:9001\"></div>",
+      "css": ".ds-row{display:flex;align-items:center;gap:8px}.ds-label{width:130px;flex-shrink:0;font:400 11px 'IBM Plex Sans',sans-serif;color:#9CA3AB}.ds-input{flex:1;min-width:0;height:30px;padding:0 10px;border:1px solid #4A525C;border-radius:8px;background:#1B1F24;color:#ECEEF1;font:400 12px 'IBM Plex Mono',monospace}.ds-input::placeholder{color:#7A838E}.ds-input:focus-visible{outline:none;border-color:#4C8DFF}"
+    },
+    {
+      "name": "Status Light",
+      "kind": "chip",
+      "refersTo": null,
+      "description": "State is always a dot and a word.",
+      "html": "<span class=\"ds-status\"><i></i>RECEIVING</span>",
+      "css": ".ds-status{display:inline-flex;align-items:center;gap:6px;font:700 12px 'IBM Plex Mono',monospace;color:#22c55e}.ds-status i{width:8px;height:8px;border-radius:50%;background:currentColor}"
+    },
+    {
+      "name": "Metric",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Caption over a mono reading in the summary strip.",
+      "html": "<div class=\"ds-metric\"><div class=\"ds-cap\">Ratio</div><div class=\"ds-val\">12.4</div></div>",
+      "css": ".ds-metric{display:inline-block}.ds-cap{font:500 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#9CA3AB}.ds-val{font:500 24px 'IBM Plex Mono',monospace;color:#ECEEF1}"
+    },
+    {
+      "name": "Console",
+      "kind": "custom",
+      "refersTo": "console-dark",
+      "description": "The one log view, with severity on the line.",
+      "html": "<div class=\"ds-log\"><div>[INFO] Started</div><div class=\"ds-warn\">[WARN] Stream stalled</div><div class=\"ds-err\">[ERROR] Connection lost</div></div>",
+      "css": ".ds-log{padding:8px 12px;background:#0C0E12;color:#C7CCD2;font:400 11px/1.5 'IBM Plex Mono',monospace}.ds-warn{color:#f59e0b}.ds-err{color:#ef4444;border-left:2px solid currentColor;padding-left:6px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Instrument Panel",
+    "overview": "The screen is an instrument panel for a positioning engine. Numbers and states are the subject, and the chrome stays out of their way. An expert should be able to read the state of a run in one glance, from any of the screens, because the same gauge always has the same shape and sits in the same place.\n\nThe panel is dense on purpose: many parameters and series stay visible at once. Colour is rationed so that when something is coloured, it is reporting state. It comes in two equally maintained forms: graphite for the desk, and daylight for a laptop in bright surroundings.",
+    "keyCharacteristics": [
+      "High density with one strict grid for form rows.",
+      "Colour reports state; everything else is neutral.",
+      "One component per concept across Real-time, Post-processing and Stream Monitor.",
+      "IBM Plex Mono for every number, path, log and code value.",
+      "Flat, separated by tone and hairlines."
+    ],
+    "rules": [
+      {
+        "name": "The Colour Means State Rule",
+        "body": "Colour outside azure controls reports a quality or a lifecycle state. A value that is not a state, such as Ratio, stays neutral.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Layers Rule",
+        "body": "Quality describes the solution and lifecycle describes the process. They are defined in one file each and never share a token. A grey \"stopped\" is not a Single solution.",
+        "section": "colors"
+      },
+      {
+        "name": "The Daylight Rule",
+        "body": "The light theme is the outdoor theme, not a derivative. Text holds 4.5:1 and field outlines 3:1 on their surfaces, and every colour decision is checked in it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Word Beside the Dot Rule",
+        "body": "A state is always a dot and a word. An error also carries an icon, so it never reads as a Single dot.",
+        "section": "colors"
+      },
+      {
+        "name": "The Six Sizes Rule",
+        "body": "Only these sizes exist: 10, 11, 12, 14, 16, 24. Fractional sizes and 9px are gone, and Mantine's 9px extra-small Badge counts.",
+        "section": "typography"
+      },
+      {
+        "name": "The Caption Floor Rule",
+        "body": "10px is for uppercase captions and chart tick labels, and nothing else. Anything a person reads as a sentence or a field name is at least 11px.",
+        "section": "typography"
+      },
+      {
+        "name": "The Readout Rule",
+        "body": "Every number, path, log line and code value is IBM Plex Mono, referenced through `var(--mantine-font-family-monospace)`.",
+        "section": "typography"
+      },
+      {
+        "name": "The Fixed Frame Rule",
+        "body": "Panel height comes from the viewport, never from a numeric constant or from a neighbouring column.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat-by-Default Rule",
+        "body": "If an element is attached to the page, it has no shadow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Banded Rows Rule",
+        "body": "Stacked charts are told apart by alternating rows of the band tone (`band-on-dark`, `band-on-light`), not by rules, and chart backgrounds use the same tone. Views side by side are separated by space (8px), not by a line.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** build a concept once and reuse it on every screen.",
+      "**Do** show only values that are true. If a figure is not known, leave it out rather than printing a placeholder such as `Fix: ---`.",
+      "**Do** keep the running state visible from anywhere: a dot on the header item for any screen with an active process.",
+      "**Do** check every colour change in the light theme as well.",
+      "**Do** add `minWidth: 0` to flex children that should truncate."
+    ],
+    "donts": [
+      "**Don't** set input sizes, font sizes or colours per call site; use the theme and tokens.",
+      "**Don't** give a log view a numeric height.",
+      "**Don't** fill more than one control in a toolbar.",
+      "**Don't** use azure for a value that is not a control or a selection.",
+      "**Don't** redefine a `dark` ramp index without checking what Mantine maps to it: placeholder and disabled text follow `dark[3]`.",
+      "**Don't** convey state by colour alone."
+    ]
+  }
+}

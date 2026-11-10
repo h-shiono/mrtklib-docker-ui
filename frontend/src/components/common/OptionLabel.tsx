@@ -3,6 +3,7 @@ import { Text, Tooltip, ActionIcon, Group } from '@mantine/core';
 import { IconQuestionMark } from '@tabler/icons-react';
 import { OPTION_META, DOCS_BASE } from '../../config/optionMeta';
 import type { OptionMetaKey, OptionMeta } from '../../config/optionMeta';
+import { FONT_SIZE } from '../../utils/typography';
 
 /**
  * ActionIcon element props for the `?` help icon: a real external link when a
@@ -45,7 +46,7 @@ export function ComboLabel({
         size="xs"
         c="dimmed"
         title={label}
-        style={{ fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}
+        style={{ fontSize: FONT_SIZE.label, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}
       >
         {label}
       </Text>
@@ -122,7 +123,7 @@ export function OptionLabel({ metaKey, fallback, style }: OptionLabelProps) {
         c="dimmed"
         title={label}
         style={{
-          fontSize: '11px',
+          fontSize: FONT_SIZE.label,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
