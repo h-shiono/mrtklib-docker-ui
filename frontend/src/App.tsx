@@ -64,7 +64,7 @@ import { generateRelayArgs, parseRelayArgs } from './utils/streamArgs';
 import { FONT_SIZE, MONO } from './utils/typography';
 import { FormRow } from './components/common/FormRow';
 import { StreamCardHeader } from './components/common/StreamCardHeader';
-import { FORM_LABEL_GAP, MIN_PANEL_HEIGHT, SCREEN_HEIGHT } from './utils/formLayout';
+import { FORM_LABEL_GAP, FORM_ROW_HEIGHT, MIN_PANEL_HEIGHT, SCREEN_HEIGHT } from './utils/formLayout';
 import { useElementSize, useLocalStorage } from '@mantine/hooks';
 import { WorkspaceTabBar } from './components/common/WorkspaceTabBar';
 import type { ViewMode } from './components/viewer';
@@ -950,7 +950,8 @@ function MultiStreamPanel() {
       const args = buildArgs(stream);
       const result = await mrtkRelayApi.startRelay({ args, name: stream.name });
       localChangeAtRef.current.set(result.id, performance.now());
-      updateStream(id, { processId: result.id, status: 'running', logLines: [`[INFO] Started (${result.id})`] });
+      const receiveOnly = stream.outputs.length === 0 ? ', receive only' : '';
+      updateStream(id, { processId: result.id, status: 'running', logLines: [`[INFO] Started (${result.id}${receiveOnly})`] });
     } catch (err) {
       updateStream(id, { status: 'error', logLines: [...stream.logLines, `[ERROR] ${err instanceof Error ? err.message : 'Failed to start'}`] });
     } finally {
@@ -1128,9 +1129,15 @@ function MultiStreamPanel() {
                     <FormRow
                       label={<Group gap={4} wrap="nowrap">Outputs<StreamPathHelp /></Group>}
                       align="flex-start"
-                      trailing={<ActionIcon variant="light" color="blue" size="xs" onClick={() => handleAddOutput(stream.id)}> <IconPlus size={10} /> </ActionIcon>}
+                      trailing={<ActionIcon variant="light" color="blue" size="xs" onClick={() => handleAddOutput(stream.id)} aria-label="Add output"> <IconPlus size={10} /> </ActionIcon>}
                     >
                       <Stack gap={6}>
+                        {/* No outputs: the relay only receives, to check the input (the server discards the data) */}
+                        {stream.outputs.length === 0 && (
+                          <Text c="dimmed" style={{ fontSize: FONT_SIZE.label, lineHeight: `${FORM_ROW_HEIGHT}px` }}>
+                            None: receive only. Checks the input; the data is not kept.
+                          </Text>
+                        )}
                         {stream.outputs.map((output) => (
                           <Group key={output.id} gap={FORM_LABEL_GAP} wrap="nowrap">
                             <Select
@@ -1146,7 +1153,7 @@ function MultiStreamPanel() {
                               styles={{ input: { fontFamily: MONO } }}
                               style={{ flex: 1, minWidth: 0 }}
                             />
-                            <ActionIcon variant="subtle" color="red" size="xs" onClick={() => handleRemoveOutput(stream.id, output.id)} disabled={stream.outputs.length <= 1} style={{ flexShrink: 0 }} > <IconTrash size={10} /> </ActionIcon>
+                            <ActionIcon variant="subtle" color="red" size="xs" onClick={() => handleRemoveOutput(stream.id, output.id)} aria-label="Remove output" style={{ flexShrink: 0 }} > <IconTrash size={10} /> </ActionIcon>
                           </Group>
                         ))}
                       </Stack>

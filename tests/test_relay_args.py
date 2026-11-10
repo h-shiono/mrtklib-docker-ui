@@ -2,7 +2,13 @@
 
 import pytest
 
-from mrtklib_web_ui.api.mrtk_relay import _stream_file_path, _validate_relay_args
+from mrtklib_web_ui.api.mrtk_relay import (
+    DISCARD_OUTPUT,
+    _stream_file_path,
+    _validate_relay_args,
+    _with_discard_output,
+    _without_discard_output,
+)
 
 
 def test_stream_file_path():
@@ -39,3 +45,21 @@ def test_allowed(args):
 ])
 def test_rejected(args):
     assert _validate_relay_args(args) is not None
+
+
+@pytest.mark.parametrize("args, expected", [
+    # an input with no output only receives: the data is discarded
+    (["-in", "tcpcli://h:1"], ["-in", "tcpcli://h:1", "-out", DISCARD_OUTPUT]),
+    (["--input", "tcpcli://h:1"], ["--input", "tcpcli://h:1", "-out", DISCARD_OUTPUT]),
+    (["-in", "tcpcli://h:1", "-out", "tcpsvr://:5000"], ["-in", "tcpcli://h:1", "-out", "tcpsvr://:5000"]),
+    (["-in", "tcpcli://h:1", "--output", "tcpsvr://:5000"], ["-in", "tcpcli://h:1", "--output", "tcpsvr://:5000"]),
+    ([], []),  # no input: mrtk relay prints its help
+])
+def test_with_discard_output(args, expected):
+    assert _with_discard_output(args) == expected
+    assert _without_discard_output(_with_discard_output(args)) == args
+
+
+def test_discard_output_is_not_a_user_output():
+    # users cannot ask for it: file outputs must be inside /workspace
+    assert _validate_relay_args(["-in", "tcpcli://h:1", "-out", DISCARD_OUTPUT]) is not None
