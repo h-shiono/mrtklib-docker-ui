@@ -22,6 +22,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   mode). Its header matches the other screens: title, `?` (the description
   and the device passthrough note), state badge with the relay and
   cssr2rtcm3 states in its tooltip, and Start / Stop at the far right.
+  "Record raw SBF" and the advanced bridge port become an Outputs list as
+  in Stream Relay: the bridge to cssr2rtcm3 first (fixed, port editable),
+  then files (restart-safe) or TCP servers added with +.
 - Real-time raw logs (Rover, Base, Correction) take one row each: a switch
   and the path. File options such as `::T` (time tag) and `::S=` (swap hours)
   are typed in the path, which starts as `...::S=1`; the Time tag switch is
