@@ -79,7 +79,7 @@ class StreamDecoder:
             return self.ubx.decode(frame.data)
         if frame.kind == "text":
             return self.pos.decode(frame.data)
-        return []  # RTCM3: counted only
+        return []  # RTCM3, receiver replies: counted (and shown) only
 
     def flush(self) -> list[Event]:
         """End of stream: decode the last unterminated line, then emit the

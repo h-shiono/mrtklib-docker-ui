@@ -5,7 +5,9 @@ port the service asked `mrtk relay` to serve, and writes NMEA to it.
 """
 
 import asyncio
+import base64
 import json
+import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -17,7 +19,7 @@ from mrtklib_web_ui.services import stream_monitor_service as sms
 from mrtklib_web_ui.services.process_manager import ProcessState, process_manager
 from mrtklib_web_ui.services.stream_decoders import Epoch, Satellites, SatState
 from mrtklib_web_ui.services.stream_monitor_service import MonitorState, build_relay_args
-from stream_builders import nmea
+from stream_builders import nmea, ubx
 
 T0 = datetime(2026, 11, 7, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -96,7 +98,7 @@ def test_history_is_capped():
     ],
 )
 def test_build_relay_args(kind, path, uri):
-    assert build_relay_args(kind, path, 41000) == ["-in", uri, "-out", "tcpsvr://:41000"]
+    assert build_relay_args(kind, path, 41000) == ["-in", uri, "-out", "tcpsvr://:41000", "-b", "1"]
 
 
 @pytest.mark.parametrize("kind, path", [("udpcli", "h:1"), ("tcpcli", "  ")])
@@ -119,6 +121,8 @@ class FakeRelay:
         self.exit_codes = {}  # process id -> return code, for one relay only
         self.count = None  # epochs to send before going quiet (None = forever)
         self.writers = {}  # process id -> open connections
+        self.received = bytearray()  # what the decoder's connection wrote (-b 1)
+        self.reply = None  # bytes sent back once something was received
 
     async def start(self, command, args, process_id):
         self.args = args
@@ -126,6 +130,14 @@ class FakeRelay:
 
         async def handle(reader, writer):
             self.writers.setdefault(process_id, []).append(writer)
+
+            async def take_commands():
+                while chunk := await reader.read(4096):
+                    self.received.extend(chunk)
+                    if self.reply is not None:
+                        writer.write(self.reply)
+
+            asyncio.create_task(take_commands())
             k = 0
             try:
                 while self.count is None or k < self.count:
@@ -689,3 +701,101 @@ def test_browser_and_relay_streams_side_by_side(relay, client):
     assert client.get("/api/stream-monitor/status?stream=b").json()["state"] == "stopped"
     assert client.get("/api/stream-monitor/status?stream=a").json()["running"]
     client.post("/api/stream-monitor/stop")
+
+
+# ── receiver commands (#136) ────────────────────────────────────────────────
+
+SEPTENTRIO_ACK = b"$R: setSBFOutput, Stream1, USB1, PVTGeodetic, sec1\r\n  SBFOutput, Stream1, USB1, PVTGeodetic, sec1\r\nUSB1>"
+
+
+def test_command_goes_to_the_relay_and_the_reply_to_the_console(relay, client):
+    relay.reply = SEPTENTRIO_ACK
+    client.post("/api/stream-monitor/start", json={"input": {"type": "tcpcli", "path": "x:1"}})
+    assert relay.args[-2:] == ["-b", "1"]
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        _receive_until(ws, lambda m: m["type"] == "status" and m["connected"])
+        r = client.post("/api/stream-monitor/send", json={"line": " setSBFOutput,Stream1,USB1,PVTGeodetic,sec1 "})
+        assert r.status_code == 200
+        sent = _receive_until(ws, lambda m: m["type"] == "console")["entry"]
+        assert sent["dir"] == "tx" and sent["text"] == "setSBFOutput,Stream1,USB1,PVTGeodetic,sec1"
+        reply = _receive_until(ws, lambda m: m["type"] == "console")["entry"]
+        assert reply["dir"] == "rx" and reply["label"] == "Septentrio reply"
+        assert reply["text"].startswith("$R: setSBFOutput") and reply["text"].endswith("USB1>")
+    assert bytes(relay.received) == b"setSBFOutput,Stream1,USB1,PVTGeodetic,sec1\r\n"
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        history = json.loads(ws.receive_text())
+        assert [e["dir"] for e in history["console"]] == ["tx", "rx"]
+    client.post("/api/stream-monitor/stop")
+
+
+def test_binary_command_is_sent_as_is(relay, client):
+    client.post("/api/stream-monitor/start", json={"input": {"type": "tcpcli", "path": "x:1"}})
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        _receive_until(ws, lambda m: m["type"] == "status" and m["connected"])
+        frame = ubx(0x0A, 0x04, b"")
+        assert client.post("/api/stream-monitor/send", json={"hex": frame.hex()}).status_code == 200
+        entry = _receive_until(ws, lambda m: m["type"] == "console")["entry"]
+        assert entry["text"] == frame.hex(" ").upper()
+    for _ in range(50):
+        if bytes(relay.received) == frame:
+            break
+        time.sleep(0.02)
+    assert bytes(relay.received) == frame
+    client.post("/api/stream-monitor/stop")
+
+
+def test_browser_session_hands_commands_to_the_page(relay, client):
+    started_at = _start_browser(client)
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        with _ingest(client, started_at) as ingest:
+            ingest.send_bytes(_nmea_epochs(1))
+            _receive_until(ws, lambda m: m["type"] == "status" and m["connected"])
+            assert client.post("/api/stream-monitor/send", json={"line": "grc"}).status_code == 200
+            msg = json.loads(ingest.receive_text())
+            assert msg["type"] == "write" and base64.b64decode(msg["data"]) == b"grc\r\n"
+            # The page writes it to the port; the receiver answers through it.
+            ingest.send_bytes(b"$R: grc\r\n  ReceiverCapabilities, ...\r\nUSB1>")
+            entries = [
+                _receive_until(ws, lambda m: m["type"] == "console")["entry"] for _ in range(2)
+            ]
+            assert [e["dir"] for e in entries] == ["tx", "rx"]
+    client.post("/api/stream-monitor/stop")
+
+
+@pytest.mark.parametrize(
+    "body, code",
+    [
+        ({"line": "grc"}, 409),  # not running
+        ({}, 400),
+        ({"line": "a", "hex": "00"}, 400),
+        ({"line": "bad\u00e9"}, 400),
+        ({"line": "two\r\nlines"}, 400),
+        ({"hex": "zz"}, 400),
+        ({"hex": ""}, 400),
+    ],
+)
+def test_send_rejects(relay, client, body, code):
+    assert client.post("/api/stream-monitor/send", json=body).status_code == code
+
+
+def test_an_ntrip_input_takes_no_commands(relay, client):
+    client.post(
+        "/api/stream-monitor/start",
+        json={"input": {"type": "ntripcli", "path": "u:p@caster:2101/MNT"}},
+    )
+    r = client.post("/api/stream-monitor/send", json={"line": "grc"})
+    assert r.status_code == 409 and "NTRIP" in r.json()["detail"]
+    assert bytes(relay.received) == b""
+    client.post("/api/stream-monitor/stop")
+
+
+def test_a_file_takes_no_commands(relay, client, data_root):
+    _nmea_file(data_root / "x.nmea", 3)
+    client.post(
+        "/api/stream-monitor/start",
+        json={"input": {"type": "file", "path": str(data_root / "x.nmea")}},
+    )
+    r = client.post("/api/stream-monitor/send", json={"line": "grc"})
+    assert r.status_code == 409 and "file" in r.json()["detail"]
+    client.post("/api/stream-monitor/stop")
+

@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from mrtklib_web_ui.services.stream_decoders.framer import Frame
+from mrtklib_web_ui.services.stream_decoders.names import UBX_NAMES
 from mrtklib_web_ui.services.stream_decoders.sbf import svid_to_prn
 from mrtklib_web_ui.services.stream_decoders.ubx import ubx_sat
 
@@ -31,6 +32,7 @@ MAX_ROWS_KEYED = 128  # satellites / signals kept for a type with one
 MAX_TYPE_BYTES = 256 * 1024  # frame bytes kept per type
 RATE_WINDOW_S = 10.0
 PREVIEW_BYTES = 32
+TEXT_KINDS = ("nmea", "text", "reply")  # sent as text, not hex
 
 _RAW_NAV_DATA = 20  # NAVBits offset, after the SBF header and the fixed fields
 _SBF_TOW_DNU = 0xFFFFFFFF
@@ -119,6 +121,15 @@ def _sbf_summary(data: bytes) -> str:
 def _ubx_summary(data: bytes) -> str | None:
     msg = _ubx_id(data)
     p = data[6:-2]
+    if msg in ((0x05, 0x01), (0x05, 0x00)):  # ACK-ACK / ACK-NAK
+        name = UBX_NAMES.get((p[0], p[1]), f"{p[0]:02X}-{p[1]:02X}")
+        return f"{'ACK' if msg[1] else 'NAK'} for UBX-{name}"
+    if msg == (0x0A, 0x04):  # MON-VER: software, hardware, extension strings
+        fields = [p[0:30], p[30:40]] + [p[i : i + 30] for i in range(40, len(p), 30)]
+        texts = [f.split(b"\0", 1)[0].decode("ascii", "replace").strip() for f in fields]
+        return "  ".join(t for t in texts if t)
+    if msg == (0x06, 0x8B):  # CFG-VALGET response
+        return f"layer {p[1]}  position {struct.unpack_from('<H', p, 2)[0]}  {len(p) - 4} bytes of values"
     if msg == (0x02, 0x13):  # RXM-SFRBX
         freq, words, chn = p[3], p[4], p[5]
         slot = f"  k{freq - 7:+d}" if p[0] == 6 else ""
@@ -169,6 +180,18 @@ def _words(data: bytes) -> str:
 
 def _hex_groups(data: bytes) -> str:
     return " ".join(data[i : i + 4].hex().upper() for i in range(0, len(data), 4))
+
+
+# UBX answers to commands: shown in the receiver console (#136).
+UBX_REPLIES = frozenset({(0x05, 0x01), (0x05, 0x00), (0x06, 0x8B), (0x0A, 0x04)})
+
+
+def is_reply(frame: Frame) -> bool:
+    """A receiver's answer to a command: Septentrio ASCII output, or UBX
+    ACK / NAK, CFG-VALGET and MON-VER."""
+    if frame.kind == "reply":
+        return True
+    return frame.kind == "ubx" and len(frame.data) >= 8 and _ubx_id(frame.data) in UBX_REPLIES
 
 
 def preview(frame: Frame) -> str | None:
@@ -296,5 +319,5 @@ class MessageLog:
             "length": len(f.data),
             "summary": summary(f),
             "preview": preview(f),
-            "data": f.data.decode("ascii", "replace") if f.kind in ("nmea", "text") else f.data.hex(),
+            "data": f.data.decode("ascii", "replace") if f.kind in TEXT_KINDS else f.data.hex(),
         }

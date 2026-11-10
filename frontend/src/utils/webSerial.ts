@@ -18,6 +18,7 @@ interface WebSerialPort {
   open(options: { baudRate: number; bufferSize?: number }): Promise<void>;
   close(): Promise<void>;
   readonly readable: ReadableStream<Uint8Array> | null;
+  readonly writable: WritableStream<Uint8Array> | null;
   getInfo(): SerialPortInfo;
 }
 
@@ -97,6 +98,18 @@ export class BrowserSerialSession {
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
     ws.onopen = () => void this.pump();
+    // Receiver commands from the server: {"type": "write", "data": base64}.
+    ws.onmessage = (event) => {
+      if (typeof event.data !== 'string') return;
+      try {
+        const msg = JSON.parse(event.data) as { type?: string; data?: string };
+        if (msg.type === 'write' && typeof msg.data === 'string') {
+          void this.write(Uint8Array.from(atob(msg.data), (c) => c.charCodeAt(0)));
+        }
+      } catch {
+        // not for us
+      }
+    };
     // The server ends the session (Stop on any page) by closing the socket;
     // a refusal carries its reason.
     ws.onclose = (event) => void this.close(event.code === 1000 || event.code === 1005 ? null : event.reason || 'Connection to the server lost');
@@ -119,6 +132,25 @@ export class BrowserSerialSession {
     }
     this.flush();
     await this.close(failure);
+  }
+
+  /** Writes run one after another, each holding the port's writer. */
+  private writing: Promise<void> = Promise.resolve();
+
+  private write(data: Uint8Array): Promise<void> {
+    this.writing = this.writing.then(async () => {
+      const writable = this.port.writable;
+      if (this.closed || !writable) return;
+      const writer = writable.getWriter();
+      try {
+        await writer.write(data);
+      } catch (err) {
+        void this.close(`Serial port: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        writer.releaseLock();
+      }
+    });
+    return this.writing;
   }
 
   private queue(chunk: Uint8Array): void {
