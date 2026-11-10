@@ -58,6 +58,7 @@ import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
 import { SectionHeader as CommonSectionHeader } from './common/SectionHeader';
 import { optionName } from '../config/optionMeta';
+import { maskPath } from '../utils/maskPath';
 
 // ─── Sub-components ────────────────────────────────────────────────────────
 
@@ -3240,7 +3241,8 @@ export function TomlDrawer({ config, opened, onClose, streams }: { config: MrtkP
       for (const [key, s] of Object.entries(streams)) {
         L.push(`[streams.${key}]`);
         L.push(`type   = ${_s(s.type)}`);
-        L.push(`path   = ${_s(s.path)}`);
+        // Masked like the fields and the console; Download TOML keeps the real path.
+        L.push(`path   = ${_s(maskPath(s.path))}`);
         L.push(`format = ${_s(s.format)}`);
         L.push('');
       }
