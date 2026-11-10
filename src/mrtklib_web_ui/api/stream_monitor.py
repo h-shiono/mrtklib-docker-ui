@@ -14,10 +14,12 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket
 from pydantic import BaseModel, Field
 
+from mrtklib_web_ui.api.message_hub import MessageHub
 from mrtklib_web_ui.api.mrtk_relay import _stream_file_path, _validate_relay_args
+from mrtklib_web_ui.services.receiver_console import MAX_COMMAND_BYTES, MAX_COMMAND_LINE, encode_command
 from mrtklib_web_ui.services.stream_decoders.messages import MessageLog
 from mrtklib_web_ui.services.stream_monitor_service import (
     INPUT_SCHEMES,
@@ -33,121 +35,22 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Messages queued per client. A client whose send blocks (stalled network)
-# fills its queue and is dropped, so it cannot hold up the other clients, the
-# session ticker or the relay log callback (process_manager awaits it).
-CLIENT_QUEUE_MAX = 256
-MAX_SELECT_LABEL = 64
 MAX_INGEST_FRAME = 65536  # bytes per WebSocket message from a browser input
-MAX_COMMAND_LINE = 2000  # Septentrio's limit for one ASCII command
-MAX_COMMAND_BYTES = 4096
 BROWSER_INPUT = "browser"  # Web Serial in the page (#136); not a relay scheme
 
 
-class _Client:
-    def __init__(self, ws: WebSocket) -> None:
-        self.ws = ws
-        self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=CLIENT_QUEUE_MAX)
-        self.task: asyncio.Task | None = None
-        # The message type this page shows in its Message tab (#136), and
-        # how far it has been sent. `log` tells when a new session began.
-        self.selected_stream: StreamId = "a"
-        self.selected: str | None = None
-        self.sent_seq = 0
-        self.log: MessageLog | None = None
-
-    async def run(self) -> None:
-        while True:
-            await self.ws.send_text(await self.queue.get())
+def _resolve(stream: str) -> tuple[MessageLog, bool] | None:
+    service = _services.get(stream)  # type: ignore[call-overload]
+    return (service.messages, service.is_running) if service is not None else None
 
 
-_clients: set[_Client] = set()
-
-
-def _drop(client: _Client, close: bool = False) -> None:
-    _clients.discard(client)
-    if client.task is not None:
-        client.task.cancel()
-    if close:
-        # Closing makes the page reconnect and get a fresh `history`.
-        asyncio.create_task(_close_quietly(client.ws))
-
-
-async def _close_quietly(ws: WebSocket) -> None:
-    try:
-        await asyncio.wait_for(ws.close(code=1013), timeout=5.0)  # 1013: try again later
-    except Exception:
-        pass
-
-
-async def _broadcast(msg: dict[str, Any]) -> None:
-    """Queue a message for every client; never waits on a socket."""
-    text = json.dumps(msg)
-    for client in list(_clients):
-        try:
-            client.queue.put_nowait(text)
-        except asyncio.QueueFull:
-            logger.warning("Stream Monitor: dropping a WebSocket client that stopped reading")
-            _drop(client, close=True)
-
-
-def _send_rows(client: _Client) -> None:
-    """Queue the new rows of the client's selected message type."""
-    if client.selected is None:
-        return
-    service = _services[client.selected_stream]
-    log = service.messages
-    reset = client.log is not log
-    if reset:  # just selected, or a new session
-        client.log = log
-        client.sent_seq = 0
-    rows: list[dict[str, Any]] = []
-    if service.is_running:  # like `history`: pages clear a finished session
-        rows, client.sent_seq = log.rows(client.selected, client.sent_seq)
-    if not rows and not reset:
-        return
-    msg = {
-        "type": "message_rows",
-        "stream": client.selected_stream,
-        "label": client.selected,
-        "reset": reset,
-        "rows": rows,
-    }
-    try:
-        client.queue.put_nowait(json.dumps(msg))
-    except asyncio.QueueFull:
-        logger.warning("Stream Monitor: dropping a WebSocket client that stopped reading")
-        _drop(client, close=True)
-
-
-def _send_all_rows() -> None:
-    for client in list(_clients):
-        _send_rows(client)
-
-
-def _handle_client_message(client: _Client, text: str) -> None:
-    """`{"type": "select_message", "stream": "a", "label": str | null}` from a page."""
-    try:
-        msg = json.loads(text)
-    except ValueError:
-        return
-    if not isinstance(msg, dict) or msg.get("type") != "select_message":
-        return
-    label = msg.get("label")
-    if label is not None and (not isinstance(label, str) or len(label) > MAX_SELECT_LABEL):
-        return
-    stream = msg.get("stream", "a")
-    if stream not in STREAM_IDS:
-        return
-    client.selected_stream = stream
-    client.selected = label
-    client.log = None  # the next rows are a full replay
-    _send_rows(client)
-
+_hub = MessageHub(
+    "Stream Monitor", _resolve, valid_stream=lambda s: s in STREAM_IDS, default_stream="a"
+)
 
 for _service in _services.values():
-    _service.set_broadcast(_broadcast)
-    _service.set_on_tick(_send_all_rows)
+    _service.set_broadcast(_hub.broadcast)
+    _service.set_on_tick(_hub.send_all_rows)
 
 
 class InputStream(BaseModel):
@@ -235,21 +138,10 @@ class SendRequest(BaseModel):
 
 @router.post("/send")
 async def send_command(request: SendRequest) -> dict[str, Any]:
-    if (request.line is None) == (request.hex is None):
-        raise HTTPException(status_code=400, detail="Give either line or hex")
-    if request.line is not None:
-        line = request.line.strip()
-        if not line or any(not (0x20 <= ord(c) < 0x7F) for c in line):
-            raise HTTPException(status_code=400, detail="A command line must be printable ASCII")
-        data, shown = (line + "\r\n").encode("ascii"), line
-    else:
-        try:
-            data = bytes.fromhex(request.hex or "")
-        except ValueError:
-            raise HTTPException(status_code=400, detail="hex is not valid hexadecimal")
-        if not data:
-            raise HTTPException(status_code=400, detail="hex is empty")
-        shown = data.hex(" ").upper()
+    try:
+        data, shown = encode_command(request.line, request.hex)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     try:
         await _services[request.stream].send(data, shown)
     except RuntimeError as e:
@@ -348,20 +240,10 @@ async def websocket_monitor(websocket: WebSocket) -> None:
 
     Sent by clients: {"type": "select_message", "stream": "a", "label": str | null}
     """
-    await websocket.accept()
-    client = _Client(websocket)
-    # Replay first, through the same queue so it stays ahead of live messages.
-    for service in _services.values():
-        client.queue.put_nowait(json.dumps(service.history_message()))
-        client.queue.put_nowait(json.dumps(service.status_message()))
-    _clients.add(client)
-    client.task = asyncio.create_task(client.run())
-    try:
-        while True:
-            try:
-                text = await websocket.receive_text()
-            except (WebSocketDisconnect, RuntimeError):  # RuntimeError: closed by _drop
-                break
-            _handle_client_message(client, text)
-    finally:
-        _drop(client)
+    def replay() -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for service in _services.values():
+            out += [service.history_message(), service.status_message()]
+        return out
+
+    await _hub.serve(websocket, replay)
