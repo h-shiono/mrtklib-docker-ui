@@ -24,7 +24,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   cssr2rtcm3 states in its tooltip, and Start / Stop at the far right.
   "Record raw SBF" and the advanced bridge port become an Outputs list as
   in Stream Relay: the bridge to cssr2rtcm3 first (fixed, port editable),
-  then files (restart-safe) or TCP servers added with +.
+  then files (restart-safe) or TCP servers added with +. The input is one
+  row as in Stream Relay: Serial (`ttyACM0:115200`, the baud rate in the
+  path) or TCP Client (`host:port`, e.g. a relay serving the receiver's
+  port from another machine), instead of Serial port and Baud rate rows.
 - Real-time raw logs (Rover, Base, Correction) take one row each: a switch
   and the path. File options such as `::T` (time tag) and `::S=` (swap hours)
   are typed in the path, which starts as `...::S=1`; the Time tag switch is

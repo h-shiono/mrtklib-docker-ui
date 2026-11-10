@@ -102,6 +102,26 @@ const MAX_OUTPUTS = 4;
 
 const outputArg = (o: ClasOutput) => `${o.type}://${o.path.trim()}`;
 
+/** The receiver input: a serial port (`device[:baud]`, as in Stream Relay) or
+ *  a TCP client (`host:port`), e.g. a relay on another machine that serves
+ *  the receiver's serial port with `-b 1`. */
+type InputType = 'serial' | 'tcpcli';
+const INPUT_TYPES = [
+  { value: 'serial', label: 'Serial' },
+  { value: 'tcpcli', label: 'TCP Client' },
+];
+const INPUT_PLACEHOLDER: Record<InputType, string> = {
+  serial: 'ttyACM0:115200',
+  tcpcli: 'host.docker.internal:9001',
+};
+const DEFAULT_BAUD = 115200;
+
+/** Split `device[:baud]`; a missing baud takes the receiver's default. */
+function splitSerialPath(path: string, defaultBaud: number): { device: string; baud: number } {
+  const m = /^(.*):(\d+)$/.exec(path.trim());
+  return m ? { device: m[1], baud: Number(m[2]) } : { device: path.trim(), baud: defaultBaud };
+}
+
 const STATE_LABEL: Record<string, string> = {
   idle: 'Idle', starting: 'Starting', running: 'Running',
   stopping: 'Stopping', stopped: 'Stopped', error: 'Error',
@@ -115,8 +135,8 @@ export function ClasPipelinePanel() {
 
   // --- Form state ---
   const [receiverId, setReceiverId] = useState<string>('septentrio-mosaic-g5');
-  const [inputDevice, setInputDevice] = useState<string>('');
-  const [inputBaud, setInputBaud] = useState<number>(115200);
+  const [inputType, setInputType] = useState<InputType>('serial');
+  const [inputPath, setInputPath] = useState<string>('');
   const [bridgePort, setBridgePort] = useState<number>(9870);
   const [outputs, setOutputs] = useState<ClasOutput[]>([]);
 
@@ -151,7 +171,7 @@ export function ClasPipelinePanel() {
         const ports = await clasApi.listSerialPorts();
         setSerialPorts(ports);
         if (ports.length > 0) {
-          setInputDevice((cur) => cur || ports[0].path);
+          setInputPath((cur) => cur || `${ports[0].path}:${DEFAULT_BAUD}`);
         }
       } catch {
         setSerialPorts([]);
@@ -166,28 +186,20 @@ export function ClasPipelinePanel() {
     })();
   }, []);
 
-  // --- When the receiver preset changes, refresh defaults ---
-  useEffect(() => {
-    const preset = receivers.find((r) => r.id === receiverId);
-    if (preset) {
-      setInputBaud(preset.default_input_baud);
-    }
-  }, [receivers, receiverId]);
-
   const refreshSerialPorts = useCallback(async () => {
     setRefreshingPorts(true);
     try {
       const ports = await clasApi.listSerialPorts();
       setSerialPorts(ports);
       if (ports.length > 0) {
-        if (!inputDevice) setInputDevice(ports[0].path);
+        setInputPath((cur) => cur || `${ports[0].path}:${DEFAULT_BAUD}`);
       }
     } catch {
       setSerialPorts([]);
     } finally {
       setRefreshingPorts(false);
     }
-  }, [inputDevice]);
+  }, []);
 
   // --- WebSocket: receive logs, status, PVT, flow stats ---
   const handleMessage = useCallback((msg: LogMessage) => {
@@ -212,6 +224,17 @@ export function ClasPipelinePanel() {
   useWebSocket({ onMessage: handleMessage });
 
   // --- Actions ---
+  /** The API's input: a serial device and baud, or a TCP client URL. */
+  const startInput = (): { input_device: string; input_baud: number } => {
+    if (inputType === 'tcpcli') {
+      return { input_device: `tcpcli://${inputPath.trim()}`, input_baud: DEFAULT_BAUD };
+    }
+    const defaultBaud = receivers.find((r) => r.id === receiverId)?.default_input_baud ?? DEFAULT_BAUD;
+    const { device, baud } = splitSerialPath(inputPath, defaultBaud);
+    // A bare name (ttyACM0), as Stream Relay paths take it, is under /dev.
+    return { input_device: device.startsWith('/') ? device : `/dev/${device}`, input_baud: baud };
+  };
+
   const handleStart = async () => {
     setSubmitting(true);
     setRelayLog([]);
@@ -219,8 +242,7 @@ export function ClasPipelinePanel() {
     try {
       const status = await clasApi.startPipeline({
         receiver_id: receiverId,
-        input_device: inputDevice,
-        input_baud: inputBaud,
+        ...startInput(),
         bridge_port: bridgePort,
         outputs: outputs.map(outputArg),
       });
@@ -262,11 +284,12 @@ export function ClasPipelinePanel() {
   // --- Derived values ---
   const isRunning =
     pipelineStatus.state === 'running' || pipelineStatus.state === 'starting';
-  const canStart = !isRunning && !!inputDevice && !submitting;
-  const portOptions = useMemo(
-    () => serialPorts.map((p) => ({ value: p.path, label: p.label })),
-    [serialPorts],
-  );
+  const canStart = !isRunning && !!inputPath.trim() && !submitting;
+  // Serial ports with the receiver's default baud, as `device:baud`.
+  const portOptions = useMemo(() => {
+    const baud = receivers.find((r) => r.id === receiverId)?.default_input_baud ?? DEFAULT_BAUD;
+    return serialPorts.map((p) => ({ value: `${p.path}:${baud}`, label: `${p.label}:${baud}` }));
+  }, [serialPorts, receivers, receiverId]);
   const receiverOptions = useMemo(
     () => receivers.map((r) => ({ value: r.id, label: r.label })),
     [receivers],
@@ -337,9 +360,10 @@ export function ClasPipelinePanel() {
             </Anchor>
           </Text>
 
-          {/* Serial port — single bidirectional port for SBF in / RTCM3 out */}
+          {/* Input, as in Stream Relay: one bidirectional stream, SBF in and
+              RTCM3 back. The baud rate is part of a serial path. */}
           <FormRow
-            label="Serial port"
+            label={<Group gap={4} wrap="nowrap">Input<StreamPathHelp /></Group>}
             trailing={
               <Tooltip label="Re-enumerate serial ports" openDelay={300}>
                 <ActionIcon
@@ -348,7 +372,7 @@ export function ClasPipelinePanel() {
                   size={30}
                   onClick={refreshSerialPorts}
                   loading={refreshingPorts}
-                  disabled={isRunning}
+                  disabled={isRunning || inputType !== 'serial'}
                   aria-label="Re-enumerate serial ports"
                 >
                   <IconRefresh size={16} />
@@ -356,23 +380,31 @@ export function ClasPipelinePanel() {
               </Tooltip>
             }
           >
-            <Autocomplete
-              value={inputDevice}
-              onChange={setInputDevice}
-              data={portOptions}
-              placeholder="/dev/ttyUSB0  or  tcpcli://host:9000"
-              disabled={isRunning}
-              styles={{ input: { fontFamily: MONO } }}
-            />
-          </FormRow>
-          <FormRow label="Baud rate">
-            <NumberInput
-              value={inputBaud}
-              onChange={(v) => setInputBaud(typeof v === 'number' ? v : 115200)}
-              min={1200}
-              max={3000000}
-              disabled={isRunning}
-            />
+            <Group gap={FORM_LABEL_GAP} wrap="nowrap">
+              <Select
+                aria-label="Input type"
+                value={inputType}
+                onChange={(v) => {
+                  if (!v || v === inputType) return;
+                  setInputType(v as InputType);
+                  setInputPath('');
+                }}
+                data={INPUT_TYPES}
+                allowDeselect={false}
+                disabled={isRunning}
+                style={{ width: 120, flexShrink: 0 }}
+              />
+              <Autocomplete
+                aria-label="Input path"
+                value={inputPath}
+                onChange={setInputPath}
+                data={inputType === 'serial' ? portOptions : []}
+                placeholder={INPUT_PLACEHOLDER[inputType]}
+                disabled={isRunning}
+                style={{ flex: 1, minWidth: 0 }}
+                styles={{ input: { fontFamily: MONO } }}
+              />
+            </Group>
           </FormRow>
 
           {/* Outputs, as in Stream Relay. The first is the bridge to
