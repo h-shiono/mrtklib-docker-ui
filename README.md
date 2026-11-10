@@ -85,6 +85,11 @@ GNSS positioning capabilities. No compilation required — just
   by MRTKLIB since v0.6.5; the image bundles the pinned version)
 - Pipes Septentrio SBF (with QZSS L6 CLAS) → cssr2rtcm3 → RTCM3 →
   back to the receiver, which runs VRS-RTK on its own engine
+- Input as in Stream Relay: Serial (`ttyACM0:115200`) or TCP Client
+  (`host:port`) — e.g. on macOS, where Docker cannot reach USB serial,
+  serve the port from the host with
+  `mrtk relay -in serial://cu.usbmodem…:115200 -b 1 -out tcpsvr://:9001`
+  and use TCP Client `host.docker.internal:9001`
 - Outputs as in Stream Relay: the first is the bridge to cssr2rtcm3
   (`tcpsvr`, port editable); add a file to record the raw SBF
   (restart-safe `_2`, `_3`, …) or a TCP server to hand it to other apps
