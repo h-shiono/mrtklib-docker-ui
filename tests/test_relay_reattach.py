@@ -216,3 +216,20 @@ def test_exit_is_announced_after_get_status_marked_it_stopped(monkeypatch):
 ])
 def test_mask_stream_arg(arg, masked):
     assert mrtk_relay._mask_stream_arg(arg) == masked
+
+
+def test_a_relay_does_not_take_the_tag_file_of_a_running_one(pm, monkeypatch, tmp_path):
+    # Relay A writes log.ubx (and log.ubx.tag with ::T) but has not created
+    # them yet; relay B aiming at log.ubx.tag must not share A's tag file.
+    app = FastAPI()
+    app.include_router(mrtk_relay.router, prefix="/api/mrtk-relay")
+    monkeypatch.setattr(mrtk_relay, "_validate_relay_args", lambda args: None)  # tmp_path is not /workspace
+    a = ["-in", "tcpcli://h:2101", "-out", f"file://{tmp_path / 'log.ubx'}::T"]
+    b = ["-in", "tcpcli://h:2102", "-out", f"file://{tmp_path / 'log.ubx.tag'}"]
+
+    with TestClient(app) as c:
+        first = c.post("/api/mrtk-relay/start", json={"args": a, "name": "A"}).json()
+        second = c.post("/api/mrtk-relay/start", json={"args": b, "name": "B"}).json()
+        assert second["args"][-1] == f"file://{tmp_path / 'log.ubx_2.tag'}"
+        for r in (first, second):
+            assert c.post("/api/mrtk-relay/stop", json={"process_id": r["id"], "timeout": 2}).status_code == 200
