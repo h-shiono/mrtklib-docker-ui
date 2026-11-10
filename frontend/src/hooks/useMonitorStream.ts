@@ -27,7 +27,12 @@ import { mergeMessageRows } from '../utils/streamMessages';
 const MAX_EPOCHS = 3600;
 const MAX_LOG_LINES = 500;
 
-export const INPUT_TYPES: { value: MonitorInputType; label: string; placeholder: string }[] = [
+/** The form's input types: the server's, and `relay`, a running Stream Relay
+ *  relay's TCP server output, read as a TCP client (#192). */
+export type MonitorFormInputType = MonitorInputType | 'relay';
+
+export const INPUT_TYPES: { value: MonitorFormInputType; label: string; placeholder: string }[] = [
+  { value: 'relay', label: 'Stream Relay', placeholder: 'A running relay with a TCP Server output' },
   { value: 'serial', label: 'Serial', placeholder: 'ttyACM0:115200' },
   { value: 'tcpcli', label: 'TCP Client', placeholder: '192.168.1.100:9001' },
   { value: 'tcpsvr', label: 'TCP Server', placeholder: ':9001' },
@@ -48,13 +53,22 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
   const key = (name: string) => `mrtk-stream-monitor-${id === 'a' ? '' : `${id}-`}${name}`;
   const [inputType, setInputType] = useLocalStorage<string>({ key: key('input-type'), defaultValue: 'tcpcli' });
   const [inputPath, setInputPath] = useLocalStorage<string>({ key: key('input-path'), defaultValue: '' });
+  // The relay output picked for the `relay` type, as a TCP client path
+  // (127.0.0.1:PORT). Kept apart so it does not overwrite a typed path.
+  const [relayPath, setRelayPath] = useLocalStorage<string>({ key: key('relay-path'), defaultValue: '' });
   const [fileSpeed, setFileSpeed] = useLocalStorage<string>({ key: key('file-speed'), defaultValue: '0' });
   // Read the GGA station id as the CLAS L6 source (#144). Off by default:
   // only `mrtk run` CLAS output puts the source there; any other receiver
   // puts its base station id, which can look like a valid source.
   const [clasSource, setClasSource] = useLocalStorage<boolean>({ key: key('clas-source'), defaultValue: false });
-  const typeMeta = INPUT_TYPES.find((t) => t.value === inputType) ?? INPUT_TYPES[1];
+  const typeMeta = INPUT_TYPES.find((t) => t.value === inputType)
+    ?? INPUT_TYPES.find((t) => t.value === 'tcpcli')!;
   const isFile = typeMeta.value === 'file';
+  const isRelay = typeMeta.value === 'relay';
+  const startInput: { type: MonitorInputType; path: string } = isRelay
+    ? { type: 'tcpcli', path: relayPath }
+    : { type: typeMeta.value as MonitorInputType, path: inputPath.trim() };
+  const canStart = startInput.path !== '';
 
   // ── session data
   const [status, setStatus] = useState<MonitorStatus | null>(null);
@@ -156,7 +170,7 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
     try {
       const st = await streamMonitorApi.start({
         stream: id,
-        input: { type: typeMeta.value, path: inputPath.trim() },
+        input: startInput,
         file_speed: isFile && pacing && Number(fileSpeed) > 0 ? Number(fileSpeed) : null,
       });
       // A session that ended meanwhile keeps its exit status. If the exit
@@ -186,8 +200,10 @@ export function useMonitorStream(id: MonitorStreamId, wsOpen: boolean) {
   return {
     id,
     // form
-    typeMeta, isFile, setInputType,
+    typeMeta, isFile, isRelay, setInputType,
     inputPath, setInputPath,
+    relayPath, setRelayPath,
+    canStart,
     fileSpeed, setFileSpeed,
     clasSource, setClasSource,
     // session

@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Stream Relay file outputs are restart-safe, as Real-time files already
   were: if the file exists, or another running relay writes it, the relay
   writes to `_2`, `_3`, … instead of overwriting it, and says so in its log.
+- Stream Monitor input type **Stream Relay**: pick a running relay's TCP
+  Server output by its name instead of typing `127.0.0.1:PORT`.
 
 ### Changed
 - Real-time raw logs (Rover, Base, Correction) take one row each: a switch
@@ -68,7 +70,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Removed
 - Stream Monitor's raw log. Raw streams are saved in Stream Relay, as
   with RTKLIB's STRSVR and RTKPLOT: relay the input to a file and to
-  `tcpsvr://:PORT`, and monitor `127.0.0.1:PORT`.
+  `tcpsvr://:PORT`, and monitor it with the Stream Relay input type.
 - The clear-log buttons in Post-processing, Stream Relay and Conversion. A new
   run starts its own log, and a cleared Stream Relay log came back on reload.
 

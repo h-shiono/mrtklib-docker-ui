@@ -7,7 +7,7 @@
  * of the (up to two, #171) streams gets its own messages.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionIcon,
   Box,
@@ -46,6 +46,7 @@ import {
 } from '../utils/streamMonitor';
 import { INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
 import { decodeClasSource, formatClasSource } from '../utils/clasSource';
+import * as mrtkRelayApi from '../api/mrtkRelay';
 import { MaskedPathInput } from './common/MaskedPathInput';
 import { StreamPathHelp } from './StreamPathHelp';
 import { RtMetricsRow } from './RtMetricsRow';
@@ -106,7 +107,49 @@ function MonitorHelp() {
   );
 }
 
-/** Label-left / input-right row (project form convention). */
+/** TCP server outputs of the running Stream Relay relays, as TCP client
+ *  paths (`127.0.0.1:PORT`), labelled with the relay's name (#192). */
+async function relayOutputs(): Promise<{ value: string; label: string }[]> {
+  const relays = await mrtkRelayApi.listStreams();
+  return relays
+    .filter((r) => r.state === 'starting' || r.state === 'running')
+    .flatMap((r) => r.args.flatMap((a, i) => {
+      const m = r.args[i - 1] === '-out' ? /^tcpsvr:\/\/[^:#]*:(\d+)/.exec(a) : null;
+      return m ? [{ value: `127.0.0.1:${m[1]}`, label: `${r.name} · :${m[1]}` }] : [];
+    }));
+}
+
+/** Path of the `relay` input type: pick a running relay's TCP server output.
+ *  The list is read when the type is chosen and each time it is opened. */
+function RelayOutputSelect({ value, onChange, disabled }: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  const [options, setOptions] = useState<{ value: string; label: string }[]>([]);
+  const refresh = useCallback(() => {
+    relayOutputs().then(setOptions).catch(() => setOptions([]));
+  }, []);
+  useEffect(refresh, [refresh]);
+  // A saved choice whose relay is not running stays visible as such.
+  const data = value && !options.some((o) => o.value === value)
+    ? [...options, { value, label: `:${value.split(':').pop()} (not running)` }]
+    : options;
+  return (
+    <Select
+      aria-label="Relay output"
+      value={value || null}
+      onChange={(v) => onChange(v ?? '')}
+      onDropdownOpen={refresh}
+      data={data}
+      placeholder="A running relay with a TCP Server output"
+      nothingFoundMessage="No running relay has a TCP Server output"
+      disabled={disabled}
+      styles={{ input: { fontFamily: MONO } }}
+    />
+  );
+}
+
 /** The settings of one stream. `pacing`: a file may be replayed paced (one
  *  stream only: files with different start times cannot be aligned, #171). */
 function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
@@ -122,21 +165,27 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
           disabled={s.busy}
         />
       </FormRow>
-      <FormRow label="Path">
-        <Group gap={6} wrap="nowrap">
-          <Box style={{ flex: 1, minWidth: 0 }}>
-            <MaskedPathInput
-              size="xs"
-              value={s.inputPath}
-              onChange={s.setInputPath}
-              placeholder={s.typeMeta.placeholder}
-              disabled={s.busy}
-              styles={{ input: { fontFamily: MONO } }}
-            />
-          </Box>
-          <StreamPathHelp />
-        </Group>
-      </FormRow>
+      {s.isRelay ? (
+        <FormRow label="Relay output">
+          <RelayOutputSelect value={s.relayPath} onChange={s.setRelayPath} disabled={s.busy} />
+        </FormRow>
+      ) : (
+        <FormRow label="Path">
+          <Group gap={6} wrap="nowrap">
+            <Box style={{ flex: 1, minWidth: 0 }}>
+              <MaskedPathInput
+                size="xs"
+                value={s.inputPath}
+                onChange={s.setInputPath}
+                placeholder={s.typeMeta.placeholder}
+                disabled={s.busy}
+                styles={{ input: { fontFamily: MONO } }}
+              />
+            </Box>
+            <StreamPathHelp />
+          </Group>
+        </FormRow>
+      )}
       {s.isFile && (
         <FormRow label="Playback">
           <Select
@@ -202,7 +251,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   } = selected;
 
   const anyRunning = streams.some((s) => s.running);
-  const startable = streams.filter((s) => !s.busy && s.inputPath.trim());
+  const startable = streams.filter((s) => !s.busy && s.canStart);
   const handleStartAll = () => startable.forEach((s) => void s.start(!twoStreams));
   const handleStopAll = () => streams.filter((s) => s.running).forEach((s) => void s.stop());
 
@@ -430,7 +479,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                     status={s.state}
                     running={s.running}
                     loading={s.submitting}
-                    startDisabled={!s.inputPath.trim()}
+                    startDisabled={!s.canStart}
                     removeDisabled={s.id === 'a' || s.busy}
                     onStart={() => void s.start(!twoStreams)}
                     onStop={() => void s.stop()}
