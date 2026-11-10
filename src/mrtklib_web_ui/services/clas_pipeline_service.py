@@ -33,7 +33,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Awaitable, Callable
 
-from mrtklib_web_ui.services.process_manager import process_manager, ProcessState
+from mrtklib_web_ui.services.process_manager import process_manager
 from mrtklib_web_ui.services.receiver_presets import get_preset
 from mrtklib_web_ui.services.sbf_pvt_sniffer import (
     FlowStats,
