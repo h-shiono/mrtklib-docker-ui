@@ -47,6 +47,7 @@ const STREAM_TYPES: { value: StreamType; label: string }[] = [
 ];
 
 const PATH_PLACEHOLDERS: Record<StreamType, string> = {
+  browser: '', // not offered here (Multi-Stream only)
   serial: 'ttyUSB0:115200',
   tcpcli: '192.168.1.100:2101',
   tcpsvr: ':2101',
@@ -55,6 +56,7 @@ const PATH_PLACEHOLDERS: Record<StreamType, string> = {
 };
 
 const DEFAULT_PATHS: Record<StreamType, string> = {
+  browser: '',
   serial: 'ttyUSB0:115200',
   tcpcli: '192.168.1.100:2101',
   tcpsvr: ':2101',

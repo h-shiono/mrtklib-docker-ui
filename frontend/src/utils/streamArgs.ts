@@ -12,6 +12,7 @@ const TYPE_TO_PROTO: Record<string, string> = {
   tcpsvr: 'tcpsvr',
   ntripcli: 'ntrip',
   file: 'file',
+  browser: 'browser',
 };
 
 /**
@@ -28,7 +29,8 @@ function generateStreamArg(stream: StreamConfig): string {
 export function generateRelayArgs(config: BuilderConfig): string[] {
   const args: string[] = [];
 
-  if (config.input) {
+  // A Browser serial input is served by the server (/start browser_input).
+  if (config.input && config.input.type !== 'browser') {
     args.push('-in');
     args.push(generateStreamArg(config.input));
   }
@@ -95,6 +97,7 @@ const PROTO_TO_TYPE: Record<string, string> = {
   ntrips: 'ntripcli',
   ntripc: 'ntripcli',
   file: 'file',
+  browser: 'browser',
 };
 
 /**

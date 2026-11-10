@@ -72,6 +72,11 @@ GNSS positioning capabilities. No compilation required — just
 - Multi-stream configuration (up to 4 simultaneous streams, up to 4
   outputs each)
 - Per-stream Start / Stop control
+- Input type **Browser serial**: the page opens a USB / serial port on
+  its own computer (Web Serial, Chrome or Edge, `localhost` or https); the
+  server serves it to the relay on 127.0.0.1, so it can be saved, sent to
+  `mrtk run` and configured like any receiver. The stream stops when the
+  tab closes or reloads
 - For the selected stream: **Messages** (every message type it carries,
   the latest frames of one type), **Receiver** (Septentrio SBF output grid,
   ports and tracking, Save to boot), **Console** (any command, and the
@@ -310,10 +315,11 @@ USB-serial devices on the Mac (`/dev/cu.usbmodem*`) are **not**
 visible to the container by default. Windows needs `usbipd` for the
 same reason. Use one of:
 
-- For the Monitor, pick input type **Browser serial**: Chrome or
-  Edge opens the port on the Mac / PC and sends the data to the server.
-  Nothing to install or attach; the stream lasts while the tab is open,
-  so it does not suit a long `mrtk run` or Streams session.
+- In Streams or the Monitor, pick input type **Browser serial**: Chrome
+  or Edge opens the port on the Mac / PC and sends the data to the
+  server. Nothing to install or attach; the stream lasts while the tab is
+  open (the server stops it when the tab closes), so it does not suit a
+  long unattended `mrtk run` or logging session.
 - Run on the SBC itself (recommended for production CLAS use).
 - Forward over the network with USB/IP or a TCP↔serial bridge
   (e.g. `socat`, `ser2net`) and pick TCP in the UI instead of
@@ -477,6 +483,9 @@ Bug reports and feedback are very welcome — please
   mosaic-G5 that answers the commands (read, preset into a new stream,
   edits, apply, console, save);
   not yet against a real receiver. u-blox receivers are not supported yet
+- **Streams, Browser serial**: checked in Chrome with a simulated
+  mosaic-G5 port and the real `mrtk relay` (messages, receiver read,
+  console, stop, tab closed); not yet with a real receiver
 - **Streams, Messages / Receiver / Console**: the message tap and the
   command path checked with the real `mrtk relay` and a simulated
   receiver; the page in Chrome against a simulated receiver; not yet with
