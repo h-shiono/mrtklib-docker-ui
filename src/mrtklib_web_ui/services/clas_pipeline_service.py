@@ -227,7 +227,7 @@ class ClasPipelineService:
 
     async def start(self, config: PipelineConfig) -> PipelineStatus:
         if self._status.state in (PipelineState.STARTING, PipelineState.RUNNING):
-            raise RuntimeError("CLAS pipeline is already running")
+            raise RuntimeError("CLAS to RTCM3 is already running")
 
         preset = get_preset(config.receiver_id)
         if preset is None:

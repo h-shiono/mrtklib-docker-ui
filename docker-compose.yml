@@ -16,7 +16,7 @@ services:
       - ${DATA_DIR:-./data}:/data:ro
       # Optional: mount host .netrc for data download credentials
       # - ${NETRC_FILE:-/dev/null}:/home/mrtk/.netrc:ro
-      # CLAS Pipeline (Stream Relay → CLAS Pipeline) needs serial
+      # CLAS to RTCM3 (Stream Relay → CLAS to RTCM3) needs serial
       # passthrough of one bidirectional port (SBF/L6 out of the receiver,
       # RTCM3 back in). Uncomment the lines below and set the device path
       # in .env (CLAS_INPUT_DEVICE) — defaults to ttyUSB0.

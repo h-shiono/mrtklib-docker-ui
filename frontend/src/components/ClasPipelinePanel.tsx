@@ -4,36 +4,37 @@ import {
   Alert,
   Anchor,
   Autocomplete,
-  Badge,
-  Box,
   Button,
   Card,
   Checkbox,
   Code,
-  Divider,
   Grid,
   Group,
   NumberInput,
+  Popover,
   Select,
   Stack,
   Tabs,
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import {
   IconAlertCircle,
-  IconInfoCircle,
   IconPlayerPlay,
   IconPlayerStop,
+  IconQuestionMark,
   IconRefresh,
 } from '@tabler/icons-react';
 import { useWebSocket, type LogMessage } from '../hooks';
 import * as clasApi from '../api/clasPipeline';
 import { ClasFlowMeter, type FlowStats } from './ClasFlowMeter';
 import { PositionScatter, type PositionPoint } from './PositionScatter';
-import { StatusIndicator } from './StatusIndicator';
-import { FONT_SIZE } from '../utils/typography';
+import { StatusBadge } from './common/StatusBadge';
+import { processTone, type ProcessState } from '../utils/status';
+import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
 import { LogView } from './common/LogView';
@@ -45,6 +46,44 @@ const RECEIVER_REQUEST_URL =
 
 const RELAY_PROCESS_ID = 'clas-relay';
 const CSSR_PROCESS_ID = 'clas-cssr2rtcm3';
+
+/** What CLAS to RTCM3 does and what it needs, behind the ? next to its title. */
+function ClasHelp() {
+  const [opened, { toggle, close }] = useDisclosure(false);
+  const code = { fontSize: FONT_SIZE.label, whiteSpace: 'nowrap' } as const;
+  return (
+    <Popover opened={opened} onClose={close} position="bottom-start" width={400} shadow="md" withArrow>
+      <Popover.Target>
+        <ActionIcon size={14} variant="subtle" color="gray" radius="xl" onClick={toggle}
+          aria-label="About CLAS to RTCM3"
+        >
+          <IconQuestionMark size={10} />
+        </ActionIcon>
+      </Popover.Target>
+      <Popover.Dropdown p="xs">
+        <Stack gap={6}>
+          <Text size="xs">
+            For the receiver's own RTK engine: converts CLAS (the QZSS L6 message in
+            the receiver's raw SBF) to RTCM3 with <Code style={code}>mrtk cssr2rtcm3</Code> and
+            sends it back to the receiver. <Code style={code}>mrtk relay</Code> runs
+            bidirectionally (<Code style={code}>-b 1</Code>), so one serial port carries
+            both the SBF uplink and the RTCM3 downlink.
+          </Text>
+          <Text size="xs">
+            Pass the serial device through to the container
+            (e.g. <Code style={code}>--device=/dev/ttyUSB0</Code>) and configure the receiver
+            to output SBF and accept RTCM3 on that same port.
+          </Text>
+        </Stack>
+      </Popover.Dropdown>
+    </Popover>
+  );
+}
+
+const STATE_LABEL: Record<string, string> = {
+  idle: 'Idle', starting: 'Starting', running: 'Running',
+  stopping: 'Stopping', stopped: 'Stopped', error: 'Error',
+};
 
 export function ClasPipelinePanel() {
   // --- Reference data ---
@@ -242,20 +281,49 @@ export function ClasPipelinePanel() {
     <Grid gutter="md" align="stretch" overflow="hidden" h={{ base: 'auto', md: '100%' }} styles={{ inner: { height: 'calc(100% + var(--mantine-spacing-md))' } }}>
       {/* Left column: form + status + actions */}
       <Grid.Col span={{ base: 12, md: 6 }} h={{ base: 'auto', md: '100%' }}>
-      <Card withBorder p="md" h="100%" style={{ overflowY: 'auto' }}>
+      <Card withBorder p="xs" h="100%" style={{ overflowY: 'auto' }}>
+        {/* Header: title, ?, state, then Start / Stop at the far right */}
+        <Group justify="space-between" mb="xs" wrap="nowrap">
+          <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+            <Title order={5} size="sm">CLAS to RTCM3</Title>
+            <ClasHelp />
+            <Tooltip
+              label={`mrtk relay: ${pipelineStatus.relay_state} · mrtk cssr2rtcm3: ${pipelineStatus.cssr_state}`}
+              openDelay={300}
+            >
+              <div>
+                <StatusBadge tone={processTone(pipelineStatus.state as ProcessState)}>
+                  {STATE_LABEL[pipelineStatus.state] ?? pipelineStatus.state}
+                </StatusBadge>
+              </div>
+            </Tooltip>
+          </Group>
+          {isRunning ? (
+            <Button
+              variant="filled"
+              color="red"
+              size="compact-xs"
+              leftSection={<IconPlayerStop size={12} />}
+              onClick={handleStop}
+              loading={submitting}
+            >
+              Stop
+            </Button>
+          ) : (
+            <Button
+              variant="filled"
+              color="green"
+              size="compact-xs"
+              leftSection={<IconPlayerPlay size={12} />}
+              onClick={handleStart}
+              loading={submitting}
+              disabled={!canStart}
+            >
+              Start
+            </Button>
+          )}
+        </Group>
         <Stack gap={6}>
-          <Title order={5}>CLAS Pipeline</Title>
-          <Text size="xs" c="dimmed">
-            Wraps <Code>mrtk relay</Code> and <Code>mrtk cssr2rtcm3</Code> into
-            a single workflow. Forward raw SBF (with the QZSS L6 CLAS message)
-            from the receiver, decode it to RTCM3 with cssr2rtcm3, and send it
-            back so the receiver can run VRS-RTK on its own engine. The relay
-            runs bidirectionally (<Code>-b 1</Code>), so a single serial port
-            carries both the SBF uplink and the RTCM3 downlink.
-          </Text>
-
-          <Divider my={4} />
-
           {/* Receiver picker */}
           <FormRow label="Receiver">
             <Select
@@ -266,42 +334,40 @@ export function ClasPipelinePanel() {
               allowDeselect={false}
             />
           </FormRow>
-          {selectedReceiver && (
-            <Text size="xs" c="dimmed" pl={FORM_LABEL_WIDTH + FORM_LABEL_GAP}>
-              {selectedReceiver.notes}
-            </Text>
-          )}
-          <Text size="xs" pl={FORM_LABEL_WIDTH + FORM_LABEL_GAP}>
-            <Anchor href={RECEIVER_REQUEST_URL} target="_blank" rel="noreferrer">
-              Don&apos;t see your receiver? Request one →
+          <Text c="dimmed" pl={FORM_LABEL_WIDTH + FORM_LABEL_GAP} style={{ fontSize: FONT_SIZE.label }}>
+            {selectedReceiver?.notes}{selectedReceiver?.notes ? ' ' : ''}
+            <Anchor href={RECEIVER_REQUEST_URL} target="_blank" rel="noreferrer" inherit>
+              Request another receiver
             </Anchor>
           </Text>
 
-          <Divider my={4} />
-
           {/* Serial port — single bidirectional port for SBF in / RTCM3 out */}
-          <FormRow label="Serial port">
-            <Group gap="xs" wrap="nowrap" style={{ width: '100%' }}>
-              <Box style={{ flex: 1, minWidth: 0 }}>
-                <Autocomplete
-                  value={inputDevice}
-                  onChange={setInputDevice}
-                  data={portOptions}
-                  placeholder="/dev/ttyUSB0  or  tcpcli://host:9000  or  ntripcli://user:pass@host:2101/MOUNT"
+          <FormRow
+            label="Serial port"
+            trailing={
+              <Tooltip label="Re-enumerate serial ports" openDelay={300}>
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size={30}
+                  onClick={refreshSerialPorts}
+                  loading={refreshingPorts}
                   disabled={isRunning}
-                />
-              </Box>
-              <ActionIcon
-                variant="subtle"
-                size="lg"
-                onClick={refreshSerialPorts}
-                loading={refreshingPorts}
-                disabled={isRunning}
-                title="Re-enumerate serial ports"
-              >
-                <IconRefresh size={16} />
-              </ActionIcon>
-            </Group>
+                  aria-label="Re-enumerate serial ports"
+                >
+                  <IconRefresh size={16} />
+                </ActionIcon>
+              </Tooltip>
+            }
+          >
+            <Autocomplete
+              value={inputDevice}
+              onChange={setInputDevice}
+              data={portOptions}
+              placeholder="/dev/ttyUSB0  or  tcpcli://host:9000"
+              disabled={isRunning}
+              styles={{ input: { fontFamily: MONO } }}
+            />
           </FormRow>
           <FormRow label="Baud rate">
             <NumberInput
@@ -312,8 +378,6 @@ export function ClasPipelinePanel() {
               disabled={isRunning}
             />
           </FormRow>
-
-          <Divider my={4} />
 
           {/* SBF recording — tee the relay's SBF stream to a file */}
           <FormRow label="Record raw SBF">
@@ -363,68 +427,18 @@ export function ClasPipelinePanel() {
             </FormRow>
           )}
 
-          <Divider my={4} />
-
-          {/* Action row */}
-          <Group justify="space-between">
-            <Group gap="md">
-              <StatusIndicator
-                status={pipelineStatus.state}
-                label={pipelineStatus.state}
-              />
-              <Badge size="sm" variant="light" color="gray">
-                relay: {pipelineStatus.relay_state}
-              </Badge>
-              <Badge size="sm" variant="light" color="gray">
-                cssr2rtcm3: {pipelineStatus.cssr_state}
-              </Badge>
-            </Group>
-            {isRunning ? (
-              <Button
-                color="red"
-                leftSection={<IconPlayerStop size={16} />}
-                onClick={handleStop}
-                loading={submitting}
-              >
-                Stop pipeline
-              </Button>
-            ) : (
-              <Button
-                leftSection={<IconPlayerPlay size={16} />}
-                onClick={handleStart}
-                loading={submitting}
-                disabled={!canStart}
-              >
-                Start pipeline
-              </Button>
-            )}
-          </Group>
-
           {pipelineStatus.error_message && (
             <Alert
               color="red"
               icon={<IconAlertCircle size={16} />}
               title="Pipeline error"
             >
-              <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+              <Text size="xs" style={{ whiteSpace: 'pre-wrap' }}>
                 {pipelineStatus.error_message}
               </Text>
             </Alert>
           )}
 
-          {pipelineStatus.state === 'idle' && (
-            <Alert
-              color="blue"
-              variant="light"
-              icon={<IconInfoCircle size={16} />}
-            >
-              <Text size="xs">
-                Make sure the serial device is passed through to the container
-                (e.g. <Code>--device=/dev/ttyUSB0</Code>) and that the receiver
-                is configured to output SBF and accept RTCM3 on that same port.
-              </Text>
-            </Alert>
-          )}
         </Stack>
       </Card>
       </Grid.Col>
@@ -448,10 +462,10 @@ export function ClasPipelinePanel() {
               <Tabs.Tab value="cssr">mrtk cssr2rtcm3</Tabs.Tab>
             </Tabs.List>
             <Tabs.Panel value="relay" pt="xs" style={{ flex: 1, minHeight: 0 }}>
-              <LogView lines={relayLog} wrap severity running={isRunning} startLabel="Start pipeline" cap={MAX_LOG_LINES} />
+              <LogView lines={relayLog} wrap severity running={isRunning} startLabel="Start" cap={MAX_LOG_LINES} />
             </Tabs.Panel>
             <Tabs.Panel value="cssr" pt="xs" style={{ flex: 1, minHeight: 0 }}>
-              <LogView lines={cssrLog} wrap severity running={isRunning} startLabel="Start pipeline" cap={MAX_LOG_LINES} />
+              <LogView lines={cssrLog} wrap severity running={isRunning} startLabel="Start" cap={MAX_LOG_LINES} />
             </Tabs.Panel>
           </Tabs>
         </Card>

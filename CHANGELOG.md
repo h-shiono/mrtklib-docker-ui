@@ -17,6 +17,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   takes one row (type, then path or relay output), like a Stream Relay input.
 
 ### Changed
+- CLAS Pipeline is renamed **CLAS to RTCM3** (it converts CLAS to RTCM3 for
+  the receiver's own RTK engine; "VRS" is left to MRTKLIB's own VRS-RTK
+  mode). Its header matches the other screens: title, `?` (the description
+  and the device passthrough note), state badge with the relay and
+  cssr2rtcm3 states in its tooltip, and Start / Stop at the far right.
 - Real-time raw logs (Rover, Base, Correction) take one row each: a switch
   and the path. File options such as `::T` (time tag) and `::S=` (swap hours)
   are typed in the path, which starts as `...::S=1`; the Time tag switch is

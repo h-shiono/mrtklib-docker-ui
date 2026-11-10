@@ -4,7 +4,7 @@
 
 Web UI for [MRTKLIB](https://github.com/h-shiono/MRTKLIB) CLI tools,
 running in a Docker container. Users access GNSS post-processing,
-real-time positioning, stream relay (incl. the CLAS pipeline), RINEX
+real-time positioning, stream relay (incl. CLAS to RTCM3), RINEX
 conversion, and data tools from a browser without compiling anything.
 
 - **MRTKLIB version:** 0.7.17 (pinned in `.mrtklib-version`)
@@ -74,7 +74,7 @@ mrtklib-docker-ui/
 ### Navigation
 The header has a mode switch for the two primary modes,
 **Real-time | Post-processing**, and separate header buttons for
-**Stream Relay** (Multi-Stream, CLAS Pipeline) | **Stream Monitor** |
+**Stream Relay** (Multi-Stream, CLAS to RTCM3) | **Stream Monitor** |
 **Tools** (Conversion: RINEX Converter, Hatanaka; Time Converter, Data
 Downloader, AI Settings). One-shot file tools (ssr2obs, dump, l6extract, ...)
 belong in Tools too.
