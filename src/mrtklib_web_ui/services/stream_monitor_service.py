@@ -9,7 +9,7 @@ relay output `tcpsvr://:PORT` (#191).
 
 `mrtk relay` opens the input with MRTKLIB's own stream code (serial, NTRIP,
 ...) and copies the bytes unchanged; the backend reads them back from the
-relay's local TCP server, as the CLAS pipeline does for its SBF sniffer.
+relay's local TCP server.
 A file is read here instead: the relay would read it in a moment and its
 tcpsvr would drop it before the reader connects (#161). The session stays
 open at the end of the file, so the data stays on the page until Stop.

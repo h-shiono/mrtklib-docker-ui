@@ -93,8 +93,6 @@ def parse_pvt_geodetic(p: bytes) -> tuple[datetime, float, float, float, int, in
     """PVTGeodetic body (after the 8-byte header) →
     (time_gpst, lat_deg, lon_deg, height_m, Q, ns, age_s); age_s = -1 if
     not available. None when there is no valid position.
-
-    Shared with `sbf_pvt_sniffer` (CLAS pipeline); keep its behaviour.
     """
     tow_ms = struct.unpack_from("<I", p, 0)[0]
     wn = struct.unpack_from("<H", p, 4)[0]

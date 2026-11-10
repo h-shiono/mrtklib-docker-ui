@@ -39,14 +39,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     process_manager.set_log_callback(_on_process_log)
     process_manager.set_status_callback(ws_manager.broadcast_status)
 
-    async def _on_clas_pvt(fix) -> None:
-        await ws_manager.broadcast({"type": "clas_pvt", **fix.to_json()})
-
-    async def _on_clas_flow(stats) -> None:
-        await ws_manager.broadcast({"type": "clas_flow", **stats.to_json()})
-
-    clas_pipeline_service.set_callbacks(_on_clas_pvt, _on_clas_flow)
-
     # Setup .netrc from environment variables if not already mounted
     from mrtklib_web_ui.services.credentials import setup_netrc_from_env
     setup_netrc_from_env()

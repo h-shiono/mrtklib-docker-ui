@@ -34,8 +34,6 @@ import { StreamPathHelp } from './StreamPathHelp';
 import { randomUUID } from '../utils/uuid';
 import { useWebSocket, type LogMessage } from '../hooks';
 import * as clasApi from '../api/clasPipeline';
-import { ClasFlowMeter, type FlowStats } from './ClasFlowMeter';
-import { PositionScatter, type PositionPoint } from './PositionScatter';
 import { StatusBadge } from './common/StatusBadge';
 import { processTone, type ProcessState } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
@@ -43,7 +41,6 @@ import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
 import { LogView } from './common/LogView';
 
-const MAX_POSITION_POINTS = 3600;
 const MAX_LOG_LINES = 500;
 const RECEIVER_REQUEST_URL =
   'https://github.com/h-shiono/mrtklib-docker-ui/issues/new?template=receiver-request.yml';
@@ -72,6 +69,11 @@ function ClasHelp() {
             sends it back to the receiver. <Code style={code}>mrtk relay</Code> runs
             bidirectionally (<Code style={code}>-b 1</Code>), so one serial port carries
             both the SBF uplink and the RTCM3 downlink.
+          </Text>
+          <Text size="xs">
+            To watch the receiver's position and messages, open the Stream Monitor
+            with input type <b>Stream Relay</b> and pick <b>CLAS to RTCM3</b> (the
+            bridge, or another TCP Server output).
           </Text>
           <Text size="xs">
             Pass the serial device through to the container
@@ -129,9 +131,7 @@ export function ClasPipelinePanel() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // --- Streamed visualization state ---
-  const [points, setPoints] = useState<PositionPoint[]>([]);
-  const [flowStats, setFlowStats] = useState<FlowStats | null>(null);
+  // --- Logs of the two processes ---
   const [relayLog, setRelayLog] = useState<string[]>([]);
   const [cssrLog, setCssrLog] = useState<string[]>([]);
 
@@ -206,31 +206,6 @@ export function ClasPipelinePanel() {
           setPipelineStatus(await clasApi.getPipelineStatus());
         } catch { /* ignore */ }
       })();
-    } else if (msg.type === 'clas_pvt' && msg.lat !== undefined && msg.lon !== undefined) {
-      setPoints((prev) => {
-        const next = [
-          ...prev,
-          {
-            lat: msg.lat!,
-            lon: msg.lon!,
-            height: msg.hgt ?? 0,
-            quality: msg.quality ?? 5,
-            timestamp: msg.time_gpst ?? msg.timestamp,
-          },
-        ];
-        return next.length > MAX_POSITION_POINTS
-          ? next.slice(next.length - MAX_POSITION_POINTS)
-          : next;
-      });
-    } else if (msg.type === 'clas_flow') {
-      setFlowStats({
-        bytes_total: msg.bytes_total ?? 0,
-        blocks_total: msg.blocks_total ?? 0,
-        bytes_per_sec: msg.bytes_per_sec ?? 0,
-        msg_per_sec: msg.msg_per_sec ?? 0,
-        last_block_at: msg.last_block_at ?? null,
-        last_pvt_at: msg.last_pvt_at ?? null,
-      });
     }
   }, []);
 
@@ -241,8 +216,6 @@ export function ClasPipelinePanel() {
     setSubmitting(true);
     setRelayLog([]);
     setCssrLog([]);
-    setPoints([]);
-    setFlowStats(null);
     try {
       const status = await clasApi.startPipeline({
         receiver_id: receiverId,
@@ -509,19 +482,10 @@ export function ClasPipelinePanel() {
       </Card>
       </Grid.Col>
 
-      {/* Right column: live monitoring (flow meter, scatter, logs) */}
+      {/* Right column: the two processes' logs. Positions are watched in the
+          Stream Monitor, which reads the bridge like any relay output. */}
       <Grid.Col span={{ base: 12, md: 6 }} h={{ base: 'auto', md: '100%' }}>
-      <Stack gap="md" h="100%" style={{ minHeight: 0 }}>
-        <ClasFlowMeter stats={flowStats} />
-        <Card withBorder p="sm">
-          <Stack gap="xs">
-            <Text size="sm" fw={600}>
-              Position (from SBF PVTGeodetic)
-            </Text>
-            <PositionScatter points={points} />
-          </Stack>
-        </Card>
-        <Card withBorder p="sm" style={{ flex: 1, minHeight: 0 }}>
+        <Card withBorder p="sm" h="100%" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <Tabs defaultValue="relay" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Tabs.List>
               <Tabs.Tab value="relay">mrtk relay</Tabs.Tab>
@@ -535,7 +499,6 @@ export function ClasPipelinePanel() {
             </Tabs.Panel>
           </Tabs>
         </Card>
-      </Stack>
       </Grid.Col>
     </Grid>
   );
