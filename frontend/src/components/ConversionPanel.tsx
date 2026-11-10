@@ -835,7 +835,7 @@ export function ConversionPanel() {
                     <TextInput
                       size="xs"
                       value={hk.inputFile}
-                      onChange={e => setHk(prev => ({ ...prev, inputFile: e.currentTarget.value }))}
+                      onChange={e => { const value = e.currentTarget.value; setHk(prev => ({ ...prev, inputFile: value })); }}
                       placeholder={hk.direction === 'compress' ? '/data/site0010.24o' : '/data/site0010.24d.gz'}
                       style={{ flex: 1 }}
                       styles={{ input: { fontFamily: MONO } }}
@@ -850,7 +850,7 @@ export function ConversionPanel() {
                     <TextInput
                       size="xs"
                       value={hk.outputFile}
-                      onChange={e => setHk(prev => ({ ...prev, outputFile: e.currentTarget.value }))}
+                      onChange={e => { const value = e.currentTarget.value; setHk(prev => ({ ...prev, outputFile: value })); }}
                       placeholder={hatanakaOutputPath(hk.inputFile, hk.direction, hk.gzipOutput) || '/workspace/...'}
                       style={{ flex: 1 }}
                       styles={{ input: { fontFamily: MONO } }}
@@ -870,21 +870,21 @@ export function ConversionPanel() {
                   label="gzip output (.gz)"
                   styles={{ label: { fontSize: FONT_SIZE.label } }}
                   checked={hk.gzipOutput}
-                  onChange={e => setHk(prev => ({ ...prev, gzipOutput: e.currentTarget.checked }))}
+                  onChange={e => { const checked = e.currentTarget.checked; setHk(prev => ({ ...prev, gzipOutput: checked })); }}
                 />
                 <Switch
                   size="xs"
                   label="Skip strange epochs (-s)"
                   styles={{ label: { fontSize: FONT_SIZE.label } }}
                   checked={hk.skipStrange}
-                  onChange={e => setHk(prev => ({ ...prev, skipStrange: e.currentTarget.checked }))}
+                  onChange={e => { const checked = e.currentTarget.checked; setHk(prev => ({ ...prev, skipStrange: checked })); }}
                 />
                 <Switch
                   size="xs"
                   label="Overwrite an existing output file"
                   styles={{ label: { fontSize: FONT_SIZE.label } }}
                   checked={hk.overwrite}
-                  onChange={e => setHk(prev => ({ ...prev, overwrite: e.currentTarget.checked }))}
+                  onChange={e => { const checked = e.currentTarget.checked; setHk(prev => ({ ...prev, overwrite: checked })); }}
                 />
                 {hk.direction === 'compress' && (
                   <FormRow label="Reset Every (epochs)">
@@ -909,7 +909,7 @@ export function ConversionPanel() {
                   <TextInput
                     size="xs"
                     value={form.rawFile}
-                    onChange={e => setForm(prev => ({ ...prev, rawFile: e.currentTarget.value }))}
+                    onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, rawFile: value })); }}
                     placeholder="/data/raw/receiver.ubx"
                     style={{ flex: 1 }}
                   />
@@ -930,7 +930,7 @@ export function ConversionPanel() {
                 <TextInput
                   size="xs"
                   value={form.receiverOptions}
-                  onChange={e => setForm(prev => ({ ...prev, receiverOptions: e.currentTarget.value }))}
+                  onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, receiverOptions: value })); }}
                   placeholder="-ephall -tadj=1"
                 />
               </FormRow>
@@ -942,7 +942,7 @@ export function ConversionPanel() {
                   <TextInput
                     size="xs"
                     value={form.observationFile}
-                    onChange={e => setForm(prev => ({ ...prev, observationFile: e.currentTarget.value }))}
+                    onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, observationFile: value })); }}
                     placeholder="auto-generated"
                     style={{ flex: 1 }}
                   />
@@ -956,7 +956,7 @@ export function ConversionPanel() {
                   <TextInput
                     size="xs"
                     value={form.navigationFile}
-                    onChange={e => setForm(prev => ({ ...prev, navigationFile: e.currentTarget.value }))}
+                    onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, navigationFile: value })); }}
                     placeholder="auto-generated"
                     style={{ flex: 1 }}
                   />
@@ -978,7 +978,7 @@ export function ConversionPanel() {
                   <TextInput
                     size="xs"
                     value={form.outputDirectory}
-                    onChange={e => setForm(prev => ({ ...prev, outputDirectory: e.currentTarget.value }))}
+                    onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, outputDirectory: value })); }}
                     style={{ flex: 1 }}
                   />
                   <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={() => openFileBrowser('outputDirectory', 'workspace', true)}>
@@ -990,7 +990,7 @@ export function ConversionPanel() {
                 <TextInput
                   size="xs"
                   value={form.stationId}
-                  onChange={e => setForm(prev => ({ ...prev, stationId: e.currentTarget.value }))}
+                  onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, stationId: value })); }}
                 />
               </FormRow>
 
@@ -1090,49 +1090,49 @@ export function ConversionPanel() {
                     label="Include Doppler"
                     styles={{ label: { fontSize: FONT_SIZE.label } }}
                     checked={form.includeDoppler}
-                    onChange={e => setForm(prev => ({ ...prev, includeDoppler: e.currentTarget.checked }))}
+                    onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, includeDoppler: checked })); }}
                   />
                   <Switch
                     size="xs"
                     label="Include SNR"
                     styles={{ label: { fontSize: FONT_SIZE.label } }}
                     checked={form.includeSnr}
-                    onChange={e => setForm(prev => ({ ...prev, includeSnr: e.currentTarget.checked }))}
+                    onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, includeSnr: checked })); }}
                   />
                   <Switch
                     size="xs"
                     label="Iono Correction"
                     styles={{ label: { fontSize: FONT_SIZE.label } }}
                     checked={form.ionoCorrection}
-                    onChange={e => setForm(prev => ({ ...prev, ionoCorrection: e.currentTarget.checked }))}
+                    onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, ionoCorrection: checked })); }}
                   />
                   <Switch
                     size="xs"
                     label="Time Correction"
                     styles={{ label: { fontSize: FONT_SIZE.label } }}
                     checked={form.timeCorrection}
-                    onChange={e => setForm(prev => ({ ...prev, timeCorrection: e.currentTarget.checked }))}
+                    onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, timeCorrection: checked })); }}
                   />
                   <Switch
                     size="xs"
                     label="Leap Seconds"
                     styles={{ label: { fontSize: FONT_SIZE.label } }}
                     checked={form.leapSeconds}
-                    onChange={e => setForm(prev => ({ ...prev, leapSeconds: e.currentTarget.checked }))}
+                    onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, leapSeconds: checked })); }}
                   />
                   <Switch
                     size="xs"
                     label="Half-cycle Corr"
                     styles={{ label: { fontSize: FONT_SIZE.label } }}
                     checked={form.halfCycleCorr}
-                    onChange={e => setForm(prev => ({ ...prev, halfCycleCorr: e.currentTarget.checked }))}
+                    onChange={e => { const checked = e.currentTarget.checked; setForm(prev => ({ ...prev, halfCycleCorr: checked })); }}
                   />
                 </Group>
                 <FormRow label="Exclude Satellites">
                   <TextInput
                     size="xs"
                     value={form.excludeSatellites}
-                    onChange={e => setForm(prev => ({ ...prev, excludeSatellites: e.currentTarget.value }))}
+                    onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, excludeSatellites: value })); }}
                     placeholder="G04 G05 R09"
                   />
                 </FormRow>
@@ -1140,7 +1140,7 @@ export function ConversionPanel() {
                   <TextInput
                     size="xs"
                     value={form.signalMask}
-                    onChange={e => setForm(prev => ({ ...prev, signalMask: e.currentTarget.value }))}
+                    onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, signalMask: value })); }}
                   />
                 </FormRow>
               </CollapsibleSection>
@@ -1148,44 +1148,44 @@ export function ConversionPanel() {
               {/* RINEX Header (collapsible) */}
               <CollapsibleSection label="RINEX Header">
                 <FormRow label="Comment">
-                  <TextInput size="xs" value={form.comment} onChange={e => setForm(prev => ({ ...prev, comment: e.currentTarget.value }))} />
+                  <TextInput size="xs" value={form.comment} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, comment: value })); }} />
                 </FormRow>
                 <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Marker" style={LABEL_STYLE}
                     fields={[{ name: 'Name' }, { name: 'Number' }, { name: 'Type' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <TextInput size="xs" title="Marker Name" aria-label="Marker Name" placeholder="Name" value={form.markerName} onChange={e => setForm(prev => ({ ...prev, markerName: e.currentTarget.value }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="Marker Number" aria-label="Marker Number" placeholder="Number" value={form.markerNumber} onChange={e => setForm(prev => ({ ...prev, markerNumber: e.currentTarget.value }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="Marker Type" aria-label="Marker Type" placeholder="Type" value={form.markerType} onChange={e => setForm(prev => ({ ...prev, markerType: e.currentTarget.value }))} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Marker Name" aria-label="Marker Name" placeholder="Name" value={form.markerName} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, markerName: value })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Marker Number" aria-label="Marker Number" placeholder="Number" value={form.markerNumber} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, markerNumber: value })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Marker Type" aria-label="Marker Type" placeholder="Type" value={form.markerType} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, markerType: value })); }} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
                 <FormRow label="Observer/Agency">
-                  <TextInput size="xs" value={form.observerAgency} onChange={e => setForm(prev => ({ ...prev, observerAgency: e.currentTarget.value }))} />
+                  <TextInput size="xs" value={form.observerAgency} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, observerAgency: value })); }} />
                 </FormRow>
                 <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Receiver / Antenna" style={LABEL_STYLE}
                     fields={[{ name: 'Receiver' }, { name: 'Antenna' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <TextInput size="xs" title="Receiver" aria-label="Receiver" placeholder="Receiver" value={form.receiver} onChange={e => setForm(prev => ({ ...prev, receiver: e.currentTarget.value }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="Antenna" aria-label="Antenna" placeholder="Antenna" value={form.antenna} onChange={e => setForm(prev => ({ ...prev, antenna: e.currentTarget.value }))} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Receiver" aria-label="Receiver" placeholder="Receiver" value={form.receiver} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, receiver: value })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Antenna" aria-label="Antenna" placeholder="Antenna" value={form.antenna} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, antenna: value })); }} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
                 <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Approx Position" style={LABEL_STYLE}
                     fields={[{ name: 'X (m)' }, { name: 'Y (m)' }, { name: 'Z (m)' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <TextInput size="xs" title="X" aria-label="X" placeholder="X" value={xyz(form.approxPosition)[0]} onChange={e => setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 0, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="Y" aria-label="Y" placeholder="Y" value={xyz(form.approxPosition)[1]} onChange={e => setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 1, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="Z" aria-label="Z" placeholder="Z" value={xyz(form.approxPosition)[2]} onChange={e => setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 2, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="X" aria-label="X" placeholder="X" value={xyz(form.approxPosition)[0]} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 0, value) })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Y" aria-label="Y" placeholder="Y" value={xyz(form.approxPosition)[1]} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 1, value) })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="Z" aria-label="Z" placeholder="Z" value={xyz(form.approxPosition)[2]} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, approxPosition: setXyz(prev.approxPosition, 2, value) })); }} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
                 <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <ComboLabel label="Antenna Delta" style={LABEL_STYLE}
                     fields={[{ name: 'H (m)' }, { name: 'E (m)' }, { name: 'N (m)' }]} />
                   <Group wrap="nowrap" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                    <TextInput size="xs" title="H" aria-label="H" placeholder="H" value={xyz(form.antennaDelta)[0]} onChange={e => setForm(prev => ({ ...prev, antennaDelta: setXyz(prev.antennaDelta, 0, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="E" aria-label="E" placeholder="E" value={xyz(form.antennaDelta)[1]} onChange={e => setForm(prev => ({ ...prev, antennaDelta: setXyz(prev.antennaDelta, 1, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
-                    <TextInput size="xs" title="N" aria-label="N" placeholder="N" value={xyz(form.antennaDelta)[2]} onChange={e => setForm(prev => ({ ...prev, antennaDelta: setXyz(prev.antennaDelta, 2, e.currentTarget.value) }))} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="H" aria-label="H" placeholder="H" value={xyz(form.antennaDelta)[0]} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, antennaDelta: setXyz(prev.antennaDelta, 0, value) })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="E" aria-label="E" placeholder="E" value={xyz(form.antennaDelta)[1]} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, antennaDelta: setXyz(prev.antennaDelta, 1, value) })); }} style={{ flex: 1, minWidth: 0 }} />
+                    <TextInput size="xs" title="N" aria-label="N" placeholder="N" value={xyz(form.antennaDelta)[2]} onChange={e => { const value = e.currentTarget.value; setForm(prev => ({ ...prev, antennaDelta: setXyz(prev.antennaDelta, 2, value) })); }} style={{ flex: 1, minWidth: 0 }} />
                   </Group>
                 </Group>
               </CollapsibleSection>
