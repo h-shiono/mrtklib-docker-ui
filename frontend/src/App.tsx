@@ -39,7 +39,7 @@ import { RealTimeProcessing, type RtLiveStatus } from './components/RealTimeProc
 import { qualityColor, qualityLabel, qualityTextColor } from './utils/quality';
 import { STATUS_COLOR } from './utils/status';
 import { StatusBadge } from './components/common/StatusBadge';
-import { ConversionPanel } from './components/ConversionPanel';
+import { ConversionPanel, type ConvertTool } from './components/ConversionPanel';
 import { StreamPathHelp } from './components/StreamPathHelp';
 import { ClasPipelinePanel } from './components/ClasPipelinePanel';
 import { StreamMonitorPanel } from './components/StreamMonitorPanel';
@@ -1252,10 +1252,12 @@ const PRIMARY_MODES = [
   { value: 'post-processing', label: 'Post-processing' },
 ] as const;
 
+/** The Tools entries that are converters (Tools → Conversion). */
+const isConverter = (id: string): id is ConvertTool => id === 'convbin' || id === 'hatanaka';
+
 const SECONDARY_VIEWS = [
   { value: 'stream-relay', label: 'Stream Relay' },
   { value: 'stream-monitor', label: 'Stream Monitor' },
-  { value: 'conversion', label: 'Conversion' },
   { value: 'tools', label: 'Tools' },
 ] as const;
 
@@ -1312,7 +1314,22 @@ function App() {
   const handleRtStatus = useCallback((s: RtLiveStatus | null) => setRtStatus(s), []);
   const [healthStatus, setHealthStatus] = useState<'loading' | 'ok' | 'error'>('loading');
   const [mrtkVersion, setMrtkVersion] = useState<string>('');
-  const [selectedTool, setSelectedTool] = useState('time-converter');
+  const [selectedTool, setSelectedToolState] = useState('convbin');
+  // A running conversion keeps its tool: the other converter's form would
+  // hide it. Any other tool may be opened; the conversion keeps running.
+  const [conversionBusy, setConversionBusy] = useState(false);
+  const setSelectedTool = useCallback((id: string) => {
+    setSelectedToolState((cur) => (
+      conversionBusy && isConverter(cur) && isConverter(id) ? cur : id
+    ));
+  }, [conversionBusy]);
+  // The converter on screen. The panel stays mounted while another tool is
+  // open, so a running conversion and its log survive.
+  const [conversionTool, setConversionTool] = useState<ConvertTool>('convbin');
+  if (isConverter(selectedTool) && selectedTool !== conversionTool) {
+    setConversionTool(selectedTool);
+  }
+  const showConversion = isConverter(selectedTool);
 
   // Lifted AI configuration state — shared across sidebar, PP, RT, and settings panel
   const [aiConfigured, setAiConfigured] = useState(false);
@@ -1421,7 +1438,6 @@ function App() {
             <Tabs.Tab value="realtime">RT</Tabs.Tab>
             <Tabs.Tab value="stream-relay">Relay</Tabs.Tab>
             <Tabs.Tab value="stream-monitor">Monitor</Tabs.Tab>
-            <Tabs.Tab value="conversion">Convert</Tabs.Tab>
             <Tabs.Tab value="tools">Tools</Tabs.Tab>
           </Tabs.List>
         </Tabs>
@@ -1439,14 +1455,14 @@ function App() {
         <div style={{ display: activeTab === 'stream-monitor' ? undefined : 'none' }}>
           <StreamMonitorPanel configOpen={configOpen} onToggleConfig={toggleConfig} />
         </div>
-        <div style={{ display: activeTab === 'conversion' ? undefined : 'none' }}>
-          <ConversionPanel />
-        </div>
         <div style={{ display: activeTab === 'tools' ? 'flex' : 'none', width: '100%', height: SCREEN_HEIGHT, overflow: 'hidden', border: '1px solid var(--mantine-color-default-border)', borderRadius: 'var(--mantine-radius-md)', background: 'var(--mantine-color-default)' }}>
           <div style={{ width: 160, flexShrink: 0, borderRight: '1px solid var(--mantine-color-default-border)', overflowY: 'auto' }}>
             <ToolsSidebar selected={selectedTool} onSelect={setSelectedTool} aiConfigured={aiConfigured} />
           </div>
-          <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '1.5rem 2rem' }}>
+          <div style={{ flex: 1, minWidth: 0, display: showConversion ? undefined : 'none' }}>
+            <ConversionPanel tool={conversionTool} onBusyChange={setConversionBusy} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '1.5rem 2rem', display: showConversion ? 'none' : undefined }}>
             {selectedTool === 'time-converter' && <GnssTimeConverter />}
             {selectedTool === 'downloader' && <DataDownloader />}
             {selectedTool === 'ai-settings' && <AiSettingsPanel onSettingsSaved={refreshAiConfigured} />}

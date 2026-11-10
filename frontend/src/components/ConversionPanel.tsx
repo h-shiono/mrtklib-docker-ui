@@ -29,10 +29,7 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconFolder,
-  IconRefresh,
-  IconFileCode,
   IconCalendar,
-  IconFileZip,
 } from '@tabler/icons-react';
 import { FileBrowserModal } from './FileBrowserModal';
 import { ComboLabel } from './common/OptionLabel';
@@ -42,7 +39,6 @@ import { hatanakaOutputPath, type HatanakaDirection } from '../utils/hatanakaNam
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
-import { SCREEN_HEIGHT } from '../utils/formLayout';
 import { SectionHeader } from './common/SectionHeader';
 import { LogView } from './common/LogView';
 
@@ -51,7 +47,7 @@ import { LogView } from './common/LogView';
 type ConvertStatus = 'idle' | 'converting' | 'done' | 'failed';
 type RightPanelTab = 'console' | 'preview';
 type PreviewFileType = 'obs' | 'nav';
-type ConvertTool = 'convbin' | 'hatanaka';
+export type ConvertTool = 'convbin' | 'hatanaka';
 
 // Hatanaka compression: rnx2crx / crx2rnx run as filters by the backend (#81)
 interface HatanakaFormState {
@@ -204,56 +200,6 @@ const LABEL_STYLE = { width: FORM_LABEL_WIDTH, flexShrink: 0, fontSize: FONT_SIZ
 
 // ─── Sidebar components ─────────────────────────────────────────────────────
 
-function SidebarGroup({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <>
-      <Group
-        gap={6}
-        style={{
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-          fontSize: FONT_SIZE.caption,
-          padding: '12px 8px 4px',
-          userSelect: 'none',
-          color: 'var(--mantine-color-dimmed)',
-        }}
-      >
-        {icon}
-        <Text size="xs" fw={600} c="dimmed" style={{ fontSize: FONT_SIZE.caption }}>{label}</Text>
-      </Group>
-      {children}
-    </>
-  );
-}
-
-function SidebarItem({ label, icon, active, onClick }: {
-  label: string;
-  icon: React.ReactNode;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <UnstyledButton
-      onClick={onClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        width: '100%',
-        padding: '6px 8px',
-        fontSize: FONT_SIZE.label,
-        borderLeft: active ? '2px solid var(--mantine-primary-color-filled)' : '2px solid transparent',
-        backgroundColor: active ? 'var(--mantine-color-default-hover)' : undefined,
-        color: active ? 'var(--mantine-color-text)' : 'var(--mantine-color-dimmed)',
-        fontWeight: active ? 500 : 400,
-      }}
-    >
-      {icon}
-      {label}
-    </UnstyledButton>
-  );
-}
-
 // ─── Collapsible Section ────────────────────────────────────────────────────
 
 function CollapsibleSection({ label, children, defaultOpen = false }: {
@@ -302,8 +248,12 @@ function setXyz(s: string, idx: number, val: string): string {
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
-export function ConversionPanel() {
-  const [tool, setTool] = useState<ConvertTool>('convbin');
+/** Tools → Conversion. `tool` is chosen in the Tools sidebar; `onBusyChange`
+ *  reports a running conversion, during which the sidebar keeps the tool. */
+export function ConversionPanel({ tool, onBusyChange }: {
+  tool: ConvertTool;
+  onBusyChange?: (busy: boolean) => void;
+}) {
   const [form, setForm] = useState<ConvertFormState>(DEFAULT_FORM);
   const [hk, setHk] = useState<HatanakaFormState>(DEFAULT_HATANAKA);
   const hkOutput = hk.outputFile.trim() || hatanakaOutputPath(hk.inputFile, hk.direction, hk.gzipOutput);
@@ -734,45 +684,14 @@ export function ConversionPanel() {
     window.open(`${baseUrl}/api/files/download?path=${encodeURIComponent(filePath)}`, '_blank');
   }, [activePreviewFile, outputFiles]);
 
+  useEffect(() => {
+    onBusyChange?.(status === 'converting');
+  }, [status, onBusyChange]);
+
   const statusLabel = status === 'converting' ? 'Converting' : status === 'done' ? 'Done' : status === 'failed' ? 'Failed' : 'Idle';
 
   return (
-    <Box style={{
-      display: 'flex',
-      width: '100%',
-      height: SCREEN_HEIGHT,
-      overflow: 'hidden',
-      border: '1px solid var(--mantine-color-default-border)',
-      borderRadius: 'var(--mantine-radius-md)',
-      background: 'var(--mantine-color-default)',
-    }}>
-      {/* Sidebar */}
-      <Box style={{
-        width: 160,
-        flexShrink: 0,
-        borderRight: '1px solid var(--mantine-color-default-border)',
-        overflowY: 'auto',
-      }}>
-        <Stack gap={0}>
-          <SidebarGroup label="FORMAT" icon={<IconFileCode size={12} />}>
-            <SidebarItem
-              label="RINEX Converter"
-              icon={<IconRefresh size={14} />}
-              active={tool === 'convbin'}
-              onClick={() => status !== 'converting' && setTool('convbin')}
-            />
-            <SidebarItem
-              label="Hatanaka (CRX)"
-              icon={<IconFileZip size={14} />}
-              active={tool === 'hatanaka'}
-              onClick={() => status !== 'converting' && setTool('hatanaka')}
-            />
-          </SidebarGroup>
-        </Stack>
-      </Box>
-
-      {/* Main content */}
-      <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+    <Box style={{ height: '100%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         {/* Header bar */}
         <Group
           justify="space-between"
@@ -1376,7 +1295,6 @@ export function ConversionPanel() {
             )}
           </Box>
         </Box>
-      </Box>
 
       {/* File Browser Modal */}
       <FileBrowserModal

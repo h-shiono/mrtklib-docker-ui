@@ -197,8 +197,8 @@ Weights are 400, 500 and 600, with 700 reserved for state words.
 
 ## Layout
 
-No screen scrolls as a page. On every screen, including Stream Relay,
-Conversion and Tools, the columns take `calc(100dvh - 114px)` and scroll inside
+No screen scrolls as a page. On every screen, including Stream Relay and
+Tools, the columns take `calc(100dvh - 114px)` and scroll inside
 themselves, so touching a setting never moves the workspace.
 
 The config column is a section rail and a form. Form rows use a 130px label, an
@@ -209,7 +209,7 @@ bottom: the summary strip (auto height, no wrapping reflow), the tab bar, the
 panel (fills the remaining height) and the status footer (pinned, one compact
 row; Post-processing has no live stream and omits it). Tabs are ordered Chart,
 Solution, Console, then Trace or Message. Stream
-Relay, Conversion and Tools have no positioning summary, so they take neither
+Relay and Tools have no positioning summary, so they take neither
 the summary strip nor the status footer.
 
 The column split collapses below Mantine's `sm` breakpoint. Tablets and phones
@@ -257,7 +257,7 @@ Precise and restrained.
 - **Config header:** one row: collapse, title, `?`, then the state badge (always shown, including idle), utility icons and, at the far right, the primary action.
 
 ### Console (`LogView`)
-The one log view (`common/LogView`), used for Console, Solution and Trace on every screen and in Relay, Conversion and the CLAS pipeline.
+The one log view (`common/LogView`), used for Console, Solution and Trace on every screen and in Relay, Tools → Conversion and the CLAS pipeline.
 - **Surface:** `console-dark` and `console-light` by theme. It fills its panel.
 - **Toolbar:** one row above the lines: search with count and previous/next, matching-only, then copy and download when a file exists. There is no clear: a new run starts its own log. It stays with the log rather than the tab bar, which has no room for it beside the tabs.
 - **Follow:** `useFollowScroll` everywhere, with "Paused · Jump to latest".
