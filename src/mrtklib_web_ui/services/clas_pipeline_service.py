@@ -33,7 +33,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Awaitable, Callable
 
-from mrtklib_web_ui.services.process_manager import process_manager, ProcessState
+from mrtklib_web_ui.services.process_manager import process_manager
 from mrtklib_web_ui.services.receiver_presets import get_preset
 from mrtklib_web_ui.services.sbf_pvt_sniffer import (
     FlowStats,
@@ -62,9 +62,6 @@ class PipelineState(str, Enum):
     ERROR = "error"
 
 
-_WORKSPACE_ROOT = Path("/workspace")
-
-
 @dataclass
 class PipelineConfig:
     """User-facing config — what the Wizard form posts."""
@@ -73,35 +70,12 @@ class PipelineConfig:
     input_device: str       # e.g. /dev/serial/by-id/usb-Septentrio_...
     input_baud: int
     bridge_port: int = DEFAULT_BRIDGE_PORT
-    # Optional: tee the raw SBF stream into a file under /workspace.
-    # `mrtk relay` interprets %Y / %m / %d / %h / %M / %S in file paths.
-    sbf_record_path: str | None = None
+    # Further relay outputs after the bridge, as mrtk relay stream arguments
+    # (e.g. a file to record the raw SBF, a TCP server for other apps). The
+    # API validates and numbers them (`api.mrtk_relay`); they carry no
+    # relay-back, which only reads the first output.
+    outputs: list[str] = field(default_factory=list)
 
-
-def _validate_sbf_record_path(raw: str) -> tuple[Path | None, str | None]:
-    """Resolve a user-supplied record path against /workspace.
-
-    Returns (parent_dir_to_create, error_message). The relay process is
-    what actually opens the file (so it can apply mrtk's own time-format
-    expansion); we only ensure the parent directory exists and that the
-    target lives under /workspace.
-    """
-    p = Path(raw)
-    if not p.is_absolute():
-        p = _WORKSPACE_ROOT / p
-    try:
-        # Resolve symlinks in the parent — the leaf may not exist yet
-        # (it's created by relay) and may contain mrtk's %Y / %h tokens.
-        parent = p.parent.resolve(strict=False)
-    except OSError as e:
-        return None, f"Invalid SBF record path: {e}"
-    if parent != _WORKSPACE_ROOT and _WORKSPACE_ROOT not in parent.parents:
-        return None, (
-            f"SBF record path must be under /workspace (got {raw}). "
-            "Anything written outside /workspace is lost when the "
-            "container restarts."
-        )
-    return parent, None
 
 
 @dataclass
@@ -112,6 +86,7 @@ class PipelineStatus:
     started_at: datetime | None = None
     error_message: str | None = None
     bridge_port: int | None = None
+    outputs: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -245,6 +220,7 @@ class ClasPipelineService:
             state=PipelineState.STARTING,
             started_at=datetime.now(),
             bridge_port=config.bridge_port,
+            outputs=list(config.outputs),
         )
 
         if _is_stream_url(config.input_device):
@@ -264,26 +240,10 @@ class ClasPipelineService:
         # `-b 1` = relay-back from the first -out stream (the TCP server) to
         # the serial input. This is what carries cssr2rtcm3's RTCM3 back down
         # the single serial port to the receiver. The TCP server MUST stay the
-        # first -out (the optional file record is appended after it).
+        # first -out; the further outputs come after it.
         relay_args: list[str] = ["-in", relay_in, "-b", "1", "-out", relay_out_tcp]
-        if config.sbf_record_path:
-            parent, err = _validate_sbf_record_path(config.sbf_record_path)
-            if err is not None:
-                self._status = PipelineStatus(
-                    state=PipelineState.ERROR, error_message=err
-                )
-                return self._status
-            assert parent is not None
-            try:
-                parent.mkdir(parents=True, exist_ok=True)
-            except OSError as e:
-                self._status = PipelineStatus(
-                    state=PipelineState.ERROR,
-                    error_message=f"Cannot create SBF record directory {parent}: {e}",
-                )
-                return self._status
-            # `mrtk relay` expands its own time-format tokens (%Y, %h, ...).
-            relay_args += ["-out", f"file://{config.sbf_record_path}"]
+        for out in config.outputs:
+            relay_args += ["-out", out]
 
         try:
             await process_manager.start(

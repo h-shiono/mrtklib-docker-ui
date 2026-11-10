@@ -6,7 +6,6 @@ import {
   Autocomplete,
   Button,
   Card,
-  Checkbox,
   Code,
   Grid,
   Group,
@@ -23,11 +22,16 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconAlertCircle,
+  IconLock,
   IconPlayerPlay,
   IconPlayerStop,
+  IconPlus,
   IconQuestionMark,
   IconRefresh,
+  IconTrash,
 } from '@tabler/icons-react';
+import { StreamPathHelp } from './StreamPathHelp';
+import { randomUUID } from '../utils/uuid';
 import { useWebSocket, type LogMessage } from '../hooks';
 import * as clasApi from '../api/clasPipeline';
 import { ClasFlowMeter, type FlowStats } from './ClasFlowMeter';
@@ -80,6 +84,22 @@ function ClasHelp() {
   );
 }
 
+/** Further relay outputs: record the raw SBF, or hand it to other apps. */
+type OutputType = 'file' | 'tcpsvr';
+interface ClasOutput { id: string; type: OutputType; path: string }
+
+const OUTPUT_TYPES = [
+  { value: 'file', label: 'File' },
+  { value: 'tcpsvr', label: 'TCP Server' },
+];
+const OUTPUT_DEFAULT: Record<OutputType, string> = {
+  file: '/workspace/clas/sbf_%Y%m%d_%h%M%S.sbf',
+  tcpsvr: ':9871',
+};
+const MAX_OUTPUTS = 4;
+
+const outputArg = (o: ClasOutput) => `${o.type}://${o.path.trim()}`;
+
 const STATE_LABEL: Record<string, string> = {
   idle: 'Idle', starting: 'Starting', running: 'Running',
   stopping: 'Stopping', stopped: 'Stopped', error: 'Error',
@@ -96,11 +116,7 @@ export function ClasPipelinePanel() {
   const [inputDevice, setInputDevice] = useState<string>('');
   const [inputBaud, setInputBaud] = useState<number>(115200);
   const [bridgePort, setBridgePort] = useState<number>(9870);
-  const [recordSbf, setRecordSbf] = useState<boolean>(false);
-  const [sbfRecordPath, setSbfRecordPath] = useState<string>(
-    '/workspace/clas/sbf_%Y%m%d_%h%M%S.sbf',
-  );
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [outputs, setOutputs] = useState<ClasOutput[]>([]);
 
   // --- Pipeline runtime state ---
   const [pipelineStatus, setPipelineStatus] = useState<clasApi.PipelineStatus>({
@@ -233,9 +249,16 @@ export function ClasPipelinePanel() {
         input_device: inputDevice,
         input_baud: inputBaud,
         bridge_port: bridgePort,
-        sbf_record_path: recordSbf ? sbfRecordPath : null,
+        outputs: outputs.map(outputArg),
       });
       setPipelineStatus(status);
+      // A file output that would overwrite an existing file is numbered
+      // (_2, _3, ...) by the server; say which file is written.
+      const numbered = outputs.flatMap((o, i) => {
+        const written = status.outputs?.[i];
+        return written && written !== outputArg(o) ? [`[INFO] Target in use, writing to ${written}`] : [];
+      });
+      if (numbered.length) setRelayLog((prev) => [...prev, ...numbered]);
     } catch (e) {
       setPipelineStatus((prev) => ({
         ...prev,
@@ -379,53 +402,96 @@ export function ClasPipelinePanel() {
             />
           </FormRow>
 
-          {/* SBF recording — tee the relay's SBF stream to a file */}
-          <FormRow label="Record raw SBF">
-            <Checkbox
-              size="sm"
-              checked={recordSbf}
-              onChange={(e) => setRecordSbf(e.currentTarget.checked)}
-              disabled={isRunning}
-              label="Save the SBF stream to /workspace for post-mortem analysis"
-            />
-          </FormRow>
-          {recordSbf && (
-            <FormRow label="SBF file path">
-              <TextInput
-                value={sbfRecordPath}
-                onChange={(e) => setSbfRecordPath(e.currentTarget.value)}
-                disabled={isRunning}
-                placeholder="/workspace/clas/sbf_%Y%m%d_%h%M%S.sbf"
-                description="mrtk relay expands %Y %m %d %h %M %S at write time."
-                styles={{
-                  input: { fontFamily: 'var(--mantine-font-family-monospace)' },
-                  description: { fontSize: FONT_SIZE.label },
-                }}
-              />
-            </FormRow>
-          )}
-
-          {/* Advanced */}
-          <Anchor
-            size="xs"
-            component="button"
-            type="button"
-            onClick={() => setShowAdvanced((v) => !v)}
+          {/* Outputs, as in Stream Relay. The first is the bridge to
+              cssr2rtcm3 and must stay first: -b 1 relays back from it. */}
+          <FormRow
+            label={<Group gap={4} wrap="nowrap">Outputs<StreamPathHelp /></Group>}
+            align="flex-start"
+            trailing={
+              <ActionIcon
+                variant="light"
+                color="blue"
+                size="xs"
+                onClick={() => setOutputs((prev) => [...prev, { id: randomUUID(), type: 'file', path: OUTPUT_DEFAULT.file }])}
+                disabled={isRunning || outputs.length >= MAX_OUTPUTS}
+                aria-label="Add output"
+              >
+                <IconPlus size={10} />
+              </ActionIcon>
+            }
           >
-            {showAdvanced ? 'Hide' : 'Show'} advanced
-          </Anchor>
-          {showAdvanced && (
-            <FormRow label="Bridge TCP port">
-              <NumberInput
-                value={bridgePort}
-                onChange={(v) => setBridgePort(typeof v === 'number' ? v : 9870)}
-                min={1025}
-                max={65535}
-                disabled={isRunning}
-                description="Loopback port between mrtk relay and mrtk cssr2rtcm3."
-              />
-            </FormRow>
-          )}
+            <Stack gap={6}>
+              <Group gap={FORM_LABEL_GAP} wrap="nowrap">
+                <Select
+                  aria-label="Bridge output type"
+                  value="tcpsvr"
+                  data={OUTPUT_TYPES}
+                  disabled
+                  style={{ width: 120, flexShrink: 0 }}
+                />
+                <NumberInput
+                  aria-label="Bridge port"
+                  value={bridgePort}
+                  onChange={(v) => setBridgePort(typeof v === 'number' ? v : 9870)}
+                  min={1025}
+                  max={65535}
+                  hideControls
+                  prefix=":"
+                  disabled={isRunning}
+                  style={{ flex: 1, minWidth: 0 }}
+                  styles={{ input: { fontFamily: MONO } }}
+                />
+                <Tooltip
+                  label="Bridge: feeds mrtk cssr2rtcm3 and takes its RTCM3 back to the receiver (relay-back). Always the first output."
+                  multiline
+                  w={260}
+                  openDelay={300}
+                >
+                  <ActionIcon variant="subtle" color="gray" size="xs" aria-label="About the bridge output" style={{ flexShrink: 0 }}>
+                    <IconLock size={10} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+              {outputs.map((o) => (
+                <Group key={o.id} gap={FORM_LABEL_GAP} wrap="nowrap">
+                  <Select
+                    aria-label="Output type"
+                    value={o.type}
+                    onChange={(v) => v && setOutputs((prev) => prev.map((x) => (
+                      x.id === o.id ? { ...x, type: v as OutputType, path: OUTPUT_DEFAULT[v as OutputType] } : x
+                    )))}
+                    data={OUTPUT_TYPES}
+                    allowDeselect={false}
+                    disabled={isRunning}
+                    style={{ width: 120, flexShrink: 0 }}
+                  />
+                  <TextInput
+                    aria-label="Output path"
+                    value={o.path}
+                    onChange={(e) => {
+                      const path = e.currentTarget.value;
+                      setOutputs((prev) => prev.map((x) => (x.id === o.id ? { ...x, path } : x)));
+                    }}
+                    placeholder={OUTPUT_DEFAULT[o.type]}
+                    disabled={isRunning}
+                    style={{ flex: 1, minWidth: 0 }}
+                    styles={{ input: { fontFamily: MONO } }}
+                  />
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    size="xs"
+                    onClick={() => setOutputs((prev) => prev.filter((x) => x.id !== o.id))}
+                    disabled={isRunning}
+                    aria-label="Remove output"
+                    style={{ flexShrink: 0 }}
+                  >
+                    <IconTrash size={10} />
+                  </ActionIcon>
+                </Group>
+              ))}
+            </Stack>
+          </FormRow>
 
           {pipelineStatus.error_message && (
             <Alert

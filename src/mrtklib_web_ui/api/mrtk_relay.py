@@ -213,10 +213,10 @@ def _number_file_outputs(args: list[str], reserved: set[str], now: datetime) -> 
 
 
 def _running_relay_files(now: datetime) -> set[str]:
-    """Files the running Stream Relay relays write, as resolved paths."""
+    """Files the running relays write (Stream Relay, CLAS to RTCM3), as resolved paths."""
     files: set[str] = set()
     for info in process_manager.get_all_processes():
-        if info.id not in _stream_names or info.state.value not in ("starting", "running"):
+        if info.command != "str2str" or info.state.value not in ("starting", "running"):
             continue
         for i in _file_outputs(info.args):
             path = _stream_file_path(info.args[i])

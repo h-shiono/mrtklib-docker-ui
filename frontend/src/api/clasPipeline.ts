@@ -26,6 +26,8 @@ export interface PipelineStatus {
   started_at: string | null;
   error_message: string | null;
   bridge_port: number | null;
+  /** Further relay outputs, as written (a file output may be numbered). */
+  outputs?: string[];
 }
 
 export interface PipelineStartRequest {
@@ -33,7 +35,8 @@ export interface PipelineStartRequest {
   input_device: string;
   input_baud: number;
   bridge_port?: number;
-  sbf_record_path?: string | null;
+  /** Further relay outputs after the bridge, as mrtk relay stream arguments. */
+  outputs?: string[];
 }
 
 async function handle<T>(res: Response): Promise<T> {
