@@ -52,6 +52,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   run starts its own log, and a cleared Stream Relay log came back on reload.
 
 ### Fixed
+- Conversion: typing in a text field could blank the whole page (the event
+  was read inside a state updater that React may run later).
 - Observation QC: switching the SNR plot to Elevation without a NAV file could
   crash the dialog.
 
