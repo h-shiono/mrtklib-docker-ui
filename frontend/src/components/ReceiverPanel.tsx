@@ -1,6 +1,6 @@
 /**
- * Receiver configuration of one stream (#136), Septentrio mosaic first: the
- * Receiver tab of the Streams page, next to the stream's Messages tab, which
+ * Receiver configuration of one stream (#136), Septentrio mosaic and u-blox
+ * ZED-F9P / NEO-D9C: the Receiver tab of the Streams page, next to the stream's Messages tab, which
  * shows at once whether the receiver now outputs what was asked.
  *
  * Commands go through the stream's own connection (the browser's serial
@@ -10,7 +10,7 @@
  * settings, saving to the boot configuration, and an expert console.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -29,16 +29,28 @@ import { useLocalStorage } from '@mantine/hooks';
 import { IconCheck, IconDeviceFloppy, IconRefresh, IconX } from '@tabler/icons-react';
 import type { MonitorConsoleEntry } from '../api/streamMonitor';
 import { FormRow } from './common/FormRow';
-import { isFailure } from '../utils/receiverConsole';
+import { commandText, isFailure, type ReceiverCommand } from '../utils/receiverConsole';
 import { SbfOutputEditor } from './SbfOutputEditor';
+import { UbloxOutputEditor } from './UbloxOutputEditor';
+import { UbloxPortsView } from './UbloxPortsView';
+import type { UbloxModel } from '../utils/ubloxCatalog';
+import {
+  LAYER_BBR,
+  LAYER_FLASH,
+  UBLOX_MODELS,
+  acceptsValset,
+  readKeys,
+  ubloxModelFromVersion,
+  ubloxReadCommands,
+  valset,
+  type UbloxSettings,
+} from '../utils/ublox';
 import { STATUS_COLOR } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import {
-  EMPTY_SETTINGS,
   READ_COMMANDS,
   SAVE_COMMAND,
   SEPTENTRIO_MODELS,
-  applyReply,
   modelFromName,
   type SeptentrioModel,
   type SeptentrioSettings,
@@ -65,10 +77,34 @@ export interface ReceiverLink {
   note?: string | null;
   /** Changes with each new session: the panel reads the receiver again. */
   session: string | null;
-  consoleEntries: MonitorConsoleEntry[];
-  /** Send one command; resolves with its answer, null after a timeout. */
-  sendCommand: (command: { line: string } | { hex: string }) => Promise<MonitorConsoleEntry | null>;
+  /** What the receiver reported in its replies (latest of each setting). */
+  septentrio: SeptentrioSettings;
+  ublox: UbloxSettings;
+  /** Send one command; resolves with its answer (the first reply `accept`
+   *  takes, if given), null after a timeout. */
+  sendCommand: (
+    command: { line: string } | { hex: string },
+    accept?: (entry: MonitorConsoleEntry) => boolean,
+  ) => Promise<MonitorConsoleEntry | null>;
 }
+
+type ReceiverModel = SeptentrioModel | UbloxModel;
+
+const MODEL_OPTIONS = [
+  { group: 'Septentrio', items: SEPTENTRIO_MODELS.map((m) => ({ value: m, label: `Septentrio ${m}` })) },
+  { group: 'u-blox', items: UBLOX_MODELS.map((m) => ({ value: m, label: `u-blox ${m}` })) },
+];
+
+const isUbloxModel = (m: string): m is UbloxModel => (UBLOX_MODELS as string[]).includes(m);
+
+/** What a fresh session reads from the receiver. */
+function readCommands(model: ReceiverModel): ReceiverCommand[] {
+  return isUbloxModel(model) ? ubloxReadCommands(model) : READ_COMMANDS.map((line) => ({ line }));
+}
+
+/** The command `c` makes from its reply (the next page of a poll), if any. */
+const follow = (c: ReceiverCommand, reply: MonitorConsoleEntry | null) =>
+  (reply && 'next' in c && c.next ? c.next(reply) : null);
 
 const STEP_COLOR: Record<StepState, string> = {
   waiting: STATUS_COLOR.starting,
@@ -79,7 +115,10 @@ const STEP_COLOR: Record<StepState, string> = {
 };
 
 export function ReceiverPanel({ link }: { link: ReceiverLink }) {
-  const [model, setModel] = useLocalStorage<SeptentrioModel>({ key: `${link.storageKey}-model`, defaultValue: 'mosaic-G5' });
+  const [storedModel, setModel] = useLocalStorage<string>({ key: `${link.storageKey}-model`, defaultValue: 'mosaic-G5' });
+  const model = ([...SEPTENTRIO_MODELS, ...UBLOX_MODELS] as string[]).includes(storedModel)
+    ? (storedModel as ReceiverModel) : 'mosaic-G5';
+  const ublox = isUbloxModel(model);
   const [steps, setSteps] = useState<Step[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,53 +126,62 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
   const [tab, setTab] = useState<string | null>('sbf');
 
   // Settings as the replies report them (reads, and every set-command's echo).
-  const settings = useMemo(
-    () => link.consoleEntries.reduce(
-      (acc, e) => (e.dir === 'rx' && e.text && e.label === 'Septentrio reply' ? applyReply(acc, e.text) : acc),
-      EMPTY_SETTINGS,
-    ),
-    [link.consoleEntries],
-  );
-  const detected = modelFromName(settings.rxName);
+  const settings = link.septentrio;
+  const ubx = link.ublox;
+  const detected: ReceiverModel | null = ublox ? ubloxModelFromVersion(ubx.version) : modelFromName(settings.rxName);
+  const reportedName = ublox ? ubx.version : settings.rxName;
   const port = settings.port ?? 'USB1';
 
   const why = link.blocked;
   const takesCommands = why === null;
   const canSend = takesCommands && !busy;
 
-  // Read the receiver once per session: its name, its prompt (the port this
-  // stream talks to, e.g. IP10 over TCP), its SBF output and port settings.
+  // Read the receiver once per session and model: Septentrio, its name,
+  // prompt (the port this stream talks to, e.g. IP10 over TCP), SBF output
+  // and port settings; u-blox, MON-VER and every item the tab shows.
   const startedAt = link.session;
   const { sendCommand } = link;
   const readRef = useRef<string | null>(null); // once, also under StrictMode
   useEffect(() => {
-    if (!takesCommands || !startedAt || readRef.current === startedAt) return;
-    readRef.current = startedAt;
+    const key = `${startedAt}:${model}`;
+    if (!takesCommands || !startedAt || readRef.current === key) return;
+    readRef.current = key;
     void (async () => {
-      for (const line of READ_COMMANDS) {
+      const queue = readCommands(model);
+      // Stops when the model changes: another read has started.
+      for (let c = queue.shift(); c && readRef.current === key; c = queue.shift()) {
         try {
-          await sendCommand({ line });
+          const reply = await sendCommand('line' in c ? { line: c.line } : { hex: c.hex }, 'line' in c ? undefined : c.accept);
+          const more = follow(c, reply);
+          if (more) queue.unshift(more);
         } catch {
           return;
         }
       }
     })();
-  }, [takesCommands, startedAt, sendCommand]);
+  }, [takesCommands, startedAt, model, sendCommand]);
 
   /** Send lines one by one, each after the previous answer; stop at a
    *  failure unless `keepGoing`. Returns the steps, or null if the server
    *  refused to send. */
-  const run = async (lines: string[], keepGoing = false): Promise<Step[] | null> => {
+  const run = async (initial: ReceiverCommand[], keepGoing = false): Promise<Step[] | null> => {
     setBusy(true);
     setError(null);
     setNotice(null);
-    const list: Step[] = lines.map((line) => ({ line, state: 'waiting' }));
+    const commands = [...initial];
+    const list: Step[] = commands.map((c) => ({ line: commandText(c), state: 'waiting' }));
     setSteps(list);
     try {
       for (let i = 0; i < list.length; i++) {
-        const reply = await sendCommand({ line: list[i].line });
+        const c = commands[i];
+        const reply = await sendCommand('line' in c ? { line: c.line } : { hex: c.hex }, 'line' in c ? undefined : c.accept);
         const state: StepState = !reply ? 'timeout' : isFailure(reply) ? 'error' : 'ok';
-        list[i] = { ...list[i], state, reply: reply?.text?.split(/\r?\n/)[0] };
+        list[i] = { ...list[i], state, reply: reply?.text?.split(/\r?\n/)[0] ?? reply?.summary ?? undefined };
+        const more = state === 'ok' ? follow(c, reply) : null;
+        if (more) {
+          commands.splice(i + 1, 0, more);
+          list.splice(i + 1, 0, { line: commandText(more), state: 'waiting' });
+        }
         const stop = state !== 'ok' && !keepGoing;
         if (stop) for (let j = i + 1; j < list.length; j++) list[j] = { ...list[j], state: 'skipped' };
         setSteps([...list]);
@@ -149,8 +197,8 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
   };
 
   /** Run commands and say in one line how it went; true when all were accepted. */
-  const runReported = async (lines: string[], done: string, keepGoing = false): Promise<boolean> => {
-    const result = await run(lines, keepGoing);
+  const runReported = async (commands: ReceiverCommand[], done: string, keepGoing = false): Promise<boolean> => {
+    const result = await run(commands, keepGoing);
     if (!result) return false;
     const bad = result.find((st) => st.state !== 'ok');
     if (!bad) {
@@ -163,33 +211,49 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
   };
 
 
+  /** Septentrio: copy the current configuration to boot. u-blox: write the
+   *  values read from RAM to BBR and flash (CFG-VALSET; the D9 has no
+   *  CFG-CFG). */
+  const saveCommands = (): ReceiverCommand[] => {
+    if (!ublox) return [{ line: SAVE_COMMAND }];
+    const keys = new Set(readKeys(model));
+    const items = [...ubx.values].filter(([k]) => keys.has(k));
+    const frames = valset(items, LAYER_BBR | LAYER_FLASH);
+    return frames.map((hex, i) => ({ hex, shown: `CFG-VALSET ${i + 1}/${frames.length} (BBR + flash)`, accept: acceptsValset }));
+  };
+  const readAll = () => void runReported(readCommands(model), 'Read.', true);
+
   return (
     <Stack gap="xs" style={{ height: '100%', minHeight: 0 }}>
       <Group justify="space-between" wrap="nowrap">
         <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
           <Title order={6} size="sm" style={{ whiteSpace: 'nowrap' }}>Receiver · {link.name}</Title>
         </Group>
-        <SaveButton disabled={!canSend} onSave={() => void runReported([SAVE_COMMAND], 'Saved as the boot configuration.')} />
+        <SaveButton
+          disabled={!canSend || (ublox && ubx.values.size === 0)}
+          what={ublox ? 'CFG-VALSET of every value read, to the BBR and flash layers' : SAVE_COMMAND}
+          onSave={() => void runReported(saveCommands(), 'Saved as the boot configuration.')}
+        />
       </Group>
 
       <Stack gap={6}>
         <FormRow label="Receiver">
           <Select
             value={model}
-            onChange={(v) => v && setModel(v as SeptentrioModel)}
-            data={SEPTENTRIO_MODELS.map((m) => ({ value: m, label: `Septentrio ${m}` }))}
+            onChange={(v) => v && setModel(v)}
+            data={MODEL_OPTIONS}
             allowDeselect={false}
           />
         </FormRow>
         {detected && detected !== model && (
           <Text c={STATUS_COLOR.warn} style={{ fontSize: FONT_SIZE.label }}>
-            The receiver reports {settings.rxName}.{' '}
+            The receiver reports {reportedName}.{' '}
             <Text span inherit td="underline" style={{ cursor: 'pointer' }} onClick={() => setModel(detected)}>
               Use {detected}
             </Text>
           </Text>
         )}
-        {settings.port && (
+        {!ublox && settings.port && (
           <Text c="dimmed" style={{ fontSize: FONT_SIZE.label }}>
             This stream talks to the receiver through <Text span inherit ff="monospace">{settings.port}</Text>.
           </Text>
@@ -206,21 +270,34 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
 
       <Tabs value={tab} onChange={setTab} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <Tabs.List>
-          <Tabs.Tab value="sbf" style={{ fontSize: FONT_SIZE.label }}>SBF output</Tabs.Tab>
-          <Tabs.Tab value="receiver" style={{ fontSize: FONT_SIZE.label }}>Ports &amp; tracking</Tabs.Tab>
+          <Tabs.Tab value="sbf" style={{ fontSize: FONT_SIZE.label }}>{ublox ? 'Message output' : 'SBF output'}</Tabs.Tab>
+          <Tabs.Tab value="receiver" style={{ fontSize: FONT_SIZE.label }}>{ublox ? 'Ports & signals' : 'Ports & tracking'}</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="sbf" pt="xs" style={{ flex: 1, minHeight: 0 }}>
-          <SbfOutputEditor
-            model={model}
-            settings={settings}
-            port={port}
-            canSend={canSend}
-            busy={busy}
-            apply={(commands) => runReported(commands, 'Applied. Check the result in the Message tab.')}
-            onReload={() => void runReported(['getSBFOutput', 'getDataInOut'], 'Read.', true)}
-            footer={steps.length > 0 && <StepList steps={steps} />}
-          />
+          {ublox ? (
+            <UbloxOutputEditor
+              key={model}
+              model={model}
+              values={ubx.values}
+              canSend={canSend}
+              busy={busy}
+              apply={(commands) => runReported(commands, 'Applied. Check the result in the Messages tab.')}
+              onReload={readAll}
+              footer={steps.length > 0 && <StepList steps={steps} />}
+            />
+          ) : (
+            <SbfOutputEditor
+              model={model}
+              settings={settings}
+              port={port}
+              canSend={canSend}
+              busy={busy}
+              apply={(commands) => runReported(commands.map((line) => ({ line })), 'Applied. Check the result in the Messages tab.')}
+              onReload={() => void runReported([{ line: 'getSBFOutput' }, { line: 'getDataInOut' }], 'Read.', true)}
+              footer={steps.length > 0 && <StepList steps={steps} />}
+            />
+          )}
         </Tabs.Panel>
 
         <Tabs.Panel value="receiver" pt="xs" style={{ flex: 1, minHeight: 0 }}>
@@ -228,20 +305,22 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
             <Stack gap="xs">
               <Group justify="space-between">
                 <Text c="dimmed" style={{ fontSize: FONT_SIZE.label }}>
-                  {settings.rxName ? `Receiver: ${settings.rxName}` : 'Not read yet.'}
+                  {ublox ? '' : settings.rxName ? `Receiver: ${settings.rxName}` : 'Not read yet.'}
                 </Text>
                 <Button
                   variant="light"
                   size="compact-xs"
                   leftSection={<IconRefresh size={12} />}
-                  onClick={() => void runReported(READ_COMMANDS, 'Read.', true)}
+                  onClick={readAll}
                   loading={busy}
                   disabled={!canSend}
                 >
                   Read
                 </Button>
               </Group>
-              <PortsAndTracking settings={settings} />
+              {ublox
+                ? <UbloxPortsView model={model} values={ubx.values} version={ubx.version} />
+                : <PortsAndTracking settings={settings} />}
             </Stack>
           </ScrollArea>
         </Tabs.Panel>
@@ -311,7 +390,7 @@ function PortsAndTracking({ settings }: { settings: SeptentrioSettings }) {
   );
 }
 
-function SaveButton({ disabled, onSave }: { disabled: boolean; onSave: () => void }) {
+function SaveButton({ disabled, onSave, what }: { disabled: boolean; onSave: () => void; what: string }) {
   const [opened, setOpened] = useState(false);
   return (
     <Popover opened={opened} onChange={setOpened} position="bottom-end" width={260} withArrow shadow="md">
@@ -330,7 +409,7 @@ function SaveButton({ disabled, onSave }: { disabled: boolean; onSave: () => voi
         <Stack gap={6}>
           <Text style={{ fontSize: FONT_SIZE.label }}>
             Make the receiver&apos;s current settings its boot settings
-            (<Text span inherit ff="monospace">{SAVE_COMMAND}</Text>)?
+            (<Text span inherit ff="monospace">{what}</Text>)?
           </Text>
           <Group justify="flex-end" gap={6}>
             <Button variant="subtle" size="compact-xs" onClick={() => setOpened(false)}>Cancel</Button>

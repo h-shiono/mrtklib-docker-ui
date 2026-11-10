@@ -9,23 +9,49 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { MonitorConsoleEntry, MonitorMessageRow, MonitorMessageType } from '../api/streamMonitor';
 import { streamSessionsApi, type SessionMessage, type SessionStatus } from '../api/streamSessions';
 import { mergeMessageRows } from '../utils/streamMessages';
+import { EMPTY_SETTINGS, applyReply, type SeptentrioSettings } from '../utils/septentrio';
+import { EMPTY_UBLOX, foldUblox, type UbloxSettings } from '../utils/ublox';
 
 /** Same cap as the backend (CONSOLE_MAX). */
 const MAX_CONSOLE = 300;
 /** How long a command may take to answer before the next one is sent. */
 const REPLY_TIMEOUT_MS = 5000;
 
-/** Labels of replies that answer a command (not $TD / $TE / blocks). */
-const ANSWERS = new Set(['Septentrio reply', 'Septentrio error', 'UBX ACK-ACK', 'UBX ACK-NAK', 'UBX CFG-VALGET', 'UBX MON-VER']);
+/** Labels of replies that answer an ASCII command line (not $TD / $TE /
+ *  blocks). A binary command names its own reply: a UBX reply must never be
+ *  taken by a line still waiting (e.g. Septentrio reads sent before the
+ *  model was switched to u-blox). */
+const LINE_ANSWERS = new Set(['Septentrio reply', 'Septentrio error']);
+
+interface Waiter {
+  accept: (entry: MonitorConsoleEntry) => boolean;
+  resolve: (entry: MonitorConsoleEntry | null) => void;
+}
 
 export interface SessionState {
   status: SessionStatus | null;
   messageTypes: MonitorMessageType[];
   messageNow: number;
   consoleEntries: MonitorConsoleEntry[];
+  /** What the receiver reported in its replies, kept apart from the console
+   *  (capped): a setting read long ago is still known. */
+  septentrio: SeptentrioSettings;
+  ublox: UbloxSettings;
 }
 
-const EMPTY: SessionState = { status: null, messageTypes: [], messageNow: 0, consoleEntries: [] };
+const EMPTY: SessionState = {
+  status: null, messageTypes: [], messageNow: 0, consoleEntries: [], septentrio: EMPTY_SETTINGS, ublox: EMPTY_UBLOX,
+};
+
+/** The session's receiver reports after more console entries, in order. */
+function report(s: SessionState, entries: MonitorConsoleEntry[]): Pick<SessionState, 'septentrio' | 'ublox'> {
+  let { septentrio, ublox } = s;
+  for (const e of entries) {
+    if (e.dir === 'rx' && e.text && e.label === 'Septentrio reply') septentrio = applyReply(septentrio, e.text);
+    ublox = foldUblox(ublox, e);
+  }
+  return { septentrio, ublox };
+}
 
 /** The message type whose rows the page wants (its Messages tab is open). */
 export interface RowSubscription {
@@ -52,8 +78,9 @@ export function useStreamSessions(subscription: RowSubscription | null, keep: st
     subRef.current = subscription;
     keepRef.current = keep;
   });
-  // Commands waiting for their answer, per relay, oldest first.
-  const waitersRef = useRef<Map<string, ((e: MonitorConsoleEntry | null) => void)[]>>(new Map());
+  // Commands waiting for their answer, per relay, oldest first; each takes
+  // the first reply it accepts.
+  const waitersRef = useRef<Map<string, Waiter[]>>(new Map());
   const wsRef = useRef<WebSocket | null>(null);
 
   const update = (stream: string, change: (s: SessionState) => SessionState) =>
@@ -72,6 +99,8 @@ export function useStreamSessions(subscription: RowSubscription | null, keep: st
             messageTypes: msg.messages?.types ?? [],
             messageNow: msg.messages?.now ?? 0,
             consoleEntries: (msg.console ?? []).slice(-MAX_CONSOLE),
+            // Replayed on a reconnect: in order, so the latest still wins.
+            ...report(s, msg.console ?? []),
           }));
           break;
         case 'status':
@@ -107,8 +136,19 @@ export function useStreamSessions(subscription: RowSubscription | null, keep: st
         }
         case 'console': {
           const entry = msg.entry;
-          update(stream, (s) => ({ ...s, consoleEntries: [...s.consoleEntries.slice(-(MAX_CONSOLE - 1)), entry] }));
-          if (entry.dir === 'rx' && ANSWERS.has(entry.label)) waitersRef.current.get(stream)?.shift()?.(entry);
+          update(stream, (s) => ({
+            ...s,
+            consoleEntries: [...s.consoleEntries.slice(-(MAX_CONSOLE - 1)), entry],
+            ...report(s, [entry]),
+          }));
+          if (entry.dir === 'rx') {
+            const queue = waitersRef.current.get(stream) ?? [];
+            const waiter = queue.find((w) => w.accept(entry));
+            if (waiter) {
+              waitersRef.current.set(stream, queue.filter((w) => w !== waiter));
+              waiter.resolve(entry);
+            }
+          }
           break;
         }
       }
@@ -165,16 +205,20 @@ export function useStreamSessions(subscription: RowSubscription | null, keep: st
     }
   }, [subKey, wsOpen]);
 
-  /** Send one command and wait for the receiver's answer (null on timeout). */
+  /** Send one command and wait for the receiver's answer (null on timeout).
+   *  `accept` picks the reply that answers it (a UBX command: its own ACK or
+   *  response); by default a Septentrio reply, which answers a line. */
   const sendCommand = useCallback(async (
     stream: string,
     command: { line: string } | { hex: string },
+    accept: (entry: MonitorConsoleEntry) => boolean = (e) => LINE_ANSWERS.has(e.label),
   ): Promise<MonitorConsoleEntry | null> => {
     let resolve: (entry: MonitorConsoleEntry | null) => void = () => {};
     const answer = new Promise<MonitorConsoleEntry | null>((r) => { resolve = r; });
+    const waiter: Waiter = { accept, resolve };
     const queue = waitersRef.current.get(stream) ?? [];
-    waitersRef.current.set(stream, [...queue, resolve]);
-    const forget = () => waitersRef.current.set(stream, (waitersRef.current.get(stream) ?? []).filter((w) => w !== resolve));
+    waitersRef.current.set(stream, [...queue, waiter]);
+    const forget = () => waitersRef.current.set(stream, (waitersRef.current.get(stream) ?? []).filter((w) => w !== waiter));
     const timer = setTimeout(() => {
       forget();
       resolve(null);
