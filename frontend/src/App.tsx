@@ -951,7 +951,17 @@ function MultiStreamPanel() {
       const result = await mrtkRelayApi.startRelay({ args, name: stream.name });
       localChangeAtRef.current.set(result.id, performance.now());
       const receiveOnly = stream.outputs.length === 0 ? ', receive only' : '';
-      updateStream(id, { processId: result.id, status: 'running', logLines: [`[INFO] Started (${result.id}${receiveOnly})`] });
+      // A file output that would overwrite an existing file is numbered
+      // (_2, _3, ...) by the server; the returned args name the file written.
+      const numbered = args.flatMap((a, i) => (
+        args[i - 1] === '-out' && result.args[i] && result.args[i] !== a
+          ? [`[INFO] Target in use, writing to ${result.args[i]}`] : []
+      ));
+      updateStream(id, {
+        processId: result.id,
+        status: 'running',
+        logLines: [`[INFO] Started (${result.id}${receiveOnly})`, ...numbered],
+      });
     } catch (err) {
       updateStream(id, { status: 'error', logLines: [...stream.logLines, `[ERROR] ${err instanceof Error ? err.message : 'Failed to start'}`] });
     } finally {

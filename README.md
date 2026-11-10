@@ -61,10 +61,10 @@ GNSS positioning capabilities. No compilation required — just
   (receiving, connecting, stalled, no decode, error with a readable
   cause such as an unknown NTRIP mountpoint)
 - Reattaches to a running `mrtk run` after a page reload or a closed tab
-- **Raw input logging**: per-input "Save Raw" switch (Rover / Base /
-  Correction) records the received bytes before decoding, hourly
-  files under `/workspace/rtlog/%Y/%n/` (e.g. `rovr_%n%H.sbf`),
-  optional time tag (`.tag`) for real-time replay
+- **Raw input logging**: per-input "Raw Log" switch and path (Rover /
+  Base / Correction) records the received bytes before decoding, hourly
+  files under `/workspace/rtlog/%Y/%n/` (e.g. `rovr_%n%H.sbf::S=1`);
+  add `::T` to the path for a time tag (`.tag`) for real-time replay
 - Restart-safe file outputs: if a solution or raw-log file already
   exists, the run writes to `_2`, `_3`, … instead of overwriting it
 
@@ -72,6 +72,14 @@ GNSS positioning capabilities. No compilation required — just
 - Multi-stream configuration (up to 4 simultaneous streams)
 - Per-stream Start / Stop control with live console output
 - Running relays are restored after a page reload and can still be stopped
+- Saves raw streams: a file output (with `::T`, `::S=` options) is
+  restart-safe — if the file already exists, or another relay writes
+  it, the relay writes to `_2`, `_3`, … instead of overwriting it
+- No outputs: the relay only receives, to check that the input works
+  (the console shows the byte count; the data is not kept)
+- With a `tcpsvr://:PORT` output, the Stream Monitor can watch the same
+  stream while it is saved (Stream Monitor input `TCP Client`,
+  `127.0.0.1:PORT`)
 
 ### CLAS Pipeline (`mrtk relay` + `mrtk cssr2rtcm3`)
 - One-form Wizard for the SBC + receiver + CLAS workflow (supported
@@ -117,7 +125,8 @@ GNSS positioning capabilities. No compilation required — just
   the latest frames of the selected type as a hex dump or text
 - Stream health: data rate, message counts, undecoded bytes / bad
   frames
-- Optional raw log of the received bytes under `/workspace`
+- To save the stream as well, relay it with **Stream Relay** (a file
+  output plus `tcpsvr://:PORT`) and monitor `127.0.0.1:PORT`
 - Reattaches to a running session after a page reload
 
 ### Tools

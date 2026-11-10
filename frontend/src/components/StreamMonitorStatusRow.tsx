@@ -145,7 +145,7 @@ export function StreamMonitorStatusRow({
           </Value>
         </Cell>
       ) : (
-        <Cell cap="Received" title={status?.raw_log ?? undefined}>
+        <Cell cap="Received">
           <Value>{status ? formatBytes(status.bytes_total) : '—'}</Value>
         </Cell>
       )}

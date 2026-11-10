@@ -1,6 +1,7 @@
 """API endpoints for stream relay control (mrtk relay, formerly str2str)."""
 
 import re
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -8,7 +9,11 @@ from pydantic import BaseModel, Field
 
 from mrtklib_web_ui.paths import WORKSPACE_ROOT, has_hidden_component, is_allowed_path, is_within
 from mrtklib_web_ui.services import process_manager
-from mrtklib_web_ui.services.mrtk_run_service import expand_path_keywords, gpst_now
+from mrtklib_web_ui.services.mrtk_run_service import (
+    expand_path_keywords,
+    gpst_now,
+    number_file_stream_path,
+)
 
 router = APIRouter()
 
@@ -164,6 +169,61 @@ def _stream_file_path(stream: str) -> str | None:
     return stream.split("::", 1)[0].strip()
 
 
+def _split_file_stream(stream: str) -> tuple[str, str, str]:
+    """Split a file stream argument into (scheme prefix, path with ::options, #format).
+
+    The inverse of the parsing in `_stream_file_path`: the parts joined give
+    the argument back.
+    """
+    fmt = ""
+    head, sep, tail = stream.rpartition("#")
+    if sep and sep + tail in _STREAM_FORMATS:
+        stream, fmt = head, sep + tail
+    prefix = ""
+    if "://" in stream:
+        scheme, _, stream = stream.partition("://")
+        prefix = scheme + "://"
+    return prefix, stream, fmt
+
+
+def _file_outputs(args: list[str]) -> list[int]:
+    """Indexes of the file output values in `args`, not the discard output."""
+    return [
+        i + 1 for i, a in enumerate(args[:-1])
+        if _ALIASES.get(a, a) == "-out"
+        and args[i + 1] != DISCARD_OUTPUT
+        and _stream_file_path(args[i + 1])
+    ]
+
+
+def _number_file_outputs(args: list[str], reserved: set[str], now: datetime) -> list[str]:
+    """Number file outputs that would overwrite an existing file.
+
+    mrtk relay opens file outputs with "wb", so a restart within the same
+    keyword period (or with a fixed name) would truncate the earlier file.
+    As for Real-time logs and Stream Monitor raw logs, _2, _3, ... is
+    inserted instead (`number_file_stream_path`). `reserved` holds the
+    files other relays write; this relay's outputs are added to it.
+    """
+    out = list(args)
+    for i in _file_outputs(args):
+        prefix, path, fmt = _split_file_stream(args[i])
+        out[i] = prefix + number_file_stream_path(path, now, reserved) + fmt
+    return out
+
+
+def _running_relay_files(now: datetime) -> set[str]:
+    """Files the running Stream Relay relays write, as resolved paths."""
+    files: set[str] = set()
+    for info in process_manager.get_all_processes():
+        if info.id not in _stream_names or info.state.value not in ("starting", "running"):
+            continue
+        for i in _file_outputs(info.args):
+            path = _stream_file_path(info.args[i])
+            files.add(str(Path(expand_path_keywords(path, now)).resolve()))
+    return files
+
+
 def _check_local_path(label: str, value: str, write: bool) -> str | None:
     if not value:
         return None  # empty path = stdin/stdout
@@ -219,14 +279,21 @@ async def start_relay(request: MrtkRelayStartRequest) -> ProcessStatusResponse:
     """Start stream relay process (mrtk relay).
 
     If no arguments are provided, mrtk relay will print its help message.
-    An input with no output only receives: the data is discarded.
+    An input with no output only receives: the data is discarded. A file
+    output that would overwrite an existing file gets _2, _3, ...; the
+    returned args name the files written.
     """
     if err := _validate_relay_args(request.args):
         raise HTTPException(status_code=403, detail=err)
+    now = gpst_now()
+    try:
+        args = _number_file_outputs(request.args, _running_relay_files(now), now)
+    except (RuntimeError, OSError) as e:  # no free _N name; unresolvable path
+        raise HTTPException(status_code=409, detail=str(e))
     try:
         info = await process_manager.start(
             command="str2str",
-            args=_with_discard_output(request.args),
+            args=_with_discard_output(args),
             process_id=request.process_id,
         )
         _stream_names[info.id] = request.name or info.id

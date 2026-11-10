@@ -9,14 +9,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Added
 - A Stream Relay stream can have no outputs, to check that its input
   receives: the console shows the byte count and the data is not kept.
+- Stream Relay file outputs are restart-safe, as Real-time files already
+  were: if the file exists, or another running relay writes it, the relay
+  writes to `_2`, `_3`, … instead of overwriting it, and says so in its log.
 
 ### Changed
 - Real-time raw logs (Rover, Base, Correction) take one row each: a switch
   and the path. File options such as `::T` (time tag) and `::S=` (swap hours)
   are typed in the path, which starts as `...::S=1`; the Time tag switch is
   gone, and the hourly swap that was added out of sight is now visible.
-  Stream Monitor's raw log takes the same one row, instead of a path row
-  that appeared only when the switch was on.
 - Stream Monitor reads the GGA station id as the CLAS L6 source with an
   **L6** toggle beside the id in the status footer, shown once a station id
   arrives, instead of a form row every user saw. Station ID and L6 source
@@ -65,6 +66,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   at the height of the input rows, instead of in short rows under the labels.
 
 ### Removed
+- Stream Monitor's raw log. Raw streams are saved in Stream Relay, as
+  with RTKLIB's STRSVR and RTKPLOT: relay the input to a file and to
+  `tcpsvr://:PORT`, and monitor `127.0.0.1:PORT`.
 - The clear-log buttons in Post-processing, Stream Relay and Conversion. A new
   run starts its own log, and a cleared Stream Relay log came back on reload.
 

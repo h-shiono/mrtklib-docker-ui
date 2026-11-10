@@ -2,8 +2,10 @@
 
     input (serial / tcpcli / tcpsvr / ntrip)
         └──► mrtk relay ──► tcpsvr://:PORT ──► StreamDecoder (this process)
-                       └──► file://<raw log> (optional)
     input (file) ──► StreamDecoder, read here (all at once or paced, #161)
+
+Raw streams are saved in Stream Relay, which the Monitor can read through a
+relay output `tcpsvr://:PORT` (#191).
 
 `mrtk relay` opens the input with MRTKLIB's own stream code (serial, NTRIP,
 ...) and copies the bytes unchanged; the backend reads them back from the
@@ -32,14 +34,9 @@ import time
 from collections import deque
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Collection, Iterable, Literal
+from typing import Any, Awaitable, Callable, Collection, Literal
 
 from mrtklib_web_ui.services.mask_credentials import mask_log_line
-from mrtklib_web_ui.services.mrtk_run_service import (
-    expand_path_keywords,
-    gpst_now,
-    number_file_stream_path,
-)
 from mrtklib_web_ui.services.process_manager import process_manager
 from mrtklib_web_ui.services.stream_decoders import Epoch, Event, Satellites, StreamDecoder
 from mrtklib_web_ui.services.stream_decoders.messages import MessageLog
@@ -143,21 +140,11 @@ class MonitorState:
         self._sats_new = True
 
 
-def build_relay_args(
-    input_type: str,
-    path: str,
-    raw_log: str | None,
-    port: int,
-    now: datetime | None = None,
-    other_raw_logs: Iterable[str] = (),
-) -> tuple[list[str], str | None]:
-    """mrtk relay arguments, and the raw log path after numbering.
+def build_relay_args(input_type: str, path: str, port: int) -> list[str]:
+    """mrtk relay arguments: the input, relayed to a local TCP server for the decoder.
 
-    The raw log gets _2, _3, ... like RT logs, so a restart in the same time
-    period does not truncate the earlier file, nor the file of the other
-    stream (`other_raw_logs`; its relay may not have created it yet). The
-    caller still validates the file paths
-    (`api.mrtk_relay._validate_relay_args`).
+    Raw streams are saved in Stream Relay, not here (#191). The caller
+    still validates the file paths (`api.mrtk_relay._validate_relay_args`).
     """
     scheme = INPUT_SCHEMES.get(input_type)
     if scheme is None:
@@ -165,21 +152,7 @@ def build_relay_args(
     path = path.strip()
     if not path:
         raise ValueError("Input path is required")
-    args = ["-in", f"{scheme}://{path}", "-out", f"tcpsvr://:{port}"]
-    numbered = None
-    if raw_log and raw_log.strip():
-        if "#" in raw_log:
-            # mrtk relay reads "#fmt" as a format tag and strips it from the
-            # file name, so the numbering below would check another file.
-            raise ValueError("Raw log path must not contain '#'")
-        t = now or gpst_now()
-        reserved = {
-            str(Path(expand_path_keywords(other.partition("::")[0], t)).resolve())
-            for other in other_raw_logs
-        }
-        numbered = number_file_stream_path(raw_log.strip(), t, reserved)
-        args += ["-out", f"file://{numbered}"]
-    return args, numbered
+    return ["-in", f"{scheme}://{path}", "-out", f"tcpsvr://:{port}"]
 
 
 def free_port(exclude: Collection[int] = ()) -> int:
@@ -212,7 +185,6 @@ class StreamMonitorService:
         self.error_message: str | None = None
         self.started_at: datetime | None = None
         self.input_label = ""
-        self.raw_log: str | None = None
         self.port: int | None = None
         self._bytes_at_tick = 0
         self.bytes_per_sec = 0.0
@@ -234,7 +206,7 @@ class StreamMonitorService:
 
     # ── lifecycle ───────────────────────────────────────────────────────────
 
-    def _begin(self, input_label: str, raw_log: str | None, port: int | None) -> None:
+    def _begin(self, input_label: str, port: int | None) -> None:
         """Reset for a new session (caller holds the lock)."""
         if self.is_running:
             raise RuntimeError(f"Stream {self.stream_id.upper()} is already running")
@@ -246,7 +218,6 @@ class StreamMonitorService:
         self.error_message = None
         self.started_at = datetime.now()
         self.input_label = mask_log_line(input_label)
-        self.raw_log = raw_log
         self.port = port
         self._bytes_at_tick = 0
         self.bytes_per_sec = 0.0
@@ -254,9 +225,9 @@ class StreamMonitorService:
         self.file = None
         self._file_log = []
 
-    async def start(self, args: list[str], input_label: str, raw_log: str | None, port: int) -> None:
+    async def start(self, args: list[str], input_label: str, port: int) -> None:
         async with self._lock:
-            self._begin(input_label, raw_log, port)
+            self._begin(input_label, port)
             # Before the relay's first log line: a new `started_at` tells every
             # page that a new session begins (its console and data reset).
             await self._send(self.status_message())
@@ -280,7 +251,7 @@ class StreamMonitorService:
         by the epoch times at `speed` × real time. The session stays open at
         the end of the file, until Stop."""
         async with self._lock:
-            self._begin(f"file://{path}", None, None)
+            self._begin(f"file://{path}", None)
             size = path.stat().st_size
             self.file = {"size": size, "read": 0, "eof": False, "speed": speed}
             await self._send(self.status_message())
@@ -463,7 +434,6 @@ class StreamMonitorService:
             "error_message": self.error_message,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "input": self.input_label,
-            "raw_log": self.raw_log,
             "connected": self.connected,
             "bytes_per_sec": self.bytes_per_sec,
             "file": dict(self.file) if self.file is not None else None,
