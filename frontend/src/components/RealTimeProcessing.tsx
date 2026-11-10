@@ -62,7 +62,7 @@ import { StatusBadge } from './common/StatusBadge';
 import { processTone } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
-import { MIN_PANEL_HEIGHT } from '../utils/formLayout';
+import { FORM_LABEL_GAP, MIN_PANEL_HEIGHT } from '../utils/formLayout';
 import { SectionHeader } from './common/SectionHeader';
 import { WorkspaceTabBar } from './common/WorkspaceTabBar';
 import { PRIMARY_MIN_WIDTH } from '../utils/formLayout';
@@ -190,13 +190,9 @@ function defaultRawLogBase(input: RawLogInput, format: StreamFormat): string {
   return `/workspace/rtlog/%Y/%n/${RAW_LOG_PREFIX[input]}_%n%H.${RAW_LOG_EXT[format] ?? 'raw'}`;
 }
 
-function parseRawLogPath(path: string): { base: string; timetag: boolean } {
-  const [base, ...opts] = path.split('::');
-  return { base, timetag: opts.includes('T') };
-}
-
-function composeRawLogPath(base: string, timetag: boolean): string {
-  return `${base}::S=1${timetag ? '::T' : ''}`;
+/** The path a raw log starts with. File options (::T, ::S=) are typed in the path. */
+function defaultRawLogPath(input: RawLogInput, format: StreamFormat): string {
+  return `${defaultRawLogBase(input, format)}::S=1`;
 }
 
 /**
@@ -213,11 +209,14 @@ function asRawLogFile(log: StreamConfig): StreamConfig {
 function syncRawLogFormat(
   log: StreamConfig, input: RawLogInput, oldFormat: StreamFormat, newFormat: StreamFormat,
 ): StreamConfig {
-  const { base, timetag } = parseRawLogPath(log.path);
+  const sep = log.path.indexOf('::');
+  const base = sep < 0 ? log.path : log.path.slice(0, sep);
+  const opts = sep < 0 ? '' : log.path.slice(sep);
   if (oldFormat === newFormat || base !== defaultRawLogBase(input, oldFormat)) return log;
-  return { ...log, path: composeRawLogPath(defaultRawLogBase(input, newFormat), timetag) };
+  return { ...log, path: defaultRawLogBase(input, newFormat) + opts };
 }
 
+/** One row: the switch saves the input's raw data to the path beside it. */
 function RawLogEditor({
   input,
   inputStream,
@@ -230,39 +229,24 @@ function RawLogEditor({
   onChange: (s: StreamConfig) => void;
 }) {
   const enabled = log.type !== 'off';
-  const { base, timetag } = parseRawLogPath(log.path);
+  const defaultPath = defaultRawLogPath(input, inputStream.format);
 
   return (
-    <>
-      <FormRow label="Save Raw">
-        <Group gap="xs" wrap="nowrap">
-          <Switch size="xs" aria-label="Save Raw" checked={enabled}
-            disabled={!enabled && inputStream.type === 'off'}
-            onChange={(e) => onChange(e.currentTarget.checked
-              ? {
-                  type: 'file',
-                  path: composeRawLogPath(base || defaultRawLogBase(input, inputStream.format), timetag),
-                  format: '',
-                }
-              : { ...log, type: 'off' })} />
-          <Tooltip label="Write a .tag file so the log can be replayed in real time (file::T)" openDelay={300}>
-            <div>
-              <Switch size="xs" label="Time tag" checked={timetag} disabled={!enabled}
-                onChange={(e) => onChange({ ...log, type: 'file', path: composeRawLogPath(base, e.currentTarget.checked) })}
-                styles={{ label: { fontSize: FONT_SIZE.label } }} />
-            </div>
-          </Tooltip>
-        </Group>
-      </FormRow>
-      <FormRow label="Raw Path">
-        <TextInput size="xs" value={enabled ? base : ''}
-          onChange={(e) => onChange({ ...log, type: 'file', path: composeRawLogPath(e.currentTarget.value, timetag) })}
-          placeholder={defaultRawLogBase(input, inputStream.format)}
+    <FormRow label="Raw Log">
+      <Group gap={FORM_LABEL_GAP} wrap="nowrap">
+        <Switch size="xs" aria-label="Save raw log" checked={enabled}
+          disabled={!enabled && inputStream.type === 'off'}
+          onChange={(e) => onChange(e.currentTarget.checked
+            ? { type: 'file', path: log.path || defaultPath, format: '' }
+            : { ...log, type: 'off' })} />
+        <TextInput aria-label="Raw log path" value={log.path}
+          onChange={(e) => onChange({ ...log, type: 'file', path: e.currentTarget.value })}
+          placeholder={defaultPath}
           disabled={!enabled}
           style={{ flex: 1, minWidth: 0 }}
           styles={{ input: { fontFamily: MONO } }} />
-      </FormRow>
-    </>
+      </Group>
+    </FormRow>
   );
 }
 
