@@ -17,6 +17,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   gone, and the hourly swap that was added out of sight is now visible.
   Stream Monitor's raw log takes the same one row, instead of a path row
   that appeared only when the switch was on.
+- Stream Monitor reads the GGA station id as the CLAS L6 source with an
+  **L6** toggle beside the id in the status footer, shown once a station id
+  arrives, instead of a form row every user saw. Station ID and L6 source
+  are one cell. The Monitor's charts and map no longer mark L6 source
+  changes; the footer shows the current source.
 - Colours follow a single design policy (`DESIGN.md`). Filled buttons,
   placeholders, field outlines and off switches are readable in both themes,
   and the light theme, including the console, is usable in bright surroundings.

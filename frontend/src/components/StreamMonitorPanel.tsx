@@ -179,14 +179,6 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
           </Group>
         </FormRow>
       )}
-      <FormRow label="CLAS L6 source">
-        <Switch
-          size="xs"
-          checked={s.clasSource}
-          onChange={(e) => s.setClasSource(e.currentTarget.checked)}
-          title="Read the NMEA GGA station id as the CLAS L6 source (PRN / facility). Only for the NMEA output of a CLAS mrtk run: other receivers put their base station id there."
-        />
-      </FormRow>
       {s.requestError && (
         <Text size="sm" c={STATUS_COLOR.error} mt={4}>
           {s.requestError}
@@ -375,9 +367,12 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
     `${primary.id}:${primary.status?.started_at ?? ''}`,
     showOverlay ? `${secondary.id}:${secondary.status?.started_at ?? ''}` : '',
   ].join('|');
-  const lastL6 = live && clasSource ? decodeClasSource(last?.refid) : null;
-  // Without a decoded source, a non-zero station id is still shown as is.
-  const lastStationId = live && !lastL6 && last?.refid ? String(last.refid).padStart(4, '0') : null;
+  // The footer's station id cell, read as the CLAS L6 source when its toggle
+  // is on. Shown while live, for a non-zero id or while decoding is on.
+  const lastL6 = clasSource ? decodeClasSource(last?.refid) : null;
+  const station = live && (clasSource || last?.refid)
+    ? { id: last?.refid ? String(last.refid).padStart(4, '0') : null, l6: lastL6 ? formatClasSource(lastL6) : null }
+    : null;
   const satellites = sats?.satellites ?? NO_SATELLITES;
   const satTime = sats?.time ? `${rtTimestamp(sats.time)} ${sats.time_sys}` : undefined;
 
@@ -550,7 +545,6 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
                           timeSystem={showOverlay ? overlayTimeSystem : primary.epochs[primary.epochs.length - 1]?.time_sys ?? 'GPST'}
                           emptyText={live ? 'Waiting for positions…' : 'No position data'}
                           views={positionViews}
-                          clasSource={primary.clasSource}
                           overlay={positionOverlay}
                         />
                       </div>
@@ -608,8 +602,9 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
               state={state}
               live={live}
               wsOpen={wsOpen}
-              l6Source={lastL6 ? `${formatClasSource(lastL6)} (${String(last?.refid).padStart(4, '0')})` : null}
-              stationId={lastStationId}
+              station={station}
+              decodeL6={clasSource}
+              onDecodeL6Change={selected.setClasSource}
               relayLine={relayStatusLine}
             />
           </Stack>
