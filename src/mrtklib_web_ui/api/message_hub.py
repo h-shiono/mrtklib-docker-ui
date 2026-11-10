@@ -27,16 +27,17 @@ logger = logging.getLogger(__name__)
 
 CLIENT_QUEUE_MAX = 256
 MAX_SELECT_LABEL = 64
-MAX_STREAM_ID = 64
+MAX_STREAM_ID = 100  # as long as a relay process ID may be (api/mrtk_relay.py)
 
 # A stream's message log and whether its session runs; None if unknown.
 Resolve = Callable[[str], "tuple[MessageLog, bool] | None"]
 
 
 class _Client:
-    def __init__(self, ws: WebSocket, stream: str | None) -> None:
+    def __init__(self, ws: WebSocket, stream: str | None, extra: int = 0) -> None:
         self.ws = ws
-        self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=CLIENT_QUEUE_MAX)
+        # Room for the live messages, plus the replay queued before them.
+        self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=CLIENT_QUEUE_MAX + extra)
         self.task: asyncio.Task | None = None
         # The message type this page shows, and how far it has been sent.
         # `log` tells when a new session began.
@@ -74,12 +75,17 @@ class MessageHub:
         for client in list(self._clients):
             self._send_rows(client)
 
-    async def serve(self, websocket: WebSocket, replay: list[dict[str, Any]]) -> None:
-        """Run one client: `replay` first (the same queue keeps it ahead of
-        live messages), then live messages until it disconnects."""
+    async def serve(self, websocket: WebSocket, replay: Callable[[], list[dict[str, Any]]]) -> None:
+        """Run one client: the replay first (the same queue keeps it ahead of
+        live messages), then live messages until it disconnects.
+
+        `replay` is taken after the socket is accepted, and the client joins
+        the broadcasts with no await in between: a session that ends while
+        accepting must not reach this page as still running."""
         await websocket.accept()
-        client = _Client(websocket, self._default)
-        for msg in replay:
+        messages = replay()
+        client = _Client(websocket, self._default, extra=len(messages))
+        for msg in messages:
             client.queue.put_nowait(json.dumps(msg))
         self._clients.add(client)
         client.task = asyncio.create_task(client.run())

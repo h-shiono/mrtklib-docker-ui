@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, WebSocket
 from pydantic import BaseModel, Field
 
-from mrtklib_web_ui.api.message_hub import MessageHub
+from mrtklib_web_ui.api.message_hub import MAX_STREAM_ID, MessageHub
 
 from mrtklib_web_ui.paths import WORKSPACE_ROOT, has_hidden_component, is_allowed_path, is_within
 from mrtklib_web_ui.services import process_manager
@@ -44,6 +44,7 @@ class MrtkRelayStartRequest(BaseModel):
     )
     process_id: str | None = Field(
         default=None,
+        max_length=MAX_STREAM_ID,
         description="Optional custom process ID",
     )
     name: str | None = Field(
@@ -315,7 +316,7 @@ async def start_relay(request: MrtkRelayStartRequest) -> ProcessStatusResponse:
         _stream_names[info.id] = request.name or info.id
         _taps[info.id] = tap
         if tap is not None:
-            await stream_sessions.attach(info.id, tap, blocked)
+            await stream_sessions.attach(info.id, tap, blocked, _input_of(args))
         return _to_response(info)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -398,6 +399,12 @@ async def test_relay() -> ProcessStatusResponse:
 # ── Stream sessions (#136): messages and receiver commands of a relay ───────
 
 
+def _input_of(args: list[str]) -> str:
+    flags = [_ALIASES.get(a, a) for a in args]
+    i = flags.index("-in") if "-in" in flags else -1
+    return args[i + 1] if 0 <= i < len(args) - 1 else ""
+
+
 def _resolve_session(process_id: str) -> tuple[MessageLog, bool] | None:
     session = stream_sessions.get(process_id)
     return (session.frames.messages, not session.ended) if session is not None else None
@@ -412,7 +419,7 @@ class SessionSendRequest(BaseModel):
     """One command for the receiver behind a relay: an ASCII `line` (CR LF is
     added) or a binary frame in `hex` (e.g. UBX)."""
 
-    process_id: str = Field(max_length=100)
+    process_id: str = Field(max_length=MAX_STREAM_ID)
     line: str | None = Field(default=None, max_length=MAX_COMMAND_LINE)
     hex: str | None = Field(default=None, max_length=2 * MAX_COMMAND_BYTES)
 
@@ -456,8 +463,11 @@ async def websocket_sessions(websocket: WebSocket) -> None:
 
     Sent by clients: {"type": "select_message", "stream": process_id, "label": str | null}
     """
-    replay: list[dict[str, Any]] = []
-    for session in stream_sessions.sessions.values():
-        replay += [session.history_message(), session.status_message()]
+    def replay() -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for session in stream_sessions.sessions.values():
+            out += [session.history_message(), session.status_message()]
+        return out
+
     await _hub.serve(websocket, replay)
 

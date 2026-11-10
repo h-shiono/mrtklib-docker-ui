@@ -240,7 +240,10 @@ async def websocket_monitor(websocket: WebSocket) -> None:
 
     Sent by clients: {"type": "select_message", "stream": "a", "label": str | null}
     """
-    replay: list[dict[str, Any]] = []
-    for service in _services.values():
-        replay += [service.history_message(), service.status_message()]
+    def replay() -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for service in _services.values():
+            out += [service.history_message(), service.status_message()]
+        return out
+
     await _hub.serve(websocket, replay)

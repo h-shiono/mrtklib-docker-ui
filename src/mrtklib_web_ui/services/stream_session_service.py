@@ -32,6 +32,7 @@ from typing import Any
 
 from mrtklib_web_ui.services.process_manager import process_manager
 from mrtklib_web_ui.services.receiver_console import FrameLog
+from mrtklib_web_ui.services.stream_monitor_service import relay_back_owner
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ _CONNECT_RETRY_S = 0.5
 
 # Input schemes whose stream takes bytes back to the receiver.
 _COMMAND_INPUTS = ("serial", "tcpcli", "tcpsvr")
+_LOCAL_TCPCLI = re.compile(r"^tcpcli://(?:127\.0\.0\.1|localhost):(\d+)$")
 _ALIASES = {"--input": "-in", "--output": "-out"}
 
 
@@ -76,12 +78,21 @@ def plan_tap(args: list[str], port: int) -> tuple[list[str], TapInfo | None, str
       read-only tap.
     - With four outputs already, a user TCP server output becomes the tap
       (with `-b` if commands can go back); without one there is no tap.
+    - A file read at full speed (no `::T`) gets no tap: the relay would read
+      it before the session connects, and the tap drops what nobody reads.
+      Open it in the Monitor, which reads files itself, or replay it with ::T.
     - No input (the help screen): no tap.
     """
     flags = [_ALIASES.get(a, a) for a in args]
     if "-in" not in flags or flags.index("-in") + 1 >= len(args):
         return args, None, "No input"
-    scheme = _scheme(args[flags.index("-in") + 1])
+    source = args[flags.index("-in") + 1]
+    scheme = _scheme(source)
+    if scheme == "file" and "::T" not in source:
+        return args, None, (
+            "A file read at full speed passes before its messages can be read: "
+            "open it in the Monitor, or replay it in real time (::T)"
+        )
     outputs = [args[i + 1] for i, f in enumerate(flags[:-1]) if f == "-out"]
     user_b: int | None = None
     if "-b" in flags and flags.index("-b") + 1 < len(args):
@@ -144,10 +155,11 @@ def strip_tap(args: list[str], tap: TapInfo | None) -> list[str]:
 class StreamSession:
     """The tap of one running relay: read, decode, and write commands."""
 
-    def __init__(self, process_id: str, tap: TapInfo, blocked: str | None) -> None:
+    def __init__(self, process_id: str, tap: TapInfo, blocked: str | None, source: str = "") -> None:
         self.process_id = process_id
         self.tap = tap
-        self.blocked = blocked
+        self._blocked = blocked
+        self.source = source  # the relay's input, e.g. tcpcli://127.0.0.1:9001
         self.frames = FrameLog()
         self.connected = False
         self.ended = False
@@ -158,6 +170,26 @@ class StreamSession:
         self._send_lock = asyncio.Lock()  # two pages' commands must not interleave
         self._reader: asyncio.Task | None = None
         self._broadcast: Callable[[dict], Awaitable[None]] | None = None
+
+    @property
+    def blocked(self) -> str | None:
+        """Why commands cannot go to the receiver now, or None.
+
+        Reading another relay's output (`tcpcli://127.0.0.1:PORT`), a command
+        goes into that relay's TCP server, which passes it on only if that
+        output is its relay-back one; checked each time, as relays come and go.
+        """
+        if self._blocked:
+            return self._blocked
+        local = _LOCAL_TCPCLI.match(self.source)
+        if local:
+            owner = relay_back_owner(int(local.group(1)), exclude=self.process_id)
+            if owner is not None and not owner[1]:
+                return (
+                    f"This stream reads an output of the relay '{owner[0]}', which does not "
+                    "pass commands back to the receiver"
+                )
+        return None
 
     def start(self, broadcast: Callable[[dict], Awaitable[None]]) -> None:
         self._broadcast = broadcast
@@ -192,6 +224,11 @@ class StreamSession:
             except OSError:
                 pass
             finally:
+                # Connection over: decode a last line ending in a lone CR, and
+                # let the next connection start with an empty framer.
+                self.frames.decoder.flush()
+                for entry in self.frames.take_replies():
+                    await self._send({"type": "console", "entry": entry})
                 self._writer = None
                 self.connected = False
                 writer.close()
@@ -203,8 +240,9 @@ class StreamSession:
 
     async def send(self, data: bytes, shown: str) -> None:
         """Write a command to the receiver; RuntimeError if it cannot go."""
-        if self.blocked:
-            raise RuntimeError(self.blocked)
+        blocked = self.blocked
+        if blocked:
+            raise RuntimeError(blocked)
         async with self._send_lock:
             writer = self._writer
             if writer is None:
@@ -220,14 +258,15 @@ class StreamSession:
         self.frames.messages.tick()
 
     def status_message(self, exited: bool = False) -> dict[str, Any]:
+        blocked = self.blocked
         msg = {
             "type": "status",
             "stream": self.process_id,
             "running": not self.ended,
             "connected": self.connected,
             "bytes_per_sec": self.bytes_per_sec,
-            "commands": self.blocked is None,
-            "blocked": self.blocked,
+            "commands": blocked is None,
+            "blocked": blocked,
             **self.frames.decoder.stats(),
         }
         if exited:
@@ -273,11 +312,13 @@ class StreamSessions:
     def set_on_tick(self, cb: Callable[[], None]) -> None:
         self._on_tick = cb
 
-    async def attach(self, process_id: str, tap: TapInfo, blocked: str | None) -> StreamSession:
+    async def attach(
+        self, process_id: str, tap: TapInfo, blocked: str | None, source: str = ""
+    ) -> StreamSession:
         old = self.sessions.pop(process_id, None)
         if old is not None:
             await old.stop()
-        session = StreamSession(process_id, tap, blocked)
+        session = StreamSession(process_id, tap, blocked, source)
         self.sessions[process_id] = session
         session.start(self._send)
         await self._send(session.history_message())

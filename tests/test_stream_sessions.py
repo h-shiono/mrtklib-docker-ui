@@ -31,7 +31,7 @@ P = 41000  # the tap port the server picked
         # NTRIP: read-only tap
         (["-in", "ntrip://u:p@c:2101/M", "-out", "tcpsvr://:9001"],
          ["-out", f"tcpsvr://:{P}"], TapInfo(P, True, False), "An NTRIP input cannot take receiver commands"),
-        (["-in", "file:///data/x.sbf"], ["-out", f"tcpsvr://:{P}"], TapInfo(P, True, False),
+        (["-in", "file:///data/x.sbf::T"], ["-out", f"tcpsvr://:{P}"], TapInfo(P, True, False),
          "A file input cannot take commands"),
     ],
 )
@@ -284,3 +284,99 @@ def test_commands_from_two_pages_do_not_interleave(relay, client):
     lines = bytes(relay.received).split(b"\r\n")[:-1]
     assert sorted(lines) == sorted(f"cmd{i:02d}".encode() * 20 for i in range(10))
     client.post("/api/mrtk-relay/stop", json={"process_id": pid})
+
+
+# ── review follow-ups ───────────────────────────────────────────────────────
+
+
+def test_a_file_read_at_full_speed_gets_no_tap():
+    args = ["-in", "file:///data/x.sbf", "-out", "tcpsvr://:9001"]
+    run, tap, blocked = plan_tap(args, P)
+    assert run == args and tap is None and "::T" in blocked
+
+
+def test_a_stream_reading_another_relays_user_output_takes_no_commands(monkeypatch):
+    """Relay B reads relay A's user output: A's tap holds -b, so A drops what B sends."""
+    a_run, _, _ = plan_tap(["-in", "serial://x", "-out", "tcpsvr://:9001"], P)
+    infos = [SimpleNamespace(id="A", command="str2str", args=a_run, state=ProcessState.RUNNING)]
+    monkeypatch.setattr(process_manager, "get_all_processes", lambda: infos)
+    b = sss.StreamSession("B", TapInfo(P + 1, True, True), None, "tcpcli://127.0.0.1:9001")
+    assert "'A'" in b.blocked
+    assert b.status_message()["commands"] is False
+    with pytest.raises(RuntimeError):
+        asyncio.run(b.send(b"grc\r\n", "grc"))
+    # reading A's tap itself (its relay-back output) would pass
+    assert sss.StreamSession("C", TapInfo(P + 2, True, True), None, f"tcpcli://127.0.0.1:{P}").blocked is None
+
+
+def test_process_ids_have_one_length_limit(relay, client):
+    r = client.post("/api/mrtk-relay/start", json={"args": ["-in", "tcpcli://h:1"], "process_id": "x" * 101})
+    assert r.status_code == 422
+    r = client.post("/api/mrtk-relay/start", json={"args": ["-in", "tcpcli://h:1"], "process_id": "y" * 100})
+    assert r.status_code == 200
+    with client.websocket_connect("/api/mrtk-relay/sessions/ws") as ws:
+        ws.send_text(json.dumps({"type": "select_message", "stream": "y" * 100, "label": "GNGGA"}))
+        rows = _until(ws, lambda m: m["type"] == "message_rows", "y" * 100)
+        assert rows["reset"]
+    client.post("/api/mrtk-relay/stop", json={"process_id": "y" * 100})
+
+
+def test_the_decoder_is_flushed_when_the_tap_connection_ends():
+    """A last line ending in a lone CR is decoded, not left in the framer."""
+
+    async def run():
+        async def handle(reader, writer):
+            writer.write(nmea("GNGGA,1", eol=b"\r"))
+            await writer.drain()
+            writer.close()
+
+        server = await asyncio.start_server(handle, "127.0.0.1", 0)
+        port = server.sockets[0].getsockname()[1]
+        session = sss.StreamSession("F", TapInfo(port, True, True), None)
+        session.start(lambda msg: asyncio.sleep(0))
+        for _ in range(100):
+            if session.frames.decoder.msg_counts:
+                break
+            await asyncio.sleep(0.02)
+        await session.stop()
+        server.close()
+        return dict(session.frames.decoder.msg_counts)
+
+    assert asyncio.run(run()) == {"GNGGA": 1}
+
+
+def test_a_large_replay_fits_the_client_queue_and_is_taken_after_accept():
+    from mrtklib_web_ui.api.message_hub import CLIENT_QUEUE_MAX, MessageHub
+
+    order = []
+
+    class Ws:
+        def __init__(self):
+            self.sent = []
+
+        async def accept(self):
+            order.append("accept")
+
+        async def send_text(self, text):
+            self.sent.append(text)
+
+        async def receive_text(self):
+            await asyncio.sleep(0.05)
+            from fastapi import WebSocketDisconnect
+
+            raise WebSocketDisconnect()
+
+    def replay():
+        order.append("replay")
+        return [{"k": i} for i in range(CLIENT_QUEUE_MAX * 2)]
+
+    async def run():
+        ws = Ws()
+        hub = MessageHub("test", lambda s: None, valid_stream=lambda s: True)
+        await hub.serve(ws, replay)
+        return ws
+
+    ws = asyncio.run(run())
+    assert order == ["accept", "replay"]
+    assert len(ws.sent) == CLIENT_QUEUE_MAX * 2
+
