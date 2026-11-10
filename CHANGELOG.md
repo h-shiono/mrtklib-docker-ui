@@ -44,6 +44,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   a row's label focuses its field.
 - ENU charts: rows are told apart by alternating background instead of lines,
   and side-by-side views are separated by space instead of a line.
+- Conversion moved into Tools, as its first group (RINEX Converter, Hatanaka).
+  A running conversion keeps going while another tool is open.
 
 ### Removed
 - The clear-log buttons in Post-processing, Stream Relay and Conversion. A new

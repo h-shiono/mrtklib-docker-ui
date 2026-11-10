@@ -1,5 +1,5 @@
 import { Stack, Group, Text, ScrollArea, UnstyledButton } from '@mantine/core';
-import { IconClock, IconDownload, IconTools, IconDatabase, IconSparkles, IconSettings, IconCheck, IconAlertCircle } from '@tabler/icons-react';
+import { IconClock, IconDownload, IconFileCode, IconFileZip, IconRefresh, IconTools, IconDatabase, IconSparkles, IconSettings, IconCheck, IconAlertCircle } from '@tabler/icons-react';
 import { FONT_SIZE } from '../../utils/typography';
 
 interface ToolsSidebarProps {
@@ -64,6 +64,10 @@ export function ToolsSidebar({ selected, onSelect, aiConfigured }: ToolsSidebarP
   return (
     <ScrollArea style={{ width: '100%', height: '100%' }}>
       <Stack gap={0}>
+        <SidebarGroup label="CONVERSION" icon={<IconFileCode size={12} />}>
+          <SidebarItem label="RINEX Converter" icon={<IconRefresh size={14} />} section="convbin" active={selected} onClick={onSelect} />
+          <SidebarItem label="Hatanaka (CRX)" icon={<IconFileZip size={14} />} section="hatanaka" active={selected} onClick={onSelect} />
+        </SidebarGroup>
         <SidebarGroup label="UTILITIES" icon={<IconTools size={12} />}>
           <SidebarItem label="Time Converter" icon={<IconClock size={14} />} section="time-converter" active={selected} onClick={onSelect} />
         </SidebarGroup>

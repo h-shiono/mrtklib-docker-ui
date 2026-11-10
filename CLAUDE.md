@@ -75,12 +75,16 @@ mrtklib-docker-ui/
 The header has a mode switch for the two primary modes,
 **Real-time | Post-processing**, and separate header buttons for
 **Stream Relay** (Multi-Stream, CLAS Pipeline) | **Stream Monitor** |
-**Conversion** | **Tools** (Time Converter, Data Downloader, AI Settings).
+**Tools** (Conversion: RINEX Converter, Hatanaka; Time Converter, Data
+Downloader, AI Settings). One-shot file tools (ssr2obs, dump, l6extract, ...)
+belong in Tools too.
 
 Real-time and Post-processing use `ConsoleFrame`: a collapsible
 Config column (left) and a Workspace column (right: Chart / Solution /
 Console / Trace sub-tabs). The config panels use a section rail + form
-layout like VS Code Settings. Tools uses `ToolsSidebar` + panel.
+layout like VS Code Settings. Tools uses `ToolsSidebar` + panel; the
+Conversion panel stays mounted while another tool is open, so a running
+conversion keeps its log.
 
 ### Form layout convention
 All config panels use **label-left / input-right** through the shared

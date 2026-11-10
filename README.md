@@ -84,6 +84,7 @@ GNSS positioning capabilities. No compilation required — just
   via the GitHub Issue template
 
 ### RINEX Conversion (`mrtk convert`, `rnx2crx` / `crx2rnx`)
+- In **Tools → Conversion** (RINEX Converter, Hatanaka (CRX))
 - Supports all convbin formats: u-blox, Septentrio SBF,
   NovAtel, BINEX, Trimble RT17, RTCM2/3, RINEX re-processing
 - Collapsible option groups (Time Range, Signal Options,
