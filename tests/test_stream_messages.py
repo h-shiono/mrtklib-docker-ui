@@ -282,3 +282,27 @@ def test_ack_and_mon_ver_summaries_and_replies():
     assert not is_reply(_frame(nmea("GNGGA,1")))
     assert is_reply(Frame("reply", b"$R: x\r\nUSB1>", "Septentrio reply"))
 
+
+
+def _mon_comms(output_port: int, ports: list[tuple[int, int]]) -> bytes:
+    import struct
+
+    payload = bytes((0, len(ports), output_port << 2, 0, 0, 1, 0xFF, 0xFF))
+    for port_id, rx in ports:
+        block = bytearray(40)
+        struct.pack_into("<H", block, 0, port_id)
+        struct.pack_into("<I", block, 12, rx)
+        payload += bytes(block)
+    return ubx(0x0A, 0x36, payload)
+
+
+def test_mon_comms_summary_and_reply():
+    """MON-COMMS: the port it came out of (F9P), and bytes received per port
+    (a D9C reports no output port)."""
+    from mrtklib_web_ui.services.stream_decoders.messages import is_reply
+
+    f9 = _frame(_mon_comms(4, [(0x0100, 0), (0x0300, 136), (0x0101, 7)]))
+    assert summary(f9) == "from USB  UART1 rx 0  USB rx 136  0x0101 rx 7"
+    assert is_reply(f9)
+    d9 = _frame(_mon_comms(0, [(0x0100, 0), (0x0300, 128)]))
+    assert summary(d9) == "UART1 rx 0  USB rx 128"

@@ -47,6 +47,8 @@ interface Props {
   model: UbloxModel;
   /** Item values the receiver reported (RAM layer). */
   values: Map<number, number>;
+  /** The port this stream talks to, if the receiver told (MON-COMMS). */
+  connectedPort: UbloxPort | null;
   canSend: boolean;
   busy: boolean;
   /** Send the commands in order; resolves true when all were accepted. */
@@ -55,7 +57,7 @@ interface Props {
   footer?: ReactNode;
 }
 
-export function UbloxOutputEditor({ model, values, canSend, busy, apply, onReload, footer }: Props) {
+export function UbloxOutputEditor({ model, values, connectedPort, canSend, busy, apply, onReload, footer }: Props) {
   const cat = UBLOX_CATALOG[model];
   const ports = UBLOX_PORTS.filter((p) => cat.messages.some((m) => m.keys[p] !== undefined));
   const groups = useMemo(() => {
@@ -74,9 +76,11 @@ export function UbloxOutputEditor({ model, values, canSend, busy, apply, onReloa
   const [edits, setEdits] = useState<Map<number, number>>(new Map());
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['UBX RXM']));
   const [presetId, setPresetId] = useState<UbloxPresetId | null>(null);
-  const [port, setPort] = useState<UbloxPort>('USB');
+  // The connected port unless the user picks another.
+  const [portChoice, setPortChoice] = useState<UbloxPort | null>(null);
   const [showCommands, setShowCommands] = useState(false);
 
+  const port: UbloxPort = portChoice ?? (connectedPort && ports.includes(connectedPort) ? connectedPort : 'USB');
   const presets = UBLOX_PRESETS.filter((p) => p.models.includes(model));
   const preset = presets.find((p) => p.id === presetId) ?? presets[0];
   const rate = (key: number | undefined) => (key === undefined ? undefined : edits.get(key) ?? values.get(key));
@@ -180,10 +184,11 @@ export function UbloxOutputEditor({ model, values, canSend, busy, apply, onReloa
           <Select
             aria-label="Output port"
             value={port}
-            onChange={(v) => v && setPort(v as UbloxPort)}
-            data={ports.map((p) => ({ value: p, label: `on ${p}` }))}
+            onChange={(v) => v && setPortChoice(v as UbloxPort)}
+            data={ports.map((p) => ({ value: p, label: `on ${p}${p === connectedPort ? ' (connected)' : ''}` }))}
             allowDeselect={false}
-            style={{ width: 110, flexShrink: 0 }}
+            title={connectedPort ? `This stream talks to the receiver's ${connectedPort} port` : 'The receiver did not say which port this stream uses'}
+            style={{ width: 170, flexShrink: 0 }}
           />
           <Button variant="light" onClick={loadPreset} disabled={!canSend || !read} style={{ flexShrink: 0 }}>
             Load

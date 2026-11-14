@@ -6,7 +6,7 @@
  */
 
 import { Stack, Table, Text } from '@mantine/core';
-import { UBLOX_CATALOG, type UbloxModel } from '../utils/ubloxCatalog';
+import { UBLOX_CATALOG, type UbloxModel, type UbloxPort } from '../utils/ubloxCatalog';
 import { UBLOX_PORTS, signed8 } from '../utils/ublox';
 import { FONT_SIZE, MONO } from '../utils/typography';
 
@@ -18,10 +18,12 @@ function sv(v: number | undefined): string {
   return n < 0 ? 'disabled' : n === 0 ? 'automatic' : `J${String(n).padStart(2, '0')}`;
 }
 
-export function UbloxPortsView({ model, values, version }: {
+export function UbloxPortsView({ model, values, version, connectedPort }: {
   model: UbloxModel;
   values: Map<number, number>;
   version: string | null;
+  /** The port this stream talks to (MON-COMMS), if known. */
+  connectedPort: UbloxPort | null;
 }) {
   const items = UBLOX_CATALOG[model].items;
   const get = (name: string) => (items[name] ? values.get(items[name][0]) : undefined);
@@ -35,6 +37,11 @@ export function UbloxPortsView({ model, values, version }: {
   return (
     <Stack gap="xs">
       <Text c="dimmed" style={{ fontSize: FONT_SIZE.label }}>{version ? `Receiver: ${version}` : 'Not read yet.'}</Text>
+      {version && (
+        <Text c="dimmed" style={{ fontSize: FONT_SIZE.label }}>
+          {connectedPort ? `This stream talks to the receiver's ${connectedPort} port.` : 'The receiver did not say which port this stream uses.'}
+        </Text>
+      )}
 
       {ports.length > 0 && (
         <>
@@ -49,7 +56,7 @@ export function UbloxPortsView({ model, values, version }: {
             <Table.Tbody>
               {ports.map((p) => (
                 <Table.Tr key={p}>
-                  <Table.Td style={cell}>{p}</Table.Td>
+                  <Table.Td style={cell}>{p === connectedPort ? `${p} (connected)` : p}</Table.Td>
                   {outProtocols.map((x) => <Table.Td key={x} style={cell}>{yes(get(`CFG-${p}OUTPROT-${x}`))}</Table.Td>)}
                 </Table.Tr>
               ))}

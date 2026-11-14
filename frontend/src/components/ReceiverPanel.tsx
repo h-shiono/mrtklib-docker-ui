@@ -37,7 +37,9 @@ import type { UbloxModel } from '../utils/ubloxCatalog';
 import {
   LAYER_BBR,
   LAYER_FLASH,
+  MON_VER_POLL,
   UBLOX_MODELS,
+  acceptsMonVer,
   acceptsValset,
   readKeys,
   ubloxModelFromVersion,
@@ -48,8 +50,10 @@ import {
 import { STATUS_COLOR } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import {
+  EMPTY_SETTINGS,
   READ_COMMANDS,
   SAVE_COMMAND,
+  applyReply,
   SEPTENTRIO_MODELS,
   modelFromName,
   type SeptentrioModel,
@@ -102,6 +106,20 @@ function readCommands(model: ReceiverModel): ReceiverCommand[] {
   return isUbloxModel(model) ? ubloxReadCommands(model) : READ_COMMANDS.map((line) => ({ line }));
 }
 
+/** What asks a receiver of the other make who it is: a Septentrio
+ *  receiver if a u-blox was expected, and the other way round. */
+function otherProbe(model: ReceiverModel): ReceiverCommand {
+  return isUbloxModel(model)
+    ? { line: READ_COMMANDS[0] }
+    : { hex: MON_VER_POLL, shown: 'MON-VER (poll)', accept: acceptsMonVer };
+}
+
+/** The model a probe's reply names, if it is one of ours. */
+function modelFromReply(reply: MonitorConsoleEntry): ReceiverModel | null {
+  if (reply.label === 'UBX MON-VER') return ubloxModelFromVersion(reply.summary ?? null);
+  return reply.text ? modelFromName(applyReply(EMPTY_SETTINGS, reply.text).rxName) : null;
+}
+
 /** The command `c` makes from its reply (the next page of a poll), if any. */
 const follow = (c: ReceiverCommand, reply: MonitorConsoleEntry | null) =>
   (reply && 'next' in c && c.next ? c.next(reply) : null);
@@ -128,8 +146,11 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
   // Settings as the replies report them (reads, and every set-command's echo).
   const settings = link.septentrio;
   const ubx = link.ublox;
-  const detected: ReceiverModel | null = ublox ? ubloxModelFromVersion(ubx.version) : modelFromName(settings.rxName);
-  const reportedName = ublox ? ubx.version : settings.rxName;
+  // The model the receiver names in this session, whichever make answered.
+  const fromUblox = ubloxModelFromVersion(ubx.version);
+  const fromSeptentrio = modelFromName(settings.rxName);
+  const detected: ReceiverModel | null = ublox ? fromUblox ?? fromSeptentrio : fromSeptentrio ?? fromUblox;
+  const reportedName = detected && isUbloxModel(detected) ? ubx.version : settings.rxName;
   const port = settings.port ?? 'USB1';
 
   const why = link.blocked;
@@ -142,16 +163,44 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
   const startedAt = link.session;
   const { sendCommand } = link;
   const readRef = useRef<string | null>(null); // once, also under StrictMode
+  // Select the model the receiver names, once per session and name: a
+  // model picked by hand afterwards stays (with a warning).
+  const detectRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!startedAt || !detected) return;
+    const key = `${startedAt}:${detected}`;
+    if (detectRef.current === key) return;
+    detectRef.current = key;
+    if (detected !== model) setModel(detected);
+  }, [startedAt, detected, model, setModel]);
   useEffect(() => {
     const key = `${startedAt}:${model}`;
     if (!takesCommands || !startedAt || readRef.current === key) return;
     readRef.current = key;
     void (async () => {
+      const send = (c: ReceiverCommand) =>
+        sendCommand('line' in c ? { line: c.line } : { hex: c.hex }, 'line' in c ? undefined : c.accept);
       const queue = readCommands(model);
       // Stops when the model changes: another read has started.
-      for (let c = queue.shift(); c && readRef.current === key; c = queue.shift()) {
+      for (let c = queue.shift(), first = true; c && readRef.current === key; c = queue.shift(), first = false) {
         try {
-          const reply = await sendCommand('line' in c ? { line: c.line } : { hex: c.hex }, 'line' in c ? undefined : c.accept);
+          const reply = await send(c);
+          if (!reply && first) {
+            // No answer to the first poll: perhaps a receiver of the other
+            // make. Ask it; a model it names is selected above. A Septentrio
+            // receiver may first answer the bytes of the UBX poll with an
+            // error, so it is asked twice.
+            const probe = otherProbe(model);
+            for (let i = 0; i < 2 && readRef.current === key; i++) {
+              const r = await send(probe);
+              if (!r) return;
+              if (isFailure(r) && i === 0) continue;
+              // It answered but names no model of ours: its make's default.
+              if (!modelFromReply(r)) setModel(isUbloxModel(model) ? 'mosaic-G5' : 'ZED-F9P');
+              return;
+            }
+            return;
+          }
           const more = follow(c, reply);
           if (more) queue.unshift(more);
         } catch {
@@ -159,7 +208,7 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
         }
       }
     })();
-  }, [takesCommands, startedAt, model, sendCommand]);
+  }, [takesCommands, startedAt, model, sendCommand, setModel]);
 
   /** Send lines one by one, each after the previous answer; stop at a
    *  failure unless `keepGoing`. Returns the steps, or null if the server
@@ -280,6 +329,7 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
               key={model}
               model={model}
               values={ubx.values}
+              connectedPort={ubx.port}
               canSend={canSend}
               busy={busy}
               apply={(commands) => runReported(commands, 'Applied. Check the result in the Messages tab.')}
@@ -319,7 +369,7 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
                 </Button>
               </Group>
               {ublox
-                ? <UbloxPortsView model={model} values={ubx.values} version={ubx.version} />
+                ? <UbloxPortsView model={model} values={ubx.values} version={ubx.version} connectedPort={ubx.port} />
                 : <PortsAndTracking settings={settings} />}
             </Stack>
           </ScrollArea>

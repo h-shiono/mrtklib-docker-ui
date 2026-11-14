@@ -118,6 +118,16 @@ def _sbf_summary(data: bytes) -> str:
     return "  ".join(parts)
 
 
+# MON-COMMS outputPort values, and port IDs (high byte; e.g. 0x0300 USB).
+_UBX_PORT_NAMES = {1: "I2C", 2: "UART1", 3: "UART2", 4: "USB", 5: "SPI"}
+_UBX_PORT_IDS = {0x00: "I2C", 0x01: "UART1", 0x02: "UART2", 0x03: "USB", 0x04: "SPI"}
+
+
+def _ubx_port_name(port_id: int) -> str:
+    name = _UBX_PORT_IDS.get(port_id >> 8)
+    return name if name and port_id & 0xFF == 0 else f"0x{port_id:04X}"
+
+
 def _ubx_summary(data: bytes) -> str | None:
     msg = _ubx_id(data)
     p = data[6:-2]
@@ -128,6 +138,13 @@ def _ubx_summary(data: bytes) -> str | None:
         fields = [p[0:30], p[30:40]] + [p[i : i + 30] for i in range(40, len(p), 30)]
         texts = [f.split(b"\0", 1)[0].decode("ascii", "replace").strip() for f in fields]
         return "  ".join(t for t in texts if t)
+    if msg == (0x0A, 0x36):  # MON-COMMS: per port, bytes received
+        out = _UBX_PORT_NAMES.get(p[2] >> 2 & 7)
+        ports = []
+        for n in range(p[1]):
+            port_id, rx = struct.unpack_from("<H", p, 8 + n * 40)[0], struct.unpack_from("<I", p, 20 + n * 40)[0]
+            ports.append(f"{_ubx_port_name(port_id)} rx {rx}")
+        return "  ".join(([f"from {out}"] if out else []) + ports)
     if msg == (0x06, 0x8B):  # CFG-VALGET response
         return f"layer {p[1]}  position {struct.unpack_from('<H', p, 2)[0]}  {len(p) - 4} bytes of values"
     if msg == (0x02, 0x13):  # RXM-SFRBX
@@ -183,12 +200,12 @@ def _hex_groups(data: bytes) -> str:
 
 
 # UBX answers to commands: shown in the receiver console (#136).
-UBX_REPLIES = frozenset({(0x05, 0x01), (0x05, 0x00), (0x06, 0x8B), (0x0A, 0x04)})
+UBX_REPLIES = frozenset({(0x05, 0x01), (0x05, 0x00), (0x06, 0x8B), (0x0A, 0x04), (0x0A, 0x36)})
 
 
 def is_reply(frame: Frame) -> bool:
     """A receiver's answer to a command: Septentrio ASCII output, or UBX
-    ACK / NAK, CFG-VALGET and MON-VER."""
+    ACK / NAK, CFG-VALGET, MON-VER and MON-COMMS."""
     if frame.kind == "reply":
         return True
     return frame.kind == "ubx" and len(frame.data) >= 8 and _ubx_id(frame.data) in UBX_REPLIES
