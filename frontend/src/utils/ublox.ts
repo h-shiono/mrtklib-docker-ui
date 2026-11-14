@@ -101,6 +101,45 @@ export function valgetFrom(key: number, position: number): string {
 /** UBX-MON-VER poll: names the receiver (MOD=...) and its firmware. */
 export const MON_VER_POLL = ubxFrame(0x0a, 0x04);
 
+/** UBX-MON-COMMS poll: per port, bytes received; on a ZED-F9P also the port
+ *  the answer came out of (the one this stream talks to). */
+export const MON_COMMS_POLL = ubxFrame(0x0a, 0x36);
+const MON_COMMS_POLL_BYTES = 8;
+
+const PORT_BY_OUTPUT: Record<number, UbloxPort> = { 1: 'I2C', 2: 'UART1', 3: 'UART2', 4: 'USB', 5: 'SPI' };
+const PORT_BY_ID: Record<number, UbloxPort> = { 0x0000: 'I2C', 0x0100: 'UART1', 0x0200: 'UART2', 0x0300: 'USB', 0x0400: 'SPI' };
+
+export interface MonComms {
+  /** The port the message came out of; null when not reported (NEO-D9C). */
+  outputPort: UbloxPort | null;
+  /** Bytes ever received, per port. */
+  rx: Partial<Record<UbloxPort, number>>;
+}
+
+/** A UBX-MON-COMMS frame (hex). */
+export function parseMonComms(frameHex: string): MonComms {
+  const b = frameHex.match(/../g)?.map((x) => parseInt(x, 16)) ?? [];
+  const p = b.slice(6, -2);
+  const rx: Partial<Record<UbloxPort, number>> = {};
+  for (let n = 0; n < (p[1] ?? 0) && 8 + n * 40 + 16 <= p.length; n++) {
+    const o = 8 + n * 40;
+    const port = PORT_BY_ID[p[o] | (p[o + 1] << 8)];
+    if (port) rx[port] = (p[o + 12] | (p[o + 13] << 8) | (p[o + 14] << 16) | (p[o + 15] << 24)) >>> 0;
+  }
+  return { outputPort: PORT_BY_OUTPUT[((p[2] ?? 0) >> 2) & 7] ?? null, rx };
+}
+
+/** The port this stream talks to, from two MON-COMMS answers in a row: the
+ *  one the latest came out of, else the only port that received exactly the
+ *  second poll in between (other input, e.g. RTCM3, counts too). */
+export function connectedPort(latest: MonComms, previous: MonComms | null): UbloxPort | null {
+  if (latest.outputPort) return latest.outputPort;
+  if (!previous) return null;
+  const grew = (Object.keys(latest.rx) as UbloxPort[])
+    .filter((p) => previous.rx[p] !== undefined && latest.rx[p]! - previous.rx[p]! === MON_COMMS_POLL_BYTES);
+  return grew.length === 1 ? grew[0] : null;
+}
+
 /** Item values (unsigned, as stored) of a UBX-CFG-VALGET response frame. */
 export function parseValget(frameHex: string): Map<number, number> {
   const b = frameHex.match(/../g)?.map((x) => parseInt(x, 16)) ?? [];
@@ -132,6 +171,7 @@ export const acceptsValget = (e: MonitorConsoleEntry) =>
   e.label === 'UBX CFG-VALGET' || (e.label === 'UBX ACK-NAK' && !!e.summary?.includes('CFG-VALGET'));
 
 export const acceptsMonVer = (e: MonitorConsoleEntry) => e.label === 'UBX MON-VER';
+export const acceptsMonComms = (e: MonitorConsoleEntry) => e.label === 'UBX MON-COMMS';
 
 /** Every key the Receiver tab reads for `model`. */
 export function readKeys(model: UbloxModel): number[] {
@@ -161,6 +201,16 @@ export function ubloxReadCommands(model: UbloxModel): ReceiverCommand[] {
   });
   return [
     { hex: MON_VER_POLL, shown: 'MON-VER (poll)', accept: acceptsMonVer },
+    {
+      hex: MON_COMMS_POLL,
+      shown: 'MON-COMMS (poll)',
+      accept: acceptsMonComms,
+      // No output port in it (NEO-D9C): poll again and see which port
+      // received the poll.
+      next: (reply) => (reply.data && !parseMonComms(reply.data).outputPort
+        ? { hex: MON_COMMS_POLL, shown: 'MON-COMMS (poll again)', accept: acceptsMonComms }
+        : null),
+    },
     ...[...groups].map(([key, name]) => page(key, name, 0)),
   ];
 }
@@ -170,12 +220,16 @@ export interface UbloxSettings {
   values: Map<number, number>;
   /** MON-VER: software, hardware and extension strings. */
   version: string | null;
+  /** The port this stream talks to, when MON-COMMS told it. */
+  port: UbloxPort | null;
+  /** The latest MON-COMMS answer. */
+  comms: MonComms | null;
 }
 
-export const EMPTY_UBLOX: UbloxSettings = { values: new Map(), version: null };
+export const EMPTY_UBLOX: UbloxSettings = { values: new Map(), version: null, port: null, comms: null };
 
 /** The settings after one more console entry: a VALGET reply's values, or
- *  MON-VER's version (the same object when the entry reports neither). */
+ *  MON-VER's version, MON-COMMS's port (the same object otherwise). */
 export function foldUblox(acc: UbloxSettings, e: MonitorConsoleEntry): UbloxSettings {
   if (e.dir !== 'rx' || !e.data) return acc;
   if (e.label === 'UBX CFG-VALGET') {
@@ -184,6 +238,10 @@ export function foldUblox(acc: UbloxSettings, e: MonitorConsoleEntry): UbloxSett
     return { ...acc, values };
   }
   if (e.label === 'UBX MON-VER') return { ...acc, version: e.summary ?? null };
+  if (e.label === 'UBX MON-COMMS') {
+    const comms = parseMonComms(e.data);
+    return { ...acc, comms, port: connectedPort(comms, acc.comms) ?? acc.port };
+  }
   return acc;
 }
 

@@ -3,7 +3,7 @@
 `FrameLog` decodes the stream (`StreamDecoder`), keeps the Message tab's
 per-type log (`MessageLog`), and the receiver console: the commands sent and
 the receiver's answers (Septentrio ASCII output; UBX ACK / NAK, CFG-VALGET,
-MON-VER). The Stream Monitor and the Streams sessions both use it.
+MON-VER, MON-COMMS). The Stream Monitor and the Streams sessions both use it.
 
 `encode_command` turns what a page asks to send into bytes.
 """

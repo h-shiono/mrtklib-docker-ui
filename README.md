@@ -97,7 +97,8 @@ GNSS positioning capabilities. No compilation required — just
   like u-center's message view, one row per message (grouped by class)
   and one column per port, read with UBX-CFG-VALGET. A preset (raw
   observations on a ZED-F9P; CLAS L6D or MADOCA L6E on a NEO-D9C) checks
-  what MRTKLIB reads on the chosen port; Apply sends only what changed
+  what MRTKLIB reads on the chosen port, by default the one the stream is
+  connected to (asked with UBX-MON-COMMS); Apply sends only what changed
   with UBX-CFG-VALSET (RAM) and reads it back. It also shows each port's
   output protocols, the rates, the signals and the D9C's L6 channels, and
   saves the settings to BBR and flash
@@ -490,7 +491,10 @@ Bug reports and feedback are very welcome — please
   not yet against a real receiver. u-blox: checked in Chrome against a
   simulated ZED-F9P (read, preset, apply and read back, save; also one
   that refuses keys newer than its firmware) through Streams Browser
-  serial; NEO-D9C and real u-blox receivers untested
+  serial. With a real ZED-F9P (HPG 1.51) and NEO-D9C (QZS 1.01) on USB,
+  through the real `mrtk relay`: the read (model, connected port, every
+  message rate) and a CFG-VALSET acknowledged; the page itself in Chrome
+  only against the simulated receiver
 - **Streams, Browser serial**: checked in Chrome with a simulated
   mosaic-G5 port and the real `mrtk relay` (messages, receiver read,
   console, stop, tab closed); not yet with a real receiver

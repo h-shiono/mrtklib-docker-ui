@@ -280,6 +280,7 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
               key={model}
               model={model}
               values={ubx.values}
+              connectedPort={ubx.port}
               canSend={canSend}
               busy={busy}
               apply={(commands) => runReported(commands, 'Applied. Check the result in the Messages tab.')}
@@ -319,7 +320,7 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
                 </Button>
               </Group>
               {ublox
-                ? <UbloxPortsView model={model} values={ubx.values} version={ubx.version} />
+                ? <UbloxPortsView model={model} values={ubx.values} version={ubx.version} connectedPort={ubx.port} />
                 : <PortsAndTracking settings={settings} />}
             </Stack>
           </ScrollArea>
