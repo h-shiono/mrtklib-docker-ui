@@ -83,6 +83,9 @@ GNSS positioning capabilities. No compilation required — just
   reads each relay through an extra output it adds (hidden), and sends
   commands back through it, so a receiver on the relay's serial, TCP or
   Browser serial input is configured where its data goes out
+- Receiver tab: the receiver is selected from what it says it is
+  (Septentrio receiver name, u-blox UBX-MON-VER); another can be picked
+  by hand
 - Receiver tab (Septentrio mosaic-X5 / mosaic-CLAS / mosaic-G5): SBF
   output works like RxControl's SBF Output dialog, with one column per
   stream in use (port, interval) and a check box per group or block, read
