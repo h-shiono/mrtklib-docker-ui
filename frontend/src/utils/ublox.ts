@@ -258,7 +258,7 @@ export function ubloxModelFromVersion(version: string | null): UbloxModel | null
   return null;
 }
 
-export type UbloxPresetId = 'raw' | 'clas' | 'madoca';
+export type UbloxPresetId = 'raw' | 'clas' | 'madoca' | 'clas-madoca';
 
 export interface UbloxPreset {
   id: UbloxPresetId;
@@ -286,7 +286,32 @@ export const UBLOX_PRESETS: UbloxPreset[] = [
     description: 'RXM-QZSSL6, with channel A decoding L6E from the best QZSS satellite.',
     models: ['NEO-D9C'],
   },
+  {
+    id: 'clas-madoca',
+    label: 'CLAS + MADOCA (L6D and L6E)',
+    description: 'RXM-QZSSL6, with channel A decoding L6D and channel B L6E, each from the best QZSS satellite.',
+    models: ['NEO-D9C'],
+  },
 ];
+
+/** QZSS L6 channels of a NEO-D9C (CFG-QZSS-L6_*). */
+export const L6_CHANNELS = ['A', 'B'] as const;
+export type L6Channel = (typeof L6_CHANNELS)[number];
+/** CFG-QZSS-L6_SVID as read (unsigned byte): −1 disables the channel. */
+export const L6_SV_DISABLED = 0xff;
+export const L6_SV_AUTO = 0;
+/** Satellites a channel can be set to: svId 1.. = PRN 193.. (as MRTKLIB
+ *  reads RXM-QZSSL6). */
+export const L6_SV_IDS = Array.from({ length: 10 }, (_, i) => i + 1);
+export const L6_MESSAGES = ['L6D', 'L6E'];
+export const L6_RS_DECODER = ['off', 'detect errors', 'correct errors'];
+
+/** A CFG-QZSS-L6_SVID value in words. */
+export function l6Satellite(v: number | undefined): string {
+  if (v === undefined) return '—';
+  const n = signed8(v);
+  return n < 0 ? 'disabled' : n === 0 ? 'automatic' : `J${String(n).padStart(2, '0')} (PRN ${192 + n})`;
+}
 
 /** What a preset turns on: output rates (message name → 1) on `port`, and
  *  other items (key → value), e.g. UBX output allowed on the port. */
@@ -303,8 +328,13 @@ export function ubloxPreset(id: UbloxPresetId, model: UbloxModel, port: UbloxPor
     item(`CFG-${port}OUTPROT-UBX`, 1);
     return { messages: ['UBX_RXM_RAWX', 'UBX_RXM_SFRBX', 'UBX_NAV_PVT'], items: set };
   }
-  // D9C: channel A, automatic satellite, L6D (0) or L6E (1).
-  item('CFG-QZSS-L6_SVIDA', 0);
-  item('CFG-QZSS-L6_MSGA', id === 'clas' ? 0 : 1);
+  // D9C: channel A, automatic satellite, L6D (0) or L6E (1); for both,
+  // channel B on L6E.
+  item('CFG-QZSS-L6_SVIDA', L6_SV_AUTO);
+  item('CFG-QZSS-L6_MSGA', id === 'madoca' ? 1 : 0);
+  if (id === 'clas-madoca') {
+    item('CFG-QZSS-L6_SVIDB', L6_SV_AUTO);
+    item('CFG-QZSS-L6_MSGB', 1);
+  }
   return { messages: ['UBX_RXM_QZSSL6'], items: set };
 }

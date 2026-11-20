@@ -99,12 +99,14 @@ GNSS positioning capabilities. No compilation required — just
 - Receiver tab (u-blox ZED-F9P / NEO-D9C, generation 9): message output
   like u-center's message view, one row per message (grouped by class)
   and one column per port, read with UBX-CFG-VALGET. A preset (raw
-  observations on a ZED-F9P; CLAS L6D or MADOCA L6E on a NEO-D9C) checks
+  observations on a ZED-F9P; CLAS L6D, MADOCA L6E or both on a NEO-D9C) checks
   what MRTKLIB reads on the chosen port, by default the one the stream is
   connected to (asked with UBX-MON-COMMS); Apply sends only what changed
   with UBX-CFG-VALSET (RAM) and reads it back. It also shows each port's
-  output protocols, the rates, the signals and the D9C's L6 channels, and
-  saves the settings to BBR and flash
+  output protocols, the rates and the signals, and saves the settings to
+  BBR and flash. On a NEO-D9C each QZSS L6 channel (A, B) is set to a
+  satellite (or automatic, or off) and to L6D or L6E, with the
+  Reed-Solomon decoder mode
 - Running relays are restored after a page reload and can still be stopped
 - Saves raw streams: a file output (with `::T`, `::S=` options) is
   restart-safe — if the file already exists, or another relay writes
