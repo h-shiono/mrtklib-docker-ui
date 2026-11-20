@@ -139,3 +139,25 @@ def test_the_stream_takes_commands_through_its_tap(relay, client):
     status = [s for s in client.get("/api/mrtk-relay/sessions").json() if s["stream"] == pid][0]
     assert status["commands"] or status["blocked"] == "The relay is not connected yet" or status["blocked"] is None
     client.post("/api/mrtk-relay/stop", json={"process_id": pid})
+
+
+def test_a_busy_page_still_sees_the_relay_exit(relay, client, monkeypatch):
+    """The relay's exit is noticed while the port keeps sending data."""
+    from mrtklib_web_ui.api import mrtk_relay
+
+    monkeypatch.setattr(mrtk_relay, "_PROCESS_CHECK_S", 0.3)
+    st = _start(client)
+    pid, token = st["id"], st["browser_token"]
+    with client.websocket_connect(f"/api/mrtk-relay/browser/ingest?process_id={pid}&token={token}") as ws:
+        ws.send_bytes(b"x")
+        relay.stopped.add(pid)  # the relay exits by itself
+        end = time.monotonic() + 1.2
+        while time.monotonic() < end:  # never a quiet 0.3 s
+            ws.send_bytes(b"$GNGGA,1*00\r\n")
+            time.sleep(0.05)
+        t0 = time.monotonic()
+        with pytest.raises(WebSocketDisconnect) as closed:
+            ws.receive_text()
+        # Already closed while the data came, not after a quiet period.
+        assert time.monotonic() - t0 < 0.2
+        assert closed.value.code == 1000

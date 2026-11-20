@@ -173,6 +173,11 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
     detectRef.current = key;
     if (detected !== model) setModel(detected);
   }, [startedAt, detected, model, setModel]);
+  // Unmounted (e.g. another tab opened): the read in progress stops before
+  // its next command. Under StrictMode the read then starts once more.
+  useEffect(() => () => {
+    readRef.current = null;
+  }, []);
   useEffect(() => {
     const key = `${startedAt}:${model}`;
     if (!takesCommands || !startedAt || readRef.current === key) return;
@@ -196,7 +201,7 @@ export function ReceiverPanel({ link }: { link: ReceiverLink }) {
               if (!r) return;
               if (isFailure(r) && i === 0) continue;
               // It answered but names no model of ours: its make's default.
-              if (!modelFromReply(r)) setModel(isUbloxModel(model) ? 'mosaic-G5' : 'ZED-F9P');
+              if (!modelFromReply(r) && readRef.current === key) setModel(isUbloxModel(model) ? 'mosaic-G5' : 'ZED-F9P');
               return;
             }
             return;

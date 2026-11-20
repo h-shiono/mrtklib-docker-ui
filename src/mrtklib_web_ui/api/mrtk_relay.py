@@ -7,6 +7,7 @@ from pathlib import Path
 import asyncio
 import json
 import base64
+import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
@@ -582,6 +583,7 @@ async def websocket_browser_ingest(websocket: WebSocket, process_id: str = "", t
         return
     ended = asyncio.create_task(bridge.ended.wait())
     received: asyncio.Task | None = None
+    checked = time.monotonic()
     try:
         while True:
             if received is None:
@@ -592,11 +594,14 @@ async def websocket_browser_ingest(websocket: WebSocket, process_id: str = "", t
             if ended in done:
                 await _close_quietly(websocket, 1000, "Stream stopped")
                 return
-            if not done:  # quiet second: is the relay still there?
+            # Every second, also while data keeps coming: is the relay still there?
+            if time.monotonic() - checked >= _PROCESS_CHECK_S:
+                checked = time.monotonic()
                 info = await process_manager.get_status(process_id)
                 if info is None or info.state.value not in ("starting", "running"):
                     await _close_quietly(websocket, 1000, "The relay exited")
                     return
+            if not done:
                 continue
             message = received.result()
             received = None
