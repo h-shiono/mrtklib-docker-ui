@@ -11,7 +11,7 @@ conversion, and data tools from a browser without compiling anything.
 - **Unified binary:** `mrtk` with subcommands (`post`, `run`, `relay`,
   `convert`, `ssr2obs`, `ssr2osr`, `bias`, `dump`, `cssr2rtcm3`,
   `l6extract`)
-- **UI version:** v0.4.8-alpha (next: v0.5.0 — drops the alpha suffix)
+- **UI version:** v0.4.9-alpha (next: v0.5.0 — drops the alpha suffix)
 
 ## Tech Stack
 
@@ -74,7 +74,8 @@ mrtklib-docker-ui/
 ### Navigation
 The header has a mode switch for the two primary modes,
 **Real-time | Post-processing**, and separate header buttons for
-**Stream Relay** (Multi-Stream, CLAS to RTCM3) | **Stream Monitor** |
+**Streams** (Multi-Stream, CLAS to RTCM3; per stream Messages / Receiver /
+Console / Log) | **Monitor** |
 **Tools** (Conversion: RINEX Converter, Hatanaka; Time Converter, Data
 Downloader, AI Settings). One-shot file tools (ssr2obs, dump, l6extract, ...)
 belong in Tools too.

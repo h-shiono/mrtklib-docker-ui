@@ -138,7 +138,7 @@ def test_streams_endpoint_lists_ui_relays_with_log(pm):
         assert mrtk_relay._stream_names == {}
 
 
-def test_receive_only_relay_discards_the_data(pm, monkeypatch):
+def test_receive_only_relay_outputs_only_to_the_tap(pm, monkeypatch):
     app = FastAPI()
     app.include_router(mrtk_relay.router, prefix="/api/mrtk-relay")
     started = []
@@ -155,7 +155,10 @@ def test_receive_only_relay_discards_the_data(pm, monkeypatch):
         r = c.post("/api/mrtk-relay/start", json={"args": args, "name": "Check"})
         assert r.status_code == 200
         pid = r.json()["id"]
-        assert started == [["-in", "tcpcli://h:2101", "-out", mrtk_relay.DISCARD_OUTPUT]]
+        # The message tap (#136) is the relay's only output: no discard output.
+        run = started[0]
+        assert run[:3] == ["-in", "tcpcli://h:2101", "-out"] and run[3].startswith("tcpsvr://:")
+        assert run[4:] == ["-b", "1"] and mrtk_relay.DISCARD_OUTPUT not in run
         # the page sees the stream as it was given: no outputs
         assert r.json()["args"] == args
         assert c.get("/api/mrtk-relay/streams").json()[0]["args"] == args

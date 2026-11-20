@@ -33,10 +33,17 @@ from pathlib import Path
 
 from mrtklib_web_ui.services.process_manager import process_manager
 from mrtklib_web_ui.services.receiver_presets import get_preset
+from mrtklib_web_ui.services.stream_session_service import TapInfo, stream_sessions
 
 # Process IDs used in the global ProcessManager — fixed strings so the UI
 # can subscribe by name instead of tracking dynamic UUIDs.
 RELAY_PID = "clas-relay"
+# A Septentrio port in `auto` input mode stops taking commands once it gets
+# corrections, and the pipeline feeds RTCM3 back all the time (#136).
+CLAS_NO_COMMANDS = (
+    "While CLAS to RTCM3 runs, the receiver port takes RTCM3 and ignores commands: "
+    "stop the pipeline to configure the receiver"
+)
 CSSR_PID = "clas-cssr2rtcm3"
 
 # Local TCP loopback port for the SBF stream between relay and cssr2rtcm3.
@@ -238,6 +245,15 @@ class ClasPipelineService:
             self._status.error_message = f"Failed to start relay: {e}"
             return self._status
 
+        # The bridge's messages for the page (#136): one more client of the
+        # bridge's TCP server, read only (commands could not reach the receiver).
+        await stream_sessions.attach(
+            RELAY_PID,
+            TapInfo(config.bridge_port, owned=False, added_b=False),
+            CLAS_NO_COMMANDS,
+            relay_in,
+        )
+
         await asyncio.sleep(_BIND_GRACE_S)
 
         cssr_in = f"sbf://tcpcli://localhost:{config.bridge_port}"
@@ -285,6 +301,7 @@ class ClasPipelineService:
         # to give it a clean EOF rather than tearing the relay out from under it.
         await self._stop_process(CSSR_PID)
         await self._stop_process(RELAY_PID)
+        await stream_sessions.end(RELAY_PID)
 
         self._status.state = PipelineState.STOPPED
         return self._status

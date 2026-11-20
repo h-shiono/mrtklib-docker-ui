@@ -11,7 +11,7 @@ GNSS positioning capabilities. No compilation required — just
 ![React](https://img.shields.io/badge/react-19-blue.svg)
 ![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.17-green.svg)
 
-> **Status**: v0.4.8-alpha — core features are functional.
+> **Status**: v0.4.9-alpha — core features are functional.
 > Known limitations are listed in [Known Issues](#known-issues).
 
 ![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
@@ -36,7 +36,7 @@ GNSS positioning capabilities. No compilation required — just
 - CLAS PPP-RTK: the L6 source of the corrections (L6 PRN and facility,
   from the NMEA GGA station id) is marked on the ENU charts of the Result
   Viewer where it changes (QZSS handover, facility switch; PPP-RTK
-  configurations), and shown live in the Stream Monitor's status footer
+  configurations), and shown live in the Monitor's status footer
   (the **L6** toggle beside the station id). NMEA output only; LLH / XYZ `.pos` files do not
   carry it
 - Compressed inputs (`.gz`, `.Z`, single-file `.zip`, `.tar`) and
@@ -68,34 +68,72 @@ GNSS positioning capabilities. No compilation required — just
 - Restart-safe file outputs: if a solution or raw-log file already
   exists, the run writes to `_2`, `_3`, … instead of overwriting it
 
-### Stream Relay (`mrtk relay`)
-- Multi-stream configuration (up to 4 simultaneous streams)
-- Per-stream Start / Stop control with live console output
+### Streams (`mrtk relay`)
+- Multi-stream configuration (up to 4 simultaneous streams, up to 4
+  outputs each)
+- Per-stream Start / Stop control
+- Input type **Browser serial**: the page opens a USB / serial port on
+  its own computer (Web Serial, Chrome or Edge, `localhost` or https); the
+  server serves it to the relay on 127.0.0.1, so it can be saved, sent to
+  `mrtk run` and configured like any receiver. The stream stops when the
+  tab closes or reloads
+- For the selected stream: **Messages** (every message type it carries,
+  the latest frames of one type), **Receiver**, **Console** (any command,
+  and the receiver's replies) and **Log** (the relay's output). The server
+  reads each relay through an extra output it adds (hidden), and sends
+  commands back through it, so a receiver on the relay's serial, TCP or
+  Browser serial input is configured where its data goes out
+- Receiver tab: the receiver is selected from what it says it is
+  (Septentrio receiver name, u-blox UBX-MON-VER); another can be picked
+  by hand
+- Receiver tab (Septentrio mosaic-X5 / mosaic-CLAS / mosaic-G5): SBF
+  output works like RxControl's SBF Output dialog, with one column per
+  stream in use (port, interval) and a check box per group or block, read
+  from the receiver. A preset (raw observations, CLAS L6D, MADOCA L6E,
+  Galileo HAS E6, BeiDou B2b, SouthPAN PVS) checks the blocks that
+  MRTKLIB's quickstart guide for that service lists and adds the signal
+  tracking it needs; change any box, then Apply sends only what changed,
+  with the commands shown first. It also shows the ports' input / output
+  and the tracked signals, and saves the settings to the boot
+  configuration
+- Receiver tab (u-blox ZED-F9P / NEO-D9C, generation 9): message output
+  like u-center's message view, one row per message (grouped by class)
+  and one column per port, read with UBX-CFG-VALGET. A preset (raw
+  observations on a ZED-F9P; CLAS L6D, MADOCA L6E or both on a NEO-D9C) checks
+  what MRTKLIB reads on the chosen port, by default the one the stream is
+  connected to (asked with UBX-MON-COMMS); Apply sends only what changed
+  with UBX-CFG-VALSET (RAM) and reads it back. It also shows each port's
+  output protocols, the rates and the signals, and saves the settings to
+  BBR and flash. On a NEO-D9C each QZSS L6 channel (A, B) is set to a
+  satellite (or automatic, or off) and to L6D or L6E, with the
+  Reed-Solomon decoder mode
 - Running relays are restored after a page reload and can still be stopped
 - Saves raw streams: a file output (with `::T`, `::S=` options) is
   restart-safe — if the file already exists, or another relay writes
   it, the relay writes to `_2`, `_3`, … instead of overwriting it
 - No outputs: the relay only receives, to check that the input works
-  (the console shows the byte count; the data is not kept)
-- With a `tcpsvr://:PORT` output, the Stream Monitor can watch the same
-  stream while it is saved (Stream Monitor input type **Stream Relay**)
+  and see its messages (the data is not kept)
+- With a `tcpsvr://:PORT` output, the Monitor can watch the same
+  stream while it is saved (Monitor input type **Streams**)
 
 ### CLAS to RTCM3 (`mrtk relay` + `mrtk cssr2rtcm3`)
 - One-form Wizard for the SBC + receiver + CLAS workflow (supported
   by MRTKLIB since v0.6.5; the image bundles the pinned version)
 - Pipes Septentrio SBF (with QZSS L6 CLAS) → cssr2rtcm3 → RTCM3 →
   back to the receiver, which runs VRS-RTK on its own engine
-- Input as in Stream Relay: Serial (`ttyACM0:115200`) or TCP Client
+- Input as in Streams: Serial (`ttyACM0:115200`) or TCP Client
   (`host:port`) — e.g. on macOS, where Docker cannot reach USB serial,
   serve the port from the host with
   `mrtk relay -in serial://cu.usbmodem…:115200 -b 1 -out tcpsvr://:9001`
   and use TCP Client `host.docker.internal:9001`
-- Outputs as in Stream Relay: the first is the bridge to cssr2rtcm3
+- Outputs as in Streams: the first is the bridge to cssr2rtcm3
   (`tcpsvr`, port editable); add a file to record the raw SBF
   (restart-safe `_2`, `_3`, …) or a TCP server to hand it to other apps
-- Split logs for both child processes; watch the receiver's position
-  and messages in the **Stream Monitor** (input type Stream Relay →
-  `CLAS to RTCM3 · :9870`)
+- A Messages tab shows what the receiver sends through the bridge, and
+  split logs for both child processes; watch the receiver's position in
+  the **Monitor** (input type Streams → `CLAS to RTCM3 · :9870`)
+- Configure the receiver with the pipeline stopped: while it runs, the
+  receiver port takes RTCM3 and ignores commands
 - Currently ships with a mosaic-G5 preset; request more receivers
   via the GitHub Issue template
 
@@ -111,11 +149,18 @@ GNSS positioning capabilities. No compilation required — just
   with optional gzip; inputs from `/data` or `/workspace`, output to
   `/workspace`
 
-### Stream Monitor (receiver or stream: NMEA / SBF / UBX)
+### Monitor (receiver or stream: NMEA / SBF / UBX)
 - Connects to a receiver or any stream (serial, TCP client / server,
   NTRIP client) through `mrtk relay`, without running `mrtk run`
   — for example the receiver itself, or the NMEA output of a running
   `mrtk run`
+- Input type **Browser serial**: the browser opens a USB / serial port on
+  the computer it runs on (Web Serial, Chrome or Edge, page on `localhost`
+  or https) and sends the data to the server, so Docker needs no USB
+  access (no `usbipd` on Windows, works on macOS). The port is chosen on
+  Start; closing or reloading the tab, or unplugging the receiver, ends
+  the stream (other inputs reattach after a reload). Start two browser
+  streams one at a time: the browser shows one port picker at a time
 - Replays a recorded file (raw SBF / UBX / NMEA log or solution text)
   all at once or paced by its epoch times (real time, 10×, 60×)
 - Decodes NMEA (GGA, RMC, ZDA, GST, GSA, GSV), Septentrio SBF
@@ -129,13 +174,15 @@ GNSS positioning capabilities. No compilation required — just
 - Two streams at once: overlay them on 2D / ENU / Map on one reference
   to compare two receivers or solutions, coloured by stream or by
   quality; one selector switches the per-stream views
+- Receivers are configured on the **Streams** page (Receiver tab), where
+  the stream that owns the receiver port runs; the Monitor only reads
 - Message tab: every message type with count, rate, size and age, and
   the latest frames of the selected type as a hex dump or text
 - Stream health: data rate, message counts, undecoded bytes / bad
   frames
-- Input type **Stream Relay**: watch a running relay's `tcpsvr://:PORT`
+- Input type **Streams**: watch a running stream's `tcpsvr://:PORT`
   output, picked by relay name. To save a stream while watching it, relay
-  it with Stream Relay to a file and to `tcpsvr://:PORT`
+  it with Streams to a file and to `tcpsvr://:PORT`
 - Reattaches to a running session after a page reload
 
 ### Tools
@@ -173,10 +220,10 @@ Images are published for both `linux/amd64` and `linux/arm64`
 1. **Pull the image**
    ```bash
    # Docker Hub
-   docker pull hatognss/mrtklib-docker-ui:0.4.8-alpha
+   docker pull hatognss/mrtklib-docker-ui:0.4.9-alpha
 
    # or GitHub Container Registry
-   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.8-alpha
+   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.9-alpha
    ```
 
 2. **Prepare host directories**
@@ -192,7 +239,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
      -e PUID="$(id -u)" -e PGID="$(id -g)" \
-     hatognss/mrtklib-docker-ui:0.4.8-alpha
+     hatognss/mrtklib-docker-ui:0.4.9-alpha
    ```
 
 4. **Open the UI** at <http://localhost:8080>
@@ -250,7 +297,7 @@ own IDs (`id -u` / `id -g`) in `.env`. On start, existing files under
 that ran as root) are chowned to `PUID:PGID`. `PUID=0` restores the
 old run-as-root behaviour.
 
-### Serial Device Passthrough (Stream Monitor, Stream Relay and CLAS to RTCM3)
+### Serial Device Passthrough (Monitor, Streams and CLAS to RTCM3)
 
 To connect to a GNSS receiver via serial port, add the device
 to `docker-compose.yml`:
@@ -276,8 +323,14 @@ do both (output SBF/L6, input RTCM3). Set `CLAS_INPUT_DEVICE` in
 
 Docker Desktop on macOS runs Linux containers in a hidden VM, so
 USB-serial devices on the Mac (`/dev/cu.usbmodem*`) are **not**
-visible to the container by default. Use one of:
+visible to the container by default. Windows needs `usbipd` for the
+same reason. Use one of:
 
+- In Streams or the Monitor, pick input type **Browser serial**: Chrome
+  or Edge opens the port on the Mac / PC and sends the data to the
+  server. Nothing to install or attach; the stream lasts while the tab is
+  open (the server stops it when the tab closes), so it does not suit a
+  long unattended `mrtk run` or logging session.
 - Run on the SBC itself (recommended for production CLAS use).
 - Forward over the network with USB/IP or a TCP↔serial bridge
   (e.g. `socat`, `ser2net`) and pick TCP in the UI instead of
@@ -414,7 +467,8 @@ surface orphan state in its UI.
 | **v0.4.5-alpha** | Stream Monitor: live decode of a receiver or stream (NMEA, SBF, UBX, solution text) with the Real-Time views; Stream Server renamed Stream Relay |
 | **v0.4.6-alpha** | Stream Monitor: Result Viewer views (2D / ENU / Map) live, per-band SNR, constellation toggles, file playback; one quality colour table; CLAS L6 source (PRN / facility) marked in the Result Viewer and Stream Monitor |
 | **v0.4.7-alpha** | Stream Monitor: two streams with overlaid 2D / ENU / Map, Message tab, Real-Time style layout; 2D plot with range rings around the reference; ENU chart options |
-| **v0.4.8-alpha** (current) | One design system across the app (`DESIGN.md`): colours, type scale, 30 px form rows, shared log view and toolbars; raw streams saved in Stream Relay (restart-safe files, receive-only streams), Stream Monitor reads a running relay; CLAS Pipeline renamed CLAS to RTCM3 with Stream Relay style input and outputs; Conversion moved into Tools |
+| **v0.4.8-alpha** | One design system across the app (`DESIGN.md`): colours, type scale, 30 px form rows, shared log view and toolbars; raw streams saved in Stream Relay (restart-safe files, receive-only streams), Stream Monitor reads a running relay; CLAS Pipeline renamed CLAS to RTCM3 with Stream Relay style input and outputs; Conversion moved into Tools |
+| **v0.4.9-alpha** (current) | Receiver configuration on the Streams page (Septentrio mosaic-X5 / CLAS / G5, u-blox ZED-F9P / NEO-D9C): output grids with presets, settings read back, save to boot; Messages / Console tabs per stream; Browser serial input (Web Serial); Stream Relay renamed Streams, Stream Monitor renamed Monitor |
 
 ---
 
@@ -430,10 +484,31 @@ Bug reports and feedback are very welcome — please
 - **Real-Time positioning** (`mrtk run`): basic operation confirmed;
   edge cases (stream reconnection, dual-channel CLAS, long runs)
   not yet validated
-- **Stream Monitor**: checked with u-blox F9 (RXM-RAWX + SFRBX +
+- **Monitor**: checked with u-blox F9 (RXM-RAWX + SFRBX +
   NMEA) and Septentrio mosaic-G5 (SBF) streams and files; UBX NAV-PVT /
   NAV-SAT and other receivers are not yet tested with real data
-- **Stream Monitor, two streams**: two relays were checked together
+- **Monitor, Browser serial**: checked in Chrome with a simulated
+  port replaying a u-blox F9 capture (receive, Stop, unplug, tab closed);
+  with a real receiver only the connection (macOS, Chrome, mosaic), not
+  yet the decoded messages; Windows and u-blox receivers untested
+- **Receiver configuration**: checked in Chrome against a simulated
+  mosaic-G5 that answers the commands (read, preset into a new stream,
+  edits, apply, console, save);
+  not yet against a real receiver. u-blox: checked in Chrome against a
+  simulated ZED-F9P (read, preset, apply and read back, save; also one
+  that refuses keys newer than its firmware) through Streams Browser
+  serial. With a real ZED-F9P (HPG 1.51) and NEO-D9C (QZS 1.01) on USB,
+  through the real `mrtk relay`: the read (model, connected port, every
+  message rate) and a CFG-VALSET acknowledged; the page itself in Chrome
+  only against the simulated receiver
+- **Streams, Browser serial**: checked in Chrome with a simulated
+  mosaic-G5 port and the real `mrtk relay` (messages, receiver read,
+  console, stop, tab closed); not yet with a real receiver
+- **Streams, Messages / Receiver / Console**: the message tap and the
+  command path checked with the real `mrtk relay` and a simulated
+  receiver; the page in Chrome against a simulated receiver; not yet with
+  a real receiver on a relay's serial port
+- **Monitor, two streams**: two relays were checked together
   through the API; the page and the overlay not yet against live streams
 - **CLAS L6 source**: checked with MRTKLIB's handover test output
   (`mrtk post` NMEA); not yet with a live `mrtk run` NMEA stream

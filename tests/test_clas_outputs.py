@@ -90,3 +90,41 @@ def test_relay_gets_the_bridge_first_then_the_outputs(monkeypatch):
         "-out", "file:///workspace/clas/a.sbf",
         "-out", "tcpsvr://:9871",
     ]
+
+
+def test_the_bridge_gets_a_read_only_stream_session(monkeypatch):
+    """The page shows the bridge's messages (#136); commands are refused while
+    the pipeline runs, since the receiver port takes RTCM3."""
+    from mrtklib_web_ui.services import stream_session_service as sss
+
+    async def fake_pm_start(command, args, process_id):
+        return None
+
+    async def fake_stop(pid, timeout=3.0):
+        return None
+
+    monkeypatch.setattr(svc_mod.process_manager, "start", fake_pm_start)
+    monkeypatch.setattr(svc_mod.process_manager, "stop", fake_stop)
+    monkeypatch.setattr(svc_mod, "_BIND_GRACE_S", 0)
+    svc = ClasPipelineService()
+    seen = {}
+
+    async def run():
+        await svc.start(PipelineConfig(
+            receiver_id="septentrio-mosaic-g5", input_device="tcpcli://h:1", input_baud=115200,
+        ))
+        session = sss.stream_sessions.get("clas-relay")
+        seen["port"] = session.tap.port
+        seen["owned"] = session.tap.owned
+        seen["blocked"] = session.blocked
+        try:
+            await session.send(b"grc\r\n", "grc")
+        except RuntimeError as e:
+            seen["send"] = str(e)
+        await svc.stop()
+        seen["after"] = sss.stream_sessions.get("clas-relay")
+
+    asyncio.run(run())
+    assert seen["port"] == 9870 and seen["owned"] is False
+    assert "RTCM3" in seen["blocked"] and "RTCM3" in seen["send"]
+    assert seen["after"] is None

@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from mrtklib_web_ui.services import stream_monitor_service as sms
 from mrtklib_web_ui.services.process_manager import ProcessState, process_manager
@@ -118,6 +119,8 @@ class FakeRelay:
         self.exit_codes = {}  # process id -> return code, for one relay only
         self.count = None  # epochs to send before going quiet (None = forever)
         self.writers = {}  # process id -> open connections
+        self.received = bytearray()  # what the decoder's connection wrote (-b 1)
+        self.reply = None  # bytes sent back once something was received
 
     async def start(self, command, args, process_id):
         self.args = args
@@ -125,6 +128,14 @@ class FakeRelay:
 
         async def handle(reader, writer):
             self.writers.setdefault(process_id, []).append(writer)
+
+            async def take_commands():
+                while chunk := await reader.read(4096):
+                    self.received.extend(chunk)
+                    if self.reply is not None:
+                        writer.write(self.reply)
+
+            asyncio.create_task(take_commands())
             k = 0
             try:
                 while self.count is None or k < self.count:
@@ -333,7 +344,9 @@ def test_relay_start_line_is_masked():
 
 
 def test_a_stalled_client_cannot_block_the_broadcast():
-    from mrtklib_web_ui.api import stream_monitor as api
+    from mrtklib_web_ui.api.message_hub import CLIENT_QUEUE_MAX, MessageHub, _Client
+
+    hub = MessageHub("test", lambda s: None, valid_stream=lambda s: True)
 
     class StalledWs:
         closed = False
@@ -352,21 +365,21 @@ def test_a_stalled_client_cannot_block_the_broadcast():
             self.got.append(text)
 
     async def run():
-        stalled, good = api._Client(StalledWs()), api._Client(GoodWs())
+        stalled, good = _Client(StalledWs(), None), _Client(GoodWs(), None)
         for c in (stalled, good):
-            api._clients.add(c)
+            hub._clients.add(c)
             c.task = asyncio.create_task(c.run())
         try:
-            n = api.CLIENT_QUEUE_MAX + 5
+            n = CLIENT_QUEUE_MAX + 5
             for k in range(n):  # each broadcast must return without waiting
-                await asyncio.wait_for(api._broadcast({"k": k}), timeout=0.1)
+                await asyncio.wait_for(hub.broadcast({"k": k}), timeout=0.1)
                 await asyncio.sleep(0)
             await asyncio.sleep(0.01)
-            assert stalled not in api._clients and stalled.ws.closed
-            assert good in api._clients and len(good.ws.got) == n
+            assert stalled not in hub._clients and stalled.ws.closed
+            assert good in hub._clients and len(good.ws.got) == n
         finally:
             for c in (stalled, good):
-                api._drop(c)
+                hub._drop(c)
 
     asyncio.run(run())
 
@@ -374,14 +387,18 @@ def test_a_stalled_client_cannot_block_the_broadcast():
 # ── File input (#161): read here, not through mrtk relay ───────────────────
 
 
-def _nmea_file(path, n: int) -> None:
+def _nmea_epochs(n: int) -> bytes:
     out = b""
     for k in range(n):
         t = (T0 + timedelta(seconds=k)).strftime("%H%M%S.00")
         out += nmea(f"GNRMC,{t},A,3530.0,N,13915.0,E,0.0,,071126,,,A,V")
         out += nmea(f"GNGGA,{t},3530.0,N,13915.0,E,4,12,0.5,20.0,M,40.0,M,1.0,0001")
         out += nmea("GPGSV,1,1,01,05,45,120,44,1")
-    path.write_bytes(out)
+    return out
+
+
+def _nmea_file(path, n: int) -> None:
+    path.write_bytes(_nmea_epochs(n))
 
 
 @pytest.fixture
@@ -565,3 +582,150 @@ def test_a_stopped_session_replays_no_message_rows(relay, client):
 def test_free_port_skips_excluded_ports():
     taken = sms.free_port()
     assert sms.free_port({taken}) != taken
+
+
+# ── browser input (Web Serial, #136) ────────────────────────────────────────
+
+
+def _start_browser(client, stream="a"):
+    r = client.post(
+        "/api/stream-monitor/start",
+        json={"stream": stream, "input": {"type": "browser", "path": "USB 1546:01A9 @115200"}},
+    )
+    assert r.status_code == 200
+    st = r.json()
+    assert st["running"] and st["kind"] == "browser"
+    assert st["input"] == "browser-serial://USB 1546:01A9 @115200"
+    return st["started_at"]
+
+
+def _ingest(client, started_at, stream="a"):
+    return client.websocket_connect(
+        f"/api/stream-monitor/ingest?stream={stream}&session={started_at}"
+    )
+
+
+def test_browser_session_decodes_what_the_page_sends(relay, client):
+    started_at = _start_browser(client)
+    assert relay.args is None  # no mrtk relay for a browser input
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        with _ingest(client, started_at) as ingest:
+            data = _nmea_epochs(5)
+            for i in range(0, len(data), 100):  # arbitrary chunks, as Web Serial reads
+                ingest.send_bytes(data[i : i + 100])
+            epochs = _receive_until(ws, lambda m: m["type"] == "epochs")["epochs"]
+            assert epochs[0]["Q"] == 1
+            status = _receive_until(ws, lambda m: m["type"] == "status" and m["bytes_total"])
+            assert status["connected"] and status["kind"] == "browser"
+        # The page closed the socket (tab closed, port unplugged): session over.
+        ended = _receive_until(ws, lambda m: m["type"] == "status" and m.get("exited"))
+        assert ended["state"] == "stopped" and not ended["running"]
+    history = client.get("/api/stream-monitor/status").json()
+    assert history["state"] == "stopped"
+
+
+def test_browser_session_log_is_replayed(relay, client):
+    started_at = _start_browser(client)
+    with _ingest(client, started_at):
+        with client.websocket_connect("/api/stream-monitor/ws") as ws:
+            history = json.loads(ws.receive_text())
+            assert history["type"] == "history"
+            assert any("Waiting for the browser" in line for line in history["logs"])
+    client.post("/api/stream-monitor/stop")
+
+
+def test_stop_closes_the_browser_socket(relay, client):
+    started_at = _start_browser(client)
+    with _ingest(client, started_at) as ingest:
+        ingest.send_bytes(_nmea_epochs(1))
+        assert client.post("/api/stream-monitor/stop").json()["state"] == "stopped"
+        with pytest.raises(WebSocketDisconnect) as closed:
+            ingest.receive_bytes()
+        assert closed.value.code == 1000
+
+
+@pytest.mark.parametrize("case", ["no session", "wrong session", "second page", "bad stream"])
+def test_ingest_refuses(relay, client, case):
+    if case == "no session":
+        url = "/api/stream-monitor/ingest?stream=a&session=x"
+    elif case == "bad stream":
+        url = "/api/stream-monitor/ingest?stream=z&session=x"
+    else:
+        started_at = _start_browser(client)
+        url = f"/api/stream-monitor/ingest?stream=a&session={started_at}"
+        if case == "wrong session":
+            url = "/api/stream-monitor/ingest?stream=a&session=2000-01-01T00:00:00"
+    try:
+        if case == "second page":
+            with client.websocket_connect(url):
+                with client.websocket_connect(url) as second:
+                    with pytest.raises(WebSocketDisconnect) as closed:
+                        second.receive_bytes()
+                    assert closed.value.code == 1008
+        else:
+            with client.websocket_connect(url) as ws:
+                with pytest.raises(WebSocketDisconnect) as closed:
+                    ws.receive_bytes()
+                assert closed.value.code == 1008
+    finally:
+        client.post("/api/stream-monitor/stop")
+
+
+def test_browser_session_without_data_times_out(relay, client, monkeypatch):
+    monkeypatch.setattr(sms, "INGEST_TIMEOUT_S", 0.3)
+    _start_browser(client)
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        ended = _receive_until(ws, lambda m: m["type"] == "status" and m.get("exited"))
+    assert ended["state"] == "error"
+    assert "did not send" in ended["error_message"]
+
+
+def test_oversized_ingest_message_ends_the_session(relay, client):
+    started_at = _start_browser(client)
+    with _ingest(client, started_at) as ingest:
+        ingest.send_bytes(b"\0" * 70000)
+        with pytest.raises(WebSocketDisconnect) as closed:
+            ingest.receive_bytes()
+        assert closed.value.code == 1009
+    assert client.get("/api/stream-monitor/status").json()["state"] == "stopped"
+
+
+def test_browser_and_relay_streams_side_by_side(relay, client):
+    started_at = _start_browser(client, "b")
+    client.post("/api/stream-monitor/start", json={"input": {"type": "tcpcli", "path": "x:1"}})
+    with client.websocket_connect("/api/stream-monitor/ws") as ws:
+        with _ingest(client, started_at, "b") as ingest:
+            ingest.send_bytes(_nmea_epochs(3))
+            _receive_until(ws, lambda m: m["type"] == "epochs", stream="b")
+            _receive_until(ws, lambda m: m["type"] == "epochs", stream="a")
+    assert client.get("/api/stream-monitor/status?stream=b").json()["state"] == "stopped"
+    assert client.get("/api/stream-monitor/status?stream=a").json()["running"]
+    client.post("/api/stream-monitor/stop")
+
+
+def test_relay_back_owner():
+    from mrtklib_web_ui.services.stream_session_service import relay_back_owner
+
+    procs = [
+        ("relay-1", ["-in", "serial://ttyACM0", "-out", "file:///w/x.sbf", "-out", "tcpsvr://:9001"]),
+        ("clas-relay", ["-in", "serial://ttyACM0", "-b", "1", "-out", "tcpsvr://:9100", "-out", "tcpsvr://:9101#rtcm3"]),
+    ]
+    infos = [SimpleNamespace(id=p, command="str2str", args=a, state=ProcessState.RUNNING) for p, a in procs]
+    orig = process_manager.get_all_processes
+    process_manager.get_all_processes = lambda: infos
+    try:
+        assert relay_back_owner(9001, exclude="x") == ("relay-1", False)
+        assert relay_back_owner(9100, exclude="x") == ("clas-relay", True)
+        assert relay_back_owner(9101, exclude="x") == ("clas-relay", False)
+        assert relay_back_owner(9999, exclude="x") is None
+        assert relay_back_owner(9001, exclude="relay-1") is None
+    finally:
+        process_manager.get_all_processes = orig
+
+
+def test_the_monitor_relay_takes_no_commands(relay, client):
+    """The Monitor only reads (#136): no relay-back, no send endpoint."""
+    client.post("/api/stream-monitor/start", json={"input": {"type": "tcpcli", "path": "x:1"}})
+    assert "-b" not in relay.args
+    assert client.post("/api/stream-monitor/send", json={"line": "grc"}).status_code in (404, 405)
+    client.post("/api/stream-monitor/stop")

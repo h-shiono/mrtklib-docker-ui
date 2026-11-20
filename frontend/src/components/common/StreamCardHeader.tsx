@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { ActionIcon, Badge, Box, Group, Text } from '@mantine/core';
 import { IconAlertTriangle, IconPlayerPlay, IconPlayerStop, IconTrash } from '@tabler/icons-react';
 import { STATUS_COLOR, type StatusTone } from '../../utils/status';
@@ -6,7 +6,7 @@ import { STATUS_COLOR, type StatusTone } from '../../utils/status';
 /** Top row of a stream card in Stream Relay and Stream Monitor: state dot,
  *  name and badge, then start or stop and remove. */
 export function StreamCardHeader({
-  name, dotColor, tone, status, running, loading, startDisabled, removeDisabled, onStart, onStop, onRemove,
+  name, dotColor, tone, status, running, loading, startDisabled, removeDisabled, onStart, onStop, onRemove, actions,
 }: {
   name: string;
   dotColor: string;
@@ -19,6 +19,8 @@ export function StreamCardHeader({
   onStart: () => void;
   onStop: () => void;
   onRemove: (e: MouseEvent) => void;
+  /** More buttons before start / stop, e.g. Configure receiver. */
+  actions?: ReactNode;
 }) {
   return (
     <Group justify="space-between" wrap="nowrap">
@@ -35,6 +37,7 @@ export function StreamCardHeader({
         </Badge>
       </Group>
       <Group gap={4} wrap="nowrap">
+        {actions}
         {running ? (
           <ActionIcon
             variant="light"

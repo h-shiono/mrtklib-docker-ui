@@ -2,7 +2,9 @@
  * Stream configuration types for str2str / mrtk relay
  */
 
-export type StreamType = 'serial' | 'tcpcli' | 'tcpsvr' | 'ntripcli' | 'file';
+/** `browser`: an input only, a serial port the page opens with Web Serial;
+ *  its path is the baud rate (#136). */
+export type StreamType = 'serial' | 'tcpcli' | 'tcpsvr' | 'ntripcli' | 'file' | 'browser';
 
 export interface StreamConfig {
   id: string;
@@ -10,9 +12,9 @@ export interface StreamConfig {
   path: string;
 }
 
-export interface InputStream extends StreamConfig {}
+export type InputStream = StreamConfig;
 
-export interface OutputStream extends StreamConfig {}
+export type OutputStream = StreamConfig;
 
 export interface BuilderConfig {
   input: InputStream;

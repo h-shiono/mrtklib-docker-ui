@@ -44,7 +44,8 @@ import {
   toMetricsPosition,
   toPosEpoch,
 } from '../utils/streamMonitor';
-import { INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
+import { BROWSER_SERIAL_AVAILABLE, INPUT_TYPES, useMonitorStream, type MonitorStream } from '../hooks/useMonitorStream';
+import { BAUD_RATES } from '../utils/webSerial';
 import { decodeClasSource, formatClasSource } from '../utils/clasSource';
 import * as mrtkRelayApi from '../api/mrtkRelay';
 import * as clasApi from '../api/clasPipeline';
@@ -91,7 +92,7 @@ function MonitorHelp() {
     <Popover opened={opened} onClose={close} position="bottom-start" width={380} shadow="md" withArrow>
       <Popover.Target>
         <ActionIcon size={14} variant="subtle" color="gray" radius="xl" onClick={toggle}
-          aria-label="About the Stream Monitor"
+          aria-label="About the Monitor"
         >
           <IconQuestionMark size={10} />
         </ActionIcon>
@@ -112,8 +113,10 @@ const TCPSVR_PORT = /^tcpsvr:\/\/[^:#]*:(\d+)/;
 
 /** TCP server outputs of the running relays, as TCP client paths
  *  (`127.0.0.1:PORT`): Stream Relay relays by name (#192), and CLAS to RTCM3,
- *  whose bridge carries the receiver's SBF (#197). The Monitor's relay only
- *  reads, so the bridge's relay-back gets nothing from it. */
+ *  whose bridge carries the receiver's SBF (#197). The Monitor's relay writes
+ *  only receiver commands back (#136); the server refuses them for an output
+ *  whose relay does not relay back (every Stream Relay relay; the CLAS bridge
+ *  does). */
 async function relayOutputs(): Promise<{ value: string; label: string }[]> {
   const [relays, clas] = await Promise.allSettled([mrtkRelayApi.listStreams(), clasApi.getPipelineStatus()]);
   const out: { value: string; label: string }[] = [];
@@ -182,13 +185,31 @@ function StreamForm({ s, pacing }: { s: MonitorStream; pacing: boolean }) {
             aria-label="Input type"
             value={s.typeMeta.value}
             onChange={(v) => v && s.setInputType(v)}
-            data={INPUT_TYPES.map(({ value, label }) => ({ value, label }))}
+            data={INPUT_TYPES.map(({ value, label }) => ({
+              value,
+              label,
+              disabled: value === 'browser' && !BROWSER_SERIAL_AVAILABLE,
+            }))}
             allowDeselect={false}
             disabled={s.busy}
             style={{ width: 120, flexShrink: 0 }}
           />
           {s.isRelay ? (
             <RelayOutputSelect value={s.relayPath} onChange={s.setRelayPath} disabled={s.busy} />
+          ) : s.isBrowser ? (
+            // The port is picked on Start; only the baud rate is set here
+            // (USB receivers ignore it, a UART adapter does not).
+            <Select
+              aria-label="Baud rate"
+              value={s.baud}
+              onChange={(v) => v && s.setBaud(v)}
+              data={BAUD_RATES.map((b) => ({ value: b, label: `${b} baud` }))}
+              allowDeselect={false}
+              disabled={s.busy}
+              title="The port is chosen when you press Start"
+              style={{ flex: 1, minWidth: 0 }}
+              styles={{ input: { fontFamily: MONO } }}
+            />
           ) : (
             <MaskedPathInput
               aria-label="Input path"
@@ -438,7 +459,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
           <Group justify="space-between" mb="xs" wrap="nowrap">
             <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
               {onToggleConfig && <ConfigCollapseButton onClick={onToggleConfig} />}
-              <Title order={6} size="sm">Stream Monitor</Title>
+              <Title order={6} size="sm">Monitor</Title>
               <MonitorHelp />
             </Group>
             <Group gap="xs" wrap="nowrap">

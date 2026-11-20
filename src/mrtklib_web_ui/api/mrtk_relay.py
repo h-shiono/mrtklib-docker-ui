@@ -4,11 +4,24 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+import asyncio
+import json
+import base64
+import time
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
+
+from mrtklib_web_ui.api.message_hub import MAX_STREAM_ID, MessageHub
 
 from mrtklib_web_ui.paths import WORKSPACE_ROOT, has_hidden_component, is_allowed_path, is_within
 from mrtklib_web_ui.services import process_manager
+from mrtklib_web_ui.services.browser_bridge import BrowserBridge, browser_bridges
+from mrtklib_web_ui.services.receiver_console import MAX_COMMAND_BYTES, MAX_COMMAND_LINE, encode_command
+from mrtklib_web_ui.services.stream_decoders.messages import MessageLog
+from mrtklib_web_ui.services.stream_monitor_service import free_port
+from mrtklib_web_ui.services.stream_session_service import TapInfo, plan_tap, stream_sessions, strip_tap
 from mrtklib_web_ui.services.mrtk_run_service import (
     expand_path_keywords,
     gpst_now,
@@ -21,6 +34,12 @@ router = APIRouter()
 # process ID. Also tells them apart from relays the CLAS pipeline runs
 # through the same process manager. Entries go when the process info is pruned.
 _stream_names: dict[str, str] = {}
+# The message tap the server added to each of those relays (#136), by
+# process ID: hidden from the page, read by a stream session.
+_taps: dict[str, TapInfo | None] = {}
+# Browser serial inputs (#136), by process ID: the bridge port the relay
+# reads, and the port's name shown as the input.
+_browser_inputs: dict[str, tuple[str, str]] = {}
 
 
 class MrtkRelayStartRequest(BaseModel):
@@ -33,12 +52,20 @@ class MrtkRelayStartRequest(BaseModel):
     )
     process_id: str | None = Field(
         default=None,
+        max_length=MAX_STREAM_ID,
         description="Optional custom process ID",
     )
     name: str | None = Field(
         default=None,
         max_length=100,
         description="Stream name shown in the Stream Relay view",
+    )
+    browser_input: str | None = Field(
+        default=None,
+        max_length=200,
+        description="Browser serial (#136): the input is a serial port the page opened "
+        "with Web Serial; this names it. The server provides the input, and the page "
+        "sends the bytes to /browser/ingest with the returned browser_token.",
     )
 
 
@@ -71,6 +98,10 @@ class ProcessStatusResponse(BaseModel):
         default_factory=list,
         description="Command line arguments, with credentials masked",
     )
+    browser_token: str | None = Field(
+        default=None,
+        description="Browser serial input: what the page shows /browser/ingest (start only)",
+    )
 
 
 class RelayStreamResponse(ProcessStatusResponse):
@@ -94,7 +125,8 @@ def _mask_stream_arg(arg: str) -> str:
 
 # With no -out, mrtk relay writes the input to its stdout, which would flood
 # the console with binary. A relay started with no outputs only receives,
-# to check the input: the server adds this output to discard the data.
+# to check the input: the message tap (#136) is then its output; a relay
+# without a tap gets this output, which discards the data.
 # Users cannot send it themselves: file outputs must be inside /workspace.
 DISCARD_OUTPUT = "file:///dev/null"
 
@@ -131,8 +163,34 @@ def _to_response(info) -> ProcessStatusResponse:
         started_at=info.started_at.isoformat() if info.started_at else None,
         stopped_at=info.stopped_at.isoformat() if info.stopped_at else None,
         error_message=info.error_message,
-        args=[_mask_stream_arg(a) for a in _without_discard_output(info.args)],
+        args=[
+            _mask_stream_arg(a)
+            for a in _show_browser_input(
+                strip_tap(_without_discard_output(info.args), _taps.get(info.id)), info.id
+            )
+        ],
     )
+
+
+def _show_browser_input(args: list[str], process_id: str) -> list[str]:
+    """A Browser serial input as the page knows it, not the bridge port."""
+    browser = _browser_inputs.get(process_id)
+    if browser is None:
+        return args
+    bridge_in, label = browser
+    return [f"browser://{label}" if a == bridge_in else a for a in args]
+
+
+def _without_input(args: list[str]) -> list[str]:
+    out: list[str] = []
+    i = 0
+    while i < len(args):
+        if _ALIASES.get(args[i], args[i]) == "-in":
+            i += 2
+            continue
+        out.append(args[i])
+        i += 1
+    return out
 
 
 # str2str decodefmt(): a trailing "#fmt" is stripped only for these formats
@@ -285,13 +343,26 @@ async def start_relay(request: MrtkRelayStartRequest) -> ProcessStatusResponse:
     output that would overwrite an existing file gets _2, _3, ...; the
     returned args name the files written.
     """
-    if err := _validate_relay_args(request.args):
+    user_args = request.args
+    bridge: BrowserBridge | None = None
+    if request.browser_input is not None:
+        # The input is the page's serial port, served on 127.0.0.1 (#136).
+        bridge = BrowserBridge(request.browser_input.strip() or "serial port")
+        bridge_port = await bridge.open()
+        user_args = ["-in", f"tcpcli://127.0.0.1:{bridge_port}", *_without_input(request.args)]
+    if err := _validate_relay_args(user_args):
+        if bridge is not None:
+            await bridge.close()
         raise HTTPException(status_code=403, detail=err)
     now = gpst_now()
     try:
-        args = _number_file_outputs(request.args, _running_relay_files(now), now)
+        args = _number_file_outputs(user_args, _running_relay_files(now), now)
     except (RuntimeError, OSError) as e:  # no free _N name; unresolvable path
+        if bridge is not None:
+            await bridge.close()
         raise HTTPException(status_code=409, detail=str(e))
+    taken = {s.tap.port for s in stream_sessions.sessions.values()}
+    args, tap, blocked = plan_tap(args, free_port(taken))
     try:
         info = await process_manager.start(
             command="str2str",
@@ -299,10 +370,23 @@ async def start_relay(request: MrtkRelayStartRequest) -> ProcessStatusResponse:
             process_id=request.process_id,
         )
         _stream_names[info.id] = request.name or info.id
-        return _to_response(info)
+        _taps[info.id] = tap
+        if bridge is not None:
+            _browser_inputs[info.id] = (user_args[1], bridge.label)
+            browser_bridges.add(info.id, bridge)
+        if tap is not None:
+            await stream_sessions.attach(info.id, tap, blocked, _input_of(args))
+        response = _to_response(info)
+        if bridge is not None:
+            response.browser_token = bridge.token
+        return response
     except ValueError as e:
+        if bridge is not None:
+            await bridge.close()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        if bridge is not None:
+            await bridge.close()
         raise HTTPException(status_code=500, detail=f"Failed to start process: {e}")
 
 
@@ -314,6 +398,8 @@ async def stop_relay(request: MrtkRelayStopRequest) -> ProcessStatusResponse:
             process_id=request.process_id,
             timeout=request.timeout,
         )
+        await stream_sessions.end(request.process_id)
+        await browser_bridges.relay_stopped(request.process_id)
         return _to_response(info)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -349,6 +435,8 @@ async def list_streams() -> list[RelayStreamResponse]:
         info = await process_manager.get_status(proc_id)
         if info is None:  # pruned by the process manager
             del _stream_names[proc_id]
+            _taps.pop(proc_id, None)
+            _browser_inputs.pop(proc_id, None)
             continue
         streams.append(RelayStreamResponse(
             **_to_response(info).model_dump(),
@@ -374,3 +462,170 @@ async def test_relay() -> ProcessStatusResponse:
         return _to_response(info)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Stream sessions (#136): messages and receiver commands of a relay ───────
+
+
+def _input_of(args: list[str]) -> str:
+    flags = [_ALIASES.get(a, a) for a in args]
+    i = flags.index("-in") if "-in" in flags else -1
+    return args[i + 1] if 0 <= i < len(args) - 1 else ""
+
+
+def _resolve_session(process_id: str) -> tuple[MessageLog, bool] | None:
+    session = stream_sessions.get(process_id)
+    return (session.frames.messages, not session.ended) if session is not None else None
+
+
+_hub = MessageHub("Stream sessions", _resolve_session, valid_stream=lambda s: bool(s))
+stream_sessions.set_broadcast(_hub.broadcast)
+stream_sessions.set_on_tick(_hub.send_all_rows)
+
+
+class SessionSendRequest(BaseModel):
+    """One command for the receiver behind a relay: an ASCII `line` (CR LF is
+    added) or a binary frame in `hex` (e.g. UBX)."""
+
+    process_id: str = Field(max_length=MAX_STREAM_ID)
+    line: str | None = Field(default=None, max_length=MAX_COMMAND_LINE)
+    hex: str | None = Field(default=None, max_length=2 * MAX_COMMAND_BYTES)
+
+
+@router.get("/sessions")
+async def list_sessions() -> list[dict[str, Any]]:
+    """Status of every relay's session (decoder, console, commands)."""
+    return [s.status_message() for s in stream_sessions.sessions.values()]
+
+
+@router.post("/sessions/send")
+async def send_to_session(request: SessionSendRequest) -> dict[str, Any]:
+    try:
+        data, shown = encode_command(request.line, request.hex)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    session = stream_sessions.get(request.process_id)
+    if session is None:
+        raise HTTPException(status_code=409, detail="This relay is not running")
+    try:
+        await session.send(data, shown)
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=502, detail=f"Write failed: {e}")
+    return {"ok": True}
+
+
+@router.websocket("/sessions/ws")
+async def websocket_sessions(websocket: WebSocket) -> None:
+    """Messages are per relay and carry `stream` (its process ID):
+
+    - {"type": "history", "messages": {...}, "console": [...]} on connect, and
+      when a session starts
+    - {"type": "status", "running", "connected", "bytes_per_sec", "commands":
+      bool, "blocked": reason | null, stats ...} each second; `exited: true`
+      when the relay stops
+    - {"type": "messages", "now", "types": [...]} per-type counters, each second
+    - {"type": "message_rows", ...} rows of the type the page selected
+    - {"type": "console", "entry": {...}} a command sent or a reply
+
+    Sent by clients: {"type": "select_message", "stream": process_id, "label": str | null}
+    """
+    def replay() -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for session in stream_sessions.sessions.values():
+            out += [session.history_message(), session.status_message()]
+        return out
+
+    await _hub.serve(websocket, replay)
+
+
+# ── Browser serial input (#136) ─────────────────────────────────────────────
+
+MAX_INGEST_FRAME = 65536  # bytes per WebSocket message from the page
+_PROCESS_CHECK_S = 1.0
+
+
+async def _stop_browser_relay(process_id: str) -> None:
+    """The page went away: stop its relay (and the stream's session)."""
+    try:
+        await process_manager.stop(process_id=process_id, timeout=3.0)
+    except ValueError:
+        pass  # already gone
+    await stream_sessions.end(process_id)
+
+
+browser_bridges.set_stop_relay(_stop_browser_relay)
+
+
+@router.websocket("/browser/ingest")
+async def websocket_browser_ingest(websocket: WebSocket, process_id: str = "", token: str = "") -> None:
+    """The bytes of a Browser serial stream's port, binary messages from the
+    page that started it (`token` from /start). The server sends
+    {"type": "write", "data": base64} for the page to write to its port.
+    Closing the socket stops the stream; the server closes it when the
+    stream stops (Stop on any page, or the relay exits)."""
+    await websocket.accept()
+    bridge = browser_bridges.get(process_id)
+    if bridge is None:
+        await websocket.close(code=1008, reason="No browser serial stream with this ID")
+        return
+
+    async def to_page(data: bytes) -> None:
+        await websocket.send_text(
+            json.dumps({"type": "write", "data": base64.b64encode(data).decode("ascii")})
+        )
+
+    try:
+        bridge.attach(token, to_page)
+    except ValueError as e:
+        await websocket.close(code=1008, reason=str(e))
+        return
+    ended = asyncio.create_task(bridge.ended.wait())
+    received: asyncio.Task | None = None
+    checked = time.monotonic()
+    try:
+        while True:
+            if received is None:
+                received = asyncio.create_task(websocket.receive())
+            done, _ = await asyncio.wait(
+                {received, ended}, timeout=_PROCESS_CHECK_S, return_when=asyncio.FIRST_COMPLETED
+            )
+            if ended in done:
+                await _close_quietly(websocket, 1000, "Stream stopped")
+                return
+            # Every second, also while data keeps coming: is the relay still there?
+            if time.monotonic() - checked >= _PROCESS_CHECK_S:
+                checked = time.monotonic()
+                info = await process_manager.get_status(process_id)
+                if info is None or info.state.value not in ("starting", "running"):
+                    await _close_quietly(websocket, 1000, "The relay exited")
+                    return
+            if not done:
+                continue
+            message = received.result()
+            received = None
+            if message["type"] == "websocket.disconnect":
+                return
+            data = message.get("bytes")
+            if data is None:
+                continue
+            if len(data) > MAX_INGEST_FRAME:
+                await _close_quietly(websocket, 1009, "Message too large")
+                return
+            await bridge.from_page(data)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        ended.cancel()
+        if received is not None:
+            received.cancel()
+        await browser_bridges.page_left(process_id)
+
+
+async def _close_quietly(ws: WebSocket, code: int, reason: str) -> None:
+    try:
+        await asyncio.wait_for(ws.close(code=code, reason=reason), timeout=5.0)
+    except Exception:
+        pass
+
