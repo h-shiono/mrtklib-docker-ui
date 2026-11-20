@@ -53,7 +53,8 @@ Tablets and phones are not a priority.
 ## Capabilities and Constraints
 
 - Primary modes are Real-time (`mrtk run`) and Post-processing (`mrtk post`).
-  Stream Relay, Stream Monitor, Conversion and Tools are separate screens.
+  Streams, Monitor, Conversion and Tools are separate screens. Receivers are
+  configured on Streams only.
 - RT and PP configurations are deliberately separate: their own state, storage
   keys and preset namespaces. Only their appearance is shared.
 - TOML import and export is a lossless round-trip. Keys with no form field must
@@ -64,8 +65,8 @@ Tablets and phones are not a priority.
 - A PP run state machine (idle, running, done screens) was considered and
   declined.
 - NTRIP credentials are masked in fields and console output.
-- Terminology: "Stream Relay" and "Stream Monitor" are the current names (not
-  "Stream Server" or "Stream Viewer"). Positioning quality uses the MRTKLIB Q
+- Terminology: "Streams" and "Monitor" are the current names (not "Stream
+  Relay" / "Stream Server" or "Stream Monitor" / "Stream Viewer"). Positioning quality uses the MRTKLIB Q
   values: Fix, Float, SBAS, DGPS, Single, PPP, DR.
 
 ## Evidence on Hand
@@ -82,7 +83,7 @@ Tablets and phones are not a priority.
 2. **What the screen says is what the process is doing.** Status reflects the
    real state of the `mrtk` process and its streams, including failure.
 3. **One tool, not a set of tools.** A concept looks and behaves the same in
-   Real-time, Post-processing and Stream Monitor.
+   Real-time, Post-processing and Monitor.
 4. **Nothing in the configuration gets lost.** Every option stays reachable, and
    a configuration that goes in comes back out intact.
 
