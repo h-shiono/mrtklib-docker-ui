@@ -7,16 +7,9 @@
 
 import { Stack, Table, Text } from '@mantine/core';
 import { UBLOX_CATALOG, type UbloxModel, type UbloxPort } from '../utils/ubloxCatalog';
-import { UBLOX_PORTS, signed8 } from '../utils/ublox';
+import { L6_CHANNELS, L6_MESSAGES, L6_RS_DECODER, UBLOX_PORTS, l6Satellite } from '../utils/ublox';
 import { FONT_SIZE, MONO } from '../utils/typography';
 
-const L6_MSG = ['L6D', 'L6E'];
-
-function sv(v: number | undefined): string {
-  if (v === undefined) return '—';
-  const n = signed8(v);
-  return n < 0 ? 'disabled' : n === 0 ? 'automatic' : `J${String(n).padStart(2, '0')}`;
-}
 
 export function UbloxPortsView({ model, values, version, connectedPort }: {
   model: UbloxModel;
@@ -33,6 +26,7 @@ export function UbloxPortsView({ model, values, version, connectedPort }: {
   const ports = UBLOX_PORTS.filter((p) => outProtocols.some((x) => items[`CFG-${p}OUTPROT-${x}`]));
   const signals = Object.keys(items).filter((n) => n.startsWith('CFG-SIGNAL-')).sort();
   const yes = (v: number | undefined) => (v === undefined ? '—' : v ? 'on' : 'off');
+  const rs = get('CFG-QZSS-L6_RSDECODER');
 
   return (
     <Stack gap="xs">
@@ -95,18 +89,21 @@ export function UbloxPortsView({ model, values, version, connectedPort }: {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {(['A', 'B'] as const).map((ch) => {
+              {L6_CHANNELS.map((ch) => {
                 const msg = get(`CFG-QZSS-L6_MSG${ch}`);
                 return (
                   <Table.Tr key={ch}>
                     <Table.Td style={cell}>{ch}</Table.Td>
-                    <Table.Td style={cell}>{sv(get(`CFG-QZSS-L6_SVID${ch}`))}</Table.Td>
-                    <Table.Td style={cell}>{msg === undefined ? '—' : L6_MSG[msg] ?? String(msg)}</Table.Td>
+                    <Table.Td style={cell}>{l6Satellite(get(`CFG-QZSS-L6_SVID${ch}`))}</Table.Td>
+                    <Table.Td style={cell}>{msg === undefined ? '—' : L6_MESSAGES[msg] ?? String(msg)}</Table.Td>
                   </Table.Tr>
                 );
               })}
             </Table.Tbody>
           </Table>
+          <Text style={cell}>
+            {`Reed-Solomon decoder: ${rs === undefined ? '—' : L6_RS_DECODER[rs] ?? String(rs)}`}
+          </Text>
         </>
       )}
     </Stack>

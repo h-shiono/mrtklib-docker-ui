@@ -5,7 +5,9 @@
  * navigation epoch). A preset checks what MRTKLIB reads; the user adds or
  * removes from there. Apply sends the changed rates with UBX-CFG-VALSET (RAM
  * layer), then reads them back. Messages the firmware does not know (it
- * did not report them) have no check box.
+ * did not report them) have no check box. On a NEO-D9C, the QZSS L6
+ * channels (satellite, L6D / L6E) and the Reed-Solomon decoder are set the
+ * same way.
  */
 
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
@@ -27,10 +29,17 @@ import { IconChevronDown, IconChevronRight, IconRefresh } from '@tabler/icons-re
 import { FormRow } from './common/FormRow';
 import { MRTKLIB_UBX_MESSAGES, UBLOX_CATALOG, type UbloxMessage, type UbloxModel, type UbloxPort } from '../utils/ubloxCatalog';
 import {
+  L6_CHANNELS,
+  L6_MESSAGES,
+  L6_RS_DECODER,
+  L6_SV_AUTO,
+  L6_SV_DISABLED,
+  L6_SV_IDS,
   UBLOX_PORTS,
   UBLOX_PRESETS,
   acceptsValget,
   acceptsValset,
+  l6Satellite,
   ubloxPreset,
   valget,
   valset,
@@ -119,6 +128,37 @@ export function UbloxOutputEditor({ model, values, connectedPort, canSend, busy,
   };
 
   const changes = [...edits.entries()];
+  const item = (name: string) => cat.items[name]?.[0];
+  // A changed value in words where it is not a plain rate.
+  const shownValue = (key: number, value: number) => {
+    for (const ch of L6_CHANNELS) {
+      if (key === item(`CFG-QZSS-L6_SVID${ch}`)) return l6Satellite(value);
+      if (key === item(`CFG-QZSS-L6_MSG${ch}`)) return L6_MESSAGES[value] ?? String(value);
+    }
+    if (key === item('CFG-QZSS-L6_RSDECODER')) return L6_RS_DECODER[value] ?? String(value);
+    return String(value);
+  };
+  const l6Shown = known(item('CFG-QZSS-L6_SVIDA'));
+  const l6Select = (name: string, label: string, data: { value: string; label: string }[]) => {
+    const key = item(name);
+    if (!known(key)) return null;
+    const v = rate(key);
+    return (
+      <Box style={{ background: edits.has(key) ? CHANGED_BG : undefined, borderRadius: 4 }}>
+        <Select
+          aria-label={label}
+          value={v === undefined ? null : String(v)}
+          onChange={(x) => x !== null && setRate(key, Number(x))}
+          data={data.some((d) => d.value === String(v)) || v === undefined ? data : [...data, { value: String(v), label: String(v) }]}
+          allowDeselect={false}
+          disabled={!canSend}
+        />
+      </Box>
+    );
+  };
+  const svData = [L6_SV_DISABLED, L6_SV_AUTO, ...L6_SV_IDS].map((n) => ({ value: String(n), label: l6Satellite(n) }));
+  const msgData = L6_MESSAGES.map((m, i) => ({ value: String(i), label: m }));
+  const rsData = L6_RS_DECODER.map((m, i) => ({ value: String(i), label: m }));
 
   /** CFG-VALSET of the changes (RAM), then CFG-VALGET to read them back. */
   const onApply = async () => {
@@ -252,6 +292,22 @@ export function UbloxOutputEditor({ model, values, connectedPort, canSend, busy,
             </Table.Tbody>
           </Table>
         )}
+        {read && l6Shown && (
+          <Stack gap={6} mt="sm">
+            <Text fw={500} style={{ fontSize: FONT_SIZE.body }}>QZSS L6 channels</Text>
+            {L6_CHANNELS.map((ch) => (
+              <FormRow key={ch} label={`Channel ${ch}`}>
+                <Group gap="xs" wrap="nowrap">
+                  <Box style={{ flex: 1, minWidth: 0 }}>{l6Select(`CFG-QZSS-L6_SVID${ch}`, `Channel ${ch} satellite`, svData)}</Box>
+                  <Box style={{ width: 90, flexShrink: 0 }}>{l6Select(`CFG-QZSS-L6_MSG${ch}`, `Channel ${ch} message`, msgData)}</Box>
+                </Group>
+              </FormRow>
+            ))}
+            <FormRow label="Reed-Solomon">
+              {l6Select('CFG-QZSS-L6_RSDECODER', 'Reed-Solomon decoder', rsData)}
+            </FormRow>
+          </Stack>
+        )}
       </ScrollArea>
 
       {changes.length > 0 && (
@@ -269,7 +325,7 @@ export function UbloxOutputEditor({ model, values, connectedPort, canSend, busy,
           <Collapse in={showCommands}>
             <Box style={{ fontFamily: MONO, fontSize: FONT_SIZE.label }}>
               {changes.map(([key, value]) => (
-                <div key={key}>{`${names.get(key) ?? `0x${key.toString(16)}`} = ${value}`}</div>
+                <div key={key}>{`${names.get(key) ?? `0x${key.toString(16)}`} = ${shownValue(key, value)}`}</div>
               ))}
             </Box>
           </Collapse>
