@@ -6,11 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.9-alpha] - 2026-11-20
+
+No configuration change is needed to upgrade from 0.4.8-alpha. Stream Relay
+is now **Streams** and Stream Monitor **Monitor**; saved streams, presets and
+URLs keep working.
+
+### Added
+- Receiver configuration on the Streams page (#136): a stream's **Receiver**
+  tab configures the receiver behind it, through the stream that already
+  reads it (a serial or TCP input, or Browser serial).
+  - Septentrio mosaic-X5 / mosaic-CLAS / mosaic-G5: SBF output like
+    RxControl's SBF Output dialog, presets for raw observations, CLAS L6D,
+    MADOCA L6E, Galileo HAS, BeiDou B2b and SouthPAN PVS (with the signal
+    tracking they need), ports and tracking, and Save to the boot
+    configuration.
+  - u-blox ZED-F9P / NEO-D9C: message output like u-center's message view
+    (UBX-CFG-VALGET / CFG-VALSET), presets for raw observations, CLAS, MADOCA
+    and CLAS + MADOCA, ports, rates and signals, and Save to BBR and flash.
+    On a NEO-D9C the QZSS L6 channels (satellite, L6D / L6E) and the
+    Reed-Solomon decoder are set there too.
+  - The receiver model is selected from what the receiver reports, and the
+    u-blox preset port defaults to the port the stream is connected to
+    (UBX-MON-COMMS).
+  - Changes are applied to the receiver's running configuration and read
+    back; check the result in the Messages tab.
+- Streams: for the selected stream, **Messages** (every message type it
+  carries and the latest frames of one), **Console** (any command and the
+  receiver's replies) and **Log** tabs. Each relay gets a hidden TCP Server
+  output for this; with four outputs it shares a TCP Server output, or the
+  Messages and Receiver tabs say there is no room.
+- **Browser serial** input in Streams and the Monitor (Chrome or Edge, page
+  on `localhost` or https): the browser opens a receiver plugged into the
+  computer it runs on, so Docker needs no USB access (`usbipd` on Windows,
+  a host relay on macOS).
+- CLAS to RTCM3: a **Messages** tab with what the receiver sends through the
+  pipeline.
+
 ### Changed
 - Stream Relay is renamed **Streams** and Stream Monitor **Monitor** in the
-  header; both pages work as before. Streams now shows, for the selected
-  stream, its messages, its receiver's settings, a command console and the
-  relay log.
+  header; both pages work as before. The Monitor's input type for a running
+  stream is now called "Streams".
 
 ## [0.4.8-alpha] - 2026-11-10
 

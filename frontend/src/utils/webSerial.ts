@@ -137,17 +137,20 @@ export class BrowserSerialSession {
 
   /** Writes run one after another, each holding the port's writer. */
   private writing: Promise<void> = Promise.resolve();
+  private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
 
   private write(data: Uint8Array): Promise<void> {
     this.writing = this.writing.then(async () => {
       const writable = this.port.writable;
       if (this.closed || !writable) return;
       const writer = writable.getWriter();
+      this.writer = writer;
       try {
         await writer.write(data);
       } catch (err) {
         void this.close(`Serial port: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
+        this.writer = null;
         writer.releaseLock();
       }
     });
@@ -194,6 +197,14 @@ export class BrowserSerialSession {
     }
     this.reader?.releaseLock();
     if (this.ws && this.ws.readyState <= WebSocket.OPEN) this.ws.close(1000);
+    // A port whose writable is locked cannot close: abort a write in
+    // progress and wait until its lock is released.
+    try {
+      await this.writer?.abort();
+    } catch {
+      // already errored
+    }
+    await this.writing.catch(() => undefined);
     try {
       await this.port.close();
     } catch {
