@@ -73,6 +73,31 @@ const UI_CONFIGS: Record<string, MrtkPostConfig> = {
     },
     output: { ...D.output, solutionFormat: 'enu', timeFormat: 'utc', outputSolutionStatus: 'state' },
   },
+  'ppp-kinematic-mgex': {
+    ...D,
+    positioning: {
+      ...D.positioning,
+      positioningMode: 'ppp-kinematic',
+      correction: 'igs',
+      frequency: 'l1+l2+l5',
+      ephemerisOption: 'precise',
+      corrections: {
+        ...D.positioning.corrections,
+        satelliteAntenna: true,
+        receiverAntenna: true,
+        phaseWindup: 'on',
+        excludeEclipse: true,
+        tidalCorrection: 'on',
+      },
+      atmosphere: { ionosphere: 'est-stec', troposphere: 'est-ztd-grad' },
+    },
+    ambiguityResolution: { ...D.ambiguityResolution, mode: 'ppp-ar', systems: 0x01 | 0x08 },
+    antenna: {
+      ...D.antenna,
+      rover: { ...D.antenna.rover, antennaTypeEnabled: true, antennaType: 'JAVRINGANT_DM   NONE' },
+    },
+    files: { ...D.files, satelliteAtx: '/opt/mrtklib/corrections/madoca/igs20.atx' },
+  },
   'ppp-rtk-clas': {
     ...D,
     positioning: {
@@ -116,6 +141,7 @@ function leaves(o: unknown, prefix = '', out: Record<string, unknown> = {}) {
 }
 
 const update = !!process.env.UPDATE_FIXTURES;
+const uiDefault = leaves(configToBackend(D));
 const json = (v: unknown) => JSON.stringify(v, null, 2) + '\n';
 
 describe('UI configs sent to the backend', () => {
@@ -127,6 +153,22 @@ describe('UI configs sent to the backend', () => {
     expect(readFixture('config_roundtrip', `ui-${name}.input.json`)).toEqual(want);
   });
 });
+
+/**
+ * Known differences: the generator writes a placeholder for a value it does
+ * not carry, and the import reads the placeholder into the form instead of
+ * falling back to the default. Not data the user set, but the form shows it
+ * after an import. key -> the value the import gives. An entry that no case
+ * hits any more fails the last test, so this list cannot go stale.
+ */
+const KNOWN_PLACEHOLDERS: Record<string, unknown> = {
+  // Antenna type off: written as "*" (use the RINEX header); imported as "*".
+  'antenna.rover.antenna_type': '*',
+  // single / ppp-kinematic / ppp-static: base position written as the pole
+  // sentinel (llh 90, 0, -6335367.6285); imported as the base position.
+  'antenna.base.values': [90, 0, -6335367.6285],
+};
+const placeholdersSeen = new Set<string>();
 
 const caseFiles = readdirSync(fixturePath('config_roundtrip')).filter(
   (f) => f.endsWith('.json') && !f.endsWith('.input.json'),
@@ -146,8 +188,17 @@ describe('TOML round trip: configToBackend(tomlToConfig(import(export(config))))
     const lost: string[] = [];
     for (const key of Object.keys(want)) {
       if (JSON.stringify(back[key]) === JSON.stringify(want[key])) continue;
-      // Not in the TOML for this mode (or never written): nothing to read back.
-      if (not_written.includes(key)) continue;
+      // Not in the TOML for this mode (or never written): the import can only
+      // give the UI default back.
+      if (not_written.includes(key) && JSON.stringify(back[key]) === JSON.stringify(uiDefault[key])) continue;
+      if (
+        not_written.includes(key) &&
+        key in KNOWN_PLACEHOLDERS &&
+        JSON.stringify(back[key]) === JSON.stringify(KNOWN_PLACEHOLDERS[key])
+      ) {
+        placeholdersSeen.add(key);
+        continue;
+      }
       // Import moves a provider the mode does not allow to a valid one, on
       // purpose (types/mrtkPostConfig.ts coerceCorrection). The pytest
       // all-fields-changed configs pair e.g. kinematic with igs.
@@ -162,5 +213,9 @@ describe('TOML round trip: configToBackend(tomlToConfig(import(export(config))))
 
     // configToBackend must not grow keys the backend model does not have.
     expect(Object.keys(back).filter((k) => !(k in want))).toEqual([]);
+  });
+
+  it('every known placeholder still shows up', () => {
+    expect([...placeholdersSeen].sort()).toEqual(Object.keys(KNOWN_PLACEHOLDERS).sort());
   });
 });
