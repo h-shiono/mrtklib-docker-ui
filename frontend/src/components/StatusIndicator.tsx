@@ -1,7 +1,9 @@
 import { Group, Text, Box } from '@mantine/core';
 import { processTone, STATUS_COLOR, type ProcessState } from '../utils/status';
 
-export type ProcessStatus = 'idle' | 'running' | 'success' | 'error';
+/** A post-processing job as the page shows it. `stopping` waits for the
+ *  backend to confirm the end (#234); `stopped` left an incomplete output. */
+export type ProcessStatus = 'idle' | 'running' | 'stopping' | 'stopped' | 'success' | 'error';
 
 interface StatusIndicatorProps {
   status: ProcessState;

@@ -186,7 +186,7 @@ export function PostProcessingConfiguration({
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Download TOML">
-              <ActionIcon aria-label="Download TOML" variant="light" color="gray" size={30} onClick={onExportConf} disabled={processStatus === 'running'}>
+              <ActionIcon aria-label="Download TOML" variant="light" color="gray" size={30} onClick={onExportConf} disabled={locked}>
                 <IconDownload size={16} />
               </ActionIcon>
             </Tooltip>
@@ -201,8 +201,9 @@ export function PostProcessingConfiguration({
                 e.target.value = '';
               }}
             />
-            {processStatus === 'running' ? (
-              <Button size="xs" miw={PRIMARY_MIN_WIDTH} color="red" leftSection={<IconPlayerStop size={12} />} onClick={onStop} loading={isLoading}>
+            {locked ? (
+              // Stop waits for the job id (isLoading) and then for the end (#234).
+              <Button size="xs" miw={PRIMARY_MIN_WIDTH} color="red" leftSection={<IconPlayerStop size={12} />} onClick={onStop} disabled={isLoading} loading={processStatus === 'stopping'}>
                 Stop
               </Button>
             ) : (

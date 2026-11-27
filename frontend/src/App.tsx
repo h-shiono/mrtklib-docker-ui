@@ -142,7 +142,8 @@ function PostProcessingRightPanel({
   // Auto-refresh chart when processing completes
   if (prevStatus !== processStatus) {
     setPrevStatus(processStatus);
-    if (prevStatus === 'running' && processStatus === 'success') {
+    // Also after a Stop: the partial output is worth a look.
+    if (processStatus === 'success' || (prevStatus === 'stopping' && processStatus === 'stopped')) {
       setRefreshKey((k) => k + 1);
     }
   }
@@ -197,6 +198,25 @@ function PostProcessingRightPanel({
           >
             Download
           </Button>
+        </Group>
+      );
+    }
+
+    if (processStatus === 'stopping') {
+      return (
+        <Group justify="center" px="sm" py={6}>
+          <Text size="xs" c="dimmed" fs="italic">Stopping mrtk post...</Text>
+        </Group>
+      );
+    }
+
+    if (processStatus === 'stopped') {
+      return (
+        <Group justify="center" px="sm" py={6} wrap="nowrap">
+          <div style={{ flexShrink: 0 }}>
+            <StatusBadge tone="off">Stopped</StatusBadge>
+          </div>
+          <Text size="xs" c="dimmed">Stopped by user; any output written so far is incomplete.</Text>
         </Group>
       );
     }
@@ -304,7 +324,7 @@ function PostProcessingRightPanel({
             active={rightTab === 'console'}
             wrap
             severity
-            running={processStatus === 'running'}
+            running={processStatus === 'running' || processStatus === 'stopping'}
             startLabel="Execute"
             cap={500}
           />
@@ -476,6 +496,14 @@ function failureFromStatus(error: string | null | undefined, returnCode: number 
   return null;
 }
 
+/** Backend job status → page status. */
+const JOB_STATUS: Record<string, ProcessStatus> = {
+  running: 'running',
+  completed: 'success',
+  failed: 'error',
+  stopped: 'stopped',
+};
+
 function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen = true, onToggleConfig, onLiveChange }: { onNavigateToAiSettings?: () => void; aiConfigured?: boolean; configOpen?: boolean; onToggleConfig?: () => void; onLiveChange?: (state: LiveState | null) => void }) {
   const [roverFile, setRoverFile] = useState('/workspace/rover.obs');
   const [baseFile, setBaseFile] = useState('');
@@ -498,6 +526,9 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  // Output of a job followed after a reload: the form shows its defaults, not
+  // that job's settings, so the result panel reads the job's own file.
+  const [adoptedOutput, setAdoptedOutput] = useState<string | null>(null);
   const [qcModalOpened, setQcModalOpened] = useState(false);
   const [progress, setProgress] = useState<{
     epoch: string;
@@ -529,14 +560,9 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
           });
         }
         if (message.type === 'status' && message.status) {
-          // Map backend status to UI status
-          const statusMap: Record<string, ProcessStatus> = {
-            running: 'running',
-            completed: 'success',
-            failed: 'error',
-          };
-          const newStatus = statusMap[message.status] || 'idle';
-          setProcessStatus(newStatus);
+          const newStatus = JOB_STATUS[message.status] || 'idle';
+          // A late 'running' must not undo a Stop the backend has not confirmed.
+          setProcessStatus((prev) => (prev === 'stopping' && newStatus === 'running' ? prev : newStatus));
           if (newStatus === 'error') {
             setFailure(failureFromStatus(message.details?.error, message.details?.return_code));
           }
@@ -587,6 +613,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
     // poll must not run against the old one (its 404 would end this run).
     jobIdRef.current = null;
     setJobId(null);
+    setAdoptedOutput(null);
     setProcessStatus('running');
 
     try {
@@ -619,6 +646,8 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
       jobIdRef.current = response.job_id;
       setJobId(response.job_id);
       setLogLines((prev) => [...prev, `[INFO] Job started: ${response.job_id}`]);
+      // Stop needs the job id; from here on it can be sent.
+      setIsLoading(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to start processing';
       setError(message);
@@ -632,7 +661,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
   // Polling fallback: check job status via REST API when running.
   // This catches completion even if WebSocket messages are missed.
   useEffect(() => {
-    if (processStatus !== 'running' || !jobId) return;
+    if ((processStatus !== 'running' && processStatus !== 'stopping') || !jobId) return;
     // Responses that arrive after this effect was cleaned up (job changed or
     // finished) belong to an old poll and must not touch the current run.
     let cancelled = false;
@@ -655,12 +684,11 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled) return;
-        if (data.status === 'completed' || data.status === 'failed') {
-          const statusMap: Record<string, ProcessStatus> = {
-            completed: 'success',
-            failed: 'error',
-          };
-          setProcessStatus(statusMap[data.status] || 'idle');
+        if (data.status === 'stopped') {
+          setProcessStatus('stopped');
+          setIsLoading(false);
+        } else if (data.status === 'completed' || data.status === 'failed') {
+          setProcessStatus(JOB_STATUS[data.status] || 'idle');
           setIsLoading(false);
           if (data.status === 'completed') {
             setLogLines((prev) => [...prev, `[INFO] Processing completed (return code: ${data.return_code ?? 0})`]);
@@ -683,11 +711,58 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
     };
   }, [processStatus, jobId]);
 
-  const handleStop = () => {
-    setProcessStatus('idle');
-    jobIdRef.current = null;
-    setLogLines((prev) => [...prev, '[INFO] Process stopped by user']);
-    setIsLoading(false);
+  // After a page reload, follow the job the server is still running, so the
+  // screen shows it and Stop can end it (#234).
+  useEffect(() => {
+    let cancelled = false;
+    mrtkPostApi.getActiveJob().then((job) => {
+      if (cancelled || !job || jobIdRef.current) return;
+      jobIdRef.current = job.job_id;
+      setJobId(job.job_id);
+      setAdoptedOutput(job.output_file ?? null);
+      setProcessStatus('running');
+      setLogLines((prev) => [
+        ...prev,
+        `[INFO] Following ${job.job_id}, already running on the server` +
+          `${job.output_file ? ` (output ${job.output_file})` : ''}; earlier log lines are not shown.`,
+      ]);
+    }).catch(() => {
+      // No API: the health check reports it.
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Stop asks the backend to end mrtk post and stays 'stopping' (locked,
+  // header dot) until it confirms (#234).
+  const handleStop = async () => {
+    const id = jobIdRef.current;
+    if (!id) return;
+    setProcessStatus('stopping');
+    setLogLines((prev) => [...prev, '[INFO] Stopping mrtk post...']);
+    try {
+      const result = await mrtkPostApi.stopMrtkPost(id);
+      if (jobIdRef.current !== id) return;
+      if (result === null) {
+        setProcessStatus('idle');
+        setLogLines((prev) => [
+          ...prev,
+          '[WARN] Job status is no longer available on the server (restarted or expired); check the output file.',
+        ]);
+        return;
+      }
+      // 'running' = still stopping: the WebSocket and the poll bring the end.
+      if (result.status === 'running') return;
+      setProcessStatus(JOB_STATUS[result.status] || 'idle');
+      if (result.status === 'failed') {
+        setFailure((prev) => prev ?? failureFromStatus(result.error_message, result.return_code));
+      }
+    } catch (err) {
+      if (jobIdRef.current !== id) return;
+      const message = err instanceof Error ? err.message : 'Failed to stop processing';
+      setError(`Stop failed: ${message}`);
+      setLogLines((prev) => [...prev, `[ERROR] Stop failed: ${message}`]);
+      setProcessStatus((prev) => (prev === 'stopping' ? 'running' : prev));
+    }
   };
 
   return (
@@ -736,7 +811,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
           progress={progress}
           logLines={logLines}
           failure={failure}
-          outputFile={outputFile}
+          outputFile={adoptedOutput ?? outputFile}
           clasSource={config.positioning.positioningMode === 'ppp-rtk' && config.output.clasNmeaSourceId}
         />
       }

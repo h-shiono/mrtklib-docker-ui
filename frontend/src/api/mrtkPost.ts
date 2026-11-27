@@ -8,7 +8,7 @@ const API_BASE = '/api/mrtk-post';
 
 export interface MrtkPostJobResponse {
   job_id: string;
-  status: 'started' | 'running' | 'completed' | 'failed';
+  status: 'started' | 'running' | 'completed' | 'failed' | 'stopped';
   return_code?: number;
   error_message?: string;
   output_file?: string;
@@ -58,6 +58,24 @@ export async function executeMrtkPost(request: MrtkPostExecuteRequest): Promise<
 export async function getJobStatus(jobId: string): Promise<MrtkPostJobResponse> {
   const response = await fetch(`${API_BASE}/status/${jobId}`);
   return handleResponse<MrtkPostJobResponse>(response);
+}
+
+/**
+ * Stop a job; resolves with its final status once mrtk post has ended (#234),
+ * or null when the server no longer knows the job.
+ */
+export async function stopMrtkPost(jobId: string): Promise<MrtkPostJobResponse | null> {
+  const response = await fetch(`${API_BASE}/stop/${encodeURIComponent(jobId)}`, { method: 'POST' });
+  if (response.status === 404) return null; // the server no longer knows the job
+  return handleResponse<MrtkPostJobResponse>(response);
+}
+
+/**
+ * The job still running on the server, if any (to follow it after a reload).
+ */
+export async function getActiveJob(): Promise<MrtkPostJobResponse | null> {
+  const response = await fetch(`${API_BASE}/active`);
+  return handleResponse<MrtkPostJobResponse | null>(response);
 }
 
 /**

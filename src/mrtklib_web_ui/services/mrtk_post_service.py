@@ -52,6 +52,26 @@ SatList = Annotated[str, BeforeValidator(_sat_list_str)]
 
 logger = logging.getLogger(__name__)
 
+# Seconds mrtk post gets to exit after SIGTERM before it is killed (#234).
+STOP_TIMEOUT = 5.0
+
+
+async def _end_process(process: asyncio.subprocess.Process, timeout: float) -> None:
+    """Terminate a process, then kill it if it is still alive after ``timeout``."""
+    if process.returncode is not None:
+        return
+    try:
+        process.terminate()
+        await asyncio.wait_for(process.wait(), timeout=timeout)
+    except ProcessLookupError:
+        return
+    except TimeoutError:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            return
+        await process.wait()
+
 # Pattern to match mrtk_post progress output:
 # "processing : 2024/01/01 00:00:00.0 Q=1 ns=10 ratio=50.0"
 _PROGRESS_PATTERN = re.compile(
@@ -1090,14 +1110,20 @@ class MrtkPostService:
                 if buf.strip() and log_cb:
                     await log_cb(buf.decode(errors="replace").strip())
 
-            # Always drain both pipes, callbacks or not: an unread PIPE fills
-            # up and blocks mrtk, so process.wait() would never return.
-            await asyncio.gather(
-                read_stdout(process.stdout, log_callback),
-                read_stderr_with_progress(process.stderr, log_callback, progress_callback),
-            )
+            try:
+                # Always drain both pipes, callbacks or not: an unread PIPE fills
+                # up and blocks mrtk, so process.wait() would never return.
+                await asyncio.gather(
+                    read_stdout(process.stdout, log_callback),
+                    read_stderr_with_progress(process.stderr, log_callback, progress_callback),
+                )
 
-            await process.wait()
+                await process.wait()
+            except asyncio.CancelledError:
+                # Stopped (#234): end mrtk before the temp files go. Wait on
+                # the process, not on pipe EOF: a child of mrtk may hold them.
+                await asyncio.shield(_end_process(process, STOP_TIMEOUT))
+                raise
 
             if log_callback:
                 await log_callback(f"[INFO] Process finished with code {process.returncode}")
