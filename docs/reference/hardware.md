@@ -6,14 +6,14 @@ and how far each has been checked through the UI.
 What MRTKLIB itself supports for each service (positioning modes,
 constellations, inputs, regression tests) is in MRTKLIB's
 [Correction Service Capability Matrix](https://h-shiono.github.io/MRTKLIB/reference/correction-services/).
-Any receiver and stream that MRTKLIB reads also works in the UI. The tables
-below cover what the UI adds on top: presets, receiver configuration, decoding
-in the Monitor.
+The tables below cover what the UI adds on top: presets, receiver
+configuration, decoding in the Monitor.
 
 **Checked** means:
 
-- **Real** — with a real receiver or real correction data.
-- **Simulated** — with a simulated receiver or a recorded file, not live.
+- **Real** — with a real receiver or real correction data, live or recorded
+  from it.
+- **Simulated** — with a simulated receiver that answers like the real one.
 - **Untested** — built, but not checked yet.
 
 Reports from other receivers and regions are very welcome on
@@ -23,16 +23,16 @@ Reports from other receivers and regions are very welcome on
 
 | Service | Real-time preset | Receiver output preset (Streams) | Checked in Real-time |
 |---|---|---|---|
-| QZSS CLAS | CLAS PPP-RTK | Septentrio: CLAS L6D. NEO-D9C: L6D | Real |
-| QZSS MADOCA-PPP | MADOCA PPP | Septentrio: MADOCA L6E. NEO-D9C: L6E | Real |
-| Galileo HAS | Galileo HAS | Septentrio: Galileo HAS E6 | Real |
-| BeiDou PPP-B2b | BeiDou PPP-B2b | Septentrio: BeiDou B2b | Real |
-| SouthPAN PVS | SouthPAN PVS | Septentrio: SouthPAN PVS | Untested (outside the service area) |
+| QZSS CLAS | QZSS CLAS (PPP-RTK) | Septentrio: CLAS L6D. NEO-D9C: L6D | Real |
+| QZSS MADOCA-PPP | QZSS MADOCA (PPP-Kinematic) | Septentrio: MADOCA L6E. NEO-D9C: L6E | Real |
+| Galileo HAS | Galileo HAS (PPP-Kinematic) | Septentrio: Galileo HAS E6 | Real |
+| BeiDou PPP-B2b | BeiDou PPP-B2b (PPP-Kinematic) | Septentrio: BeiDou B2b | Real |
+| SouthPAN PVS | SouthPAN PVS (PPP-Kinematic) | Septentrio: SouthPAN PVS | Untested (outside the service area) |
 | IGS-RTS | — (NTRIP input, set by hand) | — | Untested |
 | NTRIP (RTK, DGPS) | — (set by hand) | — | Untested |
 
 - **Real-time preset**: a built-in Real-time configuration for the service.
-  It sets the method, the correction source and the
+  It sets the method and the correction source, and for CLAS and MADOCA the
   [bundled files](corrections.md); the input streams are yours to set.
 - **Receiver output preset**: in [Streams → Receiver](../screens/streams.md#receiver-configuration),
   it turns on the messages that MRTKLIB reads for the service, as MRTKLIB's
@@ -48,16 +48,15 @@ Reports from other receivers and regions are very welcome on
 | Receiver | Monitor decode | Receiver configuration (Streams) | CLAS to RTCM3 |
 |---|---|---|---|
 | Septentrio mosaic-G5 | SBF: Real | Simulated | Real |
-| Septentrio mosaic-X5 | SBF: Untested | Untested | — |
-| Septentrio mosaic-CLAS | SBF: Untested | Untested | Untested |
+| Septentrio mosaic-X5 | SBF: Untested | Untested | No preset |
+| Septentrio mosaic-CLAS | SBF: Untested | Untested | No preset |
 | u-blox ZED-F9P | UBX RXM-RAWX / SFRBX, NMEA: Real. NAV-PVT / NAV-SAT: Untested | Read and apply: Real (see below) | — |
 | u-blox NEO-D9C | — (L6 only) | Read and apply: Real (see below) | — |
 
 - **Monitor decode**: the Monitor decodes NMEA, Septentrio SBF
   (PVTGeodetic, MeasEpoch, ChannelStatus, SatVisibility), u-blox UBX (NAV-PVT,
-  NAV-SAT) and MRTKLIB solution text. "Real" here means streams and recorded
-  files from that receiver. Any receiver is relayed, saved and passed to
-  `mrtk` regardless.
+  NAV-SAT) and MRTKLIB solution text. A receiver the Monitor does not decode
+  can still be relayed, saved and passed to `mrtk` in Streams.
 - **Receiver configuration** on Septentrio was checked in Chrome against a
   simulated mosaic-G5 that answers the commands: read, preset into a new
   stream, edits, Apply, console, save to boot.

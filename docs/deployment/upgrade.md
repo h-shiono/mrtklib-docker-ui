@@ -56,10 +56,15 @@ follows that version.
   branch or tag. That works for trying a version out, but it is not
   supported: the form follows the pinned version.
 
-A configuration from RTKLIB or an MRTKLIB older than 0.7.6 is a `.conf` file,
-not TOML. Convert it with MRTKLIB's
-[`conf2toml.py`](https://github.com/h-shiono/MRTKLIB/blob/main/scripts/tools/conf2toml.py)
-before you import it.
+Older configurations:
+
+- **TOML from MRTKLIB 0.5.0 – 0.7.5.** MRTKLIB 0.7.6 renamed sections and
+  keys, and still reads the old names. The UI imports them too; export or save
+  the configuration to write it with the current names.
+- **`.conf` from RTKLIB or MRTKLIB before 0.5.0.** The UI imports TOML only.
+  Convert the file with MRTKLIB's
+  [`conf2toml.py`](https://github.com/h-shiono/MRTKLIB/blob/main/scripts/tools/conf2toml.py)
+  first.
 
 ## Upgrading to v0.5.0
 
@@ -107,10 +112,10 @@ form), and, in Real-time, `[console] passwd`.
 These were bugs, so a result can differ from what v0.4.x gave for the same
 configuration:
 
-- **Post-processing time range.** In v0.4.x the start time of day and the end
-  of Time Start / Time End were ignored, so the whole file was processed.
-  v0.5.0 applies them. A start or end set but forgotten in a saved
-  configuration now limits the run.
+- **Time range in Post-processing and the RINEX Converter.** In v0.4.x the
+  start time of day and the end of Time Start / Time End were ignored, so the
+  whole file was processed. v0.5.0 applies them. A start or end set but
+  forgotten in a saved configuration now limits the run.
 - **Real-time base position averaging.** The base station's **Max Avg
   Epochs** and **Init Reset** never reached `mrtk run`, which always averaged
   without limit. v0.5.0 passes them, so check them before a run.
@@ -121,10 +126,10 @@ The image moves from MRTKLIB 0.7.17 to 0.7.18. Its
 [upgrade notes](https://h-shiono.github.io/MRTKLIB/releases/release-notes-v0.7.18/)
 list what changes; for the UI, these matter:
 
-- **CLAS VRS-RTK frequencies:** `gps_frequency` no longer moves QZS; set
-  `qzs_frequency` for QZS. `l1+l2+l5` now uses the third frequency, and
-  `l1+l5` runs a satellite without L5 on L1 alone (`l1+l5(l2)` keeps the L2
-  fallback).
+- **CLAS VRS-RTK frequencies** (GPS frequency / QZS frequency in the CLAS
+  PPP-RTK/VRS section): the GPS setting no longer applies to QZS; set QZS
+  frequency for it. `l1+l2+l5` now uses the third frequency, and `l1+l5` runs
+  a satellite without L5 on L1 alone (`l1+l5(l2)` keeps the L2 fallback).
 - **SNR mask on CLAS:** on the CLAS PPP-RTK and VRS paths the mask now rejects
   satellites, so a configuration that sets one there sees fewer of them.
 - **CLAS L6D files in Post-processing:** with more than two files, or
