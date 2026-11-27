@@ -10,6 +10,7 @@ export function ConfigFieldset({ locked, children }: { locked: boolean; children
   return (
     <fieldset
       disabled={locked}
+      className={locked ? 'mrtk-config-locked' : undefined}
       // A fieldset is min-content wide by default and would overflow its column.
       style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
     >

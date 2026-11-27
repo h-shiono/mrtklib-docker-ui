@@ -44,6 +44,7 @@ import { lastErrorLine } from './utils/logSeverity';
 import { useApiHealth } from './hooks/useApiHealth';
 import { useReportLive } from './hooks/useReportLive';
 import { StatusBadge } from './components/common/StatusBadge';
+import { ConfigFieldset, LockedNotice } from './components/common/ConfigLock';
 import { ConversionPanel, type ConvertTool } from './components/ConversionPanel';
 import { StreamPathHelp } from './components/StreamPathHelp';
 import { SignOutButton } from './components/SignOutButton';
@@ -1139,6 +1140,8 @@ function MultiStreamPanel({ onLiveChange }: { onLiveChange?: (state: LiveState |
   };
 
   const runningCount = streams.filter((s) => s.status === 'running').length;
+  // Read-only while the relay runs or a start / stop is in flight (#203).
+  const relayLocked = (s: RelayStream) => s.status === 'running' || loadingIds.has(s.id);
 
   return (
     <Grid gutter="md" overflow="hidden" h={{ base: 'auto', md: '100%' }} styles={{ inner: { height: 'calc(100% + var(--mantine-spacing-md))' } }}>
@@ -1210,7 +1213,10 @@ function MultiStreamPanel({ onLiveChange }: { onLiveChange?: (state: LiveState |
                       }}
                     />
 
-
+                    {/* A running relay keeps the paths it started with (#203). */}
+                    {relayLocked(stream) && <LockedNotice />}
+                    <ConfigFieldset locked={relayLocked(stream)}>
+                    <Stack gap="xs">
                     {/* Input */}
                     <FormRow label={<Group gap={4} wrap="nowrap">Input<StreamPathHelp /></Group>}>
                       <Group gap={FORM_LABEL_GAP} wrap="nowrap">
@@ -1277,6 +1283,8 @@ function MultiStreamPanel({ onLiveChange }: { onLiveChange?: (state: LiveState |
                         ))}
                       </Stack>
                     </FormRow>
+                    </Stack>
+                    </ConfigFieldset>
                   </Stack>
                 </Card>
               ))}
