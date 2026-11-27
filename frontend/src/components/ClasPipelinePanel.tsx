@@ -35,7 +35,8 @@ import { randomUUID } from '../utils/uuid';
 import { useWebSocket, type LogMessage } from '../hooks';
 import * as clasApi from '../api/clasPipeline';
 import { StatusBadge } from './common/StatusBadge';
-import { processTone, type ProcessState } from '../utils/status';
+import { processTone, type LiveState, type ProcessState } from '../utils/status';
+import { useReportLive } from '../hooks/useReportLive';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
@@ -128,7 +129,10 @@ const STATE_LABEL: Record<string, string> = {
   stopping: 'Stopping', stopped: 'Stopped', error: 'Error',
 };
 
-export function ClasPipelinePanel() {
+export function ClasPipelinePanel({ onLiveChange }: {
+  /** Whether the pipeline is alive, for the header dot (#202). */
+  onLiveChange?: (state: LiveState | null) => void;
+} = {}) {
   // --- Reference data ---
   const [receivers, setReceivers] = useState<clasApi.ReceiverPreset[]>([]);
   const [serialPorts, setSerialPorts] = useState<clasApi.SerialPort[]>([]);
@@ -151,6 +155,7 @@ export function ClasPipelinePanel() {
     bridge_port: null,
   });
   const [submitting, setSubmitting] = useState(false);
+  useReportLive(onLiveChange, [pipelineStatus.state]);
 
   // --- Logs of the two processes ---
   const [relayLog, setRelayLog] = useState<string[]>([]);
