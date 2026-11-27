@@ -39,7 +39,8 @@ Downloads data into `/workspace/downloads/`:
 - QZSS L6D (CLAS) and L6E (MADOCA) files.
 - The latest IGS antenna file (`igs20.atx`).
 - IGS products (needs a NASA Earthdata account) and GSI CORS data (needs a GSI
-  account). See [Credentials](../getting-started/credentials.md).
+  account). See [Credentials](../getting-started/credentials.md). These two
+  have not been tested yet.
 
 ## AI Settings
 

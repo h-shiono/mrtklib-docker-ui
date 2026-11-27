@@ -43,10 +43,6 @@ theme:
     repo: fontawesome/brands/github
     logo: material/satellite-uplink
 
-# Pages kept in docs/ that are not part of the site.
-exclude_docs: |
-  release-note.md
-
 # Warnings fail `mkdocs build --strict` (CI): a page left out of the nav, a
 # broken link or a missing anchor.
 validation:
@@ -107,7 +103,6 @@ nav:
   - Reference:
     - Config coverage: reference/config-coverage.md
     - Bundled correction files: reference/corrections.md
-    - Known issues and test status: reference/known-issues.md
   - Releases:
     - releases/index.md
     - Changelog: releases/changelog.md

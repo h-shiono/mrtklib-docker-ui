@@ -73,9 +73,6 @@ be picked by hand.
 - On a NEO-D9C, each QZSS L6 channel (A, B) is set to a satellite (or
   automatic, or off) and to L6D or L6E, with the Reed-Solomon decoder mode.
 
-[Known issues and test status](../reference/known-issues.md) says which of
-these have been checked on real receivers.
-
 ## CLAS to RTCM3
 
 CLAS to RTCM3 (`mrtk relay` and `mrtk cssr2rtcm3`) turns the QZSS CLAS

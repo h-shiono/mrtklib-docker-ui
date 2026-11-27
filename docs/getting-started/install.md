@@ -8,6 +8,9 @@ The UI runs from a pre-built image, or from an image you build yourself.
   with Docker Desktop.
 - GNSS data files to process, such as RINEX observation and navigation files.
 
+The UI is tested on Linux (Ubuntu 22.04) and macOS (Apple Silicon). Windows
+(Docker Desktop) has not been tested yet.
+
 ## Pre-built image
 
 Images are published for `linux/amd64` and `linux/arm64` (Apple Silicon

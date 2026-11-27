@@ -30,7 +30,7 @@ stays open on every interface; `-p 127.0.0.1:8080:8000` limits it.
 - Documentation site (#95) at <https://h-shiono.github.io/mrtklib-docker-ui/>
   (MkDocs Material, built from `docs/` and published on every push to
   `main`): install, data, serial devices, credentials, one page per screen,
-  security, bundled files, test status, releases. The README now covers the
+  security, bundled files, releases. The README now covers the
   install and links there; development notes moved to `CONTRIBUTING.md`.
 
 ### Changed

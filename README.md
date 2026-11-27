@@ -12,8 +12,8 @@ GNSS positioning capabilities. No compilation required — just
 ![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.17-green.svg)
 
 > **Status**: v0.4.9-alpha — core features are functional.
-> Known limitations are listed in
-> [Known issues and test status](https://h-shiono.github.io/mrtklib-docker-ui/reference/known-issues/).
+> Bug reports are welcome on
+> [GitHub Issues](https://github.com/h-shiono/mrtklib-docker-ui/issues).
 
 ![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/assets/screenshot.png)
 

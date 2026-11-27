@@ -26,8 +26,6 @@ option, it links to the MRTKLIB documentation.
 - [Screens](screens/index.md): what each part of the UI does.
 - [Security and network access](deployment/security.md): before you open the
   UI to another machine.
-- [Known issues and test status](reference/known-issues.md): what has and has
-  not been checked on real hardware.
 
 ## Help and feedback
 
