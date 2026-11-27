@@ -34,7 +34,9 @@ stays open on every interface; `-p 127.0.0.1:8080:8000` limits it.
   install and links there; development notes moved to `CONTRIBUTING.md`.
   Also an upgrade guide (presets, imported TOML keys, results that change,
   the MRTKLIB version policy) and the supported receivers and correction
-  services, with what has been checked on real hardware.
+  services, with what has been checked on real hardware, and three task
+  guides (real-time with open correction services, receiver configuration
+  and stream serving, evaluating a post-processing result).
 - Header status (#202): the API state is checked every 5 s (`API: LOST` when
   the server stops answering), and a dot beside each screen shows a process
   starting, running or stopping there. Real-time start / stop failures, an

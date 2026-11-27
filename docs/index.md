@@ -24,6 +24,9 @@ option, it links to the MRTKLIB documentation.
 
 - [Install](getting-started/install.md): run the container and open the UI.
 - [Screens](screens/index.md): what each part of the UI does.
+- Guides: [real-time with open correction services](guides/realtime-services.md),
+  [configure a receiver and serve its stream](guides/receiver-streams.md),
+  [evaluate a post-processing result](guides/evaluate-pp.md).
 - [Security and network access](deployment/security.md): before you open the
   UI to another machine.
 - [Supported hardware and services](reference/hardware.md): receivers and

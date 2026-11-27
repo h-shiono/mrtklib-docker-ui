@@ -98,6 +98,10 @@ nav:
     - Streams: screens/streams.md
     - Monitor: screens/monitor.md
     - Tools: screens/tools.md
+  - Guides:
+    - Real-time with open correction services: guides/realtime-services.md
+    - Configure a receiver and serve its stream: guides/receiver-streams.md
+    - Evaluate a post-processing result: guides/evaluate-pp.md
   - Deployment:
     - Security and network access: deployment/security.md
     - Upgrading: deployment/upgrade.md
