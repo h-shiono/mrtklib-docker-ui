@@ -27,7 +27,8 @@ import { PresetPanel } from './PresetPanel';
 import { ConfigAssistantModal } from './ConfigAssistantModal';
 import { ConfigCollapseButton } from './ConsoleFrame';
 import { StatusBadge } from './common/StatusBadge';
-import { processTone, type ProcessState } from '../utils/status';
+import { liveState, processTone, type ProcessState } from '../utils/status';
+import { useConfigLock } from '../hooks/useConfigLock';
 import { tomlToConfig } from '../utils/tomlImport';
 import { PRIMARY_MIN_WIDTH } from '../utils/formLayout';
 
@@ -104,6 +105,10 @@ export function PostProcessingConfiguration({
   // Ref to allow auto-focusing sidebar section on validation error
   const activeSectionRef = useRef<((section: string) => void) | null>(null);
 
+  // Read-only while mrtk post runs, the same test as the header dot (#203).
+  const locked = liveState([processStatus]) !== null;
+  const unlessLocked = useConfigLock(locked);
+
   // TOML import
   const importFileRef = useRef<HTMLInputElement>(null);
   const handleImportToml = useCallback(async (file: File) => {
@@ -120,12 +125,12 @@ export function PostProcessingConfiguration({
       }
       const { config: parsed } = await res.json();
       const mapped = tomlToConfig(parsed);
-      setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig));
+      if (!unlessLocked(() => setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig)))) return;
       notifications.show({ title: 'Import successful', message: `Loaded ${file.name}`, color: 'green' });
     } catch (e) {
       notifications.show({ title: 'Import failed', message: e instanceof Error ? e.message : 'Unknown error', color: 'red' });
     }
-  }, [setConfig]);
+  }, [setConfig, unlessLocked]);
 
   const handleExecute = useCallback(() => {
     if (!roverFile || !navFile || !outputFile) {
@@ -159,7 +164,7 @@ export function PostProcessingConfiguration({
             </Tooltip>
             {aiConfigured ? (
               <Tooltip label="Config Assistant">
-                <ActionIcon aria-label="Config Assistant" variant="light" color="gray" size={30} onClick={openAssistant}>
+                <ActionIcon aria-label="Config Assistant" variant="light" color="gray" size={30} onClick={openAssistant} disabled={locked}>
                   <IconSparkles size={16} />
                 </ActionIcon>
               </Tooltip>
@@ -171,7 +176,7 @@ export function PostProcessingConfiguration({
               </Tooltip>
             )}
             <Tooltip label="Import TOML">
-              <ActionIcon aria-label="Import TOML" variant="light" color="gray" size={30} onClick={() => importFileRef.current?.click()}>
+              <ActionIcon aria-label="Import TOML" variant="light" color="gray" size={30} onClick={() => importFileRef.current?.click()} disabled={locked}>
                 <IconUpload size={16} />
               </ActionIcon>
             </Tooltip>
@@ -212,6 +217,7 @@ export function PostProcessingConfiguration({
         <ProcessingConfigPanel
           config={config}
           onConfigChange={handleConfigChange}
+          readOnly={locked}
           activeSectionRef={activeSectionRef}
           execution={{
             roverFile,
@@ -238,13 +244,14 @@ export function PostProcessingConfiguration({
       onClose={closePresets}
       mode="post"
       currentConfig={config}
-      onLoad={(c) => setConfig(c)}
+      onLoad={(c) => unlessLocked(() => setConfig(c))}
+      loadDisabled={locked}
     />
     <ConfigAssistantModal
       opened={assistantOpened}
       onClose={closeAssistant}
       mode="post"
-      onApply={(mapped) => setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig))}
+      onApply={(mapped) => unlessLocked(() => setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig)))}
     />
     </>
   );

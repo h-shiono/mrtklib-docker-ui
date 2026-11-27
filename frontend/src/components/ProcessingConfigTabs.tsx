@@ -57,6 +57,7 @@ import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, FORM_LABEL_WIDTH } from '../utils/formLayout';
 import { SectionHeader as CommonSectionHeader } from './common/SectionHeader';
+import { ConfigFieldset, LockedNotice } from './common/ConfigLock';
 import { optionName } from '../config/optionMeta';
 import { maskPath } from '../utils/maskPath';
 
@@ -380,13 +381,16 @@ export interface ProcessingConfigTabsProps {
   streamPanels?: StreamPanelDef[];
   activeSectionRef?: React.RefObject<((section: string) => void) | null>;
   defaultSection?: string;
+  /** A process using these settings is running: the form is read-only, the
+   *  rail and its filter stay usable (#203). */
+  readOnly?: boolean;
 }
 
 /**
  * Sidebar + form panel layout for Processing Configuration.
  * Replaces the old ProcessingTabHeaders + ProcessingTabPanels components.
  */
-export function ProcessingConfigPanel({ config, onConfigChange, execution, streamPanels, activeSectionRef, defaultSection }: ProcessingConfigTabsProps) {
+export function ProcessingConfigPanel({ config, onConfigChange, execution, streamPanels, activeSectionRef, defaultSection, readOnly = false }: ProcessingConfigTabsProps) {
   const initialSection = defaultSection ?? (execution ? 'input-files' : streamPanels?.length ? streamPanels[0].key : 'mode');
   const [activeSection, setActiveSection] = useState(initialSection);
   const [sidebarFilter, setSidebarFilter] = useState('');
@@ -562,6 +566,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
   return (
     <>
+      {readOnly && (
+        <Box px={9} py={4} style={{ borderBottom: '1px solid var(--app-border, var(--mantine-color-default-border))' }}>
+          <LockedNotice />
+        </Box>
+      )}
       <Group gap={0} align="stretch" wrap="nowrap" style={{ flex: 1, minHeight: 0 }}>
         {/* Left category rail */}
         <Box
@@ -617,6 +626,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
 
         {/* Right form panel */}
         <ScrollArea style={{ flex: 1 }} p="xs">
+          <ConfigFieldset locked={readOnly}>
           {/* ── Stream panels (RT mode) ── */}
           {streamPanels?.map((sp) => (
             activeSection === sp.key ? <div key={sp.key}>{sp.content}</div> : null
@@ -3053,6 +3063,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
               </Stack>
             </Stack>
           )}
+          </ConfigFieldset>
         </ScrollArea>
       </Group>
 

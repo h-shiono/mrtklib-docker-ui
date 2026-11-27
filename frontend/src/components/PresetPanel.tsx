@@ -41,9 +41,11 @@ interface PresetPanelProps {
   mode: 'post' | 'realtime';
   currentConfig: MrtkPostConfig;
   onLoad: (config: MrtkPostConfig) => void;
+  /** A run uses the settings: presets can be saved, not loaded (#203). */
+  loadDisabled?: boolean;
 }
 
-export function PresetPanel({ opened, onClose, mode, currentConfig, onLoad }: PresetPanelProps) {
+export function PresetPanel({ opened, onClose, mode, currentConfig, onLoad, loadDisabled = false }: PresetPanelProps) {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [loading, setLoading] = useState(false);
   const [saveModalOpened, { open: openSaveModal, close: closeSaveModal }] = useDisclosure(false);
@@ -191,7 +193,8 @@ export function PresetPanel({ opened, onClose, mode, currentConfig, onLoad }: Pr
                         {new Date(p.updated_at).toLocaleDateString()}
                       </Text>
                     </Stack>
-                    <ActionIcon size="sm" variant="light" color="blue" onClick={() => setConfirmLoadId(p.id)} title="Load">
+                    <ActionIcon size="sm" variant="light" color="blue" onClick={() => setConfirmLoadId(p.id)} disabled={loadDisabled}
+                      title={loadDisabled ? 'Locked while running. Stop to load.' : 'Load'} aria-label={`Load ${p.name}`}>
                       <IconDownload size={13} />
                     </ActionIcon>
                     <Menu position="bottom-end" withinPortal>

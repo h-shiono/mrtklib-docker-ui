@@ -59,7 +59,7 @@ import { ENDED_OPACITY, RtMetricsRow } from './RtMetricsRow';
 import { RtInputStatusRow } from './RtInputStatusRow';
 import { MapView, type PosEpoch } from './viewer';
 import { StatusBadge } from './common/StatusBadge';
-import { processTone, type LiveState } from '../utils/status';
+import { liveState, processTone, type LiveState } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, MIN_PANEL_HEIGHT } from '../utils/formLayout';
@@ -69,6 +69,7 @@ import { PRIMARY_MIN_WIDTH } from '../utils/formLayout';
 import { LogView } from './common/LogView';
 import { useUnseenErrors } from '../hooks/useUnseenErrors';
 import { useReportLive } from '../hooks/useReportLive';
+import { useConfigLock } from '../hooks/useConfigLock';
 import { FailureCause } from './common/FailureCause';
 import { lastErrorLine } from '../utils/logSeverity';
 
@@ -311,26 +312,6 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const [presetsOpened, { open: openPresets, close: closePresets }] = useDisclosure(false);
   const [assistantOpened, { open: openAssistant, close: closeAssistant }] = useDisclosure(false);
   const importFileRef = useRef<HTMLInputElement>(null);
-  const handleImportToml = useCallback(async (file: File) => {
-    try {
-      const text = await file.text();
-      const res = await fetch('/api/config/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toml_content: text }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: 'Import failed' }));
-        throw new Error(err.detail || 'Import failed');
-      }
-      const { config: parsed } = await res.json();
-      const mapped = tomlToConfig(parsed);
-      setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig));
-      notifications.show({ title: 'Import successful', message: `Loaded ${file.name}`, color: 'green' });
-    } catch (e) {
-      notifications.show({ title: 'Import failed', message: e instanceof Error ? e.message : 'Unknown error', color: 'red' });
-    }
-  }, [setConfig]);
   // Derived each render: useLocalStorage hydrates after mount, so a lazy
   // useState initializer would only ever see DEFAULT_STREAMS.
   const [showOutput2, setShowOutput2] = useState(false);
@@ -412,6 +393,29 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
   const isRunning = runStatus === 'running' || runStatus === 'starting';
   useReportLive(onLiveChange, [runStatus]);
+  // Read-only while mrtk run is alive, the same test as the header dot (#203).
+  const locked = liveState([runStatus]) !== null;
+  const unlessLocked = useConfigLock(locked);
+  const handleImportToml = useCallback(async (file: File) => {
+    try {
+      const text = await file.text();
+      const res = await fetch('/api/config/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toml_content: text }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Import failed' }));
+        throw new Error(err.detail || 'Import failed');
+      }
+      const { config: parsed } = await res.json();
+      const mapped = tomlToConfig(parsed);
+      if (!unlessLocked(() => setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig)))) return;
+      notifications.show({ title: 'Import successful', message: `Loaded ${file.name}`, color: 'green' });
+    } catch (e) {
+      notifications.show({ title: 'Import failed', message: e instanceof Error ? e.message : 'Unknown error', color: 'red' });
+    }
+  }, [setConfig, unlessLocked]);
 
   // Keep the Solution / Console / Trace panels at their latest line, and
   // hold them still while the user scrolls up to read.
@@ -699,7 +703,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                 </Tooltip>
                 {aiConfigured ? (
                   <Tooltip label="Config Assistant">
-                    <ActionIcon aria-label="Config Assistant" variant="light" color="gray" size={30} onClick={openAssistant}>
+                    <ActionIcon aria-label="Config Assistant" variant="light" color="gray" size={30} onClick={openAssistant} disabled={locked}>
                       <IconSparkles size={16} />
                     </ActionIcon>
                   </Tooltip>
@@ -711,7 +715,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
                   </Tooltip>
                 )}
                 <Tooltip label="Import TOML">
-                  <ActionIcon aria-label="Import TOML" variant="light" color="gray" size={30} onClick={() => importFileRef.current?.click()}>
+                  <ActionIcon aria-label="Import TOML" variant="light" color="gray" size={30} onClick={() => importFileRef.current?.click()} disabled={locked}>
                     <IconUpload size={16} />
                   </ActionIcon>
                 </Tooltip>
@@ -769,6 +773,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
             <ProcessingConfigPanel
               config={config}
               onConfigChange={handleConfigChange}
+              readOnly={locked}
               defaultSection="streams"
               streamPanels={[
                 {
@@ -994,13 +999,14 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       onClose={closePresets}
       mode="realtime"
       currentConfig={config}
-      onLoad={(c) => setConfig(c)}
+      onLoad={(c) => unlessLocked(() => setConfig(c))}
+      loadDisabled={locked}
     />
     <ConfigAssistantModal
       opened={assistantOpened}
       onClose={closeAssistant}
       mode="realtime"
-      onApply={(mapped) => setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig))}
+      onApply={(mapped) => unlessLocked(() => setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig)))}
     />
     </>
   );
