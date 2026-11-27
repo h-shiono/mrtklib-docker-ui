@@ -86,11 +86,14 @@ it.
     PPP-RTK for Japan, from the QZSS L6D signal.
 
     - **Preset**: QZSS CLAS (PPP-RTK).
-    - **Receiver**: a u-blox ZED-F9P for the observations and a NEO-D9C for
-      L6. Receiver output presets: *raw observations* on the ZED-F9P, *CLAS
-      L6D* on the NEO-D9C.
-    - **Rover**: the ZED-F9P, format **u-blox**.
-    - **Correction**: the NEO-D9C, format **u-blox** (UBX-RXM-QZSSL6). A raw
+    - **Septentrio mosaic-G5 / mosaic-CLAS**: one SBF stream carries
+      observations, ephemeris and the L6D corrections. Receiver output
+      preset: *CLAS L6D*. **Rover**: format **Septentrio SBF**.
+      **Correction**: off.
+    - **u-blox**: a ZED-F9P for the observations and a NEO-D9C for L6.
+      Receiver output presets: *raw observations* on the ZED-F9P, *CLAS L6D*
+      on the NEO-D9C. **Rover**: the ZED-F9P, format **u-blox**.
+      **Correction**: the NEO-D9C, format **u-blox** (UBX-RXM-QZSSL6). A raw
       L6 stream uses format **CLAS L6**.
     - Checked through the UI with real data.
 
@@ -109,8 +112,10 @@ it.
       format **Septentrio SBF**. **Correction**: off.
     - **u-blox**: a ZED-F9P for the observations and a NEO-D9C for L6E
       (receiver output preset *MADOCA L6E*). **Rover**: the ZED-F9P, format
-      **u-blox**. **Correction**: the NEO-D9C, format **u-blox**.
-    - Checked through the UI with real data.
+      **u-blox**. **Correction**: the NEO-D9C, format **u-blox**. Not yet
+      checked through the UI.
+    - Checked through the UI with real data, on a mosaic-G5 (one SBF
+      stream).
 
     MRTKLIB: [Quick Start: MADOCA-PPP](https://h-shiono.github.io/MRTKLIB/guide/quickstart-madoca-ppp/).
 
