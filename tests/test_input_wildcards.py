@@ -15,7 +15,6 @@ def data_root(tmp_path, monkeypatch):
     ws.mkdir()
     for name in ("rover1.24d", "ROVER2.24D", "rover3.24o", ".hidden.24d"):
         (data / name).write_text(name)
-    monkeypatch.setattr(input_staging, "_READONLY_ROOTS", (data,))
     monkeypatch.setattr(input_staging, "WORKSPACE_ROOT", ws)
     return data
 
@@ -63,6 +62,29 @@ def test_same_names_from_two_dirs_do_not_collide(data_root):
         assert Path(mapping[base]).read_text() == "base"
     finally:
         input_staging.remove_stage_dir(tmpdir)
+
+
+def test_workspace_compressed_inputs_are_staged(data_root):
+    # mrtk would write X.26o beside X.26o.gz and delete it afterwards,
+    # taking the user's own X.26o with it (#223).
+    ws = input_staging.WORKSPACE_ROOT
+    (ws / "x.26o.gz").write_text("gz")
+    (ws / "x.26o").write_text("mine")
+    for pattern in ("x.26o.gz", "x*"):
+        src = str(ws / pattern)
+        mapping, tmpdir = input_staging.stage_paths([src])
+        try:
+            staged = Path(mapping[src])
+            assert staged.parent.parent == tmpdir
+            assert {p.name for p in input_staging.expand_wildcard(str(staged.parent / "*"))} >= {"x.26o.gz"}
+        finally:
+            input_staging.remove_stage_dir(tmpdir)
+    assert (ws / "x.26o").read_text() == "mine"
+
+
+def test_uncompressed_inputs_are_not_staged(data_root):
+    mapping, tmpdir = input_staging.stage_paths([str(data_root / "rover3.24o"), str(data_root / "rover3*")])
+    assert mapping == {} and tmpdir is None
 
 
 def test_expand_wildcard_mirrors_expath(data_root):

@@ -1020,9 +1020,10 @@ class MrtkPostService:
                 if job.time_range.interval and job.time_range.interval > 0:
                     cmd.extend(["-ti", str(job.time_range.interval)])
 
-            # Stage compressed inputs that live on read-only mounts (/data,
-            # corrections). mrtk decompresses beside the source, which fails on
-            # a read-only FS, so copy those into a writable temp dir first.
+            # Stage every compressed input. mrtk decompresses beside the
+            # source and deletes the result afterwards: that fails on a
+            # read-only mount, and on /workspace it removes a same-named
+            # uncompressed file (#223). Copy them into a temp dir first.
             rover = job.input_files.rover_obs_file
             base = job.input_files.base_obs_file
             nav = job.input_files.nav_file

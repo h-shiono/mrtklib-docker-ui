@@ -1,18 +1,25 @@
-"""Stage compressed inputs that live on read-only roots.
+"""Stage compressed inputs so mrtk never decompresses beside the source.
 
 MRTKLIB's ``rtk_uncompress()`` decompresses a compressed input file
 (``.gz``/``.Z``/``.zip``/``.tar``/Hatanaka ``.??d``/``.crx``) by writing the
 decompressed output *next to the source file* — it does not honour the
 ``[files] temp_dir`` option (that option is registered but unused in v0.7.6).
+``readrnxfile()`` then deletes that output once it has read it.
 
-When such an input lives under a read-only mount (``/data`` or the bundled
-corrections root), the shell redirect fails with
-``cannot create <path>: Read-only file system``.
+That breaks in two ways:
 
-To work around this without touching the read-only mounts or the pinned
-binary, we copy the compressed file into a writable temp directory under
-``/workspace`` and hand mrtk the copied path, so it decompresses beside the
-copy. The temp directory is removed when the job finishes.
+- under a read-only mount (``/data`` or the bundled corrections root) the
+  shell redirect fails with ``cannot create <path>: Read-only file system``;
+- under ``/workspace`` it overwrites and then deletes any file that already
+  has the decompressed name: running ``X.26o.gz`` removes the user's own
+  ``X.26o`` (``X.26d`` → ``X.26o``, ``X.crx`` → ``X.rnx`` alike), and the
+  next run on ``X.26o`` fails with "Rover observation file not found" (#223).
+
+So every compressed input is copied into a fresh temp directory under
+``/workspace`` and mrtk gets the copied path, so it decompresses beside the
+copy. The temp directory is removed when the job finishes. The copies are
+plain copies, not hard links: a wildcard also stages its uncompressed
+matches, and mrtk's ``gzip -c > X`` would write through a link to ``X``.
 """
 
 import re
@@ -22,10 +29,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from mrtklib_web_ui.paths import CORRECTIONS_ROOT, DATA_ROOT, WORKSPACE_ROOT
-
-# Roots that are mounted read-only (mrtk cannot write decompression output here).
-_READONLY_ROOTS = (DATA_ROOT, CORRECTIONS_ROOT)
+from mrtklib_web_ui.paths import WORKSPACE_ROOT
 
 # gzip/compress/zip extensions handled by rtk_uncompress (case-insensitive).
 _GZIP_EXTS = {".z", ".gz", ".zip"}
@@ -68,20 +72,16 @@ def expand_wildcard(path: str) -> list[Path]:
     )
 
 
-def _under_readonly_root(p: Path) -> bool:
-    resolved = p.resolve()
-    return any(root.resolve() in resolved.parents for root in _READONLY_ROOTS)
-
-
 def _needs_staging(path: str) -> bool:
+    # Wherever the input lives: on a read-only root decompressing fails, and
+    # on /workspace it would clobber and delete a same-named sibling (#223).
     if "*" in path:
-        matches = expand_wildcard(path)
-        return any(is_compressed(m.name) for m in matches) and _under_readonly_root(Path(path))
-    return is_compressed(Path(path).name) and _under_readonly_root(Path(path))
+        return any(is_compressed(m.name) for m in expand_wildcard(path))
+    return is_compressed(Path(path).name)
 
 
 def stage_paths(paths: Iterator[str]) -> tuple[dict[str, str], "Path | None"]:
-    """Copy compressed read-only inputs to a fresh writable temp dir.
+    """Copy compressed inputs to a fresh writable temp dir.
 
     Returns ``(mapping, tmpdir)`` where ``mapping`` is ``{original: staged}``
     for only the files that needed staging (callers substitute via
