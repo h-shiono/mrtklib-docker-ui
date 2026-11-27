@@ -13,6 +13,7 @@ below still lets the generated TOML win on any key it writes.
 """
 
 import json
+import logging
 import math
 import re
 import tomllib
@@ -22,6 +23,8 @@ from typing import Any
 # [streams.*] from the stream settings, and a second [streams.*] table would
 # make the TOML invalid. Streams also carry NTRIP credentials.
 RESERVED_TABLES = frozenset({"streams"})
+
+logger = logging.getLogger(__name__)
 
 _BARE_KEY = re.compile(r"^[A-Za-z0-9_-]+$")
 
@@ -112,7 +115,13 @@ def apply(text: str, extra: dict[str, Any] | None) -> str:
     extra = clean_extras(extra)
     if not extra:
         return text
-    generated = tomllib.loads(text)
+    try:
+        generated = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as e:
+        # The generator quotes strings without escaping them. Leave its text
+        # alone and let mrtk report the error, as it did before extras.
+        logger.warning("generated TOML does not parse, extras not added: %s", e)
+        return text
     merged = merge(generated, extra)
     if merged == generated:
         return text

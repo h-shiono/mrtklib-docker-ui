@@ -3,6 +3,7 @@
  * snake_case dict for API calls.
  */
 import type { MrtkPostConfig } from '../types/mrtkPostConfig';
+import { unownedExtras } from './tomlImport';
 
 export function configToBackend(config: MrtkPostConfig): Record<string, unknown> {
   const p = config.positioning;
@@ -255,6 +256,7 @@ export function configToBackend(config: MrtkPostConfig): Record<string, unknown>
       start_cmd: config.server.startCmd ?? '',
       stop_cmd: config.server.stopCmd ?? '',
     },
-    extra_toml: config.extraToml ?? {},
+    // Only keys the form still does not read (#230).
+    extra_toml: unownedExtras(config.extraToml),
   };
 }

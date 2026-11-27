@@ -146,8 +146,12 @@ function unreadKeys(toml: AnyDict, read: Set<string>, path: string[] = []): AnyD
 /**
  * Map a parsed MRTKLIB TOML onto the form. The keys the form does not read
  * go to `extraToml` (always set, so an import replaces the previous one's).
+ * A pre-#230 preset (form state, see isFormShapedPreset) is read as is.
  */
 export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
+  if (isFormShapedPreset(toml)) {
+    return { ...withDefaults(DEFAULT_MRTK_POST_CONFIG, toml), extraToml: {} };
+  }
   const read = new Set<string>();
   const config = mapToml(track(toml, [], read));
   return { ...config, extraToml: unreadKeys(toml, read) };
@@ -155,19 +159,21 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
 
 /**
  * A user preset saved before #230 holds the form state itself (camelCase,
- * `positioning.positioningMode`), not an MRTKLIB TOML.
+ * `positioning.positioningMode`), not an MRTKLIB TOML. tomlToConfig reads
+ * it as form state, wherever it comes from (preset, Import TOML).
  */
 export function isFormShapedPreset(dict: AnyDict): boolean {
   const pos = dict.positioning;
   return isPlainObject(pos) && 'positioningMode' in pos;
 }
 
-/** A preset file's parsed TOML as form state, for both preset formats. */
-export function presetToConfig(dict: AnyDict): MrtkPostConfig {
-  if (isFormShapedPreset(dict)) {
-    return { ...withDefaults(DEFAULT_MRTK_POST_CONFIG, dict), extraToml: {} };
-  }
-  return tomlToConfig(dict);
+/**
+ * The keys of `extra` the form still does not read. Extras are kept in
+ * localStorage, and a later UI may read a key it once kept.
+ */
+export function unownedExtras(extra: AnyDict | undefined): AnyDict {
+  if (!extra || Object.keys(extra).length === 0) return {};
+  return tomlToConfig(extra).extraToml ?? {};
 }
 
 function mapToml(toml: AnyDict): MrtkPostConfig {

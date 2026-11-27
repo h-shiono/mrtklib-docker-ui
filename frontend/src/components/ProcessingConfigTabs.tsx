@@ -60,6 +60,8 @@ import { SectionHeader as CommonSectionHeader } from './common/SectionHeader';
 import { ConfigFieldset, LockedNotice } from './common/ConfigLock';
 import { optionName } from '../config/optionMeta';
 import { maskPath } from '../utils/maskPath';
+import { extrasPreviewLines } from '../utils/tomlExtrasPreview';
+import { unownedExtras } from '../utils/tomlImport';
 
 // ─── Sub-components ────────────────────────────────────────────────────────
 
@@ -3291,6 +3293,8 @@ export function TomlDrawer({ config, opened, onClose, streams }: { config: MrtkP
     if (srv.startCmd) L.push(`start_cmd          = ${_s(srv.startCmd)}`);
     if (srv.stopCmd) L.push(`stop_cmd           = ${_s(srv.stopCmd)}`);
     L.push('');
+
+    L.push(...extrasPreviewLines(unownedExtras(config.extraToml)));
 
     // Streams section (RT mode only)
     if (streams) {

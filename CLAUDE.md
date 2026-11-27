@@ -120,12 +120,13 @@ win, and with no extras the output is unchanged. So unknown/future keys
 survive import → export, presets, and the TOML passed to `mrtk`.
 A key the form reads is owned by the form and never comes from `extraToml`,
 even in a mode that does not write it. `[streams]` is never kept, and RT
-drops `[console] passwd`.
+drops `[console] passwd`. The TOML Preview lists the kept keys
+(`tomlExtrasPreview.ts`).
 
 ### Preset storage
 Presets saved to `/workspace/presets/{mode}/` as `.toml` files: the
 generated MRTKLIB TOML (`export-conf` output). Presets saved before #230
-hold the camelCase form state; `presetToConfig` reads both.
+hold the camelCase form state; `tomlToConfig` reads both.
 Backend endpoints: `GET/POST/PUT/DELETE /api/presets/{mode}/{id}`.
 PP and RT presets are namespaced independently.
 

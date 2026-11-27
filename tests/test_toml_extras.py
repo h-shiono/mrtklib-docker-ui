@@ -107,12 +107,14 @@ def test_preset_rejects_invalid_toml(client, tmp_path):
 
 
 def test_preset_duplicate_still_takes_a_dict(client):
-    """Duplicate re-posts the parsed TOML it read."""
-    cfg = tomllib.loads(_gen({}))
+    """Duplicate re-posts the parsed TOML it read; it must come back equal."""
+    cfg = tomllib.loads(_gen({
+        "future": {"path": 'C:\\x\\"q"', "tiny": 1.25e-7, "items": [{"a": 1}], "odd key": True},
+    }))
     r = client.post("/api/presets/realtime", json={"name": "Copy", "config": cfg})
     assert r.status_code == 200
     got = client.get(f"/api/presets/realtime/{r.json()['id']}").json()
-    assert got["config"]["positioning"] == cfg["positioning"]
+    assert got["config"] == cfg
 
 
 def test_preset_needs_toml_or_config(client):
@@ -132,3 +134,13 @@ def test_rt_drops_the_console_password():
     )
     # PP export keeps it: it is the user's file.
     assert tomllib.loads(svc.generate_conf_file(cfg))["console"] == {"passwd": "admin"}
+
+
+def test_unparseable_generator_output_is_left_alone():
+    """The generator does not escape strings; extras must not turn that
+    into a server error (mrtk reports the bad TOML, as before)."""
+    cfg = MrtkPostConfig(extra_toml={"future": {"k": 1}})
+    cfg.files.trace = 'bad"quote'
+    text = svc.generate_conf_file(cfg)
+    cfg.extra_toml = {}
+    assert text == svc.generate_conf_file(cfg)

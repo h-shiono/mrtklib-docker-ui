@@ -1,6 +1,5 @@
 """Preset configuration management API."""
 
-import json
 import re
 import tomllib
 from datetime import datetime, timezone
@@ -9,6 +8,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+from mrtklib_web_ui.services import toml_extras
 
 router = APIRouter()
 
@@ -93,46 +94,11 @@ def _preset_name(path: Path, fallback_id: str) -> str:
 
 
 def _serialize_toml(config: dict[str, Any]) -> str:
-    """Serialize a config dict to TOML format."""
-    # Reuse the simple TOML serializer pattern
-    lines: list[str] = ["# MRTKLIB Preset Configuration (TOML v1.0.0)", ""]
-
-    def _write_table(obj: dict[str, Any], prefix: str = "") -> None:
-        scalars: list[tuple[str, Any]] = []
-        tables: list[tuple[str, Any]] = []
-        for k, v in obj.items():
-            if isinstance(v, dict):
-                tables.append((k, v))
-            else:
-                scalars.append((k, v))
-        if prefix and scalars:
-            lines.append(f"[{prefix}]")
-        for k, v in scalars:
-            lines.append(f"{k} = {_format_value(v)}")
-        if prefix and scalars:
-            lines.append("")
-        for k, v in tables:
-            new_prefix = f"{prefix}.{k}" if prefix else k
-            _write_table(v, new_prefix)
-
-    def _format_value(v: Any) -> str:
-        if isinstance(v, bool):
-            return "true" if v else "false"
-        if isinstance(v, int):
-            return str(v)
-        if isinstance(v, float):
-            if v != 0 and abs(v) < 0.001:
-                return f"{v:.2e}"
-            return str(v)
-        if isinstance(v, str):
-            return f'"{v}"'
-        if isinstance(v, list):
-            items = ", ".join(_format_value(i) for i in v)
-            return f"[{items}]"
-        return json.dumps(v)
-
-    _write_table(config)
-    return "\n".join(lines)
+    """Serialize a parsed TOML dict (Duplicate, PUT) back to TOML."""
+    try:
+        return toml_extras.dumps(config, "# MRTKLIB Preset Configuration (TOML v1.0.0)")
+    except TypeError as e:
+        raise HTTPException(status_code=400, detail=f"Cannot write preset: {e}")
 
 
 class PresetCreateRequest(BaseModel):

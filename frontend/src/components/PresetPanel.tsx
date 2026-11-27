@@ -24,7 +24,7 @@ import {
 } from '@tabler/icons-react';
 import type { MrtkPostConfig } from '../types/mrtkPostConfig';
 import { configToBackend } from '../utils/configToBackend';
-import { presetToConfig } from '../utils/tomlImport';
+import { tomlToConfig } from '../utils/tomlImport';
 import { FONT_SIZE } from '../utils/typography';
 
 interface Preset {
@@ -104,7 +104,7 @@ export function PresetPanel({ opened, onClose, mode, currentConfig, onLoad, load
       const res = await fetch(`/api/presets/${mode}/${id}`);
       if (!res.ok) throw new Error('Load failed');
       const { config, name } = await res.json();
-      const mapped = presetToConfig(config);
+      const mapped = tomlToConfig(config);
       if (onLoad(mapped) === false) return;
       notifications.show({ title: 'Preset loaded', message: `"${name}" loaded`, color: 'green' });
     } catch (e) {

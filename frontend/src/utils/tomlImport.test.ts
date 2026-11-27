@@ -5,7 +5,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MRTK_POST_CONFIG, type MrtkPostConfig } from '../types/mrtkPostConfig';
 import { configToBackend } from './configToBackend';
-import { isFormShapedPreset, presetToConfig, tomlToConfig } from './tomlImport';
+import { extrasPreviewLines } from './tomlExtrasPreview';
+import { isFormShapedPreset, tomlToConfig, unownedExtras } from './tomlImport';
 
 describe('tomlToConfig extraToml', () => {
   it('keeps keys the form does not read, in their tables', () => {
@@ -63,7 +64,7 @@ describe('tomlToConfig extraToml', () => {
   });
 });
 
-describe('presetToConfig', () => {
+describe('pre-#230 presets (form state)', () => {
   it('reads a preset saved as form state before #230', () => {
     // What the old Save wrote: the camelCase form state, as TOML.
     const saved: MrtkPostConfig = {
@@ -73,18 +74,52 @@ describe('presetToConfig', () => {
     const dict = JSON.parse(JSON.stringify(saved)) as Record<string, unknown>;
     delete (dict.files as Record<string, unknown>).trace; // a field added later
     expect(isFormShapedPreset(dict)).toBe(true);
-    const cfg = presetToConfig(dict);
+    const cfg = tomlToConfig(dict);
     expect(cfg.positioning.positioningMode).toBe('static');
     expect(cfg.positioning.elevationMask).toBe(12);
     expect(cfg.files.trace).toBe(DEFAULT_MRTK_POST_CONFIG.files.trace);
     expect(cfg.extraToml).toEqual({});
   });
 
-  it('reads an MRTKLIB TOML preset with tomlToConfig', () => {
+  it('tells an MRTKLIB TOML apart', () => {
     const dict = { positioning: { mode: 'static', future_key: 1 } };
     expect(isFormShapedPreset(dict)).toBe(false);
-    const cfg = presetToConfig(dict);
+    const cfg = tomlToConfig(dict);
     expect(cfg.positioning.positioningMode).toBe('static');
     expect(cfg.extraToml).toEqual({ positioning: { future_key: 1 } });
+  });
+});
+
+describe('unownedExtras', () => {
+  it('drops kept keys the form reads now', () => {
+    // Stored by an older UI that had no field for elevation_mask.
+    expect(unownedExtras({ positioning: { elevation_mask: 10, future_key: 1 }, streams: { x: 1 } })).toEqual({
+      positioning: { future_key: 1 },
+    });
+    expect(unownedExtras(undefined)).toEqual({});
+  });
+
+  it('is applied by configToBackend', () => {
+    const cfg = { ...DEFAULT_MRTK_POST_CONFIG, extraToml: { files: { fcb: '/workspace/x.fcb', future: 'y' } } };
+    expect(configToBackend(cfg).extra_toml).toEqual({ files: { future: 'y' } });
+  });
+});
+
+describe('extrasPreviewLines', () => {
+  it('lists the kept keys as TOML tables', () => {
+    expect(extrasPreviewLines({ positioning: { future_key: 1, sub: { s: 'a"b' } }, t: { l: [1, { a: 2 }] } })).toEqual([
+      '# Kept from the imported TOML (no form field); merged into the tables above on export',
+      '',
+      '[positioning]',
+      'future_key = 1',
+      '',
+      '[positioning.sub]',
+      's = "a\\"b"',
+      '',
+      '[t]',
+      'l = [1, {a = 2}]',
+      '',
+    ]);
+    expect(extrasPreviewLines({})).toEqual([]);
   });
 });
