@@ -2,7 +2,9 @@
 
 import asyncio
 import itertools
+import time
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
@@ -19,6 +21,7 @@ from mrtklib_web_ui.services import ws_manager
 from mrtklib_web_ui.services.input_staging import expand_wildcard
 from mrtklib_web_ui.services.mrtk_args import epoch_args
 from mrtklib_web_ui.services.mrtk_post_service import (
+    STOP_TIMEOUT,
     MrtkPostConfig,
     MrtkPostInputFiles,
     MrtkPostJob,
@@ -27,6 +30,9 @@ from mrtklib_web_ui.services.mrtk_post_service import (
 )
 
 router = APIRouter()
+
+# How long /stop waits for the job to end: SIGTERM, the kill timeout, cleanup.
+STOP_WAIT = STOP_TIMEOUT + 5.0
 
 # Store for active mrtk_post jobs
 _active_jobs: dict[str, asyncio.Task] = {}
@@ -38,6 +44,11 @@ MAX_FINISHED_JOBS = 20
 # loop iteration later and leave a window where the job looks unnumbered).
 _finished_seq: dict[str, int] = {}
 _finish_counter = itertools.count()
+# Jobs the user asked to stop (#234). A stopped job reports "stopped" even
+# though its task ends by cancellation; one that finished first keeps its result.
+_stop_requested: set[str] = set()
+# job_id -> output file, for /active after a page reload.
+_job_outputs: dict[str, str] = {}
 
 
 def _start_job(job_id: str, coro) -> asyncio.Task:
@@ -69,6 +80,16 @@ def _prune_finished_jobs() -> None:
     for jid in finished[: max(0, len(finished) - MAX_FINISHED_JOBS)]:
         del _active_jobs[jid]
         _finished_seq.pop(jid, None)
+        _stop_requested.discard(jid)
+        _job_outputs.pop(jid, None)
+
+
+def _running_job_id() -> str | None:
+    """The job that is still running, if any (at most one, see /execute)."""
+    for jid, task in _active_jobs.items():
+        if jid not in _finished_seq and not task.done():
+            return jid
+    return None
 
 
 class MrtkPostExecuteRequest(BaseModel):
@@ -87,7 +108,7 @@ class MrtkPostJobResponse(BaseModel):
     """Response for mrtk_post job execution."""
 
     job_id: str
-    status: str  # "started", "completed", "failed"
+    status: str  # "started", "running", "completed", "failed", "stopped"
     return_code: int | None = None
     error_message: str | None = None
     output_file: str | None = None
@@ -103,12 +124,8 @@ async def _run_mrtk_post_job(job_id: str, job: MrtkPostJob) -> MrtkPostJobRespon
     Returns:
         Job response with status and results
     """
-    # Brief delay to ensure HTTP response reaches the frontend
-    # before we start sending WebSocket messages (avoids race condition
-    # where WS messages arrive before the frontend knows the job ID)
-    await asyncio.sleep(0.2)
-
     service = MrtkPostService()
+    started = time.time()
 
     # Create log callback that broadcasts to WebSocket
     async def log_callback(message: str) -> None:
@@ -119,6 +136,11 @@ async def _run_mrtk_post_job(job_id: str, job: MrtkPostJob) -> MrtkPostJobRespon
         await ws_manager.broadcast_progress(job_id, progress)
 
     try:
+        # Brief delay to ensure HTTP response reaches the frontend
+        # before we start sending WebSocket messages (avoids race condition
+        # where WS messages arrive before the frontend knows the job ID)
+        await asyncio.sleep(0.2)
+
         # Broadcast job start status
         await ws_manager.broadcast_status(
             job_id,
@@ -172,10 +194,32 @@ async def _run_mrtk_post_job(job_id: str, job: MrtkPostJob) -> MrtkPostJobRespon
             error_message=error_msg,
         )
 
-    finally:
-        # Keep job in _active_jobs so status endpoint can return final result.
-        # The task.done() check in get_job_status will return the result.
-        pass
+    except asyncio.CancelledError:
+        # Only /stop cancels a job; the service has ended mrtk by now. The
+        # task finishes normally, so /status can return this result.
+        if job_id not in _stop_requested:
+            raise
+        return await _report_stopped(job_id, job.input_files.output_file, started)
+
+
+async def _report_stopped(job_id: str, output_file: str, started: float) -> MrtkPostJobResponse:
+    """Tell the page a job was stopped; whatever it wrote is incomplete."""
+    out = Path(output_file)
+    # A file from an earlier run is not this job's output.
+    partial = out.is_file() and out.stat().st_mtime >= started - 1
+    await ws_manager.broadcast_log(
+        job_id,
+        "[WARN] Stopped by user; the output file is incomplete"
+        if partial
+        else "[INFO] Stopped by user before any output was written",
+    )
+    await ws_manager.broadcast_status(job_id, "stopped", {"output_file": output_file, "partial": partial})
+    return MrtkPostJobResponse(
+        job_id=job_id,
+        status="stopped",
+        output_file=output_file if partial else None,
+        error_message="Stopped by user",
+    )
 
 
 @router.post("/execute", response_model=MrtkPostJobResponse)
@@ -195,8 +239,19 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
     Raises:
         HTTPException: If validation fails or job cannot be started
     """
+    # One job at a time, as mrtk run: a second one could write the same
+    # output file, and the page follows a single job (#234).
+    running = _running_job_id()
+    if running:
+        raise HTTPException(
+            status_code=409,
+            detail=f"mrtk post is already running (job {running}); stop it first",
+        )
+
     # Generate job ID
     job_id = request.job_id or f"mrtk_post-{uuid.uuid4().hex[:8]}"
+    if job_id in _active_jobs:
+        raise HTTPException(status_code=409, detail=f"Job ID already in use: {job_id}")
 
     def validate_input_path(file_path: str, label: str) -> str:
         """Validate an input file path, supporting ``*`` wildcards in the file name.
@@ -290,6 +345,7 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
 
     # Start job in background
     _prune_finished_jobs()
+    _job_outputs[job_id] = str(output_path)
     _start_job(job_id, _run_mrtk_post_job(job_id, job))
 
     return MrtkPostJobResponse(
@@ -319,6 +375,10 @@ async def get_job_status(job_id: str) -> MrtkPostJobResponse:
 
     task = _active_jobs[job_id]
 
+    if task.cancelled():
+        # Stopped before the job ever ran, so it left no result.
+        return MrtkPostJobResponse(job_id=job_id, status="stopped", error_message="Stopped by user")
+
     if task.done():
         try:
             result = task.result()
@@ -334,6 +394,42 @@ async def get_job_status(job_id: str) -> MrtkPostJobResponse:
             job_id=job_id,
             status="running",
         )
+
+
+@router.post("/stop/{job_id}", response_model=MrtkPostJobResponse)
+async def stop_job(job_id: str) -> MrtkPostJobResponse:
+    """Stop a running mrtk post job and return its final status.
+
+    mrtk post gets SIGTERM, then SIGKILL after a timeout; it has no signal
+    handler, so the output file holds what was written so far. Stopping a
+    job that already ended returns its result unchanged.
+    """
+    task = _active_jobs.get(job_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    if not task.done() and job_id not in _finished_seq and job_id not in _stop_requested:
+        _stop_requested.add(job_id)
+        # Cancel once: a second cancel would interrupt the terminate/kill.
+        task.cancel()
+    try:
+        await asyncio.wait_for(asyncio.shield(task), timeout=STOP_WAIT)
+    except TimeoutError:
+        return MrtkPostJobResponse(job_id=job_id, status="running", error_message="Still stopping")
+    except asyncio.CancelledError:
+        if not task.done():
+            raise  # this request was cancelled, not the job
+    except Exception:
+        pass  # the job's error is reported by /status below
+    return await get_job_status(job_id)
+
+
+@router.get("/active", response_model=MrtkPostJobResponse | None)
+async def active_job() -> MrtkPostJobResponse | None:
+    """The running job, so a reloaded page can follow and stop it."""
+    jid = _running_job_id()
+    if jid is None:
+        return None
+    return MrtkPostJobResponse(job_id=jid, status="running", output_file=_job_outputs.get(jid))
 
 
 @router.get("/jobs", response_model=list[str])
