@@ -29,6 +29,14 @@ stays open on every interface; `-p 127.0.0.1:8080:8000` limits it.
   (#86). The README's `docker run` example uses `-p 127.0.0.1:8080:8000`.
 - The server log says at startup whether an access token is in use.
 
+### Fixed
+- Post Processing deleted an uncompressed file under `/workspace` that sat
+  next to the compressed input (#223). Running `X.26o.gz` (or `X.26d`,
+  `X.crx`) made `mrtk` write `X.26o` beside it, overwriting the user's own
+  copy, and remove it afterwards, so the next run on `X.26o` failed with
+  "Rover observation file not found". Compressed inputs are now staged in a
+  temporary directory wherever they are, as they already were on `/data`.
+
 ## [0.4.9-alpha] - 2026-11-20
 
 No configuration change is needed to upgrade from 0.4.8-alpha. Stream Relay
