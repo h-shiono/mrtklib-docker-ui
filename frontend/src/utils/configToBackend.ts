@@ -167,6 +167,8 @@ export function configToBackend(config: MrtkPostConfig): Record<string, unknown>
         antenna_type_enabled: ant.base.antennaTypeEnabled,
         antenna_type: ant.base.antennaType,
         antenna_delta: ant.base.antennaDelta,
+        max_average_epochs: ant.base.maxAverageEpochs,
+        init_reset: ant.base.initReset,
       },
     },
     output: {
