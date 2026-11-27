@@ -1,6 +1,6 @@
 # MRTKLIB Web UI
 
-A modern web-based user interface for [MRTKLIB](https://github.com/h-shiono/MRTKLIB),
+A web user interface for [MRTKLIB](https://github.com/h-shiono/MRTKLIB),
 running entirely in a Docker container. MRTKLIB is a modernized C11
 implementation of RTKLIB with MADOCA-PPP, CLAS PPP-RTK, and advanced
 GNSS positioning capabilities. No compilation required — just
@@ -12,622 +12,64 @@ GNSS positioning capabilities. No compilation required — just
 ![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.17-green.svg)
 
 > **Status**: v0.4.9-alpha — core features are functional.
-> Known limitations are listed in [Known Issues](#known-issues).
+> Known limitations are listed in
+> [Known issues and test status](https://h-shiono.github.io/mrtklib-docker-ui/reference/known-issues/).
 
-![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/screenshot.png)
+![MRTKLIB Web UI Dashboard](https://raw.githubusercontent.com/h-shiono/mrtklib-docker-ui/main/docs/assets/screenshot.png)
 
-## Features
+**Documentation: <https://h-shiono.github.io/mrtklib-docker-ui/>**
 
-### Post Processing (`mrtk post`)
-- Sidebar navigation covering all MRTKLIB configuration options
-  (Positioning: Mode / Method / PPP-MADOCA / CLAS PPP-RTK / AR /
-  Kalman Filter; Station; Misc: Output Format / Input Options /
-  Data Files / Server)
-- Full TOML configuration import / export
-- Named preset management (saved to `/workspace/presets/`)
-- Support for all positioning modes: Single, DGPS, Kinematic,
-  Static, PPP-Kinematic, PPP-Static, PPP-AR, CLAS PPP-RTK,
-  MADOCA PPP, VRS-RTK
-- PPP correction sources: IGS, IGS-RTS, MADOCA, Galileo HAS,
-  BeiDou PPP-B2b, SouthPAN PVS
-- Result visualization: 2D plot with range rings around the reference, interactive basemap (Leaflet),
-  and position / quality charts — reads **LLH, XYZ-ECEF, and NMEA-0183**
-  solution outputs (auto-detected)
-- CLAS PPP-RTK: the L6 source of the corrections (L6 PRN and facility,
-  from the NMEA GGA station id) is marked on the ENU charts of the Result
-  Viewer where it changes (QZSS handover, facility switch; PPP-RTK
-  configurations), and shown live in the Monitor's status footer
-  (the **L6** toggle beside the station id). NMEA output only; LLH / XYZ `.pos` files do not
-  carry it
-- Compressed inputs (`.gz`, `.Z`, single-file `.zip`, `.tar`) and
-  Hatanaka-compressed RINEX (`.crx`, `.??d`, e.g. `.crx.gz`) are
-  decompressed by `mrtk` (the image bundles `crx2rnx` / `rnx2crx`)
-- Trace view with search: highlight, step through matches, show
-  matching lines only
+## What it does
 
-### Real-Time Positioning (`mrtk run`)
-- Live position display (Lat / Lon / Height / AR Ratio /
-  Satellites / Age / GPST)
-- Fix quality badges: FIXED / FLOAT / SINGLE color-coded
-- **2D** E/N scatter (1:1 aspect ratio, quality colors) and a live
-  **Map** view on a real basemap (Leaflet), shown individually or
-  side by side
-- Time series chart
-- Sky plot + SNR bar chart (per-constellation color coding,
-  used/unused satellite highlighting, satellite details on hover)
-- Solution and debug-trace streaming (trace files in
-  `/workspace/rtlog/rtkrcv/`), with search in the Trace view
-- Input stream status footer for Rover / Base / Correction
-  (receiving, connecting, stalled, no decode, error with a readable
-  cause such as an unknown NTRIP mountpoint)
-- Reattaches to a running `mrtk run` after a page reload or a closed tab
-- **Raw input logging**: per-input "Raw Log" switch and path (Rover /
-  Base / Correction) records the received bytes before decoding, hourly
-  files under `/workspace/rtlog/%Y/%n/` (e.g. `rovr_%n%H.sbf::S=1`);
-  add `::T` to the path for a time tag (`.tag`) for real-time replay
-- Restart-safe file outputs: if a solution or raw-log file already
-  exists, the run writes to `_2`, `_3`, … instead of overwriting it
+- **Real-time** positioning with `mrtk run`, from receiver, NTRIP and
+  correction streams (CLAS, MADOCA, Galileo HAS, BeiDou PPP-B2b, SouthPAN
+  PVS, IGS-RTS), with live position, map, sky plot and SNR.
+- **Post-processing** with `mrtk post`, every MRTKLIB option in one form,
+  TOML import / export and presets, and a Result Viewer.
+- **Streams**: relay and save streams with `mrtk relay`, configure
+  Septentrio and u-blox receivers, and run CLAS to RTCM3.
+- **Monitor**: decode a receiver or stream live (NMEA, SBF, UBX).
+- **Tools**: RINEX conversion, Hatanaka compression, GNSS time converter,
+  data downloader.
 
-### Streams (`mrtk relay`)
-- Multi-stream configuration (up to 4 simultaneous streams, up to 4
-  outputs each)
-- Per-stream Start / Stop control
-- Input type **Browser serial**: the page opens a USB / serial port on
-  its own computer (Web Serial, Chrome or Edge, `localhost` or https); the
-  server serves it to the relay on 127.0.0.1, so it can be saved, sent to
-  `mrtk run` and configured like any receiver. The stream stops when the
-  tab closes or reloads
-- For the selected stream: **Messages** (every message type it carries,
-  the latest frames of one type), **Receiver**, **Console** (any command,
-  and the receiver's replies) and **Log** (the relay's output). The server
-  reads each relay through an extra output it adds (hidden), and sends
-  commands back through it, so a receiver on the relay's serial, TCP or
-  Browser serial input is configured where its data goes out
-- Receiver tab: the receiver is selected from what it says it is
-  (Septentrio receiver name, u-blox UBX-MON-VER); another can be picked
-  by hand
-- Receiver tab (Septentrio mosaic-X5 / mosaic-CLAS / mosaic-G5): SBF
-  output works like RxControl's SBF Output dialog, with one column per
-  stream in use (port, interval) and a check box per group or block, read
-  from the receiver. A preset (raw observations, CLAS L6D, MADOCA L6E,
-  Galileo HAS E6, BeiDou B2b, SouthPAN PVS) checks the blocks that
-  MRTKLIB's quickstart guide for that service lists and adds the signal
-  tracking it needs; change any box, then Apply sends only what changed,
-  with the commands shown first. It also shows the ports' input / output
-  and the tracked signals, and saves the settings to the boot
-  configuration
-- Receiver tab (u-blox ZED-F9P / NEO-D9C, generation 9): message output
-  like u-center's message view, one row per message (grouped by class)
-  and one column per port, read with UBX-CFG-VALGET. A preset (raw
-  observations on a ZED-F9P; CLAS L6D, MADOCA L6E or both on a NEO-D9C) checks
-  what MRTKLIB reads on the chosen port, by default the one the stream is
-  connected to (asked with UBX-MON-COMMS); Apply sends only what changed
-  with UBX-CFG-VALSET (RAM) and reads it back. It also shows each port's
-  output protocols, the rates and the signals, and saves the settings to
-  BBR and flash. On a NEO-D9C each QZSS L6 channel (A, B) is set to a
-  satellite (or automatic, or off) and to L6D or L6E, with the
-  Reed-Solomon decoder mode
-- Running relays are restored after a page reload and can still be stopped
-- Saves raw streams: a file output (with `::T`, `::S=` options) is
-  restart-safe — if the file already exists, or another relay writes
-  it, the relay writes to `_2`, `_3`, … instead of overwriting it
-- No outputs: the relay only receives, to check that the input works
-  and see its messages (the data is not kept)
-- With a `tcpsvr://:PORT` output, the Monitor can watch the same
-  stream while it is saved (Monitor input type **Streams**)
+The [Screens](https://h-shiono.github.io/mrtklib-docker-ui/screens/) pages
+describe each one. For a first run, see
+[mrtklib-quickstart](https://github.com/h-shiono/mrtklib-quickstart). For
+what the options mean, see the
+[MRTKLIB documentation](https://h-shiono.github.io/MRTKLIB/).
 
-### CLAS to RTCM3 (`mrtk relay` + `mrtk cssr2rtcm3`)
-- One-form Wizard for the SBC + receiver + CLAS workflow (supported
-  by MRTKLIB since v0.6.5; the image bundles the pinned version)
-- Pipes Septentrio SBF (with QZSS L6 CLAS) → cssr2rtcm3 → RTCM3 →
-  back to the receiver, which runs VRS-RTK on its own engine
-- Input as in Streams: Serial (`ttyACM0:115200`) or TCP Client
-  (`host:port`) — e.g. on macOS, where Docker cannot reach USB serial,
-  serve the port from the host with
-  `mrtk relay -in serial://cu.usbmodem…:115200 -b 1 -out tcpsvr://:9001`
-  and use TCP Client `host.docker.internal:9001`
-- Outputs as in Streams: the first is the bridge to cssr2rtcm3
-  (`tcpsvr`, port editable); add a file to record the raw SBF
-  (restart-safe `_2`, `_3`, …) or a TCP server to hand it to other apps
-- A Messages tab shows what the receiver sends through the bridge, and
-  split logs for both child processes; watch the receiver's position in
-  the **Monitor** (input type Streams → `CLAS to RTCM3 · :9870`)
-- Configure the receiver with the pipeline stopped: while it runs, the
-  receiver port takes RTCM3 and ignores commands
-- Currently ships with a mosaic-G5 preset; request more receivers
-  via the GitHub Issue template
+## Quick start
 
-### RINEX Conversion (`mrtk convert`, `rnx2crx` / `crx2rnx`)
-- In **Tools → Conversion** (RINEX Converter, Hatanaka (CRX))
-- Supports all convbin formats: u-blox, Septentrio SBF,
-  NovAtel, BINEX, Trimble RT17, RTCM2/3, RINEX re-processing
-- Collapsible option groups (Time Range, Signal Options,
-  RINEX Header, Debug)
-- Live command preview before execution
-- RINEX file preview after conversion (header + first 5–10 epochs)
-- **Hatanaka (CRX)**: compress RINEX → CRX or decompress CRX → RINEX,
-  with optional gzip; inputs from `/data` or `/workspace`, output to
-  `/workspace`
-
-### Monitor (receiver or stream: NMEA / SBF / UBX)
-- Connects to a receiver or any stream (serial, TCP client / server,
-  NTRIP client) through `mrtk relay`, without running `mrtk run`
-  — for example the receiver itself, or the NMEA output of a running
-  `mrtk run`
-- Input type **Browser serial**: the browser opens a USB / serial port on
-  the computer it runs on (Web Serial, Chrome or Edge, page on `localhost`
-  or https) and sends the data to the server, so Docker needs no USB
-  access (no `usbipd` on Windows, works on macOS). The port is chosen on
-  Start; closing or reloading the tab, or unplugging the receiver, ends
-  the stream (other inputs reattach after a reload). Start two browser
-  streams one at a time: the browser shows one port picker at a time
-- Replays a recorded file (raw SBF / UBX / NMEA log or solution text)
-  all at once or paced by its epoch times (real time, 10×, 60×)
-- Decodes NMEA (GGA, RMC, ZDA, GST, GSA, GSV), Septentrio SBF
-  (PVTGeodetic, MeasEpoch, ChannelStatus, SatVisibility), u-blox UBX
-  (NAV-PVT, NAV-SAT) and MRTKLIB solution text, mixed in one stream
-- Live views, side by side as you choose: position and quality, the
-  Post-processing viewer's 2D / ENU / Map (zoom and pan are kept while
-  epochs arrive), sky plot + SNR
-  per band (L1 / L2 / L5 / L6) with per-constellation toggles, solution
-  list, relay log
-- Two streams at once: overlay them on 2D / ENU / Map on one reference
-  to compare two receivers or solutions, coloured by stream or by
-  quality; one selector switches the per-stream views
-- Receivers are configured on the **Streams** page (Receiver tab), where
-  the stream that owns the receiver port runs; the Monitor only reads
-- Message tab: every message type with count, rate, size and age, and
-  the latest frames of the selected type as a hex dump or text
-- Stream health: data rate, message counts, undecoded bytes / bad
-  frames
-- Input type **Streams**: watch a running stream's `tcpsvr://:PORT`
-  output, picked by relay name. To save a stream while watching it, relay
-  it with Streams to a file and to `tcpsvr://:PORT`
-- Reattaches to a running session after a page reload
-
-### Tools
-- **GNSS Time Converter**: fully bidirectional conversion between
-  Calendar/UTC, GPS Week/ToW, and Day of Year/Session
-- **Data Downloader**: QZSS L6D (CLAS) and L6E (MADOCA) file
-  download; IGS atx update; IGS products and GSI CORS data
-  (NASA Earthdata and GSI credentials required for the latter two)
-
-### Configuration & Workflow
-- Two-volume Docker setup: `/workspace` (read-write) and
-  `/data` (read-only host data directory)
-- Server-side preset management with import / export
-- TOML import with lossless round-trip (unknown keys preserved)
-- IBM Plex Sans + IBM Plex Mono typography
-- Dark / light mode toggle
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Docker (the **Build from source** flow additionally uses
-  `docker compose`, which ships with Docker Desktop)
-- GNSS data files (RINEX observation and navigation files)
-
-### Quick Start (pre-built image)
-
-The fastest way to try MRTKLIB Web UI. No cloning or building required.
-
-Images are published for both `linux/amd64` and `linux/arm64`
-(Apple Silicon native).
-
-1. **Pull the image**
-   ```bash
-   # Docker Hub
-   docker pull hatognss/mrtklib-docker-ui:0.4.9-alpha
-
-   # or GitHub Container Registry
-   docker pull ghcr.io/h-shiono/mrtklib-docker-ui:0.4.9-alpha
-   ```
-
-2. **Prepare host directories**
-   ```bash
-   mkdir -p ./workspace ./data
-   # Place your GNSS data files under ./data (read-only in container)
-   ```
-
-3. **Run the container**
-   ```bash
-   docker run -d --name mrtklib-web-ui \
-     -p 127.0.0.1:8080:8000 \
-     -v "$(pwd)/workspace:/workspace:rw" \
-     -v "$(pwd)/data:/data:ro" \
-     -e PUID="$(id -u)" -e PGID="$(id -g)" \
-     hatognss/mrtklib-docker-ui:0.4.9-alpha
-   ```
-
-4. **Open the UI** at <http://localhost:8080>
-
-   The UI answers on this computer only. To use it from another machine,
-   see [Network Access and Sign-in](#network-access-and-sign-in).
-
-Published images:
-
-| Registry | Repository |
-|---|---|
-| Docker Hub | [`hatognss/mrtklib-docker-ui`](https://hub.docker.com/r/hatognss/mrtklib-docker-ui) |
-| GHCR | [`ghcr.io/h-shiono/mrtklib-docker-ui`](https://github.com/h-shiono/mrtklib-docker-ui/pkgs/container/mrtklib-docker-ui) |
-
-Both repositories carry the same multi-arch manifest. See the
-repository pages above for the list of available tags.
-
-### Build from source
-
-Use this flow if you need to customise the MRTKLIB version, build
-against a local MRTKLIB checkout, or develop the Web UI itself.
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/h-shiono/mrtklib-docker-ui.git
-   cd mrtklib-docker-ui
-   ```
-
-2. **Configure directories**
-   ```bash
-   mkdir -p ./workspace ./data
-   cp .env.example .env
-   # Edit .env to set DATA_DIR to your GNSS data directory
-   ```
-
-3. **Build and run**
-   ```bash
-   docker compose up --build
-   ```
-
-4. **Open the UI** at <http://localhost:8080>
-
-### Data Directory Configuration
-
-| Mount | Default | Purpose | Access |
-|-------|---------|---------|--------|
-| `/workspace` | `./workspace` | Output files, presets, logs | Read-write |
-| `/data` | `./data` | Input GNSS data files | Read-only |
-```bash
-# .env
-DATA_DIR=/path/to/your/gnss-data
-```
-
-The app runs as `PUID:PGID` (default `1000:1000`), not root, so files
-it writes to `/workspace` belong to that host user. Set them to your
-own IDs (`id -u` / `id -g`) in `.env`. On start, existing files under
-`/workspace` owned by someone else (for example root, from versions
-that ran as root) are chowned to `PUID:PGID`. `PUID=0` restores the
-old run-as-root behaviour.
-
-### Network Access and Sign-in
-
-The UI is published on `127.0.0.1:8080`: it answers on the computer that
-runs Docker and nowhere else, with no sign-in. Its API can start processes,
-write `/workspace` and read stored credentials, so opening it to a network
-is a choice you make, in `.env`:
+Images are published for `linux/amd64` and `linux/arm64` on
+[Docker Hub](https://hub.docker.com/r/hatognss/mrtklib-docker-ui) and
+[GHCR](https://github.com/h-shiono/mrtklib-docker-ui/pkgs/container/mrtklib-docker-ui).
 
 ```bash
-# .env
-MRTK_BIND=0.0.0.0                 # publish on every interface of the host
-MRTK_AUTH_TOKEN=<long random>     # e.g. openssl rand -hex 32
+mkdir -p ./workspace ./data   # put your GNSS data under ./data
+docker run -d --name mrtklib-web-ui \
+  -p 127.0.0.1:8080:8000 \
+  -v "$(pwd)/workspace:/workspace:rw" \
+  -v "$(pwd)/data:/data:ro" \
+  -e PUID="$(id -u)" -e PGID="$(id -g)" \
+  hatognss/mrtklib-docker-ui:0.4.9-alpha
 ```
 
-| Setting | Default | Meaning |
-|---------|---------|---------|
-| `MRTK_BIND` | `127.0.0.1` | Host address the port is published on. `0.0.0.0` is every interface; one address of the host (a VPN address) limits it to that network. With `docker run`, this is the address in `-p 127.0.0.1:8080:8000`. |
-| `MRTK_AUTH_TOKEN` | empty | Access token. When set, the UI asks for it once per browser, and scripts send `Authorization: Bearer <token>`. Empty means no sign-in. |
+Open <http://localhost:8080>. The UI answers on this computer only.
 
-For a remote host you can also leave both at their defaults and use an SSH
-tunnel (`ssh -L 8080:127.0.0.1:8080 user@host`). Over the internet, put a
-reverse proxy with HTTPS in front.
-[docs/deployment.md](docs/deployment.md) covers these, the threat model
-and the upgrade from 0.4.x.
-
-### Serial Device Passthrough (Monitor, Streams and CLAS to RTCM3)
-
-To connect to a GNSS receiver via serial port, add the device
-to `docker-compose.yml`:
-```yaml
-services:
-  mrtklib-web-ui:
-    devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0
-    volumes:
-      # Optional: mount /dev/serial so the UI can list ports by descriptor
-      # name (e.g. "usb-Septentrio_Mosaic-G5_..." instead of "ttyUSB0").
-      - /dev/serial:/dev/serial:ro
-```
-
-The CLAS to RTCM3 tab uses **one** bidirectional serial device: the
-receiver streams SBF (with L6 frames) out of the port and accepts the
-generated RTCM3 back on the same port. Configure the receiver port to
-do both (output SBF/L6, input RTCM3). Set `CLAS_INPUT_DEVICE` in
-`.env` to that port, then uncomment the matching `devices:` line in
-`docker-compose.yml`.
-
-#### macOS host
-
-Docker Desktop on macOS runs Linux containers in a hidden VM, so
-USB-serial devices on the Mac (`/dev/cu.usbmodem*`) are **not**
-visible to the container by default. Windows needs `usbipd` for the
-same reason. Use one of:
-
-- In Streams or the Monitor, pick input type **Browser serial**: Chrome
-  or Edge opens the port on the Mac / PC and sends the data to the
-  server. Nothing to install or attach; the stream lasts while the tab is
-  open (the server stops it when the tab closes), so it does not suit a
-  long unattended `mrtk run` or logging session.
-- Run on the SBC itself (recommended for production CLAS use).
-- Forward over the network with USB/IP or a TCP↔serial bridge
-  (e.g. `socat`, `ser2net`) and pick TCP in the UI instead of
-  serial.
-- Use a Linux host or VM with native USB device access.
-
-### Credentials (Data Downloader)
-
-The Data Downloader supports three credential sources
-(priority order: `.netrc` mount > environment variables > UI).
-Mount a `.netrc` at `/home/mrtk/.netrc` (see `docker-compose.yml`);
-an existing `/root/.netrc` mount is copied there on start.
-```bash
-# .env
-EARTHDATA_USER=your_username    # NASA Earthdata (IGS products)
-EARTHDATA_PASSWORD=your_password
-GSI_USER=your_username          # GSI CORS FTP
-GSI_PASSWORD=your_password
-```
-
-QZSS L6D/L6E files require no authentication.
-
----
-
-## Architecture
-
-### Technology Stack
-
-#### Backend
-- **Language**: Python 3.11+
-- **Framework**: FastAPI
-- **Process Management**: asyncio.subprocess
-- **Real-time Communication**: WebSocket
-- **Data Validation**: Pydantic v2
-
-#### Frontend
-- **Framework**: React 19 + TypeScript
-- **Build Tool**: Vite
-- **UI Library**: Mantine v8
-- **Charts**: Chart.js, uPlot, Recharts; Leaflet for the map view
-- **Typography**: IBM Plex Sans + IBM Plex Mono
-
-#### Deployment
-- **Container**: Multi-stage Docker build
-- **MRTKLIB Binary**: Built from source via CMake (`mrtk` unified binary)
-- **Volumes**: `/workspace` (read-write), `/data` (read-only)
-
----
-
-## Development Setup
-
-### Backend
-```bash
-uv sync
-uv run uvicorn mrtklib_web_ui.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-> **Note:** QC Preview is temporarily disabled (the button is greyed out and
-> `/api/obs-qc/analyze` returns 503) until it is integrated with MRTKLIB QC.
-> The previous cssrlib-based implementation and its `qc` extra were removed.
-
-Run the backend tests (pytest is in the `dev` dependency group):
-
-```bash
-uv run pytest
-```
-
-### Frontend
-```bash
-cd frontend
-npm install
-npm run dev   # http://localhost:5173
-```
-
-The frontend dev server runs on `http://localhost:5173` and proxies
-API requests to the backend at `http://localhost:8000`.
-
----
-
-## Releases & Image Maintenance
-
-### Tag → image mapping
-
-The `publish-docker.yml` workflow is the only thing that pushes
-to GHCR / Docker Hub. It runs on two events:
-
-| Trigger | Resulting tags (per registry) |
-|---------|-------------------------------|
-| `git push origin vX.Y.Z[-suffix]` | `X.Y.Z[-suffix]`, `sha-<7-char>`. For non-prerelease tags also `X.Y`, `X`, `latest`. |
-| `gh workflow run publish-docker.yml --ref <branch>` | `dev-<branch>` only. Repeated runs **overwrite the same tag** in place — no accumulation. |
-
-So the recommended dev cycle is `gh workflow run --ref my-branch` →
-`docker pull ...:dev-my-branch`. Cutting an actual release is
-the only way to mint a new long-lived tag.
-
-### Cleaning up GHCR safely
-
-**Do not bulk-delete "untagged" entries** in the GHCR Versions
-view. Multi-arch images (`linux/amd64` + `linux/arm64`) live as
-a tagged manifest list that *references* per-architecture
-manifests appearing as untagged digests. Deleting those breaks
-`docker pull` for the matching platform with `manifest unknown`.
-
-Safe order if the registry needs a tidy-up:
-
-1. Delete `dev-*` or stale `sha-*` entries that have a tag —
-   their referenced platform manifests then drop to true orphans.
-2. Wait briefly (or refresh the view) and only then delete the
-   now-dereferenced untagged digests.
-3. If a release tag does break, `git push --delete origin vX.Y.Z`
-   followed by `git push origin vX.Y.Z` re-runs the workflow and
-   restores the manifest list. The GitHub Release object
-   re-attaches automatically.
-
-The same rule applies to Docker Hub, which is just slower to
-surface orphan state in its UI.
-
----
-
-## Roadmap
-
-| Version | Description |
-|---------|-------------|
-| **v0.1.x-alpha** | Core UI for all `mrtk` subcommands, presets, TOML I/O, Monitor tab |
-| **v0.2.x-alpha** | Template presets, GNSS time converter, Monitor Sky+SNR, IGS/GSI downloader, GHCR/Docker Hub publish |
-| **v0.3.0-alpha** | MRTKLIB 0.7.6 config migration, console redesign, CLAS pipeline, RINEX Converter overhaul, unified dark consoles, XYZ-ECEF / NMEA-0183 result views, live basemap map |
-| **v0.3.1-alpha** | MRTKLIB 0.7.11, Real-Time raw input logging, restart-safe file outputs |
-| **v0.3.2-alpha** | Security hardening, non-root container (`PUID:PGID`), Real-Time input stream status + live trace, reload-safe Real-Time / Stream Server sessions, PR CI |
-| **v0.4.0-alpha** | Audit follow-ups (#39, #40): PPP-AR systems / max sol std controls, broader log masking, bounded file previews, NMEA and time-system fixes in the Result Viewer, slimmer image (QC Preview paused), reproducible builds (`uv.lock`) |
-| **v0.4.1-alpha** | Bug fixes: Hatanaka (`crx2rnx`) inputs in the image, Real-Time log views hold while scrolled up, Post Processing Trace shows the file's end, Data Downloader (Earthdata login, non-blocking GSI, past default dates), Galileo HAS label, CLAS single-port docs |
-| **v0.4.2-alpha** | Small improvements: Trace search (Real-Time / Post Processing), Hatanaka compress / decompress in Conversion, readable ENU chart axes, sky plot hover details and larger markers, Real-Time satellite count matches the solution |
-| **v0.4.3-alpha** | Config form fix: a cleared number field keeps its value instead of becoming 0, and re-clicking a dropdown option no longer clears it |
-| **v0.4.4-alpha** | MRTKLIB 0.7.17: SouthPAN PVS and BeiDou PPP-B2b correction sources, BeiDou PRN options (BDS-2 / GEO / IGSO), CLAS NMEA source id, Real-Time presets for PPP-B2b / Galileo HAS / SouthPAN PVS |
-| **v0.4.5-alpha** | Stream Monitor: live decode of a receiver or stream (NMEA, SBF, UBX, solution text) with the Real-Time views; Stream Server renamed Stream Relay |
-| **v0.4.6-alpha** | Stream Monitor: Result Viewer views (2D / ENU / Map) live, per-band SNR, constellation toggles, file playback; one quality colour table; CLAS L6 source (PRN / facility) marked in the Result Viewer and Stream Monitor |
-| **v0.4.7-alpha** | Stream Monitor: two streams with overlaid 2D / ENU / Map, Message tab, Real-Time style layout; 2D plot with range rings around the reference; ENU chart options |
-| **v0.4.8-alpha** | One design system across the app (`DESIGN.md`): colours, type scale, 30 px form rows, shared log view and toolbars; raw streams saved in Stream Relay (restart-safe files, receive-only streams), Stream Monitor reads a running relay; CLAS Pipeline renamed CLAS to RTCM3 with Stream Relay style input and outputs; Conversion moved into Tools |
-| **v0.4.9-alpha** (current) | Receiver configuration on the Streams page (Septentrio mosaic-X5 / CLAS / G5, u-blox ZED-F9P / NEO-D9C): output grids with presets, settings read back, save to boot; Messages / Console tabs per stream; Browser serial input (Web Serial); Stream Relay renamed Streams, Stream Monitor renamed Monitor |
-
----
-
-## Known Issues
-
-This is an alpha release. Many features have been implemented
-but not yet thoroughly tested in real-world conditions.
-Bug reports and feedback are very welcome — please
-[open an issue](https://github.com/h-shiono/mrtklib-docker-ui/issues).
-
-### Known untested or partially tested areas
-
-- **Real-Time positioning** (`mrtk run`): basic operation confirmed;
-  edge cases (stream reconnection, dual-channel CLAS, long runs)
-  not yet validated
-- **Monitor**: checked with u-blox F9 (RXM-RAWX + SFRBX +
-  NMEA) and Septentrio mosaic-G5 (SBF) streams and files; UBX NAV-PVT /
-  NAV-SAT and other receivers are not yet tested with real data
-- **Monitor, Browser serial**: checked in Chrome with a simulated
-  port replaying a u-blox F9 capture (receive, Stop, unplug, tab closed);
-  with a real receiver only the connection (macOS, Chrome, mosaic), not
-  yet the decoded messages; Windows and u-blox receivers untested
-- **Receiver configuration**: checked in Chrome against a simulated
-  mosaic-G5 that answers the commands (read, preset into a new stream,
-  edits, apply, console, save);
-  not yet against a real receiver. u-blox: checked in Chrome against a
-  simulated ZED-F9P (read, preset, apply and read back, save; also one
-  that refuses keys newer than its firmware) through Streams Browser
-  serial. With a real ZED-F9P (HPG 1.51) and NEO-D9C (QZS 1.01) on USB,
-  through the real `mrtk relay`: the read (model, connected port, every
-  message rate) and a CFG-VALSET acknowledged; the page itself in Chrome
-  only against the simulated receiver
-- **Streams, Browser serial**: checked in Chrome with a simulated
-  mosaic-G5 port and the real `mrtk relay` (messages, receiver read,
-  console, stop, tab closed); not yet with a real receiver
-- **Streams, Messages / Receiver / Console**: the message tap and the
-  command path checked with the real `mrtk relay` and a simulated
-  receiver; the page in Chrome against a simulated receiver; not yet with
-  a real receiver on a relay's serial port
-- **Monitor, two streams**: two relays were checked together
-  through the API; the page and the overlay not yet against live streams
-- **CLAS L6 source**: checked with MRTKLIB's handover test output
-  (`mrtk post` NMEA); not yet with a live `mrtk run` NMEA stream
-- **Data Downloader**: QZSS L6D/L6E endpoints implemented;
-  IGS products (NASA Earthdata) and GSI CORS (FTP) untested
-- **TOML import round-trip**: basic cases work; complex configs
-  with all options may have edge cases
-- **Configuration option coverage**: UI covers all options from
-  the reference, but default values and conditional logic have
-  not been exhaustively verified
-- **RINEX preview**: implemented but not tested across all
-  receiver formats
-- **CLAS to RTCM3**: uses a single bidirectional serial port; hardware
-  passthrough validated only with the mosaic-G5 preset
-
-### Platform notes
-
-- Tested on: Linux (Ubuntu 22.04), macOS (Apple Silicon)
-- Windows (Docker Desktop): untested
-
-All bug reports are appreciated, including partial or unclear ones.
-
----
+- [Install](https://h-shiono.github.io/mrtklib-docker-ui/getting-started/install/):
+  Docker Compose and building from source.
+- [Serial devices](https://h-shiono.github.io/mrtklib-docker-ui/getting-started/serial/):
+  connecting a receiver, also on macOS and Windows.
+- [Security and network access](https://h-shiono.github.io/mrtklib-docker-ui/deployment/security/):
+  read this before opening the UI to another machine.
 
 ## Contributing
 
-Contributions of all kinds are welcome — bug reports, feature
-requests, documentation improvements, and pull requests.
-
-**The most helpful thing right now is real-world testing.**
-If you try MRTKLIB Web UI with your own receiver or dataset
-and something does not work as expected, please open an issue.
-You do not need to have a fix ready — a clear description of
-what happened is enough.
-
-### Opening an Issue
-
-When reporting a bug, please include:
-
-- Which tab / feature was affected
-- What you expected to happen
-- What actually happened
-- Browser and OS (and Docker version if relevant)
-- Any error messages from the browser console or Docker logs
-
-For feature requests, a brief description of the use case
-is more useful than a specific implementation proposal.
-
-### Pull Requests
-
-For small fixes (typos, obvious bugs), a PR is welcome directly.
-For larger changes, please open an issue first to discuss
-the approach — this avoids duplicated effort.
-
-### Guidelines
-
-- Python: PEP 8, type hints throughout
-- TypeScript: strict mode, functional components
-- Commits: conventional commits (`feat:`, `fix:`, `docs:`)
-- Do not modify MRTKLIB source code in this repository
-
----
-
-## Bundled Correction Files
-
-The Docker image includes correction files from MRTKLIB for
-quick-start CLAS PPP-RTK and MADOCA PPP processing:
-
-### CLAS PPP-RTK
-| File | Purpose |
-|------|---------|
-| `clas_grid.def` | CLAS grid definition |
-| `clas_grid.blq` | Ocean tide loading coefficients |
-| `igu00p01.erp` | Earth rotation parameters |
-| `igs14_L5copy.atx` | Satellite/receiver antenna PCV |
-| `isb.tbl` | Inter-system bias table |
-| `l2csft.tbl` | L2C signal phase correction |
-
-### MADOCA PPP
-| File | Purpose |
-|------|---------|
-| `igs20.atx` | IGS antenna model (satellite + receiver PCO/PCV) |
-
-These files are available at `/opt/mrtklib/corrections/` inside
-the container and can be selected directly from the UI's
-Files configuration panel. Use the "Apply CLAS PPP-RTK profile"
-or "Apply MADOCA PPP profile" buttons to set all paths at once.
-
-To use a newer version of any file, place it in your `/data`
-directory and select it manually via the file browser.
-
----
+Bug reports, feature requests and pull requests are welcome. Real-world
+testing with your own receiver or data set helps most: if something does
+not work as expected, please
+[open an issue](https://github.com/h-shiono/mrtklib-docker-ui/issues).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup.
 
 ## License
 
@@ -645,8 +87,6 @@ of Japan), unmodified, under its license
 Hatanaka, Y. (2008), A Compression Format and Tools for GNSS
 Observation Data, Bulletin of the Geospatial Information Authority of
 Japan, 55, 21-30 (<https://www.gsi.go.jp/ENGLISH/Bulletin55.html>).
-
----
 
 ## Acknowledgements
 

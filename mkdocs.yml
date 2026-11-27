@@ -1,0 +1,123 @@
+site_name: MRTKLIB Web UI
+site_description: Browser UI for the MRTKLIB GNSS tools, in one Docker container
+site_url: https://h-shiono.github.io/mrtklib-docker-ui/
+repo_url: https://github.com/h-shiono/mrtklib-docker-ui
+repo_name: h-shiono/mrtklib-docker-ui
+edit_uri: edit/develop/docs/
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.path
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.select
+    - content.tabs.link
+    - content.action.edit
+  font:
+    text: IBM Plex Sans
+    code: IBM Plex Mono
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/satellite-uplink
+
+# Pages kept in docs/ that are not part of the site.
+exclude_docs: |
+  release-note.md
+
+# Warnings fail `mkdocs build --strict` (CI): a page left out of the nav, a
+# broken link or a missing anchor.
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    absolute_links: relative_to_docs
+    unrecognized_links: warn
+    anchors: warn
+
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+'
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Install: getting-started/install.md
+    - Data and volumes: getting-started/data.md
+    - Serial devices: getting-started/serial.md
+    - Credentials: getting-started/credentials.md
+  - Screens:
+    - screens/index.md
+    - Real-time: screens/real-time.md
+    - Post-processing: screens/post-processing.md
+    - Streams: screens/streams.md
+    - Monitor: screens/monitor.md
+    - Tools: screens/tools.md
+  - Deployment:
+    - Security and network access: deployment/security.md
+  - Reference:
+    - Config coverage: reference/config-coverage.md
+    - Bundled correction files: reference/corrections.md
+    - Known issues and test status: reference/known-issues.md
+  - Releases:
+    - releases/index.md
+    - Changelog: releases/changelog.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/h-shiono/mrtklib-docker-ui
+
+extra_css:
+  - stylesheets/extra.css
+
+copyright: Copyright &copy; H. SHIONO. Licensed under MIT.

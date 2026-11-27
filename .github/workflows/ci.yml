@@ -85,6 +85,23 @@ jobs:
           if [ ${#files[@]} -eq 0 ]; then echo "No TypeScript changes"; exit 0; fi
           npx eslint "${files[@]}"
 
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          python-version: '3.12'
+
+      # --strict: broken links, missing anchors and pages left out of the
+      # nav fail the build (validation in mkdocs.yml).
+      - name: Build documentation site
+        run: uv run --locked --only-group docs mkdocs build --strict
+
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 60

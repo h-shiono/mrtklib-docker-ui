@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 only.** The port is published on `127.0.0.1:8080` instead of every network
 interface. If you open the UI from another machine, set `MRTK_BIND=0.0.0.0`
 in `.env`, and set `MRTK_AUTH_TOKEN` with it, or use an SSH tunnel or a
-reverse proxy; see [docs/deployment.md](docs/deployment.md). A container
+reverse proxy; see [docs/deployment/security.md](docs/deployment/security.md). A container
 started with `docker run -p 8080:8000` is not changed by the upgrade and
 stays open on every interface; `-p 127.0.0.1:8080:8000` limits it.
 
@@ -20,13 +20,18 @@ stays open on every interface; `-p 127.0.0.1:8080:8000` limits it.
   (session cookie, 30 days) and a Sign out button in the header; scripts send
   `Authorization: Bearer <token>`. `/api/health` stays open for the
   container health check. Unset, the UI works as before, with no sign-in.
-- `docs/deployment.md`: who can reach the UI in each setup, the access
+- `docs/deployment/security.md`: who can reach the UI in each setup, the access
   token, SSH tunnel, HTTPS behind a reverse proxy (Caddy example), and the
   threat model.
-- `docs/config-coverage.md` (#90): every TOML key the UI writes, the field
+- `docs/reference/config-coverage.md` (#90): every TOML key the UI writes, the field
   behind it, whether the form has a control for it, and which keys only one
   of `mrtk post` / `mrtk run` reads. `scripts/gen_config_coverage.py`
   regenerates it from the code and the MRTKLIB source.
+- Documentation site (#95) at <https://h-shiono.github.io/mrtklib-docker-ui/>
+  (MkDocs Material, built from `docs/` and published on every push to
+  `main`): install, data, serial devices, credentials, one page per screen,
+  security, bundled files, test status, releases. The README now covers the
+  install and links there; development notes moved to `CONTRIBUTING.md`.
 
 ### Changed
 - `docker-compose.yml` publishes the port on `${MRTK_BIND:-127.0.0.1}`

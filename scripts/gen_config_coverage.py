@@ -1,4 +1,4 @@
-"""Regenerate docs/config-coverage.md: which config fields the form exposes.
+"""Regenerate docs/reference/config-coverage.md: which config fields the form exposes.
 
     uv run python scripts/gen_config_coverage.py [--mrtklib ../MRTKLIB]
 
@@ -36,7 +36,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from mrtklib_web_ui.services import mrtk_post_service as svc_mod  # noqa: E402
 from mrtklib_web_ui.services.mrtk_post_service import MrtkPostConfig, MrtkPostService  # noqa: E402
 
-OUT = ROOT / "docs/config-coverage.md"
+OUT = ROOT / "docs/reference/config-coverage.md"
 FORM = ROOT / "frontend/src/components/ProcessingConfigTabs.tsx"
 
 # Options that only one of mrtk post / mrtk run reads, checked in the
