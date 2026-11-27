@@ -30,8 +30,9 @@ The `?` icon beside a section title opens that section in the
 [MRTKLIB configuration reference](https://h-shiono.github.io/MRTKLIB/reference/config-options/).
 This site does not repeat what the options mean.
 
-While Real-time runs, its configuration is read-only: it shows what the
-running process uses. Stop the run to change it.
+While a run is going, its configuration is read-only: it shows what the
+running process uses. Loading a preset, importing a TOML and the Config
+Assistant are unavailable until the run ends. Stop the run to change it.
 
 ## Configurations, presets and TOML
 

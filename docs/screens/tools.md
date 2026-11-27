@@ -34,7 +34,7 @@ day of year / session.
 
 ## Downloader
 
-Downloads data into `/workspace`:
+Downloads data into `/workspace/downloads/`:
 
 - QZSS L6D (CLAS) and L6E (MADOCA) files.
 - The latest IGS antenna file (`igs20.atx`).

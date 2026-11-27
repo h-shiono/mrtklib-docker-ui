@@ -30,5 +30,6 @@ these paths at once. The built-in CLAS and MADOCA presets of Real-time point
 at them too.
 
 To use a newer version of a file, put it in your `/data` directory and pick it
-in the file browser. [Tools → Downloader](../screens/tools.md#downloader)
-fetches the latest `igs20.atx`.
+in the file browser. For `igs20.atx`,
+[Tools → Downloader](../screens/tools.md#downloader) fetches the latest one
+into `/workspace/downloads/atx/`.

@@ -7,10 +7,13 @@ opens the result in the Result Viewer.
 
 The section rail covers every MRTKLIB option the UI writes:
 
-- **Positioning**: mode, method, PPP-MADOCA, CLAS PPP-RTK, ambiguity
+- **Input / Output Files**: the rover, base, navigation and correction inputs,
+  and the output file.
+- **Positioning**: mode, method, PPP / MADOCA, CLAS PPP-RTK / VRS, ambiguity
   resolution, Kalman filter.
-- **Station**: rover and base positions.
-- **Misc**: output format, input options, data files, server.
+- **Station**: antenna.
+- **Misc**: output format, input options, data files. (Real-time also has a
+  Server section.)
 
 Every positioning mode is available: Single, DGPS, Kinematic, Static,
 PPP-Kinematic, PPP-Static, PPP-AR, CLAS PPP-RTK, MADOCA PPP and VRS-RTK. PPP

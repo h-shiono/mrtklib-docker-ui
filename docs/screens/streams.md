@@ -1,7 +1,7 @@
 # Streams
 
 Streams relays GNSS data with `mrtk relay`: from a receiver or a network
-stream to files, TCP servers, NTRIP casters and other programs. It is also
+stream to files, TCP servers and other programs. It is also
 where receivers are configured, and where CLAS to RTCM3 runs.
 
 ## Multi-Stream
@@ -26,7 +26,7 @@ where receivers are configured, and where CLAS to RTCM3 runs.
 
 ## The selected stream
 
-The tabs below the stream list show one stream:
+Four tabs show the selected stream:
 
 - **Messages**: every message type the stream carries, and the latest frames
   of one type.

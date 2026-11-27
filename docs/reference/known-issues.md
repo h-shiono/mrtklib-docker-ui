@@ -39,8 +39,8 @@ including partial or unclear ones.
   page and the overlay not yet against live streams.
 - **CLAS L6 source**: checked with MRTKLIB's handover test output (`mrtk post`
   NMEA). Not yet with a live `mrtk run` NMEA stream.
-- **Data Downloader**: QZSS L6D / L6E work. IGS products (NASA Earthdata) and
-  GSI CORS (FTP) untested.
+- **Data Downloader**: QZSS L6D / L6E endpoints implemented. IGS products
+  (NASA Earthdata) and GSI CORS (FTP) untested.
 - **TOML import round trip**: basic cases work. Complex configurations with
   every option may have edge cases.
 - **Configuration option coverage**: the UI covers the options of the
