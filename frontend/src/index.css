@@ -34,3 +34,19 @@ code, pre, kbd, .mantine-Code-root {
 .mrtk-tiles-dark {
   filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
 }
+
+/* Settings locked while a run uses them (#203, ConfigLock): still disabled,
+   but their values are there to be read, so they keep the label colour
+   (4.5:1) instead of Mantine's 60 % disabled text. A field the mode does not
+   use is disabled by its prop (data-disabled) and keeps looking unused. */
+.mrtk-config-locked .mantine-Input-input:disabled:not([data-disabled]),
+.mrtk-config-locked .mantine-Input-input:has(input:disabled):not([data-disabled]) {
+  opacity: 1;
+  color: var(--mantine-color-dimmed);
+}
+
+/* A click on a locked control reaches what holds it, e.g. the Stream Relay
+   card, which selects its stream; a disabled control swallows the click. */
+.mrtk-config-locked :disabled {
+  pointer-events: none;
+}
