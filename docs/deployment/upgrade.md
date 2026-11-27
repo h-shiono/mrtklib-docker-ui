@@ -132,9 +132,13 @@ list what changes; for the UI, these matter:
   a satellite without L5 on L1 alone (`l1+l5(l2)` keeps the L2 fallback).
 - **SNR mask on CLAS:** on the CLAS PPP-RTK and VRS paths the mask now rejects
   satellites, so a configuration that sets one there sees fewer of them.
-- **CLAS L6D files in Post-processing:** with more than two files, or
-  `l6_merge = 0` with two or more, the channels are built from the file
-  contents. Files that were ignored before are now used.
+- **CLAS L6D files in Post-processing:** with more than two files, two files
+  of one pattern, or `l6_merge = 0` with two or more, the channels are built
+  from the file contents. Files that were ignored before are now used.
+- **CLAS to RTCM3:** the observations `cssr2rtcm3` builds now include GPS
+  and QZS L5 where the corrections carry them, so the RTCM3 sent to the
+  receiver has more signals than before. Check the receiver's RTK solution
+  after the upgrade.
 - **RINEX from RTCM3 MSM** (RINEX Converter): the half-cycle indicator is
   written as LLI 2 / 3 instead of 3 / 4.
 

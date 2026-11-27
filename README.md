@@ -9,7 +9,7 @@ GNSS positioning capabilities. No compilation required — just
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![React](https://img.shields.io/badge/react-19-blue.svg)
-![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.17-green.svg)
+![MRTKLIB](https://img.shields.io/badge/MRTKLIB-0.7.18-green.svg)
 
 > **Status**: v0.4.9-alpha — core features are functional.
 > Bug reports are welcome on

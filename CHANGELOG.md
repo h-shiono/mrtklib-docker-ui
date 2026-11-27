@@ -50,6 +50,11 @@ stays open on every interface; `-p 127.0.0.1:8080:8000` limits it.
   them. `[streams]` is never kept, and Real-time drops `[console] passwd`.
 
 ### Changed
+- MRTKLIB pinned to v0.7.18 (#239). No new or renamed TOML keys. It changes
+  CLAS results: VRS-RTK frequency selection per system, the SNR mask on the
+  CLAS paths, several L6D files per channel in Post-processing, and GPS / QZS
+  L5 in the RTCM3 from CLAS to RTCM3. `docs/deployment/upgrade.md` lists what
+  to check.
 - Settings are read-only while their process runs (#203): the Real-time and
   Post-processing configuration (preset load, import and the Config
   Assistant too), and a running stream's input and outputs in Streams.
