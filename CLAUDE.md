@@ -196,6 +196,7 @@ npm run lint
 ```bash
 docker compose up --build
 # Access: http://localhost:8080
+scripts/docker_smoke_test.sh IMAGE   # what CI runs on the built image
 ```
 
 ## Key Constraints for Claude Code

@@ -102,5 +102,11 @@ jobs:
           file: docker/Dockerfile
           platforms: linux/amd64
           push: false
+          # Loaded into the runner's Docker for the smoke test below.
+          load: true
+          tags: mrtklib-docker-ui:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Smoke test (mrtk --version, mrtk post on sample data, server)
+        run: scripts/docker_smoke_test.sh mrtklib-docker-ui:ci
