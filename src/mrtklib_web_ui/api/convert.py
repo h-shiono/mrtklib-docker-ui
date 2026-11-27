@@ -20,6 +20,7 @@ from mrtklib_web_ui.paths import (
     resolve_path,
 )
 from mrtklib_web_ui.services import hatanaka
+from mrtklib_web_ui.services.mrtk_args import epoch_args
 
 logger = logging.getLogger(__name__)
 
@@ -109,12 +110,13 @@ def build_convert_cmd(req: ConvertRequest) -> list[str]:
     if req.station_id:
         cmd += ["-c", req.station_id]
     cmd += ["-v", req.rinex_version]
+    # -ts / -te / -tr take the date and the time as two arguments
     if req.time_start:
-        cmd += ["-ts", req.time_start]
+        cmd += epoch_args("-ts", req.time_start)
     if req.time_end:
-        cmd += ["-te", req.time_end]
+        cmd += epoch_args("-te", req.time_end)
     if req.time_ref:
-        cmd += ["-tr", req.time_ref]
+        cmd += epoch_args("-tr", req.time_ref)
     if req.interval and req.interval > 0:
         cmd += ["-ti", str(req.interval)]
     if req.epoch_tolerance is not None and req.epoch_tolerance != 0.005:
@@ -252,7 +254,10 @@ async def _start_convert_locked(request: ConvertRequest) -> ConvertResponse:
     if err := _validate_convert_paths(request):
         return ConvertResponse(status="error", message=err)
 
-    cmd = build_convert_cmd(request)
+    try:
+        cmd = build_convert_cmd(request)
+    except ValueError as e:  # a malformed time
+        return ConvertResponse(status="error", message=str(e))
     cmd_str = " ".join(cmd)
     await _broadcast({"type": "log", "message": f"[CMD] {cmd_str}"})
 

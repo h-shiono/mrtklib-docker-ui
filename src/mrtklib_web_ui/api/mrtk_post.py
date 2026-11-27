@@ -17,6 +17,7 @@ from mrtklib_web_ui.paths import (
 )
 from mrtklib_web_ui.services import ws_manager
 from mrtklib_web_ui.services.input_staging import expand_wildcard
+from mrtklib_web_ui.services.mrtk_args import epoch_args
 from mrtklib_web_ui.services.mrtk_post_service import (
     MrtkPostConfig,
     MrtkPostInputFiles,
@@ -247,6 +248,19 @@ async def execute_mrtk_post(request: MrtkPostExecuteRequest) -> MrtkPostJobRespo
     for i, cf in enumerate(request.input_files.correction_files or []):
         if cf.strip():
             correction_resolved.append(validate_input_path(cf, f"Correction file #{i + 1}"))
+
+    # A malformed time would otherwise only fail inside the job. A blank one
+    # (box ticked, picker cleared) means not set, as in run_mrtk_post.
+    if request.time_range:
+        for label, flag, value in (
+            ("Time Start", "-ts", request.time_range.start_time),
+            ("Time End", "-te", request.time_range.end_time),
+        ):
+            if (value or "").strip():
+                try:
+                    epoch_args(flag, value)
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=f"{label}: {e}") from None
 
     # Ensure output file path is strictly inside /workspace (not equal to it)
     output_path = resolve_path(request.input_files.output_file)

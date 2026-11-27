@@ -15,6 +15,7 @@ from pydantic import BaseModel, BeforeValidator, Field
 
 from mrtklib_web_ui.services.mask_credentials import mask_log_line
 from mrtklib_web_ui.services.input_staging import remove_stage_dir, stage_paths
+from mrtklib_web_ui.services.mrtk_args import epoch_args
 from mrtklib_web_ui.services.stream_lines import iter_lines
 
 
@@ -1013,10 +1014,12 @@ class MrtkPostService:
                 cmd.extend(["-x", trace_level])
 
             if job.time_range:
-                if job.time_range.start_time:
-                    cmd.extend(["-ts", job.time_range.start_time])
-                if job.time_range.end_time:
-                    cmd.extend(["-te", job.time_range.end_time])
+                # -ts / -te take the date and the time as two arguments.
+                # A blank value (box ticked, picker cleared) means not set.
+                if (job.time_range.start_time or "").strip():
+                    cmd.extend(epoch_args("-ts", job.time_range.start_time))
+                if (job.time_range.end_time or "").strip():
+                    cmd.extend(epoch_args("-te", job.time_range.end_time))
                 if job.time_range.interval and job.time_range.interval > 0:
                     cmd.extend(["-ti", str(job.time_range.interval)])
 

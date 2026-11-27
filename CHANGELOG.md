@@ -36,6 +36,14 @@ stays open on every interface; `-p 127.0.0.1:8080:8000` limits it.
   copy, and remove it afterwards, so the next run on `X.26o` failed with
   "Rover observation file not found". Compressed inputs are now staged in a
   temporary directory wherever they are, as they already were on `/data`.
+- Time Range in Post Processing and the RINEX Converter (#224). The start,
+  end and RTCM reference times were passed to `mrtk` as one argument each,
+  but `mrtk` reads the date and the time as two. With start and end set,
+  the start's time of day and the end were ignored: a one-day file was
+  processed from 00:00 to its last epoch. With only one of them set, Post
+  Processing lost the rover file, wrote no solution and still reported
+  success. A malformed time is now refused before the job starts, and a
+  ticked Time Start / End with no date means not set.
 
 ## [0.4.9-alpha] - 2026-11-20
 
