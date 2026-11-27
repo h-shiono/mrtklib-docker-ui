@@ -6,9 +6,17 @@ upstream or library behaviour, or a severity decision.
 
 ## Deployment and threat model
 
-- Single-user tool with **no authentication**. Port 8080 is published on
-  all interfaces by default, so anyone who can reach it can drive the
-  backend. Treat every HTTP / WebSocket input as untrusted.
+- Single-user tool. Compose publishes port 8080 on `127.0.0.1` by default
+  (`MRTK_BIND` opens it), and authentication is **optional**:
+  `MRTK_AUTH_TOKEN` unset means none. Users do open the port without a
+  token, and with no token a web page in the same browser can reach
+  `localhost:8080`, so treat every HTTP / WebSocket input as untrusted.
+- With a token, `auth.AuthMiddleware` refuses every route but
+  `auth.is_public` ones (`/api/health`, `/api/auth/*`, the static UI). It
+  matches by path, and `/ws/logs` is outside `/api`: a new route must be
+  covered by `tests/test_auth.py`'s walk over `main.app.routes`. The page
+  authenticates by the session cookie only; no call site sends the token,
+  and it must never appear in a URL or a log.
 - The backend spawns `mrtk` and reads and writes files, so path escapes,
   argument injection, credential leaks and runaway processes are the
   highest-impact bugs.

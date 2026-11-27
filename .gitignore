@@ -24,6 +24,9 @@ frontend/dist/
 .claude/
 tasks/
 
+# Local settings and secrets (MRTK_AUTH_TOKEN, download credentials)
+.env
+
 # Docker mounts
 workspace/
 data/

@@ -34,7 +34,10 @@ conversion, and data tools from a browser without compiling anything.
 ### Deployment
 - Multi-stage Docker build (CMake → Node → uv → runtime)
 - Two volumes: `/workspace` (rw), `/data` (ro)
-- Single container, same-origin (port 8080)
+- Single container, same-origin (port 8080, published on `127.0.0.1`
+  unless `MRTK_BIND` says otherwise)
+- Optional access token `MRTK_AUTH_TOKEN` (`auth.py`); see
+  `docs/deployment.md` for the threat model
 
 ## Directory Structure
 ```
@@ -45,6 +48,7 @@ mrtklib-docker-ui/
 │   └── lessons.md     # Accumulated patterns (read before coding)
 ├── src/mrtklib_web_ui/
 │   ├── main.py        # FastAPI entry point
+│   ├── auth.py        # Optional access token (middleware + /api/auth)
 │   ├── paths.py       # ALLOWED_ROOTS / path checks
 │   ├── api/           # Routers: mrtk_post, mrtk_run, mrtk_relay,
 │   │                  #   clas_pipeline, convert, downloader, presets,
@@ -121,6 +125,15 @@ PP and RT presets are namespaced independently.
 1. `~/.netrc` mount — `/home/mrtk/.netrc` in the container (highest)
 2. `EARTHDATA_USER` / `GSI_USER` env vars
 3. `/workspace/.credentials.toml` stored via UI
+
+### Access token
+`auth.AuthMiddleware` (pure ASGI, so it sees WebSocket handshakes) refuses
+every route without the session cookie or `Authorization: Bearer` when
+`MRTK_AUTH_TOKEN` is set. The page authenticates by cookie only: `fetch`,
+download links and `new WebSocket` need no change, and must not put the
+token in a header or URL. `AuthGate` (in `main.tsx`) mounts `App` only once
+the browser may use the API. A new public route goes in `auth.is_public`
+and in `tests/test_auth.py`; everything else is covered by default.
 
 ### Path security
 All file API endpoints enforce:

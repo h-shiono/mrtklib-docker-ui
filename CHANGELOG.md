@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+**Upgrade note: with Docker Compose the UI now answers on this computer
+only.** The port is published on `127.0.0.1:8080` instead of every network
+interface. If you open the UI from another machine, set `MRTK_BIND=0.0.0.0`
+in `.env`, and set `MRTK_AUTH_TOKEN` with it, or use an SSH tunnel or a
+reverse proxy; see [docs/deployment.md](docs/deployment.md). A container
+started with `docker run -p 8080:8000` is not changed by the upgrade and
+stays open on every interface; `-p 127.0.0.1:8080:8000` limits it.
+
+### Added
+- Optional access token (#86): with `MRTK_AUTH_TOKEN` set, every API and
+  WebSocket route needs it. The UI shows a sign-in screen once per browser
+  (session cookie, 30 days) and a Sign out button in the header; scripts send
+  `Authorization: Bearer <token>`. `/api/health` stays open for the
+  container health check. Unset, the UI works as before, with no sign-in.
+- `docs/deployment.md`: who can reach the UI in each setup, the access
+  token, SSH tunnel, HTTPS behind a reverse proxy (Caddy example), and the
+  threat model.
+
+### Changed
+- `docker-compose.yml` publishes the port on `${MRTK_BIND:-127.0.0.1}`
+  (#86). The README's `docker run` example uses `-p 127.0.0.1:8080:8000`.
+- The server log says at startup whether an access token is in use.
+
 ## [0.4.9-alpha] - 2026-11-20
 
 No configuration change is needed to upgrade from 0.4.8-alpha. Stream Relay

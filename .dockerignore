@@ -16,3 +16,4 @@ __pycache__
 workspace/
 data/
 tmp/
+.env

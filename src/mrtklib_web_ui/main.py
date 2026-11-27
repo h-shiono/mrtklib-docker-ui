@@ -17,6 +17,7 @@ try:
 except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0-dev"
 
+from mrtklib_web_ui import auth
 from mrtklib_web_ui.api import (
     files, config, mrtk_relay, mrtk_post, mrtk_run, obs_qc,
     presets, downloader, convert, ai, clas_pipeline, stream_monitor,
@@ -38,6 +39,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     process_manager.set_log_callback(_on_process_log)
     process_manager.set_status_callback(ws_manager.broadcast_status)
+
+    auth.log_startup_state()
 
     # Setup .netrc from environment variables if not already mounted
     from mrtklib_web_ui.services.credentials import setup_netrc_from_env
@@ -68,6 +71,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Optional access token (MRTK_AUTH_TOKEN) on the API and WebSocket routes.
+# Added before CORS so that CORS stays outermost: preflights carry no
+# credentials, and a 401 still gets its CORS headers in development.
+app.add_middleware(auth.AuthMiddleware)
+
 # CORS middleware for development
 app.add_middleware(
     CORSMiddleware,
@@ -78,6 +86,7 @@ app.add_middleware(
 )
 
 # Include API routers
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(files.router, prefix="/api/files", tags=["files"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
 app.include_router(mrtk_relay.router, prefix="/api/mrtk-relay", tags=["mrtk-relay"])
