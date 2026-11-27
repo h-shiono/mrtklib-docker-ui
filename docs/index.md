@@ -26,6 +26,10 @@ option, it links to the MRTKLIB documentation.
 - [Screens](screens/index.md): what each part of the UI does.
 - [Security and network access](deployment/security.md): before you open the
   UI to another machine.
+- [Supported hardware and services](reference/hardware.md): receivers and
+  correction services, and what has been checked on real hardware.
+- [Upgrading](deployment/upgrade.md): what to check when you move to a new
+  version.
 
 ## Help and feedback
 

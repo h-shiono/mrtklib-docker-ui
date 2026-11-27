@@ -32,8 +32,26 @@ stays open on every interface; `-p 127.0.0.1:8080:8000` limits it.
   `main`): install, data, serial devices, credentials, one page per screen,
   security, bundled files, releases. The README now covers the
   install and links there; development notes moved to `CONTRIBUTING.md`.
+  Also an upgrade guide (presets, imported TOML keys, results that change,
+  the MRTKLIB version policy) and the supported receivers and correction
+  services, with what has been checked on real hardware.
+- Header status (#202): the API state is checked every 5 s (`API: LOST` when
+  the server stops answering), and a dot beside each screen shows a process
+  starting, running or stopping there. Real-time start / stop failures, an
+  abnormal exit and a Post-processing failure show their cause on the screen.
+- Post-processing **Stop** ends `mrtk post` on the server (#234); before, it
+  only reset the page while the run went on. The output written so far stays.
+  A second run is refused while one is going, and a reloaded page follows the
+  running one.
+- Imported TOML keeps the keys the form has no field for (#230). They reach
+  export, presets and the TOML passed to `mrtk`, and the TOML Preview lists
+  them. `[streams]` is never kept, and Real-time drops `[console] passwd`.
 
 ### Changed
+- Settings are read-only while their process runs (#203): the Real-time and
+  Post-processing configuration (preset load, import and the Config
+  Assistant too), and a running stream's input and outputs in Streams.
+- User presets are saved as MRTKLIB TOML, the `export-conf` output (#230).
 - `docker-compose.yml` publishes the port on `${MRTK_BIND:-127.0.0.1}`
   (#86). The README's `docker run` example uses `-p 127.0.0.1:8080:8000`.
 - The server log says at startup whether an access token is in use.
@@ -44,6 +62,9 @@ stays open on every interface; `-p 127.0.0.1:8080:8000` limits it.
   Directory and Command Files. The Server section is shown in Real-time only.
 
 ### Fixed
+- A user preset loaded as the default settings (#230): Save wrote the form's
+  internal state, which Load did not read. Those older files now load as
+  saved; save them again to write them as TOML.
 - Post Processing deleted an uncompressed file under `/workspace` that sat
   next to the compressed input (#223). Running `X.26o.gz` (or `X.26d`,
   `X.crx`) made `mrtk` write `X.26o` beside it, overwriting the user's own
