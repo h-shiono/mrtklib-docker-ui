@@ -250,7 +250,9 @@ def main() -> None:
         L.append(f"| `{f}` | {where} |")
     L += ["", "## MRTKLIB keys the UI never writes", "",
           "No control and no field. A key from an imported TOML survives export through",
-          "`rawConfig`; otherwise `mrtk` uses its default.", ""]
+          "`extraToml` (#230); otherwise `mrtk` uses its default. `mrtk run`"
+          " started from the UI drops `console.passwd`: the UI logs in to the"
+          " console without one.", ""]
     L += [f"- `{k}` ({mapping[k]})" for k in roundtrip]
     L += ["", "## MRTKLIB keys written outside the config form", ""]
     groups: dict[str, list[str]] = {}

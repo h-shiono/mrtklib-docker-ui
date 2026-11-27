@@ -97,10 +97,17 @@ def _shift(v):
     return v
 
 
+# Not a form field: the imported keys no field reads (#230), tested in
+# test_toml_extras.py.
+NOT_FIELDS = {"extra_toml"}
+
+
 def _perturb(model: BaseModel, path=()) -> BaseModel:
     """Every leaf set to a non-default value of its type."""
     upd = {}
     for name, field in type(model).model_fields.items():
+        if name in NOT_FIELDS:
+            continue
         v = getattr(model, name)
         dotted = ".".join(path + (name,))
         if isinstance(v, BaseModel):
@@ -119,6 +126,8 @@ def _perturb(model: BaseModel, path=()) -> BaseModel:
 
 def _leaves(model: BaseModel, path=()):
     for name in type(model).model_fields:
+        if name in NOT_FIELDS:
+            continue
         v = getattr(model, name)
         if isinstance(v, BaseModel):
             yield from _leaves(v, path + (name,))

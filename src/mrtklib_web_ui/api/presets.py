@@ -1,6 +1,5 @@
 """Preset configuration management API."""
 
-import json
 import re
 import tomllib
 from datetime import datetime, timezone
@@ -9,6 +8,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+from mrtklib_web_ui.services import toml_extras
 
 router = APIRouter()
 
@@ -93,51 +94,33 @@ def _preset_name(path: Path, fallback_id: str) -> str:
 
 
 def _serialize_toml(config: dict[str, Any]) -> str:
-    """Serialize a config dict to TOML format."""
-    # Reuse the simple TOML serializer pattern
-    lines: list[str] = ["# MRTKLIB Preset Configuration (TOML v1.0.0)", ""]
-
-    def _write_table(obj: dict[str, Any], prefix: str = "") -> None:
-        scalars: list[tuple[str, Any]] = []
-        tables: list[tuple[str, Any]] = []
-        for k, v in obj.items():
-            if isinstance(v, dict):
-                tables.append((k, v))
-            else:
-                scalars.append((k, v))
-        if prefix and scalars:
-            lines.append(f"[{prefix}]")
-        for k, v in scalars:
-            lines.append(f"{k} = {_format_value(v)}")
-        if prefix and scalars:
-            lines.append("")
-        for k, v in tables:
-            new_prefix = f"{prefix}.{k}" if prefix else k
-            _write_table(v, new_prefix)
-
-    def _format_value(v: Any) -> str:
-        if isinstance(v, bool):
-            return "true" if v else "false"
-        if isinstance(v, int):
-            return str(v)
-        if isinstance(v, float):
-            if v != 0 and abs(v) < 0.001:
-                return f"{v:.2e}"
-            return str(v)
-        if isinstance(v, str):
-            return f'"{v}"'
-        if isinstance(v, list):
-            items = ", ".join(_format_value(i) for i in v)
-            return f"[{items}]"
-        return json.dumps(v)
-
-    _write_table(config)
-    return "\n".join(lines)
+    """Serialize a parsed TOML dict (Duplicate, PUT) back to TOML."""
+    try:
+        return toml_extras.dumps(config, "# MRTKLIB Preset Configuration (TOML v1.0.0)")
+    except TypeError as e:
+        raise HTTPException(status_code=400, detail=f"Cannot write preset: {e}")
 
 
 class PresetCreateRequest(BaseModel):
+    """A new preset: ``toml`` (the MRTKLIB TOML, as the UI saves it) or
+    ``config`` (a parsed TOML dict, as Duplicate sends it)."""
+
     name: str
-    config: dict[str, Any]
+    config: dict[str, Any] | None = None
+    toml: str | None = None
+
+
+def _preset_body(body: PresetCreateRequest) -> str:
+    """The preset file content after the ``# Preset:`` line."""
+    if body.toml is not None:
+        try:
+            tomllib.loads(body.toml)
+        except tomllib.TOMLDecodeError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid TOML: {e}")
+        return body.toml
+    if body.config is None:
+        raise HTTPException(status_code=400, detail="toml or config is required")
+    return _serialize_toml(body.config)
 
 
 class PresetUpdateRequest(BaseModel):
@@ -185,6 +168,8 @@ async def create_preset(mode: str, body: PresetCreateRequest) -> dict[str, str]:
     slug = _slugify(body.name)
     path = d / f"{slug}.toml"
 
+    preset_body = _preset_body(body)
+
     # Avoid overwriting
     if path.exists():
         i = 2
@@ -194,7 +179,7 @@ async def create_preset(mode: str, body: PresetCreateRequest) -> dict[str, str]:
         path = d / f"{slug}.toml"
 
     # Write config and name as comment
-    content = f"# Preset: {body.name}\n" + _serialize_toml(body.config)
+    content = f"# Preset: {body.name}\n" + preset_body
     path.write_text(content)
 
     return {

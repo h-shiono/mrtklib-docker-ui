@@ -23,6 +23,7 @@ import {
   IconPencil,
 } from '@tabler/icons-react';
 import type { MrtkPostConfig } from '../types/mrtkPostConfig';
+import { configToBackend } from '../utils/configToBackend';
 import { tomlToConfig } from '../utils/tomlImport';
 import { FONT_SIZE } from '../utils/typography';
 
@@ -71,10 +72,18 @@ export function PresetPanel({ opened, onClose, mode, currentConfig, onLoad, load
     if (!saveName.trim()) return;
     setLoading(true);
     try {
+      // Save the MRTKLIB TOML the run would use (unknown imported keys
+      // included), so loading it reads like any other TOML (#230).
+      const gen = await fetch('/api/mrtk-post/export-conf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: configToBackend(currentConfig) }),
+      });
+      if (!gen.ok) throw new Error('Save failed');
       const res = await fetch(`/api/presets/${mode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: saveName.trim(), config: currentConfig }),
+        body: JSON.stringify({ name: saveName.trim(), toml: await gen.text() }),
       });
       if (!res.ok) throw new Error('Save failed');
       notifications.show({ title: 'Preset saved', message: `"${saveName}" saved`, color: 'green' });

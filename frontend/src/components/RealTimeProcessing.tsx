@@ -45,7 +45,7 @@ import { DEFAULT_STREAMS } from '../types/mrtkRunConfig';
 import { ProcessingConfigPanel, TomlDrawer } from './ProcessingConfigTabs';
 import { PresetPanel } from './PresetPanel';
 import { StreamPathHelp } from './StreamPathHelp';
-import { tomlToConfig } from '../utils/tomlImport';
+import { keepNotInToml, tomlToConfig } from '../utils/tomlImport';
 import { ConfigAssistantModal } from './ConfigAssistantModal';
 import { configToBackend } from '../utils/configToBackend';
 import { mrtkRunApi } from '../api/mrtkRun';
@@ -410,7 +410,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       }
       const { config: parsed } = await res.json();
       const mapped = tomlToConfig(parsed);
-      if (!unlessLocked(() => setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig)))) return;
+      if (!unlessLocked(() => setConfig((prev) => keepNotInToml(mapped, prev)))) return;
       notifications.show({ title: 'Import successful', message: `Loaded ${file.name}`, color: 'green' });
     } catch (e) {
       notifications.show({ title: 'Import failed', message: e instanceof Error ? e.message : 'Unknown error', color: 'red' });
@@ -999,14 +999,14 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       onClose={closePresets}
       mode="realtime"
       currentConfig={config}
-      onLoad={(c) => unlessLocked(() => setConfig(c))}
+      onLoad={(c) => unlessLocked(() => setConfig((prev) => keepNotInToml(c, prev)))}
       loadDisabled={locked}
     />
     <ConfigAssistantModal
       opened={assistantOpened}
       onClose={closeAssistant}
       mode="realtime"
-      onApply={(mapped) => unlessLocked(() => setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig)))}
+      onApply={(mapped) => unlessLocked(() => setConfig((prev) => keepNotInToml({ ...prev, ...mapped } as MrtkPostConfig, prev)))}
     />
     </>
   );

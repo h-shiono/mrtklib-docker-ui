@@ -16,6 +16,7 @@ from pydantic import BaseModel, BeforeValidator, Field
 from mrtklib_web_ui.services.mask_credentials import mask_log_line
 from mrtklib_web_ui.services.input_staging import remove_stage_dir, stage_paths
 from mrtklib_web_ui.services.mrtk_args import epoch_args
+from mrtklib_web_ui.services import toml_extras
 from mrtklib_web_ui.services.stream_lines import iter_lines
 
 
@@ -433,6 +434,9 @@ class MrtkPostConfig(BaseModel):
     output: OutputConfig = Field(default_factory=OutputConfig)
     files: FilesConfig = Field(default_factory=FilesConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
+    # Keys of an imported TOML that no form field reads, written back as they
+    # came (#230; see services/toml_extras.py).
+    extra_toml: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── Job types ────────────────────────────────────────────────────────────────
@@ -1001,7 +1005,7 @@ class MrtkPostService:
             lines.append(f"stop_cmd       = {_s(srv.stop_cmd)}")
         lines.append("")
 
-        return "\n".join(lines)
+        return toml_extras.apply("\n".join(lines), config.extra_toml)
 
     async def run_mrtk_post(
         self,

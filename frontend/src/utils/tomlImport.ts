@@ -1,10 +1,16 @@
 /**
  * Map a parsed TOML config dict to MrtkPostConfig form state.
- * Unknown keys are ignored (preserved in rawConfig for lossless re-export).
+ *
+ * Keys no form field reads are kept in `extraToml`, and the backend writes
+ * them back on export (`generate_conf_file`, services/toml_extras.py), so an
+ * import → export trip keeps them (#230). "Unknown" means: not read here,
+ * found by recording what the mapping below reads. A key read here is owned
+ * by the form and never comes back from `extraToml`.
  */
 
 import type { MrtkPostConfig } from '../types/mrtkPostConfig';
 import { DEFAULT_MRTK_POST_CONFIG, coerceCorrection } from '../types/mrtkPostConfig';
+import { withDefaults } from './withDefaults';
 
 type AnyDict = Record<string, unknown>;
 
@@ -26,8 +32,12 @@ function boolToOnOff(obj: AnyDict | undefined, key: string, fallback: string): s
  * v0.6.5 location (so pre-migration presets still import), then a default.
  */
 function getFb<T>(primary: AnyDict | undefined, pk: string, legacy: AnyDict | undefined, lk: string, fallback: T): T {
-  if (primary && pk in primary) return primary[pk] as T;
-  if (legacy && lk in legacy) return legacy[lk] as T;
+  // Test both before choosing: the legacy key is read (owned) even when the
+  // v0.7.6 key wins, so it is dropped rather than kept as an unknown key.
+  const inPrimary = !!primary && pk in primary;
+  const inLegacy = !!legacy && lk in legacy;
+  if (inPrimary) return primary[pk] as T;
+  if (inLegacy) return legacy[lk] as T;
   return fallback;
 }
 
@@ -87,7 +97,100 @@ function revTimeFormat(timeSys: string, timeFmt: string): string {
   return timeFmt === 'tow' ? 'gpst' : 'gpst-hms';
 }
 
+function isPlainObject(v: unknown): v is AnyDict {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+const SEP = '\u0000';
+
+/** `obj` behind a proxy that adds the path of every key looked up to `read`. */
+function track(obj: AnyDict, path: string[], read: Set<string>): AnyDict {
+  return new Proxy(obj, {
+    get(target, key, receiver) {
+      const v = Reflect.get(target, key, receiver);
+      if (typeof key !== 'string') return v;
+      const p = [...path, key];
+      read.add(p.join(SEP));
+      return isPlainObject(v) ? track(v, p, read) : v;
+    },
+    has(target, key) {
+      if (typeof key === 'string') read.add([...path, key].join(SEP));
+      return Reflect.has(target, key);
+    },
+  });
+}
+
+/**
+ * Tables the server writes itself: RT appends [streams.*] from its stream
+ * settings (a second [streams.*] would be invalid TOML, and streams carry
+ * NTRIP credentials). The backend drops them too.
+ */
+const RESERVED_TABLES = new Set(['streams']);
+
+/** The keys of `toml` that were not read, with the tables that hold them. */
+function unreadKeys(toml: AnyDict, read: Set<string>, path: string[] = []): AnyDict {
+  const out: AnyDict = {};
+  for (const [k, v] of Object.entries(toml)) {
+    if (path.length === 0 && RESERVED_TABLES.has(k)) continue;
+    const p = [...path, k];
+    if (isPlainObject(v)) {
+      const sub = unreadKeys(v, read, p);
+      if (Object.keys(sub).length > 0) out[k] = sub;
+    } else if (!read.has(p.join(SEP))) {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+/**
+ * Map a parsed MRTKLIB TOML onto the form. The keys the form does not read
+ * go to `extraToml` (always set, so an import replaces the previous one's).
+ * A pre-#230 preset (form state, see isFormShapedPreset) is read as is.
+ */
 export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
+  if (isFormShapedPreset(toml)) {
+    return { ...withDefaults(DEFAULT_MRTK_POST_CONFIG, toml), extraToml: {} };
+  }
+  const read = new Set<string>();
+  const config = mapToml(track(toml, [], read));
+  return { ...config, extraToml: unreadKeys(toml, read) };
+}
+
+/**
+ * A user preset saved before #230 holds the form state itself (camelCase,
+ * `positioning.positioningMode`), not an MRTKLIB TOML. tomlToConfig reads
+ * it as form state, wherever it comes from (preset, Import TOML).
+ */
+export function isFormShapedPreset(dict: AnyDict): boolean {
+  const pos = dict.positioning;
+  return isPlainObject(pos) && 'positioningMode' in pos;
+}
+
+/**
+ * Load a mapped TOML over the current form. The settings an MRTKLIB TOML
+ * does not carry (they go on the mrtk command line: the PP time range, the
+ * trace level) keep their current values instead of falling to defaults.
+ * Used by Import TOML, preset Load and the Config Assistant.
+ */
+export function keepNotInToml(mapped: MrtkPostConfig, current: MrtkPostConfig): MrtkPostConfig {
+  return {
+    ...mapped,
+    time: current.time,
+    output: { ...mapped.output, debugTrace: current.output.debugTrace },
+  };
+}
+
+/**
+ * The keys of `extra` the form still does not read. Extras are kept in
+ * localStorage, and a later UI may read a key it once kept.
+ */
+export function unownedExtras(extra: AnyDict | undefined): AnyDict {
+  if (!extra || Object.keys(extra).length === 0) return {};
+  return tomlToConfig(extra).extraToml ?? {};
+}
+
+function mapToml(toml: AnyDict): MrtkPostConfig {
   const d = DEFAULT_MRTK_POST_CONFIG;
   const pos = (toml.positioning ?? {}) as AnyDict;
   const corr = (pos.corrections ?? {}) as AnyDict;
@@ -156,7 +259,8 @@ export function tomlToConfig(toml: AnyDict): MrtkPostConfig {
       elevationMask: get(pos, 'elevation_mask', d.positioning.elevationMask),
       receiverDynamics: get(pos, 'dynamics', false) ? 'on' : 'off',
       ephemerisOption: revMap(
-        get(pos, 'satellite_ephemeris', '') || get(pos, 'ephemeris_option', '') || d.positioning.ephemerisOption,
+        // Both read (owned), legacy ephemeris_option as the fallback.
+        [get(pos, 'satellite_ephemeris', ''), get(pos, 'ephemeris_option', '')].find(Boolean) || d.positioning.ephemerisOption,
         EPHEM_REV,
       ) as MrtkPostConfig['positioning']['ephemerisOption'],
       constellations,
