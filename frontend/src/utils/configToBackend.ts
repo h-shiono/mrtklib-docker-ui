@@ -255,5 +255,6 @@ export function configToBackend(config: MrtkPostConfig): Record<string, unknown>
       start_cmd: config.server.startCmd ?? '',
       stop_cmd: config.server.stopCmd ?? '',
     },
+    extra_toml: config.extraToml ?? {},
   };
 }

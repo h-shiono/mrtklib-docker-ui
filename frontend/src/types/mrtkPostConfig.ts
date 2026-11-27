@@ -491,6 +491,11 @@ export interface MrtkPostConfig {
   files: FilesConfig;
   server: ServerConfig;
   time: TimeConfig;
+  /**
+   * Keys of an imported TOML that no form field reads (MRTKLIB snake_case
+   * tables). Written back by the backend on export and run (#230).
+   */
+  extraToml?: Record<string, unknown>;
 }
 
 // ─── API types ───────────────────────────────────────────────────────────────

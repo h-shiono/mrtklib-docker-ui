@@ -47,6 +47,14 @@ CASES = {
     "all-kinematic": _max_config("kinematic"),
     "all-ppp-kinematic": _max_config("ppp-kinematic"),
     "all-ppp-rtk": _max_config("ppp-rtk"),
+    # Keys no form field reads, kept through import → export (#230).
+    "extra-keys": MrtkPostConfig(
+        extra_toml={
+            "positioning": {"future_key": 3, "future": {"name": "x"}},
+            "files": {"future_file": "/workspace/a b/\"q\"\\x.dat"},
+            "future_table": {"on": True, "ratio": 1.5, "list": [1, 2], "sats": ["G01"]},
+        }
+    ),
 }
 
 

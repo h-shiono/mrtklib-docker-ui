@@ -24,7 +24,8 @@ class ImportRequest(BaseModel):
 async def import_config(body: ImportRequest) -> dict[str, Any]:
     """Parse TOML configuration and return as JSON.
 
-    Unknown keys are preserved for lossless round-trip.
+    Returns every key. The frontend keeps those no form field reads in
+    ``extra_toml``, which ``generate_conf_file`` writes back (#230).
     """
     try:
         parsed = tomllib.loads(body.toml_content)

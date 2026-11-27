@@ -19,7 +19,8 @@ conversion, and data tools from a browser without compiling anything.
 - Python 3.11+, FastAPI, Pydantic v2
 - `asyncio.subprocess` for spawning `mrtk` processes
 - WebSocket for real-time log/status streaming
-- `tomllib` (stdlib) for TOML parsing; `tomli_w` for writing
+- `tomllib` (stdlib) for TOML parsing; TOML is written by hand
+  (`generate_conf_file`, `services/toml_extras.py`)
 - `uv` for dependency management (src layout)
 
 ### Frontend
@@ -111,13 +112,20 @@ opens the MRTKLIB reference docs at the correct anchor:
 SECTION_ANCHORS map lives in `frontend/src/components/ProcessingConfigTabs.tsx`.
 
 ### TOML I/O — lossless round-trip
-The full parsed TOML dict is stored in `rawConfig` state alongside
-form state. On export, form values take precedence but keys with no
-corresponding form field are preserved from `rawConfig`.
-This ensures unknown/future keys survive import → export cycles.
+`tomlToConfig` records which keys it reads; the keys it does not read go to
+`config.extraToml` (always set, so a new import replaces the old extras).
+`configToBackend` sends them as `extra_toml`, and `generate_conf_file` merges
+them under the generated TOML (`services/toml_extras.py`): generated keys
+win, and with no extras the output is unchanged. So unknown/future keys
+survive import → export, presets, and the TOML passed to `mrtk`.
+A key the form reads is owned by the form and never comes from `extraToml`,
+even in a mode that does not write it. `[streams]` is never kept, and RT
+drops `[console] passwd`.
 
 ### Preset storage
-Presets saved to `/workspace/presets/{mode}/` as `.toml` files.
+Presets saved to `/workspace/presets/{mode}/` as `.toml` files: the
+generated MRTKLIB TOML (`export-conf` output). Presets saved before #230
+hold the camelCase form state; `presetToConfig` reads both.
 Backend endpoints: `GET/POST/PUT/DELETE /api/presets/{mode}/{id}`.
 PP and RT presets are namespaced independently.
 

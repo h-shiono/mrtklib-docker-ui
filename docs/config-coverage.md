@@ -248,7 +248,7 @@ default.
 ## MRTKLIB keys the UI never writes
 
 No control and no field. A key from an imported TOML survives export through
-`rawConfig`; otherwise `mrtk` uses its default.
+`extraToml` (#230); otherwise `mrtk` uses its default. `mrtk run` started from the UI drops `console.passwd`: the UI logs in to the console without one.
 
 - `console.passwd` (console-passwd)
 - `console.solflag` (console-solflag)

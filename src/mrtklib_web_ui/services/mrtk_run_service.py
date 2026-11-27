@@ -590,6 +590,14 @@ class MrtkRunService:
 
         svc = MrtkPostService(self.mrtk_bin_path)
         post_config = MrtkPostConfig(**config)
+        # The server logs in to the console with no password (-w ""), and
+        # rtkrcv reads [console] passwd from the TOML after the arguments, so
+        # an imported passwd would lock the server out.
+        console = post_config.extra_toml.get("console")
+        if isinstance(console, dict) and "passwd" in console:
+            extra = dict(post_config.extra_toml)
+            extra["console"] = {k: v for k, v in console.items() if k != "passwd"}
+            post_config = post_config.model_copy(update={"extra_toml": extra})
         lines_str = svc.generate_conf_file(post_config)
 
         lines = [lines_str]

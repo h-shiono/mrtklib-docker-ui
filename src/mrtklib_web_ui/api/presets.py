@@ -136,8 +136,25 @@ def _serialize_toml(config: dict[str, Any]) -> str:
 
 
 class PresetCreateRequest(BaseModel):
+    """A new preset: ``toml`` (the MRTKLIB TOML, as the UI saves it) or
+    ``config`` (a parsed TOML dict, as Duplicate sends it)."""
+
     name: str
-    config: dict[str, Any]
+    config: dict[str, Any] | None = None
+    toml: str | None = None
+
+
+def _preset_body(body: PresetCreateRequest) -> str:
+    """The preset file content after the ``# Preset:`` line."""
+    if body.toml is not None:
+        try:
+            tomllib.loads(body.toml)
+        except tomllib.TOMLDecodeError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid TOML: {e}")
+        return body.toml
+    if body.config is None:
+        raise HTTPException(status_code=400, detail="toml or config is required")
+    return _serialize_toml(body.config)
 
 
 class PresetUpdateRequest(BaseModel):
@@ -185,6 +202,8 @@ async def create_preset(mode: str, body: PresetCreateRequest) -> dict[str, str]:
     slug = _slugify(body.name)
     path = d / f"{slug}.toml"
 
+    preset_body = _preset_body(body)
+
     # Avoid overwriting
     if path.exists():
         i = 2
@@ -194,7 +213,7 @@ async def create_preset(mode: str, body: PresetCreateRequest) -> dict[str, str]:
         path = d / f"{slug}.toml"
 
     # Write config and name as comment
-    content = f"# Preset: {body.name}\n" + _serialize_toml(body.config)
+    content = f"# Preset: {body.name}\n" + preset_body
     path.write_text(content)
 
     return {
