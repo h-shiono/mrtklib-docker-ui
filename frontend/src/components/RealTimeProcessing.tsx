@@ -59,7 +59,7 @@ import { ENDED_OPACITY, RtMetricsRow } from './RtMetricsRow';
 import { RtInputStatusRow } from './RtInputStatusRow';
 import { MapView, type PosEpoch } from './viewer';
 import { StatusBadge } from './common/StatusBadge';
-import { processTone } from '../utils/status';
+import { processTone, type LiveState } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
 import { FORM_LABEL_GAP, MIN_PANEL_HEIGHT } from '../utils/formLayout';
@@ -68,6 +68,9 @@ import { WorkspaceTabBar } from './common/WorkspaceTabBar';
 import { PRIMARY_MIN_WIDTH } from '../utils/formLayout';
 import { LogView } from './common/LogView';
 import { useUnseenErrors } from '../hooks/useUnseenErrors';
+import { useReportLive } from '../hooks/useReportLive';
+import { FailureCause } from './common/FailureCause';
+import { lastErrorLine } from '../utils/logSeverity';
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -287,9 +290,11 @@ interface RealTimeProcessingProps {
   configOpen?: boolean;
   onToggleConfig?: () => void;
   onLiveStatus?: (status: RtLiveStatus | null) => void;
+  /** Whether `mrtk run` is alive, for the header dot (#202). */
+  onLiveChange?: (state: LiveState | null) => void;
 }
 
-export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiConfigured, configOpen = true, onToggleConfig, onLiveStatus }: RealTimeProcessingProps) {
+export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiConfigured, configOpen = true, onToggleConfig, onLiveStatus, onLiveChange }: RealTimeProcessingProps) {
   const [config, setConfig] = useLocalStorage<MrtkPostConfig>({
     key: 'mrtklib-web-ui-mrtk-run-config-v3',
     defaultValue: DEFAULT_MRTK_POST_CONFIG,
@@ -343,6 +348,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
     endedRef.current = value;
     setEndedState(value);
   }, []);
+  // Why the start or the run failed, shown in the workspace (#202).
+  const [failure, setFailure] = useState<string | null>(null);
+  // The newest [ERROR] line of this run, as the cause of an abnormal exit.
+  const lastErrorRef = useRef<string | null>(null);
   const runStatusRef = useRef(runStatus);
   useLayoutEffect(() => {
     runStatusRef.current = runStatus;
@@ -402,6 +411,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   }, [setConfig, onConfigChange]);
 
   const isRunning = runStatus === 'running' || runStatus === 'starting';
+  useReportLive(onLiveChange, [runStatus]);
 
   // Keep the Solution / Console / Trace panels at their latest line, and
   // hold them still while the user scrolls up to read.
@@ -450,6 +460,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       setEnded({ at: new Date().toLocaleTimeString('en-GB', { hour12: false }), exitCode });
     }
     setRunStatus(exitCode ? 'exited' : 'stopped');
+    if (exitCode) {
+      const last = lastErrorRef.current;
+      setFailure(`mrtk run exited with code ${exitCode}${last ? `: ${last}` : ''}`);
+    }
     setInputStreams([]);
   }, [setEnded]);
 
@@ -474,7 +488,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           // Sent once on connect: what the backend buffered for this run. It is
           // authoritative, so an empty list (no run, or it ended while we were
           // disconnected) clears positions left over from before.
-          if (Array.isArray(msg.logs)) setLogLines(msg.logs as string[]);
+          if (Array.isArray(msg.logs)) {
+            setLogLines(msg.logs as string[]);
+            lastErrorRef.current = lastErrorLine(msg.logs as string[]);
+          }
           setTraceLines(Array.isArray(msg.traces) ? (msg.traces as string[]) : []);
           setTraceFile(typeof msg.trace_file === 'string' ? msg.trace_file : null);
           const positions = (Array.isArray(msg.positions) ? msg.positions : []) as PositionUpdate[];
@@ -511,6 +528,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
             // while a run is active). Started from another tab: the last
             // session goes, as on a local Start.
             if (endedRef.current) clearSession();
+            setFailure(null);
             setRunStatus('running');
           } else if (msg.running === false) {
             // A genuine exit carries `exited`. Without it this is the status
@@ -553,8 +571,11 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           }
         } else if (msg.type === 'log') {
           setLogLines(prev => [...prev.slice(-500), msg.message]);
+          const err = typeof msg.message === 'string' ? lastErrorLine([msg.message]) : null;
+          if (err) lastErrorRef.current = err;
         } else if (msg.type === 'trace_reset') {
           // A run was started (possibly from another tab).
+          lastErrorRef.current = null;
           setTraceFile(null);
           setTraceLines([]);
         } else if (msg.type === 'trace_file') {
@@ -597,6 +618,8 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const handleStart = async () => {
     startingRef.current = true;
     clearSession();
+    setFailure(null);
+    lastErrorRef.current = null;
     setRunStatus('starting');
     setLogLines(prev => [...prev, '[INFO] Starting mrtk run -s ...']);
     setTraceLines([]);
@@ -624,11 +647,14 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
         setLogLines(prev => [...prev, `[INFO] ${resp.message}`]);
       } else {
         setRunStatus('error');
+        setFailure(`Start failed: ${resp.message}`);
         setLogLines(prev => [...prev, `[ERROR] ${resp.message}`]);
       }
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       setRunStatus('error');
-      setLogLines(prev => [...prev, `[ERROR] ${err instanceof Error ? err.message : String(err)}`]);
+      setFailure(`Start failed: ${message}`);
+      setLogLines(prev => [...prev, `[ERROR] ${message}`]);
     } finally {
       startingRef.current = false;
     }
@@ -642,8 +668,10 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
       endSession(null);
       setLogLines(prev => [...prev, '[INFO] Stopped']);
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       setRunStatus('error');
-      setLogLines(prev => [...prev, `[ERROR] ${err instanceof Error ? err.message : String(err)}`]);
+      setFailure(`Stop failed: ${message}`);
+      setLogLines(prev => [...prev, `[ERROR] ${message}`]);
     }
   };
 
@@ -831,6 +859,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
             {/* 1. Metrics row (Time · Position · Quality · Ratio · Age · Satellites) */}
             <RtMetricsRow lastPosition={lastPosition} satellites={satellites} endedAt={lastPosition ? ended?.at ?? null : null} />
+            {(runStatus === 'error' || runStatus === 'exited') && <FailureCause cause={failure} />}
 
             {/* 3. Tab bar + 4. Chart area */}
             <Tabs value={monitorTab} onChange={setMonitorTab} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>

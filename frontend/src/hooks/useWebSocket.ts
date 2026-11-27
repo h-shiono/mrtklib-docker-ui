@@ -11,6 +11,9 @@ export interface LogMessage {
   quality?: number;
   ns?: number | null;
   ratio?: number | null;
+  /** Status details (type === 'status'): `error` for a failure before or
+   *  around the run, `return_code` once mrtk has exited. */
+  details?: { error?: string; return_code?: number; output_file?: string };
 }
 
 export interface UseWebSocketOptions {

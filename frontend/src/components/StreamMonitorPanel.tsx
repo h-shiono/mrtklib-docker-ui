@@ -57,7 +57,8 @@ import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { SkySnrPanel } from './SkySnrPanel';
 import { StreamMessagePanel } from './StreamMessagePanel';
 import { StreamCardHeader } from './common/StreamCardHeader';
-import { processTone, STATUS_COLOR } from '../utils/status';
+import { processTone, STATUS_COLOR, type LiveState } from '../utils/status';
+import { useReportLive } from '../hooks/useReportLive';
 import { PositionViewer, type PositionOverlay, type ViewMode } from './viewer';
 import { FONT_SIZE, MONO } from '../utils/typography';
 import { FormRow } from './common/FormRow';
@@ -257,9 +258,11 @@ function StreamName({ s }: { s: MonitorStream }) {
   );
 }
 
-export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
+export function StreamMonitorPanel({ configOpen = true, onToggleConfig, onLiveChange }: {
   configOpen?: boolean;
   onToggleConfig?: () => void;
+  /** Whether a monitor stream is alive, for the header dot (#202). */
+  onLiveChange?: (state: LiveState | null) => void;
 }) {
   // The page's WebSocket is open. While it is not, the last status is stale.
   const [wsOpen, setWsOpen] = useState(false);
@@ -288,6 +291,7 @@ export function StreamMonitorPanel({ configOpen = true, onToggleConfig }: {
   } = selected;
 
   const anyRunning = streams.some((s) => s.running);
+  useReportLive(onLiveChange, streams.map((s) => s.state));
   const startable = streams.filter((s) => !s.busy && s.canStart);
   const handleStartAll = () => startable.forEach((s) => void s.start(!twoStreams));
   const handleStopAll = () => streams.filter((s) => s.running).forEach((s) => void s.stop());

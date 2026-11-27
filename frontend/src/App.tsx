@@ -37,7 +37,12 @@ import { ResultViewer } from './components/viewer';
 import { ConsoleFrame } from './components/ConsoleFrame';
 import { RealTimeProcessing, type RtLiveStatus } from './components/RealTimeProcessing';
 import { qualityColor, qualityLabel, qualityTextColor } from './utils/quality';
-import { STATUS_COLOR } from './utils/status';
+import { liveState, STATUS_COLOR, type LiveState } from './utils/status';
+import { LiveDot } from './components/common/LiveDot';
+import { FailureCause } from './components/common/FailureCause';
+import { lastErrorLine } from './utils/logSeverity';
+import { useApiHealth } from './hooks/useApiHealth';
+import { useReportLive } from './hooks/useReportLive';
 import { StatusBadge } from './components/common/StatusBadge';
 import { ConversionPanel, type ConvertTool } from './components/ConversionPanel';
 import { StreamPathHelp } from './components/StreamPathHelp';
@@ -101,6 +106,8 @@ interface PostProcessingRightPanelProps {
     ratio: number | null;
   } | null;
   logLines: string[];
+  /** Why the run failed, when known (#202). */
+  failure: string | null;
   outputFile: string;
   /** The config writes the CLAS L6 source into the GGA station id. */
   clasSource: boolean;
@@ -113,6 +120,7 @@ function PostProcessingRightPanel({
   processStatus,
   progress,
   logLines,
+  failure,
   outputFile,
   clasSource,
 }: PostProcessingRightPanelProps) {
@@ -194,9 +202,13 @@ function PostProcessingRightPanel({
 
     if (processStatus === 'error') {
       return (
-        <Group justify="center" px="sm" py={6}>
-          <StatusBadge tone="error">Error</StatusBadge>
-          <Text size="xs" c="dimmed">Processing failed. Check console for details.</Text>
+        <Group justify="center" px="sm" py={6} wrap="nowrap">
+          <div style={{ flexShrink: 0 }}>
+            <StatusBadge tone="error">Error</StatusBadge>
+          </div>
+          {failure
+            ? <FailureCause cause={failure} icon={false} />
+            : <Text size="xs" c="dimmed">Processing failed. Check console for details.</Text>}
         </Group>
       );
     }
@@ -455,14 +467,26 @@ function SolutionView({
   );
 }
 
-function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen = true, onToggleConfig }: { onNavigateToAiSettings?: () => void; aiConfigured?: boolean; configOpen?: boolean; onToggleConfig?: () => void }) {
+/** The cause of a failed `mrtk post` job from its status: the error the
+ *  backend caught, else the exit code. The generic "see logs" text is no cause. */
+function failureFromStatus(error: string | null | undefined, returnCode: number | null | undefined): string | null {
+  if (error && error !== 'Processing failed (see logs)') return error;
+  if (returnCode != null && returnCode !== 0) return `mrtk post exited with code ${returnCode}`;
+  return null;
+}
+
+function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen = true, onToggleConfig, onLiveChange }: { onNavigateToAiSettings?: () => void; aiConfigured?: boolean; configOpen?: boolean; onToggleConfig?: () => void; onLiveChange?: (state: LiveState | null) => void }) {
   const [roverFile, setRoverFile] = useState('/workspace/rover.obs');
   const [baseFile, setBaseFile] = useState('');
   const [navFile, setNavFile] = useState('/workspace/nav.nav');
   const [correctionFiles, setCorrectionFiles] = useState<string[]>(['', '']);
   const [outputFile, setOutputFile] = useState('/workspace/output.pos');
   const [processStatus, setProcessStatus] = useState<ProcessStatus>('idle');
+  useReportLive(onLiveChange, [processStatus]);
   const [logLines, setLogLines] = useState<string[]>([]);
+  // Why the last run failed, as the backend reported it (#202).
+  const [failureReported, setFailure] = useState<string | null>(null);
+  const failure = processStatus === 'error' ? failureReported ?? lastErrorLine(logLines) : null;
   const [config, setConfig] = useState<MrtkPostConfig>(DEFAULT_MRTK_POST_CONFIG);
 
   // Modes that require a base station
@@ -512,6 +536,9 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
           };
           const newStatus = statusMap[message.status] || 'idle';
           setProcessStatus(newStatus);
+          if (newStatus === 'error') {
+            setFailure(failureFromStatus(message.details?.error, message.details?.return_code));
+          }
           if (newStatus !== 'running') {
             setIsLoading(false);
           }
@@ -552,6 +579,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
 
     setIsLoading(true);
     setError(null);
+    setFailure(null);
     setLogLines([]);
     setProgress(null);
     // Forget the previous job first: until the new id arrives, the status
@@ -594,6 +622,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
       const message = err instanceof Error ? err.message : 'Failed to start processing';
       setError(message);
       setLogLines((prev) => [...prev, `[ERROR] ${message}`]);
+      setFailure(message);
       setProcessStatus('error');
       setIsLoading(false);
     }
@@ -636,6 +665,10 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
             setLogLines((prev) => [...prev, `[INFO] Processing completed (return code: ${data.return_code ?? 0})`]);
           } else {
             setLogLines((prev) => [...prev, `[ERROR] Processing failed: ${data.error_message || 'see logs'}`]);
+            // The WebSocket status may have been missed: keep its cause if it came.
+            setFailure((prev) => prev ?? failureFromStatus(
+              data.return_code == null ? data.error_message : undefined, data.return_code,
+            ));
           }
         }
       } catch {
@@ -701,6 +734,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
           processStatus={processStatus}
           progress={progress}
           logLines={logLines}
+          failure={failure}
           outputFile={outputFile}
           clasSource={config.positioning.positioningMode === 'ppp-rtk' && config.output.clasNmeaSourceId}
         />
@@ -858,11 +892,12 @@ function hasMaskedPassword(stream: RelayStream): boolean {
   return [stream.input, ...stream.outputs].some((c) => /^[^:@/]*:\*\*\*@/.test(c.path));
 }
 
-function MultiStreamPanel() {
+function MultiStreamPanel({ onLiveChange }: { onLiveChange?: (state: LiveState | null) => void }) {
   const [streams, setStreams] = useState<RelayStream[]>(() => [newRelayStream('Stream 1')]);
   const [selectedStreamId, setActiveStreamId] = useState<string>(streams[0].id);
   // Adopting relays may replace the selected stream; fall back to the first
   const activeStreamId = streams.some((s) => s.id === selectedStreamId) ? selectedStreamId : streams[0].id;
+  useReportLive(onLiveChange, streams.map((s) => s.status));
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
 
   // When this page last started or stopped each relay, or saw it stop over
@@ -1271,7 +1306,10 @@ function MultiStreamPanel() {
   );
 }
 
-function StreamRelayView() {
+function StreamRelayView({ onRelayLive, onClasLive }: {
+  onRelayLive?: (state: LiveState | null) => void;
+  onClasLive?: (state: LiveState | null) => void;
+}) {
   const [mode, setMode] = useState<string | null>('multi-stream');
   return (
     <Stack gap="sm" h={SCREEN_HEIGHT}>
@@ -1282,17 +1320,17 @@ function StreamRelayView() {
         </Tabs.List>
       </Tabs>
       <div style={{ display: mode === 'multi-stream' ? undefined : 'none', flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <MultiStreamPanel />
+        <MultiStreamPanel onLiveChange={onRelayLive} />
       </div>
       <div style={{ display: mode === 'clas' ? undefined : 'none', flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <ClasPipelinePanel />
+        <ClasPipelinePanel onLiveChange={onClasLive} />
       </div>
     </Stack>
   );
 }
 
-function RealTimePanel({ onNavigateToAiSettings, aiConfigured, configOpen, onToggleConfig, onLiveStatus }: { onNavigateToAiSettings?: () => void; aiConfigured?: boolean; configOpen?: boolean; onToggleConfig?: () => void; onLiveStatus?: (s: RtLiveStatus | null) => void }) {
-  return <RealTimeProcessing onNavigateToAiSettings={onNavigateToAiSettings} aiConfigured={aiConfigured} configOpen={configOpen} onToggleConfig={onToggleConfig} onLiveStatus={onLiveStatus} />;
+function RealTimePanel({ onNavigateToAiSettings, aiConfigured, configOpen, onToggleConfig, onLiveStatus, onLiveChange }: { onNavigateToAiSettings?: () => void; aiConfigured?: boolean; configOpen?: boolean; onToggleConfig?: () => void; onLiveStatus?: (s: RtLiveStatus | null) => void; onLiveChange?: (state: LiveState | null) => void }) {
+  return <RealTimeProcessing onNavigateToAiSettings={onNavigateToAiSettings} aiConfigured={aiConfigured} configOpen={configOpen} onToggleConfig={onToggleConfig} onLiveStatus={onLiveStatus} onLiveChange={onLiveChange} />;
 }
 
 // ConversionPanel is now imported from ./components/ConversionPanel
@@ -1312,6 +1350,26 @@ const SECONDARY_VIEWS = [
   { value: 'stream-monitor', label: 'Monitor' },
   { value: 'tools', label: 'Tools' },
 ] as const;
+
+/** What reports a live process to the header (#202). Conversion is not
+ *  reported: App holds its busy state already. */
+type LiveSource = 'rt' | 'pp' | 'relay' | 'clas' | 'monitor' | 'conversion';
+type ReportedSource = Exclude<LiveSource, 'conversion'>;
+const NO_LIVE: Record<ReportedSource, LiveState | null> = {
+  rt: null, pp: null, relay: null, clas: null, monitor: null,
+};
+/** The header item each source's dot appears on. */
+const LIVE_SOURCES: Record<string, LiveSource[]> = {
+  'realtime': ['rt'],
+  'post-processing': ['pp'],
+  'stream-relay': ['relay', 'clas'],
+  'stream-monitor': ['monitor'],
+  'tools': ['conversion'],
+};
+/** Header item names, for the dot's label. */
+const VIEW_NAME: Record<string, string> = Object.fromEntries(
+  [...PRIMARY_MODES, ...SECONDARY_VIEWS].map((v) => [v.value, v.label]),
+);
 
 
 /** Bottom status bar (console redesign Phase 2/4). Shows live RT solution
@@ -1364,7 +1422,6 @@ function App() {
   const toggleConfig = useCallback(() => setConfigOpen((o) => !o), []);
   const [rtStatus, setRtStatus] = useState<RtLiveStatus | null>(null);
   const handleRtStatus = useCallback((s: RtLiveStatus | null) => setRtStatus(s), []);
-  const [healthStatus, setHealthStatus] = useState<'loading' | 'ok' | 'error'>('loading');
   const [mrtkVersion, setMrtkVersion] = useState<string>('');
   const [selectedTool, setSelectedToolState] = useState('convbin');
   // The converter on screen. The panel stays mounted while another tool is
@@ -1382,6 +1439,35 @@ function App() {
   }
   const showConversion = isConverter(selectedTool);
 
+  const apiHealth = useApiHealth();
+  // Live processes per source, for the header dots (#202).
+  const [reported, setLive] = useState<Record<ReportedSource, LiveState | null>>(NO_LIVE);
+  const reportLive = useMemo(() => {
+    const setter = (source: ReportedSource) => (state: LiveState | null) =>
+      setLive((prev) => (prev[source] === state ? prev : { ...prev, [source]: state }));
+    return {
+      rt: setter('rt'), pp: setter('pp'), relay: setter('relay'),
+      clas: setter('clas'), monitor: setter('monitor'),
+    };
+  }, []);
+  const live: Record<LiveSource, LiveState | null> = { ...reported, conversion: conversionBusy ? 'running' : null };
+  // With the API lost, what the panels last heard is stale: no dot then.
+  const liveOf = (view: string): LiveState | null =>
+    apiHealth === 'ok'
+      ? liveState(LIVE_SOURCES[view]?.map((src) => live[src]) ?? [])
+      : null;
+  // Mantine keeps an empty section's margin: no section without a dot.
+  const mobileDot = (view: string) => {
+    const state = liveOf(view);
+    return state ? <LiveDot name={VIEW_NAME[view]} live={state} /> : undefined;
+  };
+  const headerLabel = (view: string) => (
+    <>
+      {VIEW_NAME[view]}
+      <LiveDot name={VIEW_NAME[view]} live={liveOf(view)} />
+    </>
+  );
+
   // Lifted AI configuration state — shared across sidebar, PP, RT, and settings panel
   const [aiConfigured, setAiConfigured] = useState(false);
   const refreshAiConfigured = useCallback(() => {
@@ -1395,16 +1481,6 @@ function App() {
   }, [refreshAiConfigured]);
 
   useEffect(() => {
-    // Check API health
-    fetch('/api/health')
-      .then((res) => res.json())
-      .then((data) => {
-        setHealthStatus(data.status === 'ok' ? 'ok' : 'error');
-      })
-      .catch(() => {
-        setHealthStatus('error');
-      });
-
     // Get MRTKLIB version (from git tag)
     fetch('/api/mrtklib/version')
       .then((res) => res.json())
@@ -1438,7 +1514,7 @@ function App() {
               visibleFrom="sm"
               value={primaryMode}
               onChange={setActiveTab}
-              data={PRIMARY_MODES as unknown as { value: string; label: string }[]}
+              data={PRIMARY_MODES.map((m) => ({ value: m.value, label: headerLabel(m.value) }))}
               styles={{ label: { fontWeight: 600, paddingLeft: 15, paddingRight: 15 } }}
             />
           </Group>
@@ -1457,19 +1533,16 @@ function App() {
                     onClick={() => setActiveTab(v.value)}
                     style={{ whiteSpace: 'nowrap' }}
                   >
-                    {v.label}
+                    {headerLabel(v.value)}
                   </Button>
                 );
               })}
             </Group>
-            <Badge
-              color={STATUS_COLOR[healthStatus === 'ok' ? 'ok' : healthStatus === 'error' ? 'error' : 'off']}
-              variant="dot"
-              size="lg"
-              visibleFrom="sm"
-            >
-              API: {healthStatus.toUpperCase()}
-            </Badge>
+            <Box visibleFrom="sm">
+              <StatusBadge size="lg" tone={apiHealth === 'ok' ? 'ok' : apiHealth === 'lost' ? 'error' : 'off'}>
+                API: {apiHealth.toUpperCase()}
+              </StatusBadge>
+            </Box>
             <ColorSchemeToggle />
             <SignOutButton />
           </Group>
@@ -1486,26 +1559,26 @@ function App() {
           mb="md"
         >
           <Tabs.List grow>
-            <Tabs.Tab value="post-processing">Post</Tabs.Tab>
-            <Tabs.Tab value="realtime">RT</Tabs.Tab>
-            <Tabs.Tab value="stream-relay">Streams</Tabs.Tab>
-            <Tabs.Tab value="stream-monitor">Monitor</Tabs.Tab>
-            <Tabs.Tab value="tools">Tools</Tabs.Tab>
+            <Tabs.Tab value="post-processing" rightSection={mobileDot('post-processing')}>Post</Tabs.Tab>
+            <Tabs.Tab value="realtime" rightSection={mobileDot('realtime')}>RT</Tabs.Tab>
+            <Tabs.Tab value="stream-relay" rightSection={mobileDot('stream-relay')}>Streams</Tabs.Tab>
+            <Tabs.Tab value="stream-monitor" rightSection={mobileDot('stream-monitor')}>Monitor</Tabs.Tab>
+            <Tabs.Tab value="tools" rightSection={mobileDot('tools')}>Tools</Tabs.Tab>
           </Tabs.List>
         </Tabs>
 
         {/* Tab Content - keep all panels mounted to preserve state */}
         <div style={{ display: activeTab === 'post-processing' ? undefined : 'none' }}>
-          <PostProcessingPanel aiConfigured={aiConfigured} onNavigateToAiSettings={() => { setActiveTab('tools'); setSelectedTool('ai-settings'); }} configOpen={configOpen} onToggleConfig={toggleConfig} />
+          <PostProcessingPanel aiConfigured={aiConfigured} onNavigateToAiSettings={() => { setActiveTab('tools'); setSelectedTool('ai-settings'); }} configOpen={configOpen} onToggleConfig={toggleConfig} onLiveChange={reportLive.pp} />
         </div>
         <div style={{ display: activeTab === 'realtime' ? undefined : 'none' }}>
-          <RealTimePanel aiConfigured={aiConfigured} onNavigateToAiSettings={() => { setActiveTab('tools'); setSelectedTool('ai-settings'); }} configOpen={configOpen} onToggleConfig={toggleConfig} onLiveStatus={handleRtStatus} />
+          <RealTimePanel aiConfigured={aiConfigured} onNavigateToAiSettings={() => { setActiveTab('tools'); setSelectedTool('ai-settings'); }} configOpen={configOpen} onToggleConfig={toggleConfig} onLiveStatus={handleRtStatus} onLiveChange={reportLive.rt} />
         </div>
         <div style={{ display: activeTab === 'stream-relay' ? undefined : 'none' }}>
-          <StreamRelayView />
+          <StreamRelayView onRelayLive={reportLive.relay} onClasLive={reportLive.clas} />
         </div>
         <div style={{ display: activeTab === 'stream-monitor' ? undefined : 'none' }}>
-          <StreamMonitorPanel configOpen={configOpen} onToggleConfig={toggleConfig} />
+          <StreamMonitorPanel configOpen={configOpen} onToggleConfig={toggleConfig} onLiveChange={reportLive.monitor} />
         </div>
         <div style={{ display: activeTab === 'tools' ? 'flex' : 'none', width: '100%', height: SCREEN_HEIGHT, overflow: 'hidden', border: '1px solid var(--mantine-color-default-border)', borderRadius: 'var(--mantine-radius-md)', background: 'var(--mantine-color-default)' }}>
           <div style={{ width: 160, flexShrink: 0, borderRight: '1px solid var(--mantine-color-default-border)', overflowY: 'auto' }}>
