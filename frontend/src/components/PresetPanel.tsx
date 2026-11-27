@@ -40,7 +40,8 @@ interface PresetPanelProps {
   onClose: () => void;
   mode: 'post' | 'realtime';
   currentConfig: MrtkPostConfig;
-  onLoad: (config: MrtkPostConfig) => void;
+  /** False: not applied (settings locked while running, #203). */
+  onLoad: (config: MrtkPostConfig) => boolean | void;
   /** A run uses the settings: presets can be saved, not loaded (#203). */
   loadDisabled?: boolean;
 }
@@ -95,7 +96,7 @@ export function PresetPanel({ opened, onClose, mode, currentConfig, onLoad, load
       if (!res.ok) throw new Error('Load failed');
       const { config, name } = await res.json();
       const mapped = tomlToConfig(config);
-      onLoad(mapped);
+      if (onLoad(mapped) === false) return;
       notifications.show({ title: 'Preset loaded', message: `"${name}" loaded`, color: 'green' });
     } catch (e) {
       notifications.show({ title: 'Load failed', message: e instanceof Error ? e.message : 'Error', color: 'red' });

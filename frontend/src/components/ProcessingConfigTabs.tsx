@@ -481,7 +481,9 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
     notificationTimerRef.current = setTimeout(() => setProfileNotification(null), 3000);
   };
 
-  const handleConfigChange = onConfigChange;
+  // Every write goes through here. Read-only drops them, which also covers
+  // the SNR mask and signal modals, which render outside the fieldset (#203).
+  const handleConfigChange = readOnly ? () => {} : onConfigChange;
 
   // Conditional logic based on positioning mode
   const isSingle = config.positioning.positioningMode === 'single';

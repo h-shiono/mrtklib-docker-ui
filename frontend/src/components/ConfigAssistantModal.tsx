@@ -23,7 +23,8 @@ interface ConfigAssistantModalProps {
   opened: boolean;
   onClose: () => void;
   mode: 'post' | 'realtime';
-  onApply: (config: Partial<MrtkPostConfig>) => void;
+  /** False: not applied (settings locked while running, #203). */
+  onApply: (config: Partial<MrtkPostConfig>) => boolean | void;
 }
 
 const EXAMPLE_PROMPTS = [
@@ -76,7 +77,8 @@ export function ConfigAssistantModal({ opened, onClose, mode, onApply }: ConfigA
       }
       const { config: parsed } = await res.json();
       const mapped = tomlToConfig(parsed);
-      onApply(mapped);
+      // Not applied: keep the generated TOML, to apply after Stop.
+      if (onApply(mapped) === false) return;
       notifications.show({
         title: 'Configuration applied',
         message: 'Please review all settings.',

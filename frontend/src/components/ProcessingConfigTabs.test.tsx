@@ -1,4 +1,5 @@
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
+import { useState } from 'react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProcessingConfigPanel } from './ProcessingConfigTabs';
@@ -51,6 +52,29 @@ describe('ProcessingConfigPanel read-only (#203)', () => {
     expect(mode).toBeDisabled();
     await user.click(mode);
     expect(screen.queryByRole('option')).toBeNull();
+    expect(onConfigChange).not.toHaveBeenCalled();
+  });
+
+  it('drops a write from a modal opened before the lock', async () => {
+    // The SNR mask and signal modals render outside the fieldset, and a run
+    // can start (from another tab) while one is open.
+    const onConfigChange = vi.fn();
+    function Harness() {
+      const [readOnly, setReadOnly] = useState(false);
+      return (
+        <>
+          <button type="button" hidden onClick={() => setReadOnly(true)}>lock</button>
+          <ProcessingConfigPanel config={DEFAULT_MRTK_POST_CONFIG} onConfigChange={onConfigChange} execution={execution} readOnly={readOnly} />
+        </>
+      );
+    }
+    renderWithMantine(<Harness />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Mode' }));
+    await user.click(screen.getByRole('button', { name: 'Edit SNR Mask...' }));
+    // A direct click: the run starts elsewhere, the modal stays open.
+    fireEvent.click(screen.getByText('lock'));
+    await user.click(await screen.findByRole('button', { name: 'Save' }));
     expect(onConfigChange).not.toHaveBeenCalled();
   });
 
