@@ -315,3 +315,26 @@ def test_execute_refused_while_a_job_runs(jobs):
     assert code == 409
     assert active.job_id == "running" and active.output_file == "/workspace/a.pos"
     assert after is None
+
+
+def test_stop_after_mrtk_exited_reports_completed(tmp_path, monkeypatch, jobs):
+    job = _job_with_fake(tmp_path, monkeypatch, "#!/bin/sh\nexit 0\n")
+    gate = asyncio.Event()
+    real_status = mrtk_post.ws_manager.broadcast_status
+
+    async def held_status(job_id, value, details=None):
+        first = value == "completed" and "completed" not in _statuses(jobs)
+        await real_status(job_id, value, details)
+        if first:
+            await gate.wait()  # the stop lands during the final broadcast
+
+    monkeypatch.setattr(mrtk_post.ws_manager, "broadcast_status", held_status)
+
+    async def scenario():
+        mrtk_post._start_job("j", mrtk_post._run_mrtk_post_job("j", job))
+        while "completed" not in _statuses(jobs):
+            await asyncio.sleep(0.02)
+        return await mrtk_post.stop_job("j")
+
+    assert asyncio.run(scenario()).status == "completed"
+    assert "stopped" not in _statuses(jobs)

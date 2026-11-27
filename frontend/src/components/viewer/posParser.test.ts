@@ -53,6 +53,24 @@ describe('parsePosFile: column formats', () => {
     expect(d.epochs[2].ns).toBe(6);
   });
 
+  it('a file cut mid-line (mrtk post stopped, #234) keeps its whole epochs', () => {
+    const text = readFixtureText('pos', 'llh_gpst_ymd.pos').trimEnd();
+    const full = parsePosFile(text, 'full.pos').epochs;
+    const lastLine = text.slice(text.lastIndexOf('\n') + 1);
+    // SIGTERM ends mrtk post without a flush: the last line stops anywhere.
+    // A cut inside the position drops the line (too few columns); a later
+    // cut keeps the position whole and may shorten only the stats after it.
+    for (let cut = 1; cut < lastLine.length; cut++) {
+      const d = parsePosFile(text.slice(0, text.length - lastLine.length + cut), 'cut.pos');
+      expect(d.epochs.slice(0, 3)).toEqual(full.slice(0, 3));
+      expect(d.epochs.length).toBeLessThanOrEqual(4);
+      if (d.epochs.length === 4) {
+        const { lat, lon, height } = full[3];
+        expect(d.epochs[3]).toMatchObject({ lat, lon, height });
+      }
+    }
+  });
+
   it('UTC: times stay in the file time system, not shifted', () => {
     const d = pos('llh_utc_ymd.pos');
     expect(d.timeSystem).toBe('UTC');

@@ -526,6 +526,9 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  // Output of a job followed after a reload: the form shows its defaults, not
+  // that job's settings, so the result panel reads the job's own file.
+  const [adoptedOutput, setAdoptedOutput] = useState<string | null>(null);
   const [qcModalOpened, setQcModalOpened] = useState(false);
   const [progress, setProgress] = useState<{
     epoch: string;
@@ -610,6 +613,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
     // poll must not run against the old one (its 404 would end this run).
     jobIdRef.current = null;
     setJobId(null);
+    setAdoptedOutput(null);
     setProcessStatus('running');
 
     try {
@@ -715,6 +719,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
       if (cancelled || !job || jobIdRef.current) return;
       jobIdRef.current = job.job_id;
       setJobId(job.job_id);
+      setAdoptedOutput(job.output_file ?? null);
       setProcessStatus('running');
       setLogLines((prev) => [
         ...prev,
@@ -806,7 +811,7 @@ function PostProcessingPanel({ onNavigateToAiSettings, aiConfigured, configOpen 
           progress={progress}
           logLines={logLines}
           failure={failure}
-          outputFile={outputFile}
+          outputFile={adoptedOutput ?? outputFile}
           clasSource={config.positioning.positioningMode === 'ppp-rtk' && config.output.clasNmeaSourceId}
         />
       }

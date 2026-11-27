@@ -126,6 +126,7 @@ async def _run_mrtk_post_job(job_id: str, job: MrtkPostJob) -> MrtkPostJobRespon
     """
     service = MrtkPostService()
     started = time.time()
+    result = None
 
     # Create log callback that broadcasts to WebSocket
     async def log_callback(message: str) -> None:
@@ -199,6 +200,14 @@ async def _run_mrtk_post_job(job_id: str, job: MrtkPostJob) -> MrtkPostJobRespon
         # task finishes normally, so /status can return this result.
         if job_id not in _stop_requested:
             raise
+        if result is not None and result.returncode == 0:
+            # mrtk had already finished: the stop came too late to matter.
+            await ws_manager.broadcast_status(
+                job_id, "completed", {"return_code": 0, "output_file": job.input_files.output_file},
+            )
+            return MrtkPostJobResponse(
+                job_id=job_id, status="completed", return_code=0, output_file=job.input_files.output_file,
+            )
         return await _report_stopped(job_id, job.input_files.output_file, started)
 
 
