@@ -1,0 +1,564 @@
+{
+  "config": {
+    "positioning": {
+      "positioning_mode": "static",
+      "correction": "none",
+      "frequency": "l1+l2+l5",
+      "signal_mode": "frequency",
+      "signals": "",
+      "filter_type": "combined",
+      "elevation_mask": 10.0,
+      "receiver_dynamics": "off",
+      "ephemeris_option": "broadcast",
+      "constellations": {
+        "gps": true,
+        "glonass": false,
+        "galileo": true,
+        "qzss": true,
+        "sbas": false,
+        "beidou": true,
+        "irnss": false
+      },
+      "excluded_satellites": "G04 J07",
+      "bds2_sats": "C01-C18",
+      "bds_geo_sats": "",
+      "robust": "off",
+      "robust_k0": 1.5,
+      "robust_k1": 4.0,
+      "tdcp": "off",
+      "tdcp_jump": 5.0,
+      "snr_mask": {
+        "enable_rover": true,
+        "enable_base": false,
+        "mask": [
+          [
+            35.0,
+            35.0,
+            35.0,
+            35.0,
+            35.0,
+            35.0,
+            35.0,
+            35.0,
+            35.0
+          ],
+          [
+            30.0,
+            30.0,
+            30.0,
+            30.0,
+            30.0,
+            30.0,
+            30.0,
+            30.0,
+            30.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        ]
+      },
+      "corrections": {
+        "satellite_antenna": false,
+        "receiver_antenna": false,
+        "phase_windup": "off",
+        "exclude_eclipse": false,
+        "raim_fde": false,
+        "iono_compensation": "off",
+        "partial_ar": false,
+        "shapiro_delay": false,
+        "exclude_qzs_ref": false,
+        "no_phase_bias_adj": false,
+        "gps_frequency": "l1+l2",
+        "qzs_frequency": "l1+l2",
+        "tidal_correction": "off",
+        "snr_fixed": 0
+      },
+      "atmosphere": {
+        "ionosphere": "dual-freq",
+        "troposphere": "est-ztd"
+      },
+      "clas": {
+        "grid_selection_radius": 1000.0,
+        "receiver_type": "",
+        "enhanced_spp_seed": "cn0+tdcp",
+        "l6_merge": 0,
+        "reset_interval": 0
+      }
+    },
+    "ambiguity_resolution": {
+      "mode": "fix-and-hold",
+      "gps_ar": true,
+      "glonass_ar": "autocal",
+      "bds_ar": "on",
+      "qzs_ar": "on",
+      "systems": 1,
+      "bds3_igso_sats": "",
+      "thresholds": {
+        "ratio": 2.5,
+        "ratio1": 0.9999,
+        "ratio5": 0.0,
+        "ratio6": 0.0,
+        "alpha": "0.1%",
+        "elevation_mask": 15.0,
+        "hold_elevation": 0.0,
+        "max_pdop_ar": 0.0,
+        "max_pdop_hold": 0.0,
+        "reference_dop": "zd"
+      },
+      "counters": {
+        "lock_count": 0,
+        "min_fix": 10,
+        "max_iterations": 1,
+        "out_count": 5
+      },
+      "partial_ar": {
+        "min_ambiguities": 0,
+        "max_excluded_sats": 0,
+        "min_fix_sats": 4,
+        "min_drop_sats": 0,
+        "min_hold_sats": 0,
+        "ar_filter": false
+      },
+      "hold": {
+        "variance": 0.001
+      }
+    },
+    "rejection": {
+      "innovation": 30.0,
+      "l1_l2_residual": 0.0,
+      "dispersive": 0.0,
+      "non_dispersive": 0.0,
+      "hold_chi_square": 0.0,
+      "fix_chi_square": 0.0,
+      "gdop": 30.0,
+      "pseudorange_diff": 0.0,
+      "position_error_count": 0,
+      "spp_residual": 0.0,
+      "spp_min_sats": 7
+    },
+    "slip_detection": {
+      "threshold": 0.05,
+      "doppler": 0.0
+    },
+    "kalman_filter": {
+      "iterations": 1,
+      "measurement_error": {
+        "code_phase_ratio_l1": 100.0,
+        "code_phase_ratio_l2": 100.0,
+        "code_phase_ratio_l5": 100.0,
+        "phase": 0.003,
+        "phase_elevation": 0.003,
+        "phase_baseline": 0.0,
+        "doppler": 1.0,
+        "ura_ratio": 0.0,
+        "snr_max": 0.0,
+        "snr_error": 0.0,
+        "ionosphere": 0.0,
+        "troposphere": 0.0
+      },
+      "initial_std": {
+        "bias": 30.0,
+        "ionosphere": 0.03,
+        "troposphere": 0.3
+      },
+      "process_noise": {
+        "bias": 0.0001,
+        "ionosphere": 0.001,
+        "iono_max": 0.0,
+        "troposphere": 0.0001,
+        "accel_h": 1.0,
+        "accel_v": 0.1,
+        "position_h": 0.0,
+        "position_v": 0.0,
+        "position": 0.0,
+        "ifb": 0.0,
+        "iono_time_const": 0.0,
+        "clock_stability": 5e-12
+      }
+    },
+    "adaptive_filter": {
+      "enabled": false,
+      "iono_forgetting": 0.0,
+      "iono_gain": 0.0,
+      "pva_forgetting": 0.0,
+      "pva_gain": 0.0
+    },
+    "signal_selection": {
+      "gps": "L1/L2",
+      "qzs": "L1/L5",
+      "galileo": "E1/E5a",
+      "bds2": "B1I/B3I",
+      "bds3": "B1I/B3I"
+    },
+    "receiver": {
+      "iono_correction": true,
+      "ignore_chi_error": false,
+      "ppp_sat_clock_bias": 0,
+      "ppp_sat_phase_bias": 0,
+      "uncorr_bias": 0,
+      "max_bias_dt": 0,
+      "phase_shift": "off",
+      "isb": false,
+      "reference_type": "",
+      "max_age": 30.0,
+      "baseline_length": 0.0,
+      "baseline_sigma": 0.0,
+      "clock_jump": false
+    },
+    "antenna": {
+      "rover": {
+        "mode": "llh",
+        "values": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "antenna_type_enabled": false,
+        "antenna_type": "",
+        "antenna_delta": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "base": {
+        "mode": "xyz",
+        "values": [
+          -3961904.9,
+          3348993.8,
+          3698211.8
+        ],
+        "antenna_type_enabled": true,
+        "antenna_type": "TRM59800.00     NONE",
+        "antenna_delta": [
+          0.0,
+          0.0,
+          0.1
+        ],
+        "max_average_epochs": 0,
+        "init_reset": false
+      }
+    },
+    "output": {
+      "solution_format": "enu",
+      "output_header": true,
+      "output_processing_options": false,
+      "output_velocity": false,
+      "time_format": "utc",
+      "num_decimals": 3,
+      "lat_lon_format": "ddd.ddddddd",
+      "field_separator": "",
+      "height": "ellipsoidal",
+      "geoid_model": "internal",
+      "static_solution_mode": "all",
+      "output_single_on_outage": false,
+      "max_solution_std": 0.0,
+      "nmea_interval_rmc_gga": 0,
+      "nmea_interval_gsa_gsv": 0,
+      "output_solution_status": "state",
+      "debug_trace": "off",
+      "clas_nmea_source_id": true
+    },
+    "files": {
+      "satellite_atx": "",
+      "receiver_atx": "",
+      "station_pos": "",
+      "geoid": "",
+      "ionosphere": "",
+      "dcb": "",
+      "eop": "",
+      "ocean_loading": "",
+      "fcb": "",
+      "bias_sinex": "",
+      "cssr_grid": "",
+      "isb_table": "",
+      "phase_cycle": "",
+      "temp_dir": "",
+      "trace": "",
+      "cmd_file_1": "",
+      "cmd_file_2": "",
+      "cmd_file_3": ""
+    },
+    "server": {
+      "cycle_ms": 10,
+      "timeout_ms": 10000,
+      "reconnect_ms": 10000,
+      "nmea_cycle_ms": 5000,
+      "buffer_size": 32768,
+      "nav_msg_select": "all",
+      "proxy": "",
+      "swap_margin": 30,
+      "time_interpolation": false,
+      "sbas_satellite": "0",
+      "rinex_option_1": "",
+      "rinex_option_2": "",
+      "ppp_option": "",
+      "rtcm_option": "",
+      "l6_margin": 0,
+      "max_obs_loss": 90.0,
+      "float_count": 15,
+      "start_cmd": "",
+      "stop_cmd": ""
+    }
+  },
+  "toml": {
+    "positioning": {
+      "mode": "static",
+      "correction": "none",
+      "frequency": "l1+2+3",
+      "solution_type": "combined",
+      "elevation_mask": 10.0,
+      "dynamics": false,
+      "satellite_ephemeris": "brdc",
+      "excluded_sats": [
+        "G04",
+        "J07"
+      ],
+      "bds2_sats": [
+        "C01-C18"
+      ],
+      "systems": [
+        "GPS",
+        "Galileo",
+        "QZSS",
+        "BeiDou"
+      ],
+      "snr_mask": {
+        "rover_enabled": true,
+        "base_enabled": false,
+        "L1": [
+          35,
+          35,
+          35,
+          35,
+          35,
+          35,
+          35,
+          35,
+          35
+        ],
+        "L2": [
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30
+        ],
+        "L5": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "corrections": {
+        "satellite_antenna": false,
+        "receiver_antenna": false,
+        "phase_windup": "off",
+        "exclude_eclipse": false,
+        "raim_fde": false,
+        "iono_compensation": "off",
+        "partial_ar": false,
+        "shapiro_delay": false,
+        "exclude_qzs_ref": false,
+        "no_phase_bias_adj": false,
+        "gps_frequency": "l1+l2",
+        "qzs_frequency": "l1+l2",
+        "tidal_correction": "off"
+      },
+      "atmosphere": {
+        "ionosphere": "dual-freq",
+        "troposphere": "est-ztd"
+      },
+      "spp": {
+        "ignore_chi_error": false
+      },
+      "relative": {
+        "max_age": 30.0,
+        "time_interpolation": false
+      },
+      "madoca": {
+        "iono_correction": true
+      }
+    },
+    "ambiguity_resolution": {
+      "mode": "fix-and-hold",
+      "gps_ar": true,
+      "glonass_ar": "autocal",
+      "bds_ar": true,
+      "qzs_ar": true,
+      "systems": 1,
+      "thresholds": {
+        "ratio": 2.5,
+        "ratio1": 0.9999,
+        "alpha": "0.1%",
+        "elevation_mask": 15.0,
+        "hold_elevation": 0.0
+      },
+      "counters": {
+        "lock_count": 0,
+        "min_fix": 10,
+        "max_iterations": 1,
+        "out_count": 5
+      },
+      "partial_ar": {
+        "min_fix_sats": 4,
+        "ar_filter": false
+      },
+      "hold": {
+        "variance": 0.001
+      }
+    },
+    "rejection": {
+      "innovation": 30.0,
+      "gdop": 30.0
+    },
+    "slip_detection": {
+      "threshold": 0.05
+    },
+    "kalman_filter": {
+      "iterations": 1,
+      "measurement_error": {
+        "code_phase_ratio_L1": 100.0,
+        "code_phase_ratio_L2": 100.0,
+        "code_phase_ratio_L5": 100.0,
+        "phase": 0.003,
+        "phase_elevation": 0.003,
+        "phase_baseline": 0.0,
+        "doppler": 1.0
+      },
+      "initial_std": {
+        "bias": 30.0,
+        "ionosphere": 0.03,
+        "troposphere": 0.3
+      },
+      "process_noise": {
+        "accel_h": 1.0,
+        "accel_v": 0.1,
+        "position_h": 0.0,
+        "position_v": 0.0,
+        "position": 0.0,
+        "bias": 0.0001,
+        "ionosphere": 0.001,
+        "iono_max": 0.0,
+        "troposphere": 0.0001,
+        "iono_time_const": 0.0,
+        "clock_stability": 5e-12
+      }
+    },
+    "signals": {
+      "gps": "L1/L2",
+      "qzs": "L1/L5",
+      "galileo": "E1/E5a",
+      "bds2": "B1I/B3I",
+      "bds3": "B1I/B3I"
+    },
+    "antenna": {
+      "rover": {
+        "position_type": "llh",
+        "position_1": 0.0,
+        "position_2": 0.0,
+        "position_3": 0.0,
+        "type": "*",
+        "delta_e": 0.0,
+        "delta_n": 0.0,
+        "delta_u": 0.0
+      },
+      "base": {
+        "position_type": "xyz",
+        "position_1": -3961904.9,
+        "position_2": 3348993.8,
+        "position_3": 3698211.8,
+        "type": "TRM59800.00     NONE",
+        "delta_e": 0.0,
+        "delta_n": 0.0,
+        "delta_u": 0.1,
+        "max_average_epochs": 0,
+        "init_reset": false
+      }
+    },
+    "output": {
+      "format": "enu",
+      "header": true,
+      "options": false,
+      "velocity": false,
+      "time_system": "utc",
+      "time_format": "hms",
+      "time_decimals": 3,
+      "coordinate_format": "deg",
+      "field_separator": "",
+      "single_output": false,
+      "max_solution_std": 0.0,
+      "height_type": "ellipsoidal",
+      "geoid_model": "internal",
+      "static_solution": "all",
+      "nmea_interval_1": 0.0,
+      "nmea_interval_2": 0.0,
+      "solution_status": "state",
+      "clas_nmea_source_id": true
+    },
+    "files": {
+      "satellite_atx": "",
+      "receiver_atx": "",
+      "station_pos": "",
+      "geoid": "",
+      "ionosphere": "",
+      "dcb": "",
+      "eop": "",
+      "ocean_loading": ""
+    },
+    "server": {
+      "cycle_ms": 10,
+      "timeout_ms": 10000,
+      "reconnect_ms": 10000,
+      "nmea_cycle_ms": 5000,
+      "buffer_size": 32768,
+      "nav_msg_select": "all",
+      "proxy": "",
+      "swap_margin": 30
+    }
+  },
+  "not_written": [
+    "positioning.signal_mode",
+    "positioning.robust_k0",
+    "positioning.robust_k1",
+    "positioning.tdcp_jump",
+    "positioning.clas.grid_selection_radius",
+    "positioning.clas.receiver_type",
+    "positioning.clas.enhanced_spp_seed",
+    "positioning.clas.l6_merge",
+    "positioning.clas.reset_interval",
+    "adaptive_filter.enabled",
+    "adaptive_filter.iono_forgetting",
+    "adaptive_filter.iono_gain",
+    "adaptive_filter.pva_forgetting",
+    "adaptive_filter.pva_gain",
+    "receiver.phase_shift",
+    "receiver.isb",
+    "receiver.reference_type",
+    "antenna.rover.antenna_type_enabled",
+    "antenna.rover.antenna_type",
+    "output.debug_trace",
+    "server.l6_margin",
+    "server.max_obs_loss",
+    "server.float_count"
+  ]
+}

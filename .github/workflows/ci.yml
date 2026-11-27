@@ -75,6 +75,9 @@ jobs:
       - name: Type-check and build
         run: npm run build
 
+      - name: Test
+        run: npm test
+
       - name: Lint changed TypeScript files
         if: github.event_name == 'pull_request'
         run: |
