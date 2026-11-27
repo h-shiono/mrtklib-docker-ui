@@ -121,7 +121,9 @@ survive import → export, presets, and the TOML passed to `mrtk`.
 A key the form reads is owned by the form and never comes from `extraToml`,
 even in a mode that does not write it. `[streams]` is never kept, and RT
 drops `[console] passwd`. The TOML Preview lists the kept keys
-(`tomlExtrasPreview.ts`).
+(`tomlExtrasPreview.ts`), credentials masked. Loading a TOML (import,
+preset, Assistant) keeps the settings a TOML does not carry: the PP time
+range and the trace level (`keepNotInToml`).
 
 ### Preset storage
 Presets saved to `/workspace/presets/{mode}/` as `.toml` files: the

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_MRTK_POST_CONFIG, type MrtkPostConfig } from '../types/mrtkPostConfig';
 import { configToBackend } from './configToBackend';
 import { extrasPreviewLines } from './tomlExtrasPreview';
-import { isFormShapedPreset, tomlToConfig, unownedExtras } from './tomlImport';
+import { isFormShapedPreset, keepNotInToml, tomlToConfig, unownedExtras } from './tomlImport';
 
 describe('tomlToConfig extraToml', () => {
   it('keeps keys the form does not read, in their tables', () => {
@@ -121,5 +121,32 @@ describe('extrasPreviewLines', () => {
       '',
     ]);
     expect(extrasPreviewLines({})).toEqual([]);
+  });
+});
+
+describe('keepNotInToml', () => {
+  it('keeps the time range and trace level, which a TOML does not carry', () => {
+    const D = DEFAULT_MRTK_POST_CONFIG;
+    const current: MrtkPostConfig = {
+      ...D,
+      time: { ...D.time, startEnabled: true, startDate: '2026-01-01', interval: 30 },
+      output: { ...D.output, debugTrace: 'level3' },
+    };
+    const mapped = tomlToConfig({ positioning: { mode: 'static' }, output: { format: 'xyz' } });
+    const cfg = keepNotInToml(mapped, current);
+    expect(cfg.time).toEqual(current.time);
+    expect(cfg.output.debugTrace).toBe('level3');
+    expect(cfg.output.solutionFormat).toBe('xyz');
+    expect(cfg.positioning.positioningMode).toBe('static');
+  });
+});
+
+describe('extrasPreviewLines masking', () => {
+  it('masks passwords and user:pass@ in the preview only', () => {
+    const lines = extrasPreviewLines({ console: { passwd: 'hunter2' }, future: { url: 'me:secret@caster:2101/MNT' } });
+    expect(lines.join('\n')).not.toContain('hunter2');
+    expect(lines.join('\n')).not.toContain('secret');
+    expect(lines).toContain('passwd = "***"');
+    expect(lines).toContain('url = "me:***@caster:2101/MNT"');
   });
 });

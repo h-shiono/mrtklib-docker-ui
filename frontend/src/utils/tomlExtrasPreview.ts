@@ -1,8 +1,11 @@
 /**
  * The kept imported keys (`extraToml`, #230) as TOML lines for the TOML
  * Preview. The backend merges them into the generated tables
- * (services/toml_extras.py); the preview lists them in a block of their own.
+ * (services/toml_extras.py); the preview lists them in a block of their own,
+ * with credentials masked.
  */
+import { maskLogLine } from './maskPath';
+
 type AnyDict = Record<string, unknown>;
 
 function isPlainObject(v: unknown): v is AnyDict {
@@ -29,5 +32,6 @@ export function extrasPreviewLines(extra: AnyDict | undefined): string[] {
   };
   if (extra) table(extra, []);
   if (L.length === 0) return [];
-  return ['# Kept from the imported TOML (no form field); merged into the tables above on export', '', ...L];
+  // Masked for display (passwd = ..., user:pass@); export keeps the values.
+  return ['# Kept from the imported TOML (no form field); merged into the tables above on export', '', ...L.map(maskLogLine)];
 }

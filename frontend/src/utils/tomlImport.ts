@@ -168,6 +168,20 @@ export function isFormShapedPreset(dict: AnyDict): boolean {
 }
 
 /**
+ * Load a mapped TOML over the current form. The settings an MRTKLIB TOML
+ * does not carry (they go on the mrtk command line: the PP time range, the
+ * trace level) keep their current values instead of falling to defaults.
+ * Used by Import TOML, preset Load and the Config Assistant.
+ */
+export function keepNotInToml(mapped: MrtkPostConfig, current: MrtkPostConfig): MrtkPostConfig {
+  return {
+    ...mapped,
+    time: current.time,
+    output: { ...mapped.output, debugTrace: current.output.debugTrace },
+  };
+}
+
+/**
  * The keys of `extra` the form still does not read. Extras are kept in
  * localStorage, and a later UI may read a key it once kept.
  */

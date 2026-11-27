@@ -29,7 +29,7 @@ import { ConfigCollapseButton } from './ConsoleFrame';
 import { StatusBadge } from './common/StatusBadge';
 import { liveState, processTone, type ProcessState } from '../utils/status';
 import { useConfigLock } from '../hooks/useConfigLock';
-import { tomlToConfig } from '../utils/tomlImport';
+import { keepNotInToml, tomlToConfig } from '../utils/tomlImport';
 import { PRIMARY_MIN_WIDTH } from '../utils/formLayout';
 
 interface PostProcessingConfigurationProps {
@@ -125,7 +125,7 @@ export function PostProcessingConfiguration({
       }
       const { config: parsed } = await res.json();
       const mapped = tomlToConfig(parsed);
-      if (!unlessLocked(() => setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig)))) return;
+      if (!unlessLocked(() => setConfig((prev) => keepNotInToml(mapped, prev)))) return;
       notifications.show({ title: 'Import successful', message: `Loaded ${file.name}`, color: 'green' });
     } catch (e) {
       notifications.show({ title: 'Import failed', message: e instanceof Error ? e.message : 'Unknown error', color: 'red' });
@@ -245,14 +245,14 @@ export function PostProcessingConfiguration({
       onClose={closePresets}
       mode="post"
       currentConfig={config}
-      onLoad={(c) => unlessLocked(() => setConfig(c))}
+      onLoad={(c) => unlessLocked(() => setConfig((prev) => keepNotInToml(c, prev)))}
       loadDisabled={locked}
     />
     <ConfigAssistantModal
       opened={assistantOpened}
       onClose={closeAssistant}
       mode="post"
-      onApply={(mapped) => unlessLocked(() => setConfig((prev) => ({ ...prev, ...mapped } as MrtkPostConfig)))}
+      onApply={(mapped) => unlessLocked(() => setConfig((prev) => keepNotInToml({ ...prev, ...mapped } as MrtkPostConfig, prev)))}
     />
     </>
   );

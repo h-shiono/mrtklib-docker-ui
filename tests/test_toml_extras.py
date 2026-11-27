@@ -47,9 +47,9 @@ def test_generated_values_win():
 
 
 def test_strings_and_keys_are_escaped():
-    odd = 'C:\\dir\\"quoted"\n\ttab \u00e9'
-    t = tomllib.loads(_gen({"future": {"path": odd, "key with space": 1, "a.b": 2}}))
-    assert t["future"] == {"path": odd, "key with space": 1, "a.b": 2}
+    odd = 'C:\\dir\\"quoted"\n\ttab \u00e9 del\x7f \x01'
+    t = tomllib.loads(_gen({"future": {"path": odd, "key with space": 1, "a.b": 2, "del\x7fkey": 3}}))
+    assert t["future"] == {"path": odd, "key with space": 1, "a.b": 2, "del\x7fkey": 3}
 
 
 def test_inline_tables_in_arrays():

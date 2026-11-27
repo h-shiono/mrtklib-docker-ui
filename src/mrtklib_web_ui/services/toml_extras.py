@@ -61,8 +61,14 @@ def merge(generated: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _str(v: str) -> str:
+    # A JSON string is a valid TOML basic string (same escapes), except that
+    # JSON leaves DEL (U+007F) as is and TOML forbids it unescaped.
+    return json.dumps(v, ensure_ascii=False).replace("\x7f", "\\u007f")
+
+
 def _key(k: str) -> str:
-    return k if _BARE_KEY.match(k) else json.dumps(k, ensure_ascii=False)
+    return k if _BARE_KEY.match(k) else _str(k)
 
 
 def _value(v: Any) -> str:
@@ -77,8 +83,7 @@ def _value(v: Any) -> str:
             return "inf" if v > 0 else "-inf"
         return repr(v)
     if isinstance(v, str):
-        # A JSON string is a valid TOML basic string (same escapes).
-        return json.dumps(v, ensure_ascii=False)
+        return _str(v)
     if isinstance(v, list):
         return "[" + ", ".join(_value(x) for x in v) + "]"
     if isinstance(v, dict):
