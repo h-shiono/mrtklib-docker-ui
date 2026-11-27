@@ -49,7 +49,6 @@ import { keepNotInToml, tomlToConfig } from '../utils/tomlImport';
 import { ConfigAssistantModal } from './ConfigAssistantModal';
 import { configToBackend } from '../utils/configToBackend';
 import { mrtkRunApi } from '../api/mrtkRun';
-import { PositionScatter, type PositionPoint } from './PositionScatter';
 import { SkySnrPanel } from './SkySnrPanel';
 import type { Satellite } from '../types/satellite';
 import { TimeSeriesChart, type TimeSeriesPoint } from './TimeSeriesChart';
@@ -57,7 +56,7 @@ import { MaskedPathInput } from './common/MaskedPathInput';
 import { ConsoleFrame, ConfigCollapseButton } from './ConsoleFrame';
 import { ENDED_OPACITY, RtMetricsRow } from './RtMetricsRow';
 import { RtInputStatusRow } from './RtInputStatusRow';
-import { MapView, type PosEpoch } from './viewer';
+import { PositionViewer, type PosEpoch, type ViewMode } from './viewer';
 import { StatusBadge } from './common/StatusBadge';
 import { liveState, processTone, type LiveState } from '../utils/status';
 import { FONT_SIZE, MONO } from '../utils/typography';
@@ -72,6 +71,21 @@ import { useReportLive } from '../hooks/useReportLive';
 import { useConfigLock } from '../hooks/useConfigLock';
 import { FailureCause } from './common/FailureCause';
 import { lastErrorLine } from '../utils/logSeverity';
+
+/** A live position kept for the Chart tab. */
+interface PositionPoint {
+  lat: number;
+  lon: number;
+  height: number;
+  quality: number;
+  timestamp: string;
+}
+
+/** Chart chips drawn by the shared PositionViewer, in its view order. */
+const POSITION_VIEWS: { chip: string; view: ViewMode }[] = [
+  { chip: 'scatter', view: '2d' },
+  { chip: 'map', view: 'map' },
+];
 
 // ─── Stream editor sub-component ────────────────────────────────────────────
 
@@ -339,6 +353,9 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   });
   const [lastPosition, setLastPosition] = useState<PositionUpdate | null>(null);
   const [positionHistory, setPositionHistory] = useState<PositionPoint[]>([]);
+  // Bumped when a session's positions are cleared: the viewer refits then,
+  // while epochs arriving keep its zoom.
+  const [sessionKey, setSessionKey] = useState(0);
   const [timeSeriesHistory, setTimeSeriesHistory] = useState<TimeSeriesPoint[]>([]);
   const [logLines, setLogLines] = useState<string[]>([]);
   // Debug trace of the current (or last) run, tailed by the backend.
@@ -356,16 +373,19 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
   const MAX_HISTORY = 600;
   const MAX_TRACE_LINES = 1000;
 
-  // Measured height for the live map (leaflet needs an explicit pixel height).
+  // Measured height for the chart views (the viewer needs a pixel height).
   const { ref: panelsRef, height: panelsHeight } = useElementSize();
   const panelHeight = Math.max(MIN_PANEL_HEIGHT, panelsHeight - PANEL_TOP);
-  const { ref: mapWrapRef, height: mapHeight } = useElementSize();
 
-  // Adapt the RT position history to the viewer's PosEpoch shape so the
-  // shared MapView (real basemap) can render the live track.
-  const mapEpochs = useMemo<PosEpoch[]>(
+  // The 2D and Map chips go to the shared PositionViewer (as in the Stream
+  // Monitor and the PP Result Viewer), side by side with one reference.
+  const positionViews = POSITION_VIEWS.filter((v) => chartViews.includes(v.chip)).map((v) => v.view);
+
+  // Adapt the RT position history to the viewer's PosEpoch shape. A 0/0
+  // position is "no solution yet", not a point.
+  const positionEpochs = useMemo<PosEpoch[]>(
     () =>
-      positionHistory.map((p) => {
+      positionHistory.filter((p) => p.lat !== 0 || p.lon !== 0).map((p) => {
         const t = new Date(p.timestamp);
         const time = isNaN(t.getTime()) ? new Date(0) : t;
         return {
@@ -475,6 +495,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
     setEnded(null);
     setLastPosition(null);
     setPositionHistory([]);
+    setSessionKey((k) => k + 1);
     setTimeSeriesHistory([]);
     setSatellites([]);
     setInputStreams([]);
@@ -894,14 +915,16 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
               <div ref={panelsRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
               <Tabs.Panel value="chart" pt={PANEL_TOP}>
                 <div style={{ display: 'flex', gap: 10, height: panelHeight, minHeight: 0, opacity: ended ? ENDED_OPACITY : 1 }}>
-                  {chartViews.includes('scatter') && (
-                    <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                      <PositionScatter fit points={positionHistory} maxPoints={MAX_HISTORY} />
-                    </div>
-                  )}
-                  {chartViews.includes('map') && (
-                    <div ref={mapWrapRef} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-                      {mapHeight > 0 && <MapView data={mapEpochs} height={mapHeight} />}
+                  {positionViews.length > 0 && (
+                    // One share of the width per view
+                    <div style={{ flex: positionViews.length, minWidth: 0, minHeight: 0 }}>
+                      <PositionViewer
+                        epochs={positionEpochs}
+                        dataKey={`rt:${sessionKey}`}
+                        maxHeight={panelHeight}
+                        emptyText={isRunning ? 'Waiting for positions…' : 'No position data'}
+                        views={positionViews}
+                      />
                     </div>
                   )}
                   {chartViews.includes('skysnr') && (
