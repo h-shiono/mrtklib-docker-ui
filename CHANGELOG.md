@@ -23,11 +23,20 @@ stays open on every interface; `-p 127.0.0.1:8080:8000` limits it.
 - `docs/deployment.md`: who can reach the UI in each setup, the access
   token, SSH tunnel, HTTPS behind a reverse proxy (Caddy example), and the
   threat model.
+- `docs/config-coverage.md` (#90): every TOML key the UI writes, the field
+  behind it, whether the form has a control for it, and which keys only one
+  of `mrtk post` / `mrtk run` reads. `scripts/gen_config_coverage.py`
+  regenerates it from the code and the MRTKLIB source.
 
 ### Changed
 - `docker-compose.yml` publishes the port on `${MRTK_BIND:-127.0.0.1}`
   (#86). The README's `docker run` example uses `-p 127.0.0.1:8080:8000`.
 - The server log says at startup whether an access token is in use.
+- Options that only one of `mrtk post` / `mrtk run` reads are disabled in the
+  other mode, with a note (#90). Post-processing only: Filter Type, EOP,
+  Station Position File, Trace File, output Options, Static Solution and the
+  RINEX options. Real-time only: base Max Avg Epochs and Init Reset, Temp
+  Directory and Command Files. The Server section is shown in Real-time only.
 
 ### Fixed
 - Post Processing deleted an uncompressed file under `/workspace` that sat
@@ -36,6 +45,10 @@ stays open on every interface; `-p 127.0.0.1:8080:8000` limits it.
   copy, and remove it afterwards, so the next run on `X.26o` failed with
   "Rover observation file not found". Compressed inputs are now staged in a
   temporary directory wherever they are, as they already were on `/data`.
+- Real-time: the base station's Max Avg Epochs and Init Reset never reached
+  `mrtk run` (#90); it always used 0 (average without limit) and off. They
+  apply when the base position is the average of single solutions. A value
+  set before this release now takes effect, so check them before a run.
 - Time Range in Post Processing and the RINEX Converter (#224). The start,
   end and RTCM reference times were passed to `mrtk` as one argument each,
   but `mrtk` reads the date and the time as two. With start and end set,

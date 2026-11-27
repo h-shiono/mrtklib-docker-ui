@@ -168,6 +168,7 @@ interface FileInputRowProps {
   onChange: (value: string) => void;
   placeholder?: string;
   onBrowse?: () => void;
+  disabled?: boolean;
 }
 
 function FileInputRow({
@@ -176,12 +177,13 @@ function FileInputRow({
   onChange,
   placeholder,
   onBrowse,
+  disabled,
 }: FileInputRowProps) {
   return (
     <FormRow
       label={label}
       trailing={
-        <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={onBrowse}>
+        <ActionIcon aria-label="Browse" variant="light" color="gray" size={30} onClick={onBrowse} disabled={disabled}>
           <IconFolder size={16} />
         </ActionIcon>
       }
@@ -189,10 +191,24 @@ function FileInputRow({
       <TextInput
         value={value}
         onChange={(e) => onChange(e.currentTarget.value)}
+        disabled={disabled}
         placeholder={placeholder || 'Path to file'}
         styles={{ input: { fontFamily: MONO } }}
       />
     </FormRow>
+  );
+}
+
+/**
+ * Why a control is disabled in this mode: PP and RT share this form, but
+ * some options are read only by `mrtk post` or only by `mrtk run` (#90).
+ */
+function AppOnlyNote({ app, what }: { app: 'post' | 'run'; what?: string }) {
+  const text = app === 'post' ? 'post-processing only, mrtk run ignores it' : 'real-time only, mrtk post ignores it';
+  return (
+    <Text size="xs" c="dimmed" style={{ fontSize: FONT_SIZE.label, paddingLeft: FORM_LABEL_WIDTH + FORM_LABEL_GAP }}>
+      {what ? `${what}: ${text}.` : `${text[0].toUpperCase()}${text.slice(1)}.`}
+    </Text>
   );
 }
 
@@ -479,6 +495,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
     config.positioning.positioningMode === 'ppp-kinematic';
 
   const modeDisabled = useModeDependentDisable(config.positioning.positioningMode);
+  // PP passes `execution`, RT passes `streamPanels`. Options that only one
+  // of mrtk post / mrtk run reads are disabled in the other mode (#90).
+  const isRealTime = !execution;
+  const postOnly = isRealTime;
+  const runOnly = !isRealTime;
   const validCorr = validCorrections(config.positioning.positioningMode);
   // Adaptive Filter applies only to PPP-RTK / VRS-RTK.
   const isAdaptiveMode = ['ppp-rtk', 'vrs-rtk'].includes(config.positioning.positioningMode);
@@ -519,7 +540,8 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
         { label: 'Output Format', section: 'format' },
         { label: 'Input Options', section: 'input-options' },
         { label: 'Data Files', section: 'files' },
-        { label: 'Server', section: 'server' },
+        // [server] is read by mrtk run (rtkrcv) only
+        ...(isRealTime ? [{ label: 'Server', section: 'server' }] : []),
       ] },
   ];
   // Filter matches the category label, the sub-item (section) label, AND that
@@ -856,10 +878,11 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       { value: 'backward', label: 'Backward' },
                       { value: 'combined', label: 'Combined' },
                     ]}
-                    disabled={isSingle}
+                    disabled={isSingle || postOnly}
                     style={{ flex: 1 }}
                   />
                 </Group>
+                {postOnly && <AppOnlyNote app="post" />}
                 {/* Freq. / Signals — Frequency primary, Signals an advanced override */}
                 <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
                   <Text size="xs" c="dimmed" style={LABEL_STYLE}>Freq. / Signals</Text>
@@ -2338,6 +2361,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   }
                   min={0}
                   hideControls
+                  disabled={runOnly}
                   style={{ flex: 1 }}
                 />
               </FormRow>
@@ -2345,6 +2369,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 <Text size="xs" c="dimmed" style={LABEL_STYLE}>Init Reset</Text>
                 <Switch aria-label="Init Reset"
                   size="xs"
+                  disabled={runOnly}
                   checked={config.antenna.base.initReset}
                   onChange={(e) =>
                     handleConfigChange({
@@ -2357,6 +2382,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                   }
                 />
               </Group>
+              {runOnly && <AppOnlyNote app="run" />}
 
               <FileInputRow
                 label="Station Position File"
@@ -2374,7 +2400,9 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                     files: { ...config.files, stationPos: path },
                   })
                 )}
+                disabled={postOnly}
               />
+              {postOnly && <AppOnlyNote app="post" />}
             </Stack>
           )}
 
@@ -2416,12 +2444,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                       disabled={isSolNMEA} styles={{ label: { fontSize: FONT_SIZE.label } }} />
                     <Switch size="xs" label="Options" checked={config.output.outputProcessingOptions}
                       onChange={(e) => handleConfigChange({ ...config, output: { ...config.output, outputProcessingOptions: e.currentTarget.checked } })}
-                      disabled={isSolNMEA} styles={{ label: { fontSize: FONT_SIZE.label } }} />
+                      disabled={isSolNMEA || postOnly} styles={{ label: { fontSize: FONT_SIZE.label } }} />
                     <Switch size="xs" label="Velocity" checked={config.output.outputVelocity}
                       onChange={(e) => handleConfigChange({ ...config, output: { ...config.output, outputVelocity: e.currentTarget.checked } })}
                       styles={{ label: { fontSize: FONT_SIZE.label } }} />
                   </Group>
                 </Group>
+                {postOnly && <AppOnlyNote app="post" what="Options" />}
 
                 <FormRow label="Time Format">
                   <ConfigSelect
@@ -2555,12 +2584,13 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                         { value: 'single', label: 'Single' },
                         { value: 'fixed', label: 'Fixed' },
                       ]}
-                      disabled={!isStaticMode} style={{ flex: 1, minWidth: 0 }} />
+                      disabled={!isStaticMode || postOnly} style={{ flex: 1, minWidth: 0 }} />
                     <Switch size="xs" label="Single" title="Single on Outage" checked={config.output.outputSingleOnOutage}
                       onChange={(e) => handleConfigChange({ ...config, output: { ...config.output, outputSingleOnOutage: e.currentTarget.checked } })}
                       disabled={isSingle} styles={{ label: { fontSize: FONT_SIZE.label } }} style={{ flexShrink: 0 }} />
                   </Group>
                 </Group>
+                {postOnly && <AppOnlyNote app="post" what="Static Solution" />}
 
                 {/* NMEA RMC/GGA + GSA/GSV intervals on one row */}
                 <Group wrap="nowrap" align="center" gap={FORM_LABEL_GAP}>
@@ -2789,7 +2819,9 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 onBrowse={() => openFileBrowser((path) =>
                   handleConfigChange({ ...config, files: { ...config.files, eop: path } })
                 )}
+                disabled={postOnly}
               />
+              {postOnly && <AppOnlyNote app="post" />}
 
               <FileInputRow
                 label="Ocean Loading (BLQ) File"
@@ -2824,14 +2856,18 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 value={config.files.tempDir}
                 onChange={(val) => handleConfigChange({ ...config, files: { ...config.files, tempDir: val } })}
                 onBrowse={() => openFileBrowser((path) => handleConfigChange({ ...config, files: { ...config.files, tempDir: path } }))}
+                disabled={runOnly}
               />
+              {runOnly && <AppOnlyNote app="run" />}
 
               <FileInputRow
                 label="Trace File"
                 value={config.files.trace}
                 onChange={(val) => handleConfigChange({ ...config, files: { ...config.files, trace: val } })}
                 onBrowse={() => openFileBrowser((path) => handleConfigChange({ ...config, files: { ...config.files, trace: path } }))}
+                disabled={postOnly}
               />
+              {postOnly && <AppOnlyNote app="post" />}
 
               <FileInputRow
                 label="FCB File"
@@ -2908,19 +2944,23 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 value={config.files.cmdFile1}
                 onChange={(val) => handleConfigChange({ ...config, files: { ...config.files, cmdFile1: val } })}
                 onBrowse={() => openFileBrowser((path) => handleConfigChange({ ...config, files: { ...config.files, cmdFile1: path } }))}
+                disabled={runOnly}
               />
               <FileInputRow
                 label="Command File 2"
                 value={config.files.cmdFile2}
                 onChange={(val) => handleConfigChange({ ...config, files: { ...config.files, cmdFile2: val } })}
                 onBrowse={() => openFileBrowser((path) => handleConfigChange({ ...config, files: { ...config.files, cmdFile2: path } }))}
+                disabled={runOnly}
               />
               <FileInputRow
                 label="Command File 3"
                 value={config.files.cmdFile3}
                 onChange={(val) => handleConfigChange({ ...config, files: { ...config.files, cmdFile3: val } })}
                 onBrowse={() => openFileBrowser((path) => handleConfigChange({ ...config, files: { ...config.files, cmdFile3: path } }))}
+                disabled={runOnly}
               />
+              {runOnly && <AppOnlyNote app="run" />}
               </Stack>
             </Stack>
           )}
@@ -2933,13 +2973,14 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
                 <FormRow label="RINEX Option 1">
                   <TextInput size="xs" value={config.server.rinexOption1 ?? ''}
                     onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, rinexOption1: e.currentTarget.value } })}
-                    placeholder="e.g. -GL2X" style={{ flex: 1 }} />
+                    placeholder="e.g. -GL2X" disabled={postOnly} style={{ flex: 1 }} />
                 </FormRow>
                 <FormRow label="RINEX Option 2">
                   <TextInput size="xs" value={config.server.rinexOption2 ?? ''}
                     onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, rinexOption2: e.currentTarget.value } })}
-                    style={{ flex: 1 }} />
+                    disabled={postOnly} style={{ flex: 1 }} />
                 </FormRow>
+                {postOnly && <AppOnlyNote app="post" />}
                 <FormRow label="RTCM Options">
                   <TextInput size="xs" value={config.server.rtcmOption ?? ''}
                     onChange={(e) => handleConfigChange({ ...config, server: { ...config.server, rtcmOption: e.currentTarget.value } })}
@@ -2955,7 +2996,7 @@ export function ProcessingConfigPanel({ config, onConfigChange, execution, strea
           )}
 
           {/* ── Server section ── */}
-          {activeSection === 'server' && (
+          {activeSection === 'server' && isRealTime && (
             <Stack gap="xs">
               <SectionHeader title="Server Options" anchor="server-options" />
               <Stack gap={6}>
@@ -3211,6 +3252,8 @@ export function TomlDrawer({ config, opened, onClose, streams }: { config: MrtkP
     L.push(`position_1    = ${ant.base.values[0]}`);
     L.push(`position_2    = ${ant.base.values[1]}`);
     L.push(`position_3    = ${ant.base.values[2]}`);
+    L.push(`max_average_epochs = ${ant.base.maxAverageEpochs}`);
+    L.push(`init_reset    = ${_b(ant.base.initReset)}`);
     L.push('');
     L.push('[output]');
     L.push(`format        = ${_s(out.solutionFormat)}`);
