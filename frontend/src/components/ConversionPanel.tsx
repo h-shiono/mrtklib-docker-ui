@@ -315,8 +315,9 @@ export function ConversionPanel({ tool, onBusyChange }: {
   // Fetch RINEX preview for a file path
   const fetchPreview = useCallback(async (filePath: string): Promise<RinexPreview | undefined> => {
     try {
-      const baseUrl = import.meta.env.DEV ? `http://${window.location.hostname}:8000` : '';
-      const url = `${baseUrl}/api/convert/preview?path=${encodeURIComponent(filePath)}&max_epochs=5`;
+      // Same origin in development too (Vite proxies /api): a fetch to another
+      // port carries no session cookie, and is refused when a token is set.
+      const url = `/api/convert/preview?path=${encodeURIComponent(filePath)}&max_epochs=5`;
       const res = await fetch(url);
       if (!res.ok) return undefined;
       const data = await res.json();

@@ -235,7 +235,7 @@ Images are published for both `linux/amd64` and `linux/arm64`
 3. **Run the container**
    ```bash
    docker run -d --name mrtklib-web-ui \
-     -p 8080:8000 \
+     -p 127.0.0.1:8080:8000 \
      -v "$(pwd)/workspace:/workspace:rw" \
      -v "$(pwd)/data:/data:ro" \
      -e PUID="$(id -u)" -e PGID="$(id -g)" \
@@ -243,6 +243,9 @@ Images are published for both `linux/amd64` and `linux/arm64`
    ```
 
 4. **Open the UI** at <http://localhost:8080>
+
+   The UI answers on this computer only. To use it from another machine,
+   see [Network Access and Sign-in](#network-access-and-sign-in).
 
 Published images:
 
@@ -296,6 +299,30 @@ own IDs (`id -u` / `id -g`) in `.env`. On start, existing files under
 `/workspace` owned by someone else (for example root, from versions
 that ran as root) are chowned to `PUID:PGID`. `PUID=0` restores the
 old run-as-root behaviour.
+
+### Network Access and Sign-in
+
+The UI is published on `127.0.0.1:8080`: it answers on the computer that
+runs Docker and nowhere else, with no sign-in. Its API can start processes,
+write `/workspace` and read stored credentials, so opening it to a network
+is a choice you make, in `.env`:
+
+```bash
+# .env
+MRTK_BIND=0.0.0.0                 # publish on every interface of the host
+MRTK_AUTH_TOKEN=<long random>     # e.g. openssl rand -hex 32
+```
+
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `MRTK_BIND` | `127.0.0.1` | Host address the port is published on. `0.0.0.0` is every interface; one address of the host (a VPN address) limits it to that network. With `docker run`, this is the address in `-p 127.0.0.1:8080:8000`. |
+| `MRTK_AUTH_TOKEN` | empty | Access token. When set, the UI asks for it once per browser, and scripts send `Authorization: Bearer <token>`. Empty means no sign-in. |
+
+For a remote host you can also leave both at their defaults and use an SSH
+tunnel (`ssh -L 8080:127.0.0.1:8080 user@host`). Over the internet, put a
+reverse proxy with HTTPS in front.
+[docs/deployment.md](docs/deployment.md) covers these, the threat model
+and the upgrade from 0.4.x.
 
 ### Serial Device Passthrough (Monitor, Streams and CLAS to RTCM3)
 

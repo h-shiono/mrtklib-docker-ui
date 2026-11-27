@@ -8,12 +8,15 @@ import '@mantine/dates/styles.css'
 import './index.css'
 import { theme, cssVariablesResolver } from './theme'
 import App from './App.tsx'
+import { AuthGate } from './components/AuthGate'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MantineProvider theme={theme} cssVariablesResolver={cssVariablesResolver} defaultColorScheme="dark">
       <Notifications position="top-right" />
-      <App />
+      <AuthGate>
+        <App />
+      </AuthGate>
     </MantineProvider>
   </StrictMode>,
 )

@@ -41,6 +41,7 @@ import { STATUS_COLOR } from './utils/status';
 import { StatusBadge } from './components/common/StatusBadge';
 import { ConversionPanel, type ConvertTool } from './components/ConversionPanel';
 import { StreamPathHelp } from './components/StreamPathHelp';
+import { SignOutButton } from './components/SignOutButton';
 import { ClasPipelinePanel } from './components/ClasPipelinePanel';
 import { StreamMonitorPanel } from './components/StreamMonitorPanel';
 import { MaskedPathInput } from './components/common/MaskedPathInput';
@@ -1470,6 +1471,7 @@ function App() {
               API: {healthStatus.toUpperCase()}
             </Badge>
             <ColorSchemeToggle />
+            <SignOutButton />
           </Group>
         </Group>
       </AppShell.Header>

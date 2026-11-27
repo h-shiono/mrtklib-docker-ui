@@ -8,7 +8,9 @@ services:
         # Empty = the version pinned in .mrtklib-version
         MRTKLIB_BRANCH: ${MRTKLIB_BRANCH:-}
     ports:
-      - "8080:8000"
+      # Localhost only by default. MRTK_BIND=0.0.0.0 in .env opens the UI to
+      # the network; set MRTK_AUTH_TOKEN with it (docs/deployment.md).
+      - "${MRTK_BIND:-127.0.0.1}:8080:8000"
     volumes:
       # Output files, presets, configs (read-write)
       - ${WORKSPACE_DIR:-./workspace}:/workspace:rw
@@ -26,6 +28,8 @@ services:
       # Host user/group that owns WORKSPACE_DIR files (see .env.example)
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
+      # Access token for the API and the UI's sign-in; empty = no sign-in
+      - MRTK_AUTH_TOKEN=${MRTK_AUTH_TOKEN:-}
       - EARTHDATA_USER=${EARTHDATA_USER:-}
       - EARTHDATA_PASSWORD=${EARTHDATA_PASSWORD:-}
       - GSI_USER=${GSI_USER:-}
