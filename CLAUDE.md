@@ -7,7 +7,7 @@ running in a Docker container. Users access GNSS post-processing,
 real-time positioning, stream relay (incl. CLAS to RTCM3), RINEX
 conversion, and data tools from a browser without compiling anything.
 
-- **MRTKLIB version:** 0.7.17 (pinned in `.mrtklib-version`)
+- **MRTKLIB version:** 0.7.18 (pinned in `.mrtklib-version`)
 - **Unified binary:** `mrtk` with subcommands (`post`, `run`, `relay`,
   `convert`, `ssr2obs`, `ssr2osr`, `bias`, `dump`, `cssr2rtcm3`,
   `l6extract`)
