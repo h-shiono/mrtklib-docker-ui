@@ -100,7 +100,9 @@ nav:
     - Tools: screens/tools.md
   - Deployment:
     - Security and network access: deployment/security.md
+    - Upgrading: deployment/upgrade.md
   - Reference:
+    - Supported hardware and services: reference/hardware.md
     - Config coverage: reference/config-coverage.md
     - Bundled correction files: reference/corrections.md
   - Releases:

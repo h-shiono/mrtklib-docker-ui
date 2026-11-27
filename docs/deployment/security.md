@@ -176,12 +176,5 @@ session: the cookie is `HttpOnly` and `SameSite=Strict`.
 
 ## Upgrading from 0.4.x
 
-- **Docker Compose:** the UI is now published on `127.0.0.1` only. If you
-  open it from another machine, it stops answering there after the upgrade.
-  Choose one of the rows in the table at the top; the shortest way back to
-  the old behaviour is `MRTK_BIND=0.0.0.0` in `.env`, with a token.
-- **`docker run -p 8080:8000`:** nothing changes, and the port is still open
-  on every interface. Change it to `-p 127.0.0.1:8080:8000` unless that is
-  what you want.
-- `MRTK_AUTH_TOKEN` is new and optional. Leaving it unset keeps the UI as it
-  was, with no sign-in.
+v0.5.0 changed the defaults above. [Upgrading to v0.5.0](upgrade.md#the-ui-answers-on-this-computer-only)
+says what that means for an existing installation.
