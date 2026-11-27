@@ -39,3 +39,6 @@ tests/localdata/
 
 # Local vendor reference manuals (receiver docs): never commit third-party PDFs
 refs/
+
+# MkDocs build output
+/site/

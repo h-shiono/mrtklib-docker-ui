@@ -1,0 +1,65 @@
+/* Colours from DESIGN.md: one azure accent on graphite (dark) and
+   daylight (light) surfaces. Material's "custom" palette reads these. */
+
+/* Azure is for controls and links only (DESIGN.md), so the header is a
+   daylight surface, as in the app, not an azure bar. */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #ffffff;
+  --md-primary-fg-color--light: #f4f6f8;
+  --md-primary-fg-color--dark: #f4f6f8;
+  --md-primary-bg-color: #25292e;
+  --md-primary-bg-color--light: #5c6670;
+  --md-accent-fg-color: #1d4ed8;
+  --md-typeset-a-color: #1d4ed8;
+  --md-default-bg-color: #ffffff;
+  --md-code-bg-color: #f4f6f8;
+  --md-code-fg-color: #25292e;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #13161a;
+  --md-primary-fg-color--light: #1b1f24;
+  --md-primary-fg-color--dark: #0f1217;
+  --md-primary-bg-color: #eceef1;
+  --md-primary-bg-color--light: #9ca3ab;
+  --md-accent-fg-color: #4c8dff;
+  --md-typeset-a-color: #4c8dff;
+  --md-default-bg-color: #0f1217;
+  --md-default-fg-color: #eceef1;
+  --md-default-fg-color--light: #9ca3ab;
+  --md-code-bg-color: #0c0e12;
+  --md-code-fg-color: #c7ccd2;
+  --md-footer-bg-color: #13161a;
+  --md-footer-bg-color--dark: #0c0e12;
+}
+
+/* Tables carry paths, options and values: keep them readable. */
+.md-typeset table:not([class]) {
+  font-size: 0.75rem;
+}
+
+/* The header and tabs are surfaces: separate them from the page with a
+   rule, not a shadow. */
+.md-header,
+.md-tabs {
+  box-shadow: none;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+}
+
+/* In the light theme the active nav item is azure (a selection). */
+[data-md-color-scheme="default"] .md-nav__link--active,
+[data-md-color-scheme="default"] .md-nav__item .md-nav__link--active {
+  color: #1d4ed8;
+}
+
+/* Header search on the daylight header: a field, as in the app. */
+@media screen and (min-width: 60em) {
+  [data-md-color-scheme="default"] .md-search__input {
+    background-color: #f4f6f8;
+    box-shadow: inset 0 0 0 1px #8a939e;
+  }
+  [data-md-color-scheme="default"] .md-search__input::placeholder,
+  [data-md-color-scheme="default"] .md-search__input + .md-search__icon {
+    color: #5c6670;
+  }
+}

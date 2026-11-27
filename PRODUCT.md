@@ -71,7 +71,7 @@ Tablets and phones are not a priority.
 
 ## Evidence on Hand
 
-- `docs/screenshot.png`: a screenshot of the running UI.
+- `docs/assets/screenshot.png`: a screenshot of the running UI.
 - Local-only captures for verification, manifest in the repository
   (`tests/localdata/`).
 - No user research, usage analytics or testimonials exist. Do not invent them.

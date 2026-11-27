@@ -9,7 +9,7 @@ services:
         MRTKLIB_BRANCH: ${MRTKLIB_BRANCH:-}
     ports:
       # Localhost only by default. MRTK_BIND=0.0.0.0 in .env opens the UI to
-      # the network; set MRTK_AUTH_TOKEN with it (docs/deployment.md).
+      # the network; set MRTK_AUTH_TOKEN with it (docs/deployment/security.md).
       - "${MRTK_BIND:-127.0.0.1}:8080:8000"
     volumes:
       # Output files, presets, configs (read-write)

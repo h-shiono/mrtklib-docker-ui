@@ -38,7 +38,7 @@ conversion, and data tools from a browser without compiling anything.
 - Single container, same-origin (port 8080, published on `127.0.0.1`
   unless `MRTK_BIND` says otherwise)
 - Optional access token `MRTK_AUTH_TOKEN` (`auth.py`); see
-  `docs/deployment.md` for the threat model
+  `docs/deployment/security.md` for the threat model
 
 ## Directory Structure
 ```
@@ -69,6 +69,10 @@ mrtklib-docker-ui/
 │   ├── types/         # MrtkPostConfig etc.
 │   ├── theme.ts       # Mantine theme + cssVariablesResolver
 │   └── utils/         # gnssTime, configToBackend, tomlImport, ...
+├── docs/              # Documentation site source (MkDocs Material,
+│                      #   mkdocs.yml; published from main by docs.yml)
+├── mkdocs.yml
+├── CONTRIBUTING.md    # Dev setup, architecture, releases and images
 ├── docker/Dockerfile
 ├── docker-compose.yml
 └── .env.example

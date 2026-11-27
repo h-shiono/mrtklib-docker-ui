@@ -26,6 +26,11 @@ dev = [
     "httpx>=0.28.0",
     "ruff>=0.8.0",
 ]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocs-minify-plugin>=0.8",
+    "pymdown-extensions>=10.9",
+]
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
