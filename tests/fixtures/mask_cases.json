@@ -1,0 +1,135 @@
+{
+  "_comment": "Credential masking cases shared by tests/test_mask_credentials.py (mask_log_line) and frontend/src/utils/maskPath.test.ts (maskLogLine).",
+  "cases": [
+    {
+      "group": "NTRIP / stream paths",
+      "line": "ntrip://user:pass@rtk2go.com:2101/MOUNT",
+      "expected": "ntrip://user:***@rtk2go.com:2101/MOUNT"
+    },
+    {
+      "group": "NTRIP / stream paths",
+      "line": "-in ntrip://u:p@h:2101/M -out tcpsvr://:2102",
+      "expected": "-in ntrip://u:***@h:2101/M -out tcpsvr://:2102"
+    },
+    {
+      "group": "NTRIP / stream paths",
+      "line": "path = \"user:secret@caster:2101/MNT\"",
+      "expected": "path = \"user:***@caster:2101/MNT\""
+    },
+    {
+      "group": "password containing '@' is masked whole",
+      "line": "user:p@ss@caster:2101/M",
+      "expected": "user:***@caster:2101/M"
+    },
+    {
+      "group": "password containing '/' is masked whole",
+      "line": "user:pa/ss@caster:2101/MOUNT",
+      "expected": "user:***@caster:2101/MOUNT"
+    },
+    {
+      "group": "password containing '/' is masked whole",
+      "line": "ntrip://user:pa/ss@caster:2101/MOUNT",
+      "expected": "ntrip://user:***@caster:2101/MOUNT"
+    },
+    {
+      "group": "e-mail user names (rtk2go)",
+      "line": "ntrip://me@example.com:pass@rtk2go.com:2101/M",
+      "expected": "ntrip://me@example.com:***@rtk2go.com:2101/M"
+    },
+    {
+      "group": "e-mail user names (rtk2go)",
+      "line": "path = \"me@example.com:pa/ss@rtk2go.com:2101/M\"",
+      "expected": "path = \"me@example.com:***@rtk2go.com:2101/M\""
+    },
+    {
+      "group": "e-mail user names (rtk2go)",
+      "line": "-in ntrip://a.b@c.jp:x@y@h:2101/M",
+      "expected": "-in ntrip://a.b@c.jp:***@h:2101/M"
+    },
+    {
+      "group": "e-mail user names (rtk2go)",
+      "line": "me@example.com:pass@rtk2go.com:2101/M",
+      "expected": "me@example.com:***@rtk2go.com:2101/M"
+    },
+    {
+      "group": "e-mail user names (rtk2go)",
+      "line": "path = \"u:a/b@c@caster:2101/M\"",
+      "expected": "path = \"u:***@caster:2101/M\""
+    },
+    {
+      "group": "query-string secrets",
+      "line": "GET https://h/x?token=abc123&n=1",
+      "expected": "GET https://h/x?token=***&n=1"
+    },
+    {
+      "group": "query-string secrets",
+      "line": "url?api_key=SECRET",
+      "expected": "url?api_key=***"
+    },
+    {
+      "group": "query-string secrets",
+      "line": "a?x=1&Password=hunter2 next",
+      "expected": "a?x=1&Password=*** next"
+    },
+    {
+      "group": "assignments (TOML / env dumps)",
+      "line": "[CONF] passwd = \"admin\"",
+      "expected": "[CONF] passwd = \"***\""
+    },
+    {
+      "group": "assignments (TOML / env dumps)",
+      "line": "api_key: 'sk-123'",
+      "expected": "api_key: '***'"
+    },
+    {
+      "group": "assignments (TOML / env dumps)",
+      "line": "GSI_PASSWORD=hunter2",
+      "expected": "GSI_PASSWORD=***"
+    },
+    {
+      "group": "auth headers",
+      "line": "Authorization: Bearer eyJhbGci.x.y",
+      "expected": "Authorization: Bearer ***"
+    },
+    {
+      "group": "auth headers",
+      "line": "Authorization: Basic dXNlcjpwYXNz",
+      "expected": "Authorization: Basic ***"
+    },
+    {
+      "group": "auth headers",
+      "line": "sent Bearer abcdefghijklmnop0123",
+      "expected": "sent Bearer ***"
+    },
+    {
+      "group": "untouched",
+      "line": "/dev/ttyUSB0:115200",
+      "expected": "/dev/ttyUSB0:115200"
+    },
+    {
+      "group": "untouched",
+      "line": "[INFO] Basic Strategy: single",
+      "expected": "[INFO] Basic Strategy: single"
+    },
+    {
+      "group": "untouched",
+      "line": "bearer of bad news",
+      "expected": "bearer of bad news"
+    },
+    {
+      "group": "untouched",
+      "line": "\"max_tokens\": 16",
+      "expected": "\"max_tokens\": 16"
+    },
+    {
+      "group": "untouched",
+      "line": "12:34:56.0 Q=1 ns=12",
+      "expected": "12:34:56.0 Q=1 ns=12"
+    },
+    {
+      "group": "untouched",
+      "line": "tcpcli://192.168.1.10:2101",
+      "expected": "tcpcli://192.168.1.10:2101"
+    }
+  ]
+}

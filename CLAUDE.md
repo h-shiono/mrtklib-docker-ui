@@ -54,7 +54,7 @@ mrtklib-docker-ui/
 │   │                  #   clas_pipeline, convert, downloader, presets,
 │   │                  #   files, config, ai, obs_qc
 │   └── services/      # Business logic per feature
-├── tests/             # pytest (backend)
+├── tests/             # pytest (backend); fixtures/ shared with Vitest
 ├── frontend/src/
 │   ├── App.tsx        # Shell, header mode switch, PP panel
 │   ├── components/
@@ -188,6 +188,7 @@ cd frontend
 npm install
 npm run dev        # http://localhost:5173 (proxies to :8000)
 npm run build
+npm test           # Vitest + Testing Library (src/**/*.test.ts(x))
 npm run lint
 ```
 

@@ -1,0 +1,636 @@
+{
+  "config": {
+    "positioning": {
+      "positioning_mode": "ppp-rtk",
+      "correction": "igs",
+      "frequency": "l1+l2+l5",
+      "signal_mode": "signals",
+      "signals": "/workspace/x.dat",
+      "filter_type": "combined",
+      "elevation_mask": 16.5,
+      "receiver_dynamics": "on",
+      "ephemeris_option": "precise",
+      "constellations": {
+        "gps": false,
+        "glonass": false,
+        "galileo": false,
+        "qzss": false,
+        "sbas": false,
+        "beidou": false,
+        "irnss": true
+      },
+      "excluded_satellites": "/workspace/x.dat",
+      "bds2_sats": "C09 C10",
+      "bds_geo_sats": "C59-C62",
+      "robust": "on",
+      "robust_k0": 3.0,
+      "robust_k1": 5.5,
+      "tdcp": "on",
+      "tdcp_jump": 6.5,
+      "snr_mask": {
+        "enable_rover": true,
+        "enable_base": true,
+        "mask": [
+          [
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5
+          ],
+          [
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5
+          ],
+          [
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5
+          ]
+        ]
+      },
+      "corrections": {
+        "satellite_antenna": true,
+        "receiver_antenna": true,
+        "phase_windup": "on",
+        "exclude_eclipse": true,
+        "raim_fde": true,
+        "iono_compensation": "ssr",
+        "partial_ar": true,
+        "shapiro_delay": true,
+        "exclude_qzs_ref": true,
+        "no_phase_bias_adj": true,
+        "gps_frequency": "l1+l5",
+        "qzs_frequency": "l1+l5",
+        "tidal_correction": "on",
+        "snr_fixed": 1
+      },
+      "atmosphere": {
+        "ionosphere": "dual-freq",
+        "troposphere": "est-ztd"
+      },
+      "clas": {
+        "grid_selection_radius": 1001.5,
+        "receiver_type": "/workspace/x.dat",
+        "enhanced_spp_seed": "cn0+tdcp+robust",
+        "l6_merge": 1,
+        "reset_interval": 1
+      }
+    },
+    "ambiguity_resolution": {
+      "mode": "fix-and-hold",
+      "gps_ar": false,
+      "glonass_ar": "autocal",
+      "bds_ar": "off",
+      "qzs_ar": "off",
+      "systems": 2,
+      "bds3_igso_sats": "C38-C40",
+      "thresholds": {
+        "ratio": 4.5,
+        "ratio1": 2.4999000000000002,
+        "ratio5": 1.5,
+        "ratio6": 1.5,
+        "alpha": "1%",
+        "elevation_mask": 1.5,
+        "hold_elevation": 1.5,
+        "max_pdop_ar": 1.5,
+        "max_pdop_hold": 1.5,
+        "reference_dop": "sd"
+      },
+      "counters": {
+        "lock_count": 1,
+        "min_fix": 11,
+        "max_iterations": 2,
+        "out_count": 6
+      },
+      "partial_ar": {
+        "min_ambiguities": 1,
+        "max_excluded_sats": 1,
+        "min_fix_sats": 5,
+        "min_drop_sats": 1,
+        "min_hold_sats": 1,
+        "ar_filter": true
+      },
+      "hold": {
+        "variance": 1.501
+      }
+    },
+    "rejection": {
+      "innovation": 31.5,
+      "l1_l2_residual": 1.5,
+      "dispersive": 1.5,
+      "non_dispersive": 1.5,
+      "hold_chi_square": 1.5,
+      "fix_chi_square": 1.5,
+      "gdop": 31.5,
+      "pseudorange_diff": 1.5,
+      "position_error_count": 1,
+      "spp_residual": 1.5,
+      "spp_min_sats": 8
+    },
+    "slip_detection": {
+      "threshold": 1.55,
+      "doppler": 1.5
+    },
+    "kalman_filter": {
+      "iterations": 2,
+      "measurement_error": {
+        "code_phase_ratio_l1": 101.5,
+        "code_phase_ratio_l2": 101.5,
+        "code_phase_ratio_l5": 101.5,
+        "phase": 1.503,
+        "phase_elevation": 1.503,
+        "phase_baseline": 1.5,
+        "doppler": 2.5,
+        "ura_ratio": 1.5,
+        "snr_max": 1.5,
+        "snr_error": 1.5,
+        "ionosphere": 1.5,
+        "troposphere": 1.5
+      },
+      "initial_std": {
+        "bias": 31.5,
+        "ionosphere": 1.53,
+        "troposphere": 1.8
+      },
+      "process_noise": {
+        "bias": 1.5001,
+        "ionosphere": 1.501,
+        "iono_max": 1.5,
+        "troposphere": 1.5001,
+        "accel_h": 2.5,
+        "accel_v": 1.6,
+        "position_h": 1.5,
+        "position_v": 1.5,
+        "position": 1.5,
+        "ifb": 1.5,
+        "iono_time_const": 1.5,
+        "clock_stability": 1.500000000005
+      }
+    },
+    "adaptive_filter": {
+      "enabled": true,
+      "iono_forgetting": 1.5,
+      "iono_gain": 1.5,
+      "pva_forgetting": 1.5,
+      "pva_gain": 1.5
+    },
+    "signal_selection": {
+      "gps": "L1/L5",
+      "qzs": "L1/L2",
+      "galileo": "E1/E5b",
+      "bds2": "B1I/B2I",
+      "bds3": "B1I/B2I"
+    },
+    "receiver": {
+      "iono_correction": false,
+      "ignore_chi_error": true,
+      "ppp_sat_clock_bias": 1,
+      "ppp_sat_phase_bias": 1,
+      "uncorr_bias": 1,
+      "max_bias_dt": 1,
+      "phase_shift": "table",
+      "isb": true,
+      "reference_type": "/workspace/x.dat",
+      "max_age": 31.5,
+      "baseline_length": 1.5,
+      "baseline_sigma": 1.5,
+      "clock_jump": true
+    },
+    "antenna": {
+      "rover": {
+        "mode": "xyz",
+        "values": [
+          1.5,
+          1.5,
+          1.5
+        ],
+        "antenna_type_enabled": true,
+        "antenna_type": "/workspace/x.dat",
+        "antenna_delta": [
+          1.5,
+          1.5,
+          1.5
+        ]
+      },
+      "base": {
+        "mode": "xyz",
+        "values": [
+          1.5,
+          1.5,
+          1.5
+        ],
+        "antenna_type_enabled": true,
+        "antenna_type": "/workspace/x.dat",
+        "antenna_delta": [
+          1.5,
+          1.5,
+          1.5
+        ],
+        "max_average_epochs": 1,
+        "init_reset": true
+      }
+    },
+    "output": {
+      "solution_format": "xyz",
+      "output_header": false,
+      "output_processing_options": true,
+      "output_velocity": true,
+      "time_format": "utc",
+      "num_decimals": 4,
+      "lat_lon_format": "ddd-mm-ss.sss",
+      "field_separator": "/workspace/x.dat",
+      "height": "geodetic",
+      "geoid_model": "egm96",
+      "static_solution_mode": "single",
+      "output_single_on_outage": true,
+      "max_solution_std": 1.5,
+      "nmea_interval_rmc_gga": 1,
+      "nmea_interval_gsa_gsv": 1,
+      "output_solution_status": "state",
+      "debug_trace": "level2",
+      "clas_nmea_source_id": false
+    },
+    "files": {
+      "satellite_atx": "/workspace/x.dat",
+      "receiver_atx": "/workspace/x.dat",
+      "station_pos": "/workspace/x.dat",
+      "geoid": "/workspace/x.dat",
+      "ionosphere": "/workspace/x.dat",
+      "dcb": "/workspace/x.dat",
+      "eop": "/workspace/x.dat",
+      "ocean_loading": "/workspace/x.dat",
+      "fcb": "/workspace/x.dat",
+      "bias_sinex": "/workspace/x.dat",
+      "cssr_grid": "/workspace/x.dat",
+      "isb_table": "/workspace/x.dat",
+      "phase_cycle": "/workspace/x.dat",
+      "temp_dir": "/workspace/x.dat",
+      "trace": "/workspace/x.dat",
+      "cmd_file_1": "/workspace/x.dat",
+      "cmd_file_2": "/workspace/x.dat",
+      "cmd_file_3": "/workspace/x.dat"
+    },
+    "server": {
+      "cycle_ms": 11,
+      "timeout_ms": 10001,
+      "reconnect_ms": 10001,
+      "nmea_cycle_ms": 5001,
+      "buffer_size": 32769,
+      "nav_msg_select": "rover",
+      "proxy": "/workspace/x.dat",
+      "swap_margin": 31,
+      "time_interpolation": true,
+      "sbas_satellite": "129",
+      "rinex_option_1": "/workspace/x.dat",
+      "rinex_option_2": "/workspace/x.dat",
+      "ppp_option": "/workspace/x.dat",
+      "rtcm_option": "/workspace/x.dat",
+      "l6_margin": 1,
+      "max_obs_loss": 91.5,
+      "float_count": 16,
+      "start_cmd": "/workspace/x.dat",
+      "stop_cmd": "/workspace/x.dat"
+    }
+  },
+  "toml": {
+    "positioning": {
+      "mode": "ppp-rtk",
+      "correction": "igs",
+      "signals": [
+        "/workspace/x.dat"
+      ],
+      "solution_type": "combined",
+      "elevation_mask": 16.5,
+      "dynamics": true,
+      "satellite_ephemeris": "precise",
+      "excluded_sats": [
+        "/workspace/x.dat"
+      ],
+      "bds2_sats": [
+        "C09",
+        "C10"
+      ],
+      "bds_geo_sats": [
+        "C59-C62"
+      ],
+      "systems": [
+        "NavIC"
+      ],
+      "robust": "on",
+      "robust_k0": 3.0,
+      "robust_k1": 5.5,
+      "tdcp": "on",
+      "tdcp_jump": 6.5,
+      "snr_mask": {
+        "rover_enabled": true,
+        "base_enabled": true,
+        "L1": [
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5
+        ],
+        "L2": [
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5
+        ],
+        "L5": [
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5
+        ]
+      },
+      "corrections": {
+        "satellite_antenna": true,
+        "receiver_antenna": true,
+        "phase_windup": "on",
+        "exclude_eclipse": true,
+        "raim_fde": true,
+        "iono_compensation": "ssr",
+        "partial_ar": true,
+        "shapiro_delay": true,
+        "exclude_qzs_ref": true,
+        "no_phase_bias_adj": true,
+        "gps_frequency": "l1+l5",
+        "qzs_frequency": "l1+l5",
+        "snr_fixed": 1,
+        "tidal_correction": "on"
+      },
+      "atmosphere": {
+        "ionosphere": "dual-freq",
+        "troposphere": "est-ztd"
+      },
+      "spp": {
+        "ignore_chi_error": true
+      },
+      "relative": {
+        "max_age": 31.5,
+        "baseline_length": 1.5,
+        "baseline_sigma": 1.5,
+        "time_interpolation": true
+      },
+      "ppp": {
+        "satellite_clock_bias": 1,
+        "satellite_phase_bias": 1,
+        "drop_uncorrected_code": true,
+        "clock_jump": true,
+        "max_bias_dt": 1,
+        "options": "/workspace/x.dat"
+      },
+      "madoca": {
+        "iono_correction": false
+      },
+      "clas": {
+        "grid_selection_radius": 1001.5,
+        "receiver_type": "/workspace/x.dat",
+        "enhanced_spp_seed": "cn0+tdcp+robust",
+        "ambiguities": {
+          "phase_shift": "table",
+          "isb": true,
+          "reference_type": "/workspace/x.dat"
+        },
+        "resilience": {
+          "max_obs_loss": 91.5,
+          "float_count": 16,
+          "l6_merge": 1,
+          "reset_interval": 1
+        },
+        "adaptive_filter": {
+          "enabled": true,
+          "iono_forgetting": 1.5,
+          "iono_gain": 1.5,
+          "pva_forgetting": 1.5,
+          "pva_gain": 1.5
+        }
+      }
+    },
+    "ambiguity_resolution": {
+      "mode": "fix-and-hold",
+      "gps_ar": false,
+      "glonass_ar": "autocal",
+      "bds_ar": false,
+      "qzs_ar": false,
+      "systems": 2,
+      "bds3_igso_sats": [
+        "C38-C40"
+      ],
+      "thresholds": {
+        "ratio": 4.5,
+        "ratio1": 2.4999000000000002,
+        "ratio5": 1.5,
+        "ratio6": 1.5,
+        "alpha": "1%",
+        "elevation_mask": 1.5,
+        "hold_elevation": 1.5,
+        "max_pdop_ar": 1.5,
+        "max_pdop_hold": 1.5,
+        "reference_dop": "sd"
+      },
+      "counters": {
+        "lock_count": 1,
+        "min_fix": 11,
+        "max_iterations": 2,
+        "out_count": 6
+      },
+      "partial_ar": {
+        "min_ambiguities": 1,
+        "max_excluded_sats": 1,
+        "min_fix_sats": 5,
+        "min_drop_sats": 1,
+        "min_hold_sats": 1,
+        "ar_filter": true
+      },
+      "hold": {
+        "variance": 1.501
+      }
+    },
+    "rejection": {
+      "innovation": 31.5,
+      "gdop": 31.5,
+      "l1_l2_residual": 1.5,
+      "dispersive": 1.5,
+      "non_dispersive": 1.5,
+      "hold_chi_square": 1.5,
+      "fix_chi_square": 1.5,
+      "spp_residual": 1.5,
+      "spp_min_sats": 8,
+      "pseudorange_diff": 1.5,
+      "position_error_count": 1
+    },
+    "slip_detection": {
+      "threshold": 1.55,
+      "doppler": 1.5
+    },
+    "kalman_filter": {
+      "iterations": 2,
+      "measurement_error": {
+        "code_phase_ratio_L1": 101.5,
+        "code_phase_ratio_L2": 101.5,
+        "code_phase_ratio_L5": 101.5,
+        "phase": 1.503,
+        "phase_elevation": 1.503,
+        "phase_baseline": 1.5,
+        "doppler": 2.5,
+        "snr_max": 1.5,
+        "snr_error": 1.5,
+        "ionosphere": 1.5,
+        "troposphere": 1.5,
+        "ura_ratio": 1.5
+      },
+      "initial_std": {
+        "bias": 31.5,
+        "ionosphere": 1.53,
+        "troposphere": 1.8
+      },
+      "process_noise": {
+        "accel_h": 2.5,
+        "accel_v": 1.6,
+        "position_h": 1.5,
+        "position_v": 1.5,
+        "position": 1.5,
+        "bias": 1.5001,
+        "ionosphere": 1.501,
+        "iono_max": 1.5,
+        "troposphere": 1.5001,
+        "iono_time_const": 1.5,
+        "clock_stability": 1.500000000005,
+        "ifb": 1.5
+      }
+    },
+    "input": {
+      "rinex": {
+        "option_1": "/workspace/x.dat",
+        "option_2": "/workspace/x.dat"
+      },
+      "rtcm": {
+        "options": "/workspace/x.dat"
+      },
+      "sbas": {
+        "satellite": 129
+      }
+    },
+    "antenna": {
+      "rover": {
+        "position_type": "xyz",
+        "position_1": 1.5,
+        "position_2": 1.5,
+        "position_3": 1.5,
+        "type": "/workspace/x.dat",
+        "delta_e": 1.5,
+        "delta_n": 1.5,
+        "delta_u": 1.5
+      },
+      "base": {
+        "position_type": "xyz",
+        "position_1": 1.5,
+        "position_2": 1.5,
+        "position_3": 1.5,
+        "type": "/workspace/x.dat",
+        "delta_e": 1.5,
+        "delta_n": 1.5,
+        "delta_u": 1.5,
+        "max_average_epochs": 1,
+        "init_reset": true
+      }
+    },
+    "output": {
+      "format": "xyz",
+      "header": false,
+      "options": true,
+      "velocity": true,
+      "time_system": "utc",
+      "time_format": "hms",
+      "time_decimals": 4,
+      "coordinate_format": "dms",
+      "field_separator": "/workspace/x.dat",
+      "single_output": true,
+      "max_solution_std": 1.5,
+      "height_type": "geodetic",
+      "geoid_model": "egm96",
+      "static_solution": "single",
+      "nmea_interval_1": 1.0,
+      "nmea_interval_2": 1.0,
+      "solution_status": "state",
+      "clas_nmea_source_id": false
+    },
+    "files": {
+      "satellite_atx": "/workspace/x.dat",
+      "receiver_atx": "/workspace/x.dat",
+      "station_pos": "/workspace/x.dat",
+      "geoid": "/workspace/x.dat",
+      "ionosphere": "/workspace/x.dat",
+      "dcb": "/workspace/x.dat",
+      "eop": "/workspace/x.dat",
+      "ocean_loading": "/workspace/x.dat",
+      "temp_dir": "/workspace/x.dat",
+      "trace": "/workspace/x.dat",
+      "fcb": "/workspace/x.dat",
+      "bias_sinex": "/workspace/x.dat",
+      "cssr_grid": "/workspace/x.dat",
+      "isb_table": "/workspace/x.dat",
+      "phase_cycle": "/workspace/x.dat",
+      "cmd_file_1": "/workspace/x.dat",
+      "cmd_file_2": "/workspace/x.dat",
+      "cmd_file_3": "/workspace/x.dat"
+    },
+    "server": {
+      "cycle_ms": 11,
+      "timeout_ms": 10001,
+      "reconnect_ms": 10001,
+      "nmea_cycle_ms": 5001,
+      "buffer_size": 32769,
+      "nav_msg_select": "rover",
+      "proxy": "/workspace/x.dat",
+      "swap_margin": 31,
+      "start_cmd": "/workspace/x.dat",
+      "stop_cmd": "/workspace/x.dat"
+    }
+  },
+  "not_written": [
+    "positioning.frequency",
+    "positioning.signal_mode",
+    "signal_selection.gps",
+    "signal_selection.qzs",
+    "signal_selection.galileo",
+    "signal_selection.bds2",
+    "signal_selection.bds3",
+    "output.debug_trace",
+    "server.l6_margin"
+  ]
+}
