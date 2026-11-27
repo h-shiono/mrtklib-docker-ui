@@ -575,6 +575,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
           if (err) lastErrorRef.current = err;
         } else if (msg.type === 'trace_reset') {
           // A run was started (possibly from another tab).
+          lastErrorRef.current = null;
           setTraceFile(null);
           setTraceLines([]);
         } else if (msg.type === 'trace_file') {
@@ -858,7 +859,7 @@ export function RealTimeProcessing({ onConfigChange, onNavigateToAiSettings, aiC
 
             {/* 1. Metrics row (Time · Position · Quality · Ratio · Age · Satellites) */}
             <RtMetricsRow lastPosition={lastPosition} satellites={satellites} endedAt={lastPosition ? ended?.at ?? null : null} />
-            {!isRunning && <FailureCause cause={failure} />}
+            {(runStatus === 'error' || runStatus === 'exited') && <FailureCause cause={failure} />}
 
             {/* 3. Tab bar + 4. Chart area */}
             <Tabs value={monitorTab} onChange={setMonitorTab} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>

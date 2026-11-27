@@ -203,9 +203,11 @@ function PostProcessingRightPanel({
     if (processStatus === 'error') {
       return (
         <Group justify="center" px="sm" py={6} wrap="nowrap">
-          <StatusBadge tone="error">Error</StatusBadge>
+          <div style={{ flexShrink: 0 }}>
+            <StatusBadge tone="error">Error</StatusBadge>
+          </div>
           {failure
-            ? <FailureCause cause={failure} />
+            ? <FailureCause cause={failure} icon={false} />
             : <Text size="xs" c="dimmed">Processing failed. Check console for details.</Text>}
         </Group>
       );
@@ -1454,6 +1456,11 @@ function App() {
     apiHealth === 'ok'
       ? liveState(LIVE_SOURCES[view]?.map((src) => live[src]) ?? [])
       : null;
+  // Mantine keeps an empty section's margin: no section without a dot.
+  const mobileDot = (view: string) => {
+    const state = liveOf(view);
+    return state ? <LiveDot name={VIEW_NAME[view]} live={state} /> : undefined;
+  };
   const headerLabel = (view: string) => (
     <>
       {VIEW_NAME[view]}
@@ -1552,11 +1559,11 @@ function App() {
           mb="md"
         >
           <Tabs.List grow>
-            <Tabs.Tab value="post-processing" rightSection={<LiveDot name={VIEW_NAME['post-processing']} live={liveOf('post-processing')} />}>Post</Tabs.Tab>
-            <Tabs.Tab value="realtime" rightSection={<LiveDot name={VIEW_NAME['realtime']} live={liveOf('realtime')} />}>RT</Tabs.Tab>
-            <Tabs.Tab value="stream-relay" rightSection={<LiveDot name={VIEW_NAME['stream-relay']} live={liveOf('stream-relay')} />}>Streams</Tabs.Tab>
-            <Tabs.Tab value="stream-monitor" rightSection={<LiveDot name={VIEW_NAME['stream-monitor']} live={liveOf('stream-monitor')} />}>Monitor</Tabs.Tab>
-            <Tabs.Tab value="tools" rightSection={<LiveDot name={VIEW_NAME['tools']} live={liveOf('tools')} />}>Tools</Tabs.Tab>
+            <Tabs.Tab value="post-processing" rightSection={mobileDot('post-processing')}>Post</Tabs.Tab>
+            <Tabs.Tab value="realtime" rightSection={mobileDot('realtime')}>RT</Tabs.Tab>
+            <Tabs.Tab value="stream-relay" rightSection={mobileDot('stream-relay')}>Streams</Tabs.Tab>
+            <Tabs.Tab value="stream-monitor" rightSection={mobileDot('stream-monitor')}>Monitor</Tabs.Tab>
+            <Tabs.Tab value="tools" rightSection={mobileDot('tools')}>Tools</Tabs.Tab>
           </Tabs.List>
         </Tabs>
 

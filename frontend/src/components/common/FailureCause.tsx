@@ -7,12 +7,16 @@ import { FONT_SIZE, MONO } from '../../utils/typography';
 /** Why a start or a run failed, where the state is shown (#202), so it does
  *  not wait in Console. Masked here like LogView: a start error can carry a
  *  `user:pass@` path (L13). Renders nothing when no cause is known. */
-export function FailureCause({ cause }: { cause: string | null }) {
+export function FailureCause({ cause, icon = true }: {
+  cause: string | null;
+  /** Off beside an error badge, which carries the icon already. */
+  icon?: boolean;
+}) {
   if (!cause) return null;
   const text = maskLogLine(cause);
   return (
     <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }} role="alert">
-      <IconAlertTriangle size={14} color={STATUS_COLOR.error} aria-hidden style={{ flexShrink: 0 }} />
+      {icon && <IconAlertTriangle size={14} color={STATUS_COLOR.error} aria-hidden style={{ flexShrink: 0 }} />}
       <Text
         span
         title={text}

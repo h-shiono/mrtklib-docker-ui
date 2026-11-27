@@ -8,7 +8,8 @@ describe('liveState', () => {
     // Ended states are the screen's to report, not live processes.
     [['error', 'failed', 'exited', 'done', 'success'], null],
     [['starting'], 'starting'],
-    [['stopping'], 'starting'],
+    [['stopping'], 'stopping'],
+    [['stopping', 'starting'], 'stopping'],
     [['converting'], 'running'],
     // Any running process wins over one still starting.
     [['starting', 'running', 'error'], 'running'],
